@@ -47,7 +47,10 @@ pub use crate::corpus::schema::Evidence;
 /// 7: that call includes a heredoc it reads; Ruby, Swift and C# string
 /// interpolation is code; a helper called with the bound value below the
 /// rule's window receives it.
-pub const ENGINE_REVISION: u32 = 7;
+/// 8: a helper handed the bound value by reference receives it; a connection
+/// opened by a method call is followed to the send on its object; a heredoc
+/// after `&&`, `||` or `;` is read only if that command is the sink.
+pub const ENGINE_REVISION: u32 = 8;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

