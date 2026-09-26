@@ -502,6 +502,7 @@
         ]
       },
       "window_lines": 60,
+      "name_uses": "value",
       "sink_window_before": 10,
       "max_line_length": 500,
       "sink_excludes": [],

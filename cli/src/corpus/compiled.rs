@@ -1457,6 +1457,13 @@ mod tests {
             ("sink excludes", |r| r.sink_excludes.push("zz".into())),
             ("source", |r| r.source.rule_ids.push("ZZ-001".into())),
             ("sink", |r| r.sink.rule_prefixes.push("ZZ-".into())),
+            ("name uses", |r| {
+                use crate::corpus::schema::NameUses;
+                r.name_uses = match r.name_uses {
+                    NameUses::Word => NameUses::Value,
+                    NameUses::Value => NameUses::Word,
+                }
+            }),
         ];
         for (what, change) in corr_changes {
             assert_ne!(

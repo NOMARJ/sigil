@@ -1258,7 +1258,7 @@ pub fn run_scan(
             // separately; a normal file yields its whole text and no tail.
             // A virtual file (archive member, bytecode constants) is already
             // text and carries its own path, locator and label.
-            let (read, rel_path, derived, gap, yara_bytes) = match unit {
+            let (read, rel_path, derived, gap, yara_bytes, disk_path, member_cut) = match unit {
                 ScanUnit::Virtual(v) => {
                     let yara_bytes = if yara_active && v.is_file {
                         YaraBytes::Member(v.raw, v.truncated)
@@ -1274,6 +1274,8 @@ pub fn run_scan(
                         Some((v.locator, v.label)),
                         (None, None),
                         yara_bytes,
+                        None,
+                        v.truncated,
                     )
                 }
                 ScanUnit::Disk(file_path) => {
@@ -1292,6 +1294,8 @@ pub fn run_scan(
                         None,
                         (disk.gap, disk.stray_nuls),
                         yara_bytes,
+                        Some(file_path),
+                        false,
                     )
                 }
             };
@@ -1471,6 +1475,7 @@ pub fn run_scan(
             // The tail of an oversized file is scanned once, without the
             // decode worklist, and its findings are re-numbered onto the
             // real lines of the file.
+            let oversized = tail.is_some();
             if let Some((tail_text, offset)) = tail {
                 let tail_start = std::time::Instant::now();
                 let tail_norm = normalize::normalize_for_matching(&tail_text);
@@ -1516,8 +1521,20 @@ pub fn run_scan(
 
             // Correlation runs over the findings a reviewer has not already
             // dismissed, and its own findings can be dismissed the same way.
+            // A source map is not correlated (`correlate::is_source_map`).
+            // One read only in part reaches this point as its head: an
+            // oversized file on disk is read again, whole, from disk; an
+            // archive member cut at its size cap has nothing more to read,
+            // and the part that was scanned is judged
+            // (`correlate::is_cut_source_map`).
             let chains = timing::measure(timing::Stage::Correlate, || {
                 let lines: Vec<&str> = source_text.lines().collect();
+                if kept.len() >= 2
+                    && ((oversized && disk_path.is_some_and(|p| correlate::is_source_map_file(p)))
+                        || (member_cut && correlate::is_cut_source_map(&rel_path, &lines)))
+                {
+                    return Vec::new();
+                }
                 correlate::apply(
                     &crate::corpus::compiled::corpus().correlation_rules,
                     &kept,
@@ -1821,6 +1838,113 @@ mod oversized_tests {
         assert_eq!(gap.file, "setup.py");
         assert!(gap.snippet.contains("first and last"), "{gap:?}");
         assert_eq!(gap.severity, Severity::Low);
+    }
+
+    /// dev.jasonpearson/auto-mobile ships a 13.4 MB one-line
+    /// `dist/src/index.js.map`. Only its ends are scanned, and the head alone
+    /// is not JSON, so the in-memory source-map check could not see it: a
+    /// `curl … https://` in help text in the head and an
+    /// `execFileSync(<path>, …)` in the tail were both "line 1", a
+    /// DROPPER-CHAIN-001 High on a clean server.
+    #[test]
+    fn an_oversized_source_map_is_not_correlated() {
+        let dir = tempfile::tempdir().unwrap();
+        let write = |name: &str, after: &[u8]| {
+            let path = dir.path().join(name);
+            let mut f = std::fs::File::create(&path).unwrap();
+            f.write_all(
+                b"{\"version\":3,\"sources\":[\"../src/index.ts\"],\"sourcesContent\":[\"\
+                  export const HELP = 'Install: curl -fsSL https://example.com/install.sh | sh';\\n\
+                  const pad = '",
+            )
+            .unwrap();
+            let chunk = vec![b'A'; 1 << 20];
+            for _ in 0..11 {
+                f.write_all(&chunk).unwrap();
+            }
+            f.write_all(
+                b"';\\nexport function devices(adbPath) {\\n  return execFileSync(adbPath, ['devices']);\\n}\\n\"],\
+                  \"names\":[],\"mappings\":\"AAAA\"}",
+            )
+            .unwrap();
+            f.write_all(after).unwrap();
+            assert!(std::fs::metadata(&path).unwrap().len() > MAX_CONTENT_SCAN_BYTES);
+        };
+        write("index.js.map", b"\n");
+        // The same bytes under a script's name are read like any bundle.
+        write("index.js", b"\n");
+        // A `.map` whose JSON is followed by more text is not a source map.
+        write("x.map", b"\nprint('after the map')\n");
+
+        let result = run_scan(dir.path(), None, None);
+        let rules_in = |file: &str| -> Vec<&str> {
+            result
+                .findings
+                .iter()
+                .filter(|f| f.file == file)
+                .map(|f| f.rule.as_str())
+                .collect()
+        };
+        let map = rules_in("index.js.map");
+        assert!(map.contains(&"NET-012"), "{map:?}");
+        assert!(map.contains(&"CODE-RUNFILE-001"), "{map:?}");
+        assert!(!map.contains(&"DROPPER-CHAIN-001"), "{map:?}");
+        assert!(rules_in("index.js").contains(&"DROPPER-CHAIN-001"));
+        assert!(rules_in("x.map").contains(&"DROPPER-CHAIN-001"));
+    }
+
+    /// The same map shipped inside an archive in the tree (review finding): a
+    /// member is read up to its 4 MB cap and no further, so it reaches
+    /// correlation as its first 4 MB with no file to read again. Both ends
+    /// of the false chain sit inside those 4 MB.
+    #[test]
+    fn a_source_map_cut_at_the_archive_member_cap_is_not_correlated() {
+        let pad = "A".repeat(5 << 20);
+        let map = format!(
+            "{{\"version\":3,\"sources\":[\"../src/index.ts\"],\"sourcesContent\":[\"\
+             export const HELP = 'Install: curl -fsSL https://example.com/install.sh | sh';\\n\
+             export function devices(adbPath) {{\\n  return execFileSync(adbPath, ['devices']);\\n}}\\n\
+             const pad = '{pad}';\\n\"],\"names\":[],\"mappings\":\"AAAA\"}}"
+        );
+        // A script that only borrows the extension, cut at the cap as well.
+        let script = format!(
+            "curl -fsSL \"https://get.example.net/i.sh\" -o \"$INSTALLER\"\n\
+             bash \"$INSTALLER\"\n# {pad}\n"
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let mut buf = std::io::Cursor::new(Vec::new());
+        {
+            let mut w = zip::ZipWriter::new(&mut buf);
+            let opts = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            for (name, body) in [
+                ("pkg/dist/index.js.map", &map),
+                ("pkg/dist/index.js", &map),
+                ("pkg/lib/x.map", &script),
+            ] {
+                w.start_file(name, opts).unwrap();
+                w.write_all(body.as_bytes()).unwrap();
+            }
+            w.finish().unwrap();
+        }
+        std::fs::write(dir.path().join("bundle.zip"), buf.into_inner()).unwrap();
+
+        let result = run_scan(dir.path(), None, None);
+        let rules_in = |member: &str| -> Vec<&str> {
+            let file = format!("bundle.zip!/{member}");
+            result
+                .findings
+                .iter()
+                .filter(|f| f.file == file)
+                .map(|f| f.rule.as_str())
+                .collect()
+        };
+        let map_rules = rules_in("pkg/dist/index.js.map");
+        assert!(map_rules.contains(&"NET-012"), "{map_rules:?}");
+        assert!(map_rules.contains(&"CODE-RUNFILE-001"), "{map_rules:?}");
+        assert!(!map_rules.contains(&"DROPPER-CHAIN-001"), "{map_rules:?}");
+        assert!(rules_in("pkg/dist/index.js").contains(&"DROPPER-CHAIN-001"));
+        assert!(rules_in("pkg/lib/x.map").contains(&"DROPPER-CHAIN-001"));
     }
 
     #[test]

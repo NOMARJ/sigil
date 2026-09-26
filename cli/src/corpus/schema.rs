@@ -432,6 +432,14 @@ pub struct CorrelationRule {
     /// about each other.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub max_line_length: usize,
+    /// Which occurrences of a bound name in the sink's window link. `word`
+    /// (the default) takes any whole word; `value` takes only a use of the
+    /// name as a value, so a keyword argument's name, an assignment target
+    /// or an object key that merely repeats it (a call's `url=` keyword
+    /// beside a bound `url`) does not link. A rule with
+    /// `sink_window_before` reads names as `value` whatever this says.
+    #[serde(default, skip_serializing_if = "NameUses::is_word")]
+    pub name_uses: NameUses,
     /// Substrings whose presence in the sink's argument window disqualifies
     /// the link — an auth header is where a key legitimately goes.
     #[serde(default)]
@@ -442,6 +450,24 @@ pub struct CorrelationRule {
     pub references: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
+}
+
+/// How a correlation rule recognises a bound name in the sink's window (see
+/// [`CorrelationRule::name_uses`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum NameUses {
+    /// Any whole-word occurrence.
+    #[default]
+    Word,
+    /// Only an occurrence used as a value.
+    Value,
+}
+
+impl NameUses {
+    fn is_word(&self) -> bool {
+        *self == NameUses::Word
+    }
 }
 
 fn default_window() -> usize {

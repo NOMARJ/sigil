@@ -582,6 +582,29 @@ pass.
   use stub engines that print the recorded formats, so CI needs neither
   engine.
 
+### 🔗 Correlation chains read names as values
+
+- **A keyword argument that repeats a bound name is not a link.** Every
+  built-in chain now sets `name_uses: value`. A keyword argument's name, an
+  assignment target or an object key that only repeats the name the source
+  bound does not link it. A clean health check,
+  `url = os.environ["DATABASE_URL"]` then `requests.get(url=base + "/ping")`,
+  was CRITICAL RISK. The corpus digest covers the setting, so a cached result
+  from the old reading is not reused. Measured cost: 17 of the 844 Datadog
+  samples lose EXFIL-CHAIN-001. All are versions of `artifact-lab-3-package`,
+  which sends the environment in two hops, and all stay CRITICAL RISK on
+  NET-007 and INSTALL-001. No level changed on the 204 malicious and 455
+  clean skills or on 323 MCP servers.
+- **One propagation step was measured and not adopted.** Under the step, a
+  line between source and sink of the form `new = f(bound)` would make `new`
+  a source too. It wins back the 17 chain labels, but it changes no real
+  verdict except through one wrong link, in mistralai's own example code.
+  It turns 7 of 10 constructed clean uses of a credential into CRITICAL RISK:
+  a client, an engine, a connection, an HMAC signature, a refresh-token body
+  and a key hint. A variant restricted to bare uses still turns 3 of them.
+  Method, per-sample results and how it relates to ADR-0005:
+  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
+
 ### 🎯 Verdict
 
 - **HIGH RISK is no longer a score threshold.** It was `score >= 25`, and the score is a
@@ -740,6 +763,7 @@ before it was kept, and the numbers below are from those runs.
 - `make benchmark`, `evaluation_results/HISTORY.md`, `docs/RELEASING.md`, `docs/benchmarks.md`
 
 ### 🐛 Fixed
+- **Correlation chains no longer link inside a source map.** A source map carries each original file as one JSON string, so a `curl` in a code comment and an unrelated `execFile(file, args)` 900 KB away were "the same line": a `DROPPER-CHAIN-001` High on two clean registry MCP servers (`com.vibgrate/ai-context`, `dev.jasonpearson/auto-mobile`). A file named `*.map` whose whole content is a JSON source map is no longer correlated; its line findings are still reported, and a script that only borrows the extension is correlated as before. A map over the 10 MB whole-file limit is checked from disk, and one cut at the 4 MB archive-member cap by the part that was read. On 157 unseen MCP servers this removes those two chains (both servers stay CRITICAL RISK on other rules) and nothing else; the 169 clean MCP servers, the 659 skills and the 844 Datadog packages are unchanged sample for sample. The older chains keep no `max_line_length`: a 500-byte cap removed nothing more from any clean sample and cost three decoded Telegram stealers their only Critical finding (Datadog recall at Critical 561 → 558 of 844). Measurements: [docs/detection/source-map-correlation.md](docs/detection/source-map-correlation.md)
 - MCP server scan tools printed `undefined` for verdict and score: they read the top level while the JSON contract puts the scalars under `summary`
 - `NET-015` matched URL *paths* that end in an abused TLD (`/assets/file.download`)
 - `sigil diff` rejects a residue document as a baseline instead of failing on a missing field
