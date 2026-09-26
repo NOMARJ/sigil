@@ -83,20 +83,41 @@
       "id": "INSTALL-004",
       "phase": "install_hooks",
       "severity": "medium",
-      "pattern": "\"(prepare|prepublish|prepublishOnly)\"",
+      "pattern": "\"(prepare|prepublish)\"\\s*:",
       "description": "npm publish lifecycle script",
       "file_filter": {
         "filename_exact": [
           "package.json"
         ]
       },
-      "remediation": "prepare runs on a bare npm install inside a cloned checkout and whenever the package is installed as a git dependency, and all three of these scripts run before npm publish, so they execute on contributor, CI and git-dependency installs rather than for consumers of the registry tarball. A husky install or a build step (tsc, npm run build) is the normal content; a script that downloads, decodes, or touches anything outside the project directory is a hook aimed at whoever clones the repository, so read the script it calls and reject the package if you cannot account for every command.",
+      "remediation": "prepare runs on a bare npm install inside a cloned checkout and whenever the package is installed as a git dependency, and both prepare and the legacy prepublish run before npm publish, so they execute on contributor, CI and git-dependency installs rather than for consumers of the registry tarball. A husky install or a build step (tsc, npm run build) is the normal content; a script that downloads, decodes, or touches anything outside the project directory is a hook aimed at whoever clones the repository, so read the script it calls and reject the package if you cannot account for every command.",
       "references": [
         "MITRE T1195.001",
         "MITRE T1059.007"
       ],
       "tags": [
         "install-hook",
+        "npm",
+        "package-json",
+        "lifecycle-script"
+      ]
+    },
+    {
+      "id": "INSTALL-009",
+      "phase": "install_hooks",
+      "severity": "low",
+      "pattern": "\"prepublishOnly\"\\s*:",
+      "description": "npm prepublishOnly script (runs only when the maintainer publishes)",
+      "file_filter": {
+        "filename_exact": [
+          "package.json"
+        ]
+      },
+      "remediation": "npm runs prepublishOnly only on npm publish, on the maintainer's machine or in their release CI. It never runs when the package is installed, from the registry, from a git URL or in a cloned checkout, so it cannot act on whoever installs the package. It is reported as an observation; read it only when you are reviewing the maintainer's release process. If another lifecycle script (postinstall, prepare) calls it with npm run prepublishOnly, that script is reported on its own.",
+      "references": [
+        "MITRE T1195.001"
+      ],
+      "tags": [
         "npm",
         "package-json",
         "lifecycle-script"

@@ -82,6 +82,11 @@ pub fn scan_file_with_packs(
                 Ok(r) => r,
                 Err(_) => continue, // skip invalid patterns gracefully
             };
+            // Match-local exemptions; ones that do not compile are disabled,
+            // which can only keep findings (as in `compiled`).
+            let exemptions =
+                super::exempt::compile(&rule.pattern, &rule.suppress).unwrap_or_default();
+            let ext = super::exempt::extension(filename);
 
             let lines: Vec<&str> = contents.lines().collect();
             for (line_num, line) in lines.iter().enumerate() {
@@ -95,6 +100,9 @@ pub fn scan_file_with_packs(
                     .suppress
                     .should_suppress(file_path, filename, line, &nearby, file_header)
                 {
+                    continue;
+                }
+                if exemptions.line_exempt(&re, line, ext) {
                     continue;
                 }
 

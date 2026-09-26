@@ -718,6 +718,9 @@ fn validate_pack(pack: &SignaturePack, errors: &mut Vec<String>, warnings: &mut 
                             rule.pattern
                         ));
                     }
+                    if let Err(e) = super::exempt::validate(&rule.pattern, &rule.suppress) {
+                        errors.push(format!("{label}: suppress: {e}"));
+                    }
                 }
                 Err(e) => errors.push(format!(
                     "{label}: pattern is not a valid Rust regex (no look-around or \

@@ -136,7 +136,7 @@
       "id": "SUPPLY-007",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "Module\\._load\\s*=|require\\.cache\\[[^\\]]+\\]\\s*=|module\\.exports\\s*=.*require\\(\\s*[^\"'\\s)]",
+      "pattern": "Module\\._load\\s*=|require\\.cache\\[[^\\]]+\\]\\s*=|module\\.exports\\s*=[^\\n]{0,200}require\\(\\s*[^\"'\\s)]",
       "description": "Runtime dependency replacement detected",
       "suppress": {
         "path_contains": [
@@ -154,7 +154,7 @@
       "id": "SUPPLY-008",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*\\beval\\s*\\(|template\\s*\\([^)]*\\).*exec",
+      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*\\beval\\s*\\(|template\\s*\\([^)]*\\)[^\\n]{0,200}\\bexec\\b",
       "description": "Template literal code injection pattern",
       "suppress": {
         "path_contains": [
@@ -214,7 +214,7 @@
       "id": "SUPPLY-011",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "(esprima|acorn|babel)\\.parse[\\s\\S]*(node\\.type|node\\.body|eval|Function\\()|AST[\\s\\S]*node\\.type[\\s\\S]*=|transform[\\s\\S]*CallExpression[\\s\\S]*eval",
+      "pattern": "(esprima|acorn|babel)\\.parse[\\s\\S]{0,300}(node\\.type|node\\.body|\\beval\\s*\\(|Function\\()|AST[\\s\\S]{0,300}node\\.type\\s*=[^=]|transform[\\s\\S]{0,300}CallExpression[\\s\\S]{0,300}\\beval\\s*\\(",
       "description": "AST manipulation with code generation",
       "remediation": "Parsing and rewriting an AST is what linters, codemods, bundlers and minifiers do, so first decide whether this package is a build tool with a reason to. If it is not, or if the rewritten output is passed to eval or Function, it is injecting logic into other files at build time; diff the emitted code against the input before trusting it.",
       "references": ["MITRE T1195.001", "CWE-94"],
@@ -234,7 +234,7 @@
       "id": "SUPPLY-013",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "babel[\\s\\S]*visitor[\\s\\S]*(eval|Function\\()|transformSync[\\s\\S]*plugins[\\s\\S]*eval|preset[\\s\\S]*visitor[\\s\\S]*exec",
+      "pattern": "babel[\\s\\S]{0,300}visitor[\\s\\S]{0,300}(\\beval\\s*\\(|Function\\()|transformSync[\\s\\S]{0,300}plugins[\\s\\S]{0,300}\\beval\\s*\\(|preset[\\s\\S]{0,300}visitor[\\s\\S]{0,300}\\bexec\\s*\\(",
       "description": "Babel transformer with code injection",
       "remediation": "A Babel plugin or preset visits every source file in the build, so a visitor that calls eval or Function, or a preset that shells out with exec, can inject code into every module it touches. Legitimate transforms build AST nodes with @babel/types rather than executing strings; review the visitor and drop the plugin if its output cannot be explained.",
       "references": ["MITRE T1195.001", "CWE-94"],
@@ -264,7 +264,7 @@
       "id": "SUPPLY-016",
       "phase": "code_patterns",
       "severity": "critical",
-      "pattern": "ffi\\.(Library|Function)[\\s\\S]*\\bsystem\\b|ffi\\s*=\\s*require\\(['\"]ffi['\"]\\)[\\s\\S]*Library[\\s\\S]*\\bsystem\\b|Foreign[\\s\\S]*invoke[\\s\\S]*exec|ctypes[\\s\\S]*CDLL[\\s\\S]*os\\.system",
+      "pattern": "ffi\\.(Library|Function)[\\s\\S]{0,300}\\bsystem\\b|ffi\\s*=\\s*require\\(['\"]ffi['\"]\\)[\\s\\S]{0,300}Library[\\s\\S]{0,300}\\bsystem\\b|\\bForeign\\b[\\s\\S]{0,300}\\binvoke\\b[\\s\\S]{0,300}\\bexec\\b|ctypes[\\s\\S]{0,300}CDLL[\\s\\S]{0,300}os\\.system",
       "description": "FFI boundary violation with command execution",
       "remediation": "Calling system() or exec through an FFI layer (node-ffi Library, Python ctypes CDLL, a Foreign invoke) does what child_process or subprocess would do while avoiding the APIs scanners look for. Binding to a C library is fine; binding to libc's system is not, because there is no legitimate reason to run shell commands through FFI, so reject the package or have the author use the standard process API.",
       "references": ["MITRE T1106", "MITRE T1059"],
