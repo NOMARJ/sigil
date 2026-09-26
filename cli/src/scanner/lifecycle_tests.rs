@@ -1650,6 +1650,185 @@ fn a_node_modules_above_the_package_keeps_the_original_finding() {
     );
 }
 
+/// npm links *every* file in a `directories.bin` directory as a
+/// `node_modules/.bin` entry, and this pass cannot enumerate them, so a
+/// manifest (or a workspace member) that uses `directories.bin` could ship a
+/// file named like any trusted tool, runner or interpreter: the rewrite fails
+/// closed. `directories` without a `bin` key, or `directories.bin: null`, does
+/// not.
+#[test]
+fn a_directories_bin_manifest_keeps_the_original_finding() {
+    let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+    // prepare -> INSTALL-012, guard -> INSTALL-011, inert -> INSTALL-010.
+    let dirbin = r#", "directories": { "bin": "./b" }"#;
+    assert_prepare(
+        &[(
+            "package.json",
+            pkg(r#""prepare": "tsc""#, &format!("{dirbin}{ts}")),
+        )],
+        false,
+        "prepare tsc with directories.bin",
+    );
+    // Even with the shipped file actually named like the runner.
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(
+                    r#""build": "tsc", "prepare": "npm run build""#,
+                    &format!("{dirbin}{ts}"),
+                ),
+            ),
+            ("b/npm", "#!/bin/sh\nid\n".to_string()),
+        ],
+        false,
+        "npm run build with a directories.bin/npm",
+    );
+    assert_install_key(
+        &[(
+            "package.json",
+            pkg(r#""preinstall": "npx only-allow pnpm""#, dirbin),
+        )],
+        None,
+        "only-allow with directories.bin",
+    );
+    assert_install_key(
+        &[
+            (
+                "package.json",
+                pkg(r#""postinstall": "node ./s.js""#, dirbin),
+            ),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+        ],
+        None,
+        "inert postinstall with directories.bin",
+    );
+    // A workspace member's directories.bin is hoisted to the root's PATH.
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(
+                    r#""build": "tsc", "prepare": "npm run build""#,
+                    &format!(r#", "workspaces": ["packages/*"]{ts}"#),
+                ),
+            ),
+            (
+                "packages/h/package.json",
+                "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"directories\": { \"bin\": \"./b\" }\n}\n"
+                    .to_string(),
+            ),
+        ],
+        false,
+        "workspace member directories.bin",
+    );
+    // Controls: another `directories` key, or an explicit null, still rewrite.
+    assert_prepare(
+        &[(
+            "package.json",
+            pkg(
+                r#""prepare": "tsc""#,
+                &format!(r#", "directories": {{ "lib": "src" }}{ts}"#),
+            ),
+        )],
+        true,
+        "directories.lib only",
+    );
+    assert_prepare(
+        &[(
+            "package.json",
+            pkg(
+                r#""prepare": "tsc""#,
+                &format!(r#", "directories": {{ "bin": null }}{ts}"#),
+            ),
+        )],
+        true,
+        "directories.bin: null",
+    );
+}
+
+/// npm, yarn and pnpm read a package-manager config file from the install
+/// directory upward before a script line runs. One that redirects the script
+/// shell, `node`, the config file itself or the registry, or that runs a hook
+/// or a different binary as the package manager, keeps the original finding. A
+/// config with only benign keys does not.
+#[test]
+fn an_install_config_that_alters_execution_keeps_the_original_finding() {
+    let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+    let prepare = || pkg(r#""prepare": "tsc""#, ts);
+    // Each of these config files makes the prepare keep INSTALL-004 Medium.
+    let dangerous: &[(&str, &str)] = &[
+        (".npmrc", "script-shell=./e.js\n"),
+        (".npmrc", "shell=/tmp/e\n"),
+        (".npmrc", "node-options=--require ./e.js\n"),
+        (".npmrc", "globalconfig=./other-npmrc\n"),
+        (".npmrc", "userconfig=./other-npmrc\n"),
+        (".npmrc", "registry=https://evil.example/\n"),
+        (".npmrc", "@acme:registry=https://evil.example/\n"),
+        (
+            ".pnpmfile.cjs",
+            "module.exports={hooks:{readPackage:p=>p}}\n",
+        ),
+        (".yarnrc", "yarn-path \"./e.js\"\n"),
+        (".yarnrc", "registry \"https://evil.example/\"\n"),
+        (".yarnrc.yml", "yarnPath: ./.yarn/releases/e.cjs\n"),
+        (".yarnrc.yml", "plugins:\n  - path: ./p.cjs\n"),
+        (".yarnrc.yml", "npmRegistryServer: https://evil.example/\n"),
+    ];
+    for (name, body) in dangerous {
+        assert_prepare(
+            &[("package.json", prepare()), (name, body.to_string())],
+            false,
+            &format!("{name}: {}", body.trim()),
+        );
+    }
+    // The guard and the inert postinstall fail closed the same way.
+    assert_install_key(
+        &[
+            (
+                "package.json",
+                pkg(r#""preinstall": "npx only-allow pnpm""#, ""),
+            ),
+            (".npmrc", "script-shell=./e.js\n".to_string()),
+        ],
+        None,
+        "only-allow with .npmrc script-shell",
+    );
+    assert_install_key(
+        &[
+            ("package.json", pkg(r#""postinstall": "node ./s.js""#, "")),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+            (".npmrc", "registry=http://evil.example/\n".to_string()),
+        ],
+        None,
+        "inert postinstall with an off-registry .npmrc",
+    );
+    // A config file in a directory above the package still applies.
+    assert_prepare(
+        &[
+            ("pkg/package.json", prepare()),
+            (".npmrc", "script-shell=./e.js\n".to_string()),
+        ],
+        false,
+        ".npmrc in an ancestor directory",
+    );
+    // Controls: a benign config with only harmless keys still rewrites.
+    for (name, body) in [
+        (
+            ".npmrc",
+            "save-exact=true\nengine-strict=true\nregistry=https://registry.npmjs.org/\n",
+        ),
+        (".yarnrc.yml", "nodeLinker: node-modules\n"),
+        (".yarnrc", "save-prefix \"~\"\n"),
+    ] {
+        assert_prepare(
+            &[("package.json", prepare()), (name, body.to_string())],
+            true,
+            &format!("benign {name}"),
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Unit checks
 // ---------------------------------------------------------------------------

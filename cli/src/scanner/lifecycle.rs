@@ -37,7 +37,9 @@
 //!
 //! - no trusted name is a `bin` of the manifest itself or, when the manifest
 //!   is a workspace root or sits inside one (a `workspaces` field or a
-//!   `pnpm-workspace.yaml`), of any `package.json` under that root; and
+//!   `pnpm-workspace.yaml`), of any `package.json` under that root. A manifest
+//!   in that set that links its bins through `directories.bin` (whose files
+//!   this pass cannot enumerate) keeps the original finding; and
 //! - the dependency set the phase installs, across those same manifests, is
 //!   empty apart from the trusted tools' own packages in the last column,
 //!   each from a registry spec. For `preinstall` / `postinstall` /
@@ -45,7 +47,14 @@
 //!   `optionalDependencies`, `peerDependencies` and the bundled names; for
 //!   `prepare` / `prepublish` it adds `devDependencies`. A field the
 //!   classifier cannot read, a bundled name, or a shipped `node_modules`
-//!   beside or above the package keeps the original finding.
+//!   beside or above the package keeps the original finding; and
+//! - no package-manager config file, in the package's directory or above it,
+//!   changes what an install runs or where it fetches from: a `.pnpmfile.cjs`
+//!   (a hook pnpm executes), a `.npmrc` setting `script-shell` / `shell` /
+//!   `node-options` / `globalconfig` / `userconfig` or an off-registry
+//!   `registry`, or a `.yarnrc` / `.yarnrc.yml` setting `yarn-path` /
+//!   `yarnPath` / `plugins` or an off-registry server. A `.npmrc` with only
+//!   benign keys does not.
 //!
 //! A lockfile is not taken as evidence that no collision exists: npm links a
 //! package's bins from the installed package's own manifest, not from the
@@ -281,14 +290,23 @@ struct Scope {
     manifests: Vec<(String, Value)>,
     /// Every command name those manifests' own `bin` fields link.
     bins: HashSet<String>,
+    /// A manifest in the scope declares `directories.bin`: npm links *every*
+    /// file in that directory as a bin, and this pass cannot enumerate them
+    /// (a file may be skipped or binary), so the set of linked names is
+    /// unknown and any trusted name might collide.
+    bins_unknown: bool,
 }
 
 impl Scope {
     /// Does any name the rewrite trusts collide with a bin the scope's own
     /// manifests link? `sh` is always trusted: npm and pnpm spawn the script
-    /// shell by name with the lifecycle `PATH`.
+    /// shell by name with the lifecycle `PATH`. When a scope manifest uses
+    /// `directories.bin` the linked names cannot be enumerated, so every
+    /// trusted name is treated as shadowed (fail closed).
     fn shadows<'n>(&self, trusted: impl IntoIterator<Item = &'n str>) -> bool {
-        self.bins.contains("sh") || trusted.into_iter().any(|n| self.bins.contains(n))
+        self.bins_unknown
+            || self.bins.contains("sh")
+            || trusted.into_iter().any(|n| self.bins.contains(n))
     }
 
     /// Finding 2 of the #172 review, failing closed: `true` only when every
@@ -352,6 +370,17 @@ fn bin_names(doc: &Value) -> Vec<String> {
         Some(Value::Object(o)) => o.keys().cloned().collect(),
         _ => Vec::new(),
     }
+}
+
+/// Whether a manifest links its bins through `directories.bin`: npm adds every
+/// file in that directory as a `node_modules/.bin` entry when it packs the
+/// package, so a `directories.bin` directory can ship a file named like any
+/// trusted tool, runner or interpreter. [`bin_names`] cannot list them from
+/// the manifest alone, so its presence makes the scope's bin set unknowable.
+fn declares_directories_bin(doc: &Value) -> bool {
+    doc.get("directories")
+        .and_then(|d| d.get("bin"))
+        .is_some_and(|v| !v.is_null())
 }
 
 struct Tree<'a> {
@@ -487,7 +516,12 @@ impl<'a> Tree<'a> {
             }
         }
         let bins = manifests.iter().flat_map(|(_, d)| bin_names(d)).collect();
-        Some(Scope { manifests, bins })
+        let bins_unknown = manifests.iter().any(|(_, d)| declares_directories_bin(d));
+        Some(Scope {
+            manifests,
+            bins,
+            bins_unknown,
+        })
     }
 
     /// A `node_modules` shipped in a directory above the package: npm puts the
@@ -509,6 +543,50 @@ impl<'a> Tree<'a> {
             }
         }
         false
+    }
+
+    /// An in-tree package-manager config file, in `dir` or any directory
+    /// above it, that can change what an install runs or where it fetches a
+    /// package from — before a single script line changes. npm, yarn and pnpm
+    /// read these from the install directory upward, so a package that ships
+    /// one (or that is cloned or installed as a git dependency, where its own
+    /// directory is the project root) runs with it in effect:
+    ///
+    /// - `.pnpmfile.cjs` is a JavaScript hook pnpm executes during resolution;
+    /// - `.npmrc` can set `script-shell` / `shell` (the program that runs every
+    ///   lifecycle script), `node-options` (`--require` preloads a module into
+    ///   every `node`), `globalconfig` / `userconfig` (another config file that
+    ///   can set those), or a `registry` off the public registry (the trusted
+    ///   tool, or `only-allow`, then comes from an attacker host);
+    /// - `.yarnrc` / `.yarnrc.yml` can set `yarn-path` / `yarnPath` (the JS run
+    ///   as yarn), `plugins` (JS loaded into yarn), or an off-registry
+    ///   `npmRegistryServer`.
+    ///
+    /// Any of these keeps the finding at its original severity. A `.npmrc` /
+    /// `.yarnrc` with only benign keys does not.
+    fn install_config_side_channel(&self, dir: &str) -> bool {
+        // npm/yarn/pnpm read these whether or not the scan enumerated them, so
+        // consult the filesystem directly rather than the scanned-file set.
+        let read = |rel: &str| std::fs::read_to_string(self.base.join(rel)).ok();
+        let mut d = dir;
+        loop {
+            if self.base.join(join_rel(d, ".pnpmfile.cjs")).exists() {
+                return true;
+            }
+            if read(&join_rel(d, ".npmrc")).is_some_and(|t| npmrc_alters_install(&t)) {
+                return true;
+            }
+            if read(&join_rel(d, ".yarnrc")).is_some_and(|t| yarnrc_alters_install(&t)) {
+                return true;
+            }
+            if read(&join_rel(d, ".yarnrc.yml")).is_some_and(|t| yarnrc_yml_alters_install(&t)) {
+                return true;
+            }
+            if d.is_empty() {
+                return false;
+            }
+            d = split_rel(d).0;
+        }
     }
 
     /// A lockfile beside the manifest that resolves `pkg` somewhere other
@@ -567,6 +645,90 @@ impl<'a> Tree<'a> {
 fn is_registry_tarball(url: &str) -> bool {
     url.starts_with("https://registry.npmjs.org/")
         || url.starts_with("https://registry.yarnpkg.com/")
+}
+
+/// A registry URL value that points at the public npm/yarn registry.
+fn is_public_registry(value: &str) -> bool {
+    let v = value.trim().trim_matches(['"', '\'']);
+    let host = v
+        .strip_prefix("https://")
+        .or_else(|| v.strip_prefix("http://"))
+        .unwrap_or(v);
+    host == "registry.npmjs.org"
+        || host == "registry.yarnpkg.com"
+        || host.starts_with("registry.npmjs.org/")
+        || host.starts_with("registry.yarnpkg.com/")
+}
+
+/// A `.npmrc` that changes the program a lifecycle script runs under, preloads
+/// code into `node`, points npm at another config file, or fetches packages
+/// off the public registry. Comments (`#`, `;`) and benign keys are ignored.
+fn npmrc_alters_install(text: &str) -> bool {
+    for raw in text.lines() {
+        let line = raw.split(['#', ';']).next().unwrap_or("").trim();
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim();
+        if matches!(
+            key.as_str(),
+            "script-shell" | "shell" | "node-options" | "globalconfig" | "userconfig"
+        ) {
+            return true;
+        }
+        if (key == "registry" || key.ends_with(":registry")) && !is_public_registry(value) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A classic `.yarnrc` that points yarn at a different binary or fetches off
+/// the public registry.
+fn yarnrc_alters_install(text: &str) -> bool {
+    for raw in text.lines() {
+        let line = raw.split('#').next().unwrap_or("").trim();
+        let mut tokens = line.splitn(2, char::is_whitespace);
+        let key = tokens.next().unwrap_or("").trim();
+        let value = tokens.next().unwrap_or("").trim();
+        if matches!(key, "yarn-path" | "script-shell") {
+            return true;
+        }
+        if key == "registry" && !is_public_registry(value) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A `.yarnrc.yml` (Yarn Berry) that runs a different binary as yarn, loads a
+/// plugin, or fetches off the public registry.
+fn yarnrc_yml_alters_install(text: &str) -> bool {
+    for raw in text.lines() {
+        let line = raw.split('#').next().unwrap_or("");
+        // A top-level key (no leading indentation) followed by `:`.
+        if line.starts_with([' ', '\t']) {
+            // A `plugins:` block lists its entries indented beneath it; a
+            // `- path:` line inside it still names a plugin to load.
+            if line.trim_start().starts_with("- path:") || line.trim_start().starts_with("path:") {
+                return true;
+            }
+            continue;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        if matches!(key, "yarnPath" | "plugins") {
+            return true;
+        }
+        if key == "npmRegistryServer" && !value.is_empty() && !is_public_registry(value) {
+            return true;
+        }
+    }
+    false
 }
 
 fn is_registry_tarball_line(line: &str) -> bool {
@@ -665,7 +827,10 @@ fn classify_manifest_line(
     if keys.is_empty() {
         return None;
     }
-    if tree.install_side_channel(&m.dir) || tree.ancestor_node_modules(&m.dir) {
+    if tree.install_side_channel(&m.dir)
+        || tree.ancestor_node_modules(&m.dir)
+        || tree.install_config_side_channel(&m.dir)
+    {
         return None;
     }
     let scope = tree.scope(m)?;

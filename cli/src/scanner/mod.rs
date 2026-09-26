@@ -54,7 +54,11 @@ pub use crate::corpus::schema::Evidence;
 /// chain follows (`npm` / `pnpm` / `yarn`, `npx`), `node` and `sh`, and
 /// apply only when the phase installs no dependency beyond the trusted
 /// tools' own packages (`scanner::lifecycle`).
-pub const ENGINE_REVISION: u32 = 9;
+/// 10: those rewrites also fail closed on a `directories.bin` manifest (its
+/// linked bins cannot be enumerated) and on an in-tree `.npmrc` / `.yarnrc` /
+/// `.yarnrc.yml` / `.pnpmfile.cjs` that redirects the script shell, `node`,
+/// the config file or the registry (`scanner::lifecycle`).
+pub const ENGINE_REVISION: u32 = 10;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
