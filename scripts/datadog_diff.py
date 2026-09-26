@@ -10,7 +10,10 @@ the scan are the ones the recall figures come from:
 * selection: ``run_eval.list_sample_zips`` + ``run_eval.select_samples``
   (``--limit`` per bucket), fingerprinted with ``run_eval.dataset_fingerprint``;
 * extraction: ``run_eval.extract_zip``, once per sample into
-  ``<work>/<i>/sample`` so every build scans identical bytes;
+  ``<work>/<i>/sample`` so every build scans identical bytes. Each slot
+  records the archive it came from (path and sha256, ``<work>/<i>/source.json``);
+  a slot that does not match the selected archive, or has no record (an
+  extraction that did not finish), is cleared and extracted again;
 * scan: ``run_eval.scan_dir`` unchanged (same command, phases, timeout and
   reduction). Its stdout is captured on the side for the verdict and chains.
 
@@ -27,11 +30,14 @@ Usage
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
+import shutil
 import subprocess
 import sys
 import threading
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -103,20 +109,45 @@ def diff(before: list[dict], after: list[dict]) -> dict:
             out["severity"].append([a["zip"], a["max_severity"], b["max_severity"], budget])
         if a["verdict"] != b["verdict"]:
             out["verdict"].append([a["zip"], a["verdict"], b["verdict"], budget])
-        ka = [c[:3] for c in a["chains"]]
-        kb = [c[:3] for c in b["chains"]]
-        lost = [a["chains"][n] for n, c in enumerate(ka) if c not in kb]
-        gained = [b["chains"][n] for n, c in enumerate(kb) if c not in ka]
+        # Whole records, counted: another source or path to the same sink is
+        # a change, and so is a second link where there was one.
+        ca = Counter(tuple(c) for c in a["chains"])
+        cb = Counter(tuple(c) for c in b["chains"])
+        lost = [list(c) for c in sorted((ca - cb).elements(), key=repr)]
+        gained = [list(c) for c in sorted((cb - ca).elements(), key=repr)]
         if lost or gained:
             out["chains"].append({"zip": a["zip"], "budget_expired": budget, "lost": lost, "gained": gained})
     return out
+
+
+def prepare(i: int, zip_path: Path, ds: Path, work: Path) -> str:
+    """Extract one selected archive into its slot, or reuse the slot when
+    its record names this archive with these bytes."""
+    slot = work / f"{i:04d}"
+    dest = slot / "sample"
+    record = slot / "source.json"
+    source = {"zip": str(zip_path.relative_to(ds)),
+              "sha256": hashlib.sha256(zip_path.read_bytes()).hexdigest()}
+    try:
+        if json.loads(record.read_text()) == source and dest.is_dir():
+            return str(dest)
+    except (OSError, json.JSONDecodeError):
+        pass
+    if slot.exists():
+        shutil.rmtree(slot)
+    dest.mkdir(parents=True)
+    if not run_eval.extract_zip(zip_path, dest):
+        sys.exit(f"error: extract failed: {zip_path}")
+    record.write_text(json.dumps(source))
+    return str(dest)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset-path", type=Path, required=True)
     ap.add_argument("--limit", type=int, default=204)
-    ap.add_argument("--work", type=Path, required=True, help="extraction directory (reused)")
+    ap.add_argument("--work", type=Path, required=True,
+                    help="extraction directory, reused slot by slot when the archive matches")
     ap.add_argument("--build", action="append", required=True, help="label=/path/to/sigil (two or more)")
     ap.add_argument("--expect-fingerprint", default=None)
     ap.add_argument("--workers", type=int, default=4)
@@ -132,14 +163,8 @@ def main() -> int:
     if args.expect_fingerprint and fingerprint != args.expect_fingerprint:
         sys.exit(f"error: fingerprint {fingerprint} != expected {args.expect_fingerprint}")
 
-    samples = []
-    for i, z in enumerate(selected):
-        dest = args.work / f"{i:04d}" / "sample"
-        if not dest.is_dir() or not any(dest.iterdir()):
-            dest.mkdir(parents=True, exist_ok=True)
-            if not run_eval.extract_zip(z, dest):
-                sys.exit(f"error: extract failed: {z}")
-        samples.append({"i": i, "zip": str(z.relative_to(ds)), "dir": str(dest)})
+    samples = [{"i": i, "zip": str(z.relative_to(ds)), "dir": prepare(i, z, ds, args.work)}
+               for i, z in enumerate(selected)]
 
     run_eval.subprocess.run = _capturing_run
     rows: dict[str, list[dict]] = {}

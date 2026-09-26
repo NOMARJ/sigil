@@ -1131,7 +1131,7 @@ Data Source: Real samples. Clean MCP servers: 169 packages from the official
              used for calibration (evaluation_results/corpora/
              mcp_holdout146_manifest.json; not the 157-server reconstruction
              in mcp_holdout_manifest.json that source-map-correlation.md
-             measured, nor the re-derived 157 of correlation-names.md).
+             and correlation-names.md measured).
              Skills: Datadog malicious-software-packages-dataset ai-skills
              bucket (204 malicious); anthropics, NVIDIA, openai and
              vercel-labs skill catalogs (455 clean). Datadog: run_eval.py's

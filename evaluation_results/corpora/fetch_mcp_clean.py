@@ -33,17 +33,17 @@ API is doing its job; a finding on it can still be a true positive.
 ``--mode popular`` (the 146-server holdout corpus, mcp_holdout146_manifest.json):
 a second, independent label for servers the tuning corpus never saw.
 
-Three holdout manifests sit next to this script; they are different samples:
+Two holdout manifests sit next to this script; they are different samples:
 
 - ``mcp_holdout146_manifest.json``: the original holdout this mode selected
   on 2026-09-25 (148 selected, 146 fetched, 2 over the 30 MiB archive cap).
   The MCP false-positive calibration, the insecure-transport pack and the
   correlation-chain measurements scanned this one.
 - ``mcp_holdout_manifest.json``: a reconstruction made while this manifest was
-  unpublished, used by docs/detection/source-map-correlation.md.
-- ``mcp_holdout_rederived_manifest.json``: a re-derivation from the published
-  criteria (``select_mcp_holdout.py``, which reuses this module's registry and
-  npm helpers), used by docs/detection/correlation-names.md.
+  unpublished, used by docs/detection/source-map-correlation.md and
+  docs/detection/correlation-names.md. (A separate re-derivation from the
+  published criteria, 154 servers fetched, was a strict subset of it, with the
+  same names, versions and sha256, and was removed.)
 
 1. The same registry enumeration; keep ``isLatest`` + ``active`` entries whose
    chosen package (``choose_package``) is on npm (registry.npmjs.org). PyPI is

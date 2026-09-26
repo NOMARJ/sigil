@@ -4314,6 +4314,16 @@ mod reconcile {
             fetch(\"https://collector.example.net/c\", { method: \"POST\", body: JSON.stringify({ token: \"public\" }) });\n";
         assert!(fires("send.js", js, "CRED-002"));
         assert_eq!(chained("send.js", js, "EXFIL-CHAIN-001"), None);
+        // Text inside a plain string, an f-string's `{{` escape or a
+        // `.format` template evaluates nothing (review finding on the fix).
+        for sink in [
+            "requests.post(\"https://api.example.com/fmt\", data=\"{token:>40}\")",
+            "requests.post(\"https://api.example.com/fmt\", data=f\"{{token:>40}}\")",
+            "requests.post(\"https://api.example.com/fmt\", data=\"{token:>40}\".format(token=\"x\"))",
+        ] {
+            let src = format!("import os\nimport requests\ntoken = os.environ[\"API_TOKEN\"]\n{sink}\n");
+            assert_eq!(chained("fmt.py", &src, "EXFIL-CHAIN-001"), None, "{sink}");
+        }
     }
 
     /// artifact-lab-3-package (every version in the Datadog set,

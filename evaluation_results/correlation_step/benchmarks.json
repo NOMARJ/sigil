@@ -1,5 +1,15 @@
 {
-"note": "benchmark_skills.py --tools sigil outcomes. 'head-ef0b95f' lists every sample; each other build lists only the samples whose level, rule set or finding count differ from the build before it (none do).",
+"note": "benchmark_skills.py --tools sigil outcomes. 'head-ef0b95f' lists every sample; 'changes' lists, for each pair of builds compared, every sample whose level, rule set or finding count differs. name_uses = fa601b8 (#169 as first built); name_uses_python_keys = with the Python-braces fix; base-09d9fae = the merged base with #170; shipped = that base + #169 + the fix.",
+"builds": {
+"head-ef0b95f": "ef0b95f",
+"name_uses": "fa601b8",
+"follow_assignment": "fa601b8 + follow_assignment.patch (B)",
+"follow_assignment_bare": "B + follow_assignment_bare.patch (C)",
+"name_uses_python_keys": "fa601b8 + the Python-braces fix",
+"base-09d9fae": "09d9fae (#168 + #170)",
+"shipped": "09d9fae + #169 + the Python-braces fix, first version",
+"shipped_string_context": "shipped, braces read as Python reads them (this branch)"
+},
 "corpora": {
 "mcp_clean (169, --clean-sample-depth 1)": {
 "summary": {
@@ -28,6 +38,38 @@
 }
 },
 "follow_assignment_bare": {
+"clean": {
+"scanned": 169,
+"errors": 0,
+"block": 39,
+"warn": 125
+}
+},
+"name_uses_python_keys": {
+"clean": {
+"scanned": 169,
+"errors": 0,
+"block": 39,
+"warn": 125
+}
+},
+"base-09d9fae": {
+"clean": {
+"scanned": 169,
+"errors": 0,
+"block": 39,
+"warn": 125
+}
+},
+"shipped": {
+"clean": {
+"scanned": 169,
+"errors": 0,
+"block": 39,
+"warn": 125
+}
+},
+"shipped_string_context": {
 "clean": {
 "scanned": 169,
 "errors": 0,
@@ -2518,41 +2560,77 @@
 "changes": {
 "head-ef0b95f->name_uses": [],
 "name_uses->follow_assignment": [],
-"follow_assignment->follow_assignment_bare": []
+"follow_assignment->follow_assignment_bare": [],
+"name_uses->name_uses_python_keys": [],
+"head-ef0b95f->base-09d9fae": [],
+"base-09d9fae->shipped": [],
+"shipped->shipped_string_context": []
 }
 },
-"mcp_holdout re-derived (154, --clean-sample-depth 1)": {
+"mcp_holdout (157, mcp_holdout_manifest.json, --clean-sample-depth 1)": {
 "summary": {
 "head-ef0b95f": {
 "clean": {
-"scanned": 154,
+"scanned": 157,
 "errors": 0,
-"block": 85,
-"warn": 143
+"block": 88,
+"warn": 146
 }
 },
 "name_uses": {
 "clean": {
-"scanned": 154,
+"scanned": 157,
 "errors": 0,
-"block": 85,
-"warn": 143
+"block": 88,
+"warn": 146
 }
 },
 "follow_assignment": {
 "clean": {
-"scanned": 154,
+"scanned": 157,
 "errors": 0,
-"block": 85,
-"warn": 143
+"block": 88,
+"warn": 146
 }
 },
 "follow_assignment_bare": {
 "clean": {
-"scanned": 154,
+"scanned": 157,
 "errors": 0,
-"block": 85,
-"warn": 143
+"block": 88,
+"warn": 146
+}
+},
+"name_uses_python_keys": {
+"clean": {
+"scanned": 157,
+"errors": 0,
+"block": 88,
+"warn": 146
+}
+},
+"base-09d9fae": {
+"clean": {
+"scanned": 157,
+"errors": 0,
+"block": 88,
+"warn": 146
+}
+},
+"shipped": {
+"clean": {
+"scanned": 157,
+"errors": 0,
+"block": 88,
+"warn": 146
+}
+},
+"shipped_string_context": {
+"clean": {
+"scanned": 157,
+"errors": 0,
+"block": 88,
+"warn": 146
 }
 }
 },
@@ -2643,6 +2721,32 @@
 "CODE-007",
 "HYGIENE-001",
 "NET-MCP-002"
+]
+],
+[
+"mcp_holdout/com.execbro__execbro",
+"clean",
+"CRITICAL",
+760,
+[
+"CODE-001",
+"CODE-002",
+"CODE-007",
+"CODE-008",
+"CODE-009",
+"CODE-012",
+"CODE-RUNFILE-001",
+"CRED-004",
+"CRED-007",
+"CRED-015",
+"CRED-ENV-001",
+"HYGIENE-001",
+"NET-001",
+"NET-004",
+"NET-010",
+"OBFUSC-003",
+"OBFUSC-CHAIN-006",
+"SUPPLY-008"
 ]
 ],
 [
@@ -3926,6 +4030,22 @@
 ]
 ],
 [
+"mcp_holdout/io.github.cameroncooke__XcodeBuildMCP",
+"clean",
+"CRITICAL",
+50,
+[
+"CODE-007",
+"CODE-014",
+"CRED-ENV-001",
+"HYGIENE-001",
+"OBFUSC-008",
+"PROMPT-006",
+"PROV-002",
+"SUPPLY-001"
+]
+],
+[
 "mcp_holdout/io.github.cap-js__mcp-server",
 "clean",
 "LOW",
@@ -4469,6 +4589,28 @@
 [
 "CODE-MCP-001",
 "INSTALL-004"
+]
+],
+[
+"mcp_holdout/io.github.igorzheludkov__execbro",
+"clean",
+"HIGH",
+502,
+[
+"CODE-002",
+"CODE-007",
+"CODE-008",
+"CODE-009",
+"CODE-012",
+"CODE-014",
+"CRED-007",
+"CRED-ENV-001",
+"HYGIENE-001",
+"NET-001",
+"OBFUSC-003",
+"OBFUSC-CHAIN-006",
+"PERSIST-004",
+"SUPPLY-008"
 ]
 ],
 [
@@ -5615,7 +5757,176 @@
 "changes": {
 "head-ef0b95f->name_uses": [],
 "name_uses->follow_assignment": [],
-"follow_assignment->follow_assignment_bare": []
+"follow_assignment->follow_assignment_bare": [],
+"name_uses->name_uses_python_keys": [],
+"head-ef0b95f->base-09d9fae": [
+[
+"mcp_holdout/com.vibgrate__ai-context",
+[
+"CRITICAL",
+362,
+[
+"CODE-002",
+"CODE-003",
+"CODE-007",
+"CODE-MCP-001",
+"CODE-RUNFILE-001",
+"CRED-002",
+"CRED-ENV-001",
+"DROPPER-CHAIN-001",
+"HYGIENE-001",
+"INFER-002",
+"INFER-011",
+"INSTALL-003",
+"INSTR-023",
+"MANIP-004",
+"MANIP-008",
+"NET-001",
+"NET-004",
+"NET-012",
+"NET-015",
+"NET-018",
+"NET-MCP-002",
+"OBFUSC-003",
+"OBFUSC-004",
+"OBFUSC-008",
+"PERSIST-005",
+"PERSIST-012",
+"PROV-002",
+"PROV-004",
+"SKILL-006",
+"SKILL-015",
+"SKILL-018",
+"SUPPLY-001",
+"SUPPLY-008",
+"SUPPLY-011",
+"SUPPLY-012",
+"SUPPLY-015"
+]
+],
+[
+"CRITICAL",
+361,
+[
+"CODE-002",
+"CODE-003",
+"CODE-007",
+"CODE-MCP-001",
+"CODE-RUNFILE-001",
+"CRED-002",
+"CRED-ENV-001",
+"HYGIENE-001",
+"INFER-002",
+"INFER-011",
+"INSTALL-003",
+"INSTR-023",
+"MANIP-004",
+"MANIP-008",
+"NET-001",
+"NET-004",
+"NET-012",
+"NET-015",
+"NET-018",
+"NET-MCP-002",
+"OBFUSC-003",
+"OBFUSC-004",
+"OBFUSC-008",
+"PERSIST-005",
+"PERSIST-012",
+"PROV-002",
+"PROV-004",
+"SKILL-006",
+"SKILL-015",
+"SKILL-018",
+"SUPPLY-001",
+"SUPPLY-008",
+"SUPPLY-011",
+"SUPPLY-012",
+"SUPPLY-015"
+]
+]
+],
+[
+"mcp_holdout/dev.jasonpearson__auto-mobile",
+[
+"CRITICAL",
+95,
+[
+"CODE-002",
+"CODE-003",
+"CODE-007",
+"CODE-MCP-001",
+"CODE-RUNFILE-001",
+"CRED-002",
+"CRED-008",
+"CRED-ENV-001",
+"DROPPER-CHAIN-001",
+"HYGIENE-001",
+"INFER-010",
+"INFER-011",
+"INSTALL-004",
+"NET-012",
+"NET-018",
+"NET-MCP-002",
+"NET-RCE-001",
+"OBFUSC-002",
+"OBFUSC-003",
+"OBFUSC-004",
+"OBFUSC-007",
+"OBFUSC-008",
+"OBFUSC-010",
+"OBFUSC-CHAIN-012",
+"PERSIST-009",
+"PROMPT-004",
+"PROV-002",
+"PROV-004",
+"PROV-INCOMPLETE-001",
+"SUPPLY-001",
+"SUPPLY-008",
+"SUPPLY-014"
+]
+],
+[
+"CRITICAL",
+94,
+[
+"CODE-002",
+"CODE-003",
+"CODE-007",
+"CODE-MCP-001",
+"CODE-RUNFILE-001",
+"CRED-002",
+"CRED-008",
+"CRED-ENV-001",
+"HYGIENE-001",
+"INFER-010",
+"INFER-011",
+"INSTALL-004",
+"NET-012",
+"NET-018",
+"NET-MCP-002",
+"NET-RCE-001",
+"OBFUSC-002",
+"OBFUSC-003",
+"OBFUSC-004",
+"OBFUSC-007",
+"OBFUSC-008",
+"OBFUSC-010",
+"OBFUSC-CHAIN-012",
+"PERSIST-009",
+"PROMPT-004",
+"PROV-002",
+"PROV-004",
+"PROV-INCOMPLETE-001",
+"SUPPLY-001",
+"SUPPLY-008",
+"SUPPLY-014"
+]
+]
+]
+],
+"base-09d9fae->shipped": [],
+"shipped->shipped_string_context": []
 }
 },
 "skills (204 malicious --sample-depth 2; 455 clean)": {
@@ -5663,6 +5974,62 @@
 }
 },
 "follow_assignment_bare": {
+"malicious": {
+"scanned": 204,
+"errors": 0,
+"block": 173,
+"warn": 184
+},
+"clean": {
+"scanned": 455,
+"errors": 0,
+"block": 7,
+"warn": 71
+}
+},
+"name_uses_python_keys": {
+"malicious": {
+"scanned": 204,
+"errors": 0,
+"block": 173,
+"warn": 184
+},
+"clean": {
+"scanned": 455,
+"errors": 0,
+"block": 7,
+"warn": 71
+}
+},
+"base-09d9fae": {
+"malicious": {
+"scanned": 204,
+"errors": 0,
+"block": 173,
+"warn": 184
+},
+"clean": {
+"scanned": 455,
+"errors": 0,
+"block": 7,
+"warn": 71
+}
+},
+"shipped": {
+"malicious": {
+"scanned": 204,
+"errors": 0,
+"block": 173,
+"warn": 184
+},
+"clean": {
+"scanned": 455,
+"errors": 0,
+"block": 7,
+"warn": 71
+}
+},
+"shipped_string_context": {
 "malicious": {
 "scanned": 204,
 "errors": 0,
@@ -11880,7 +12247,11 @@
 "changes": {
 "head-ef0b95f->name_uses": [],
 "name_uses->follow_assignment": [],
-"follow_assignment->follow_assignment_bare": []
+"follow_assignment->follow_assignment_bare": [],
+"name_uses->name_uses_python_keys": [],
+"head-ef0b95f->base-09d9fae": [],
+"base-09d9fae->shipped": [],
+"shipped->shipped_string_context": []
 }
 }
 }
