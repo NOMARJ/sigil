@@ -263,7 +263,13 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   connection, an HMAC signature, a refresh-token body, a key hint) into
   CRITICAL RISK; a variant restricted to bare uses still turns 3. A narrower
   form built alongside the value-reading fixes (follow only where the old
-  word reading linked) is not included either. Method, per-sample results and
+  word reading linked) was measured by the same criteria and is not included
+  either: it restores all 21 lost `artifact-lab-3-package` links and the one
+  verdict, and turns none of those 10 clean uses CRITICAL, but its gate is
+  the credential's name appearing near the send, so 15 of 16 further
+  constructed clean uses (a signature, a key hint, a fingerprint, a masked
+  token) link, 13 of them LOW → CRITICAL RISK; its patch is kept in
+  `evaluation_results/correlation_step/`. Method, per-sample results and
   how it relates to ADR-0005:
   [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
 - **`name_uses` on correlation rules.** `"value"` (every built-in chain) or

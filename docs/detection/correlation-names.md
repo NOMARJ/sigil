@@ -22,6 +22,10 @@ window uses it. This page covers two decisions about that link:
    uses of a credential. The cost of (1) stays pinned by
    `exfil_chain_does_not_follow_a_two_hop_flow` in `cli/src/corpus/engine.rs`.
 
+> A narrower step, built by the exfilchain lane, was later measured by the
+> same criteria and is not adopted either: see
+> [The narrow one-hop follow](#the-narrow-one-hop-follow).
+
 ```
 Data Source: Real samples, all static scans (nothing executed):
              - Datadog malicious-software-packages-dataset, commit 1dbcfc517277f3e3d32434f8f6a82e6e9fb75580,
@@ -396,6 +400,145 @@ correlation pass. If they need covering, it is through the ADR's own
 escalation path, a separate ADR for a real analysis, not a growing list of
 regex exceptions.
 
+## The narrow one-hop follow
+
+**Measured, not adopted.** The exfilchain lane built a narrower form of the
+step, and the port left it out (see "Provenance"). It was re-added, with the
+lane's tests, on the port's final state (34eaa0b's `cli/`) and measured on a
+side branch; the patch is
+[`evaluation_results/correlation_step/narrow_hop.patch`](../../evaluation_results/correlation_step/narrow_hop.patch),
+and it is not part of the shipped code.
+Outside the statement mode (so not TLS-CHAIN-001):
+
+- A name assigned on a line after the source and before the send's last line,
+  from an expression that uses a bound name as a value (`encoded =
+  urlencode(data)`), is followed only when the old word reading's window
+  (the sink line and the four lines after it, strings and comments blanked)
+  names the bound name in its code. Where it does, the derived name links if
+  the sink's call sends it. The lane's claim holds on everything measured
+  here: the hop links nothing the word reading (cff3fa2, main 35c0155) does
+  not. Unlike B, it chains: a name derived from a derived name follows too
+  (`dsn = f"...{password}..."`, then `engine = create_engine(dsn)`). The
+  chain's snippet does not name the hop, as B's did.
+- A helper whose parameter shares the secret's name, called within the
+  rule's window with such a name (`t = token`, then `send(t)`), receives the
+  secret.
+
+**The tests change with the patch.** `exfil_chain_does_not_follow_a_two_hop_flow`
+pins exactly what the hop undoes, so there it is replaced by the lane's
+`exfil_chain_follows_a_two_hop_flow_the_word_reading_linked`: the same
+`leak.py` now asserts a chain, the one-hop assertion stays, and the lane's
+cases and the negative `env` case are added. `a_derived_name_or_a_count_does_not_link`
+becomes the lane's `a_derived_name_links_where_the_word_reading_did` (its
+negative assertions kept, positive two-hop ones added), and
+`a_parameter_of_the_same_name_is_another_value` gets back its `forwarded`
+assertion. `a_value_derived_from_a_credential_does_not_link` (p1, p2, p5, p8
+and p10) passes unchanged. `ENGINE_REVISION` goes from 8 to 9.
+
+```
+Data Source: Real samples, static scans: the Datadog selection above (844, per sample with
+             scripts/datadog_diff.py and in aggregate with scripts/run_eval.py, empty HOME);
+             204 malicious + 455 clean skills; 169 clean MCP servers; the 146 unseen MCP servers
+             (mcp_holdout146_manifest.json, not the 157-server reconstruction above); SkillSpector's 1,796
+             test examples. Synthetic: 37 hand-written probe files (2 build checks, #169's 14,
+             16 new clean, 5 true) and the exfilchain lane's 286, labelled as such.
+Sample Size: 3,614 scans per build (844 + 659 + 169 + 146 + 1,796), 3,410 distinct samples (the
+             204 malicious skills are the Datadog selection's ai-skills bucket), each scanned once
+             with the base build (34eaa0b) and once with the hop build; Datadog also with the
+             kept sigil-exfil-port binary. 323 probe files, each scanned with every build in its
+             table.
+Limitations: B and C were not rebuilt on the port. Their corpus figures are the ones recorded
+             above, on #169's tree. Their probe verdicts come from B and C rebuilt on #169's
+             commit 37c3140 (both patches apply there with line offsets); those builds reproduce
+             the recorded verdict on all 14 of #169's probes. On the new probes, B and C (and
+             #169's own build) link mostly because their window ran past the sink's call, not
+             through the step. #169's p3, p4, p6, p7, p9 and t2 to t4 are rebuilt from the
+             shapes in the table above; p1, p2, p5, p8, p10 and t1 are the tests' own text. The
+             16 new clean probes were written after reading the hop's code, to find its false
+             links: they show which shapes link, not how often such code occurs. "Clean" means
+             published, not audited. sigil-exfil-port is the port's first build (a442dad): it
+             misses the two build-check probes that 8f8fd64 and 34eaa0b fixed. So 34eaa0b is
+             the base; on Datadog the two builds agree on every sample. Datadog ran with
+             --workers 3 and the corpora with --workers 2, one at a time; no scan reported
+             PROV-BUDGET-001.
+```
+
+| Criterion (#169's, then new) | main 35c0155 (word reading) | #169 shipped (37c3140) | B | C | Port, no hop (34eaa0b) | **Hop** |
+|---|---|---|---|---|---|---|
+| (a) `artifact-lab-3-package` versions (34 in the selection) with EXFIL-CHAIN-001: the 17, the 4 more the port lost, and 2 every build links | 23 | 6 | 23 | 23 | 2 | **23**: all 17 and all 4 restored, every finding (file, line) main's |
+| (a) `artifact-lab-3-package-b1ec2b9f` 0.2.3 | CRITICAL | CRITICAL | CRITICAL | CRITICAL | HIGH | **CRITICAL** |
+| (b) #169's 10 clean probes reported CRITICAL RISK | 0 | 0 | 7 | 3 | 0 | **0** |
+| (b) #169's 4 malicious probes with the chain | 2 (t1, t2) | 0 | 4 | 4 | 0 | **2** (t1, t2) |
+| (c) Datadog 844: highest severity, against the column's base | | | 1, a false link (mistralai 2.4.6, High → Critical) | 0 | | **1**, a true link (b1ec2b9f 0.2.3, High → Critical) |
+| (c) Datadog 844: chains that move | | | EXFIL-CHAIN-001 +18 (the 17, mistralai) | EXFIL-CHAIN-001 +17 | | **EXFIL-CHAIN-001 +21 samples, +22 findings, all `artifact-lab-3-package`; no other chain on any sample** |
+| (c) mistralai 2.4.6 | HIGH, no chain | HIGH, no chain | CRITICAL, false chain | HIGH | HIGH, no chain | **HIGH, no chain** |
+| (c) Datadog recall at any / Medium / High / Critical | 785 / 761 / 752 / 561 | 785 / 761 / 752 / 561 | 785 / 761 / 752 / 562 | 785 / 761 / 752 / 561 | 785 / 761 / 752 / 560 | **785 / 761 / 752 / 561** |
+| (d) clean MCP 169; skills 204 + 455; unseen MCP; parity 1,796 | | | 0 changes (169, 659, holdout 157) | 0 changes (169, 659, holdout 157) | | **0 changes (169, 659, the 146, 1,796): no level, rule set or finding count moves** |
+| (e) 16 new clean probes: chain / CRITICAL RISK | 16 / 16 | 14 / 15 | 16 / 16 | 16 / 16 | 0 / 2 | **15 / 15** |
+| 5 true probes around the hop: chain | 3 | 2 | 5 | 5 | 0 | **3** |
+| The lane's 286 probes: right | (cff3fa2, recorded: 198) | 168 | 179 | 179 | 269 | **279** |
+
+Datadog columns other than the port and the hop are from the committed runs
+(`evaluation_results/skills_benchmark/datadog_round3_diff.json` for main,
+this page's tables for #169, B and C); the hop's findings and highest
+severities equal main's rows there on all 844 samples, and the base run here
+equals that file's 34eaa0b rows. Every Datadog, skills and MCP figure for
+the port and the hop is from this run.
+
+**What it gains.** On real code, exactly what the value reading took from
+main on the Datadog selection, and nothing else: 21
+`artifact-lab-3-package` versions (22 findings, the 17 of #169 and the 4 the
+port lost), and with them `b1ec2b9f` 0.2.3's CRITICAL verdict (recall at
+Critical 560 → 561). No other chain moves on any of the 3,410 real samples.
+On the probes: the lane's ten (its 279 of 286), #169's t2 (the artifact-lab
+flow with an ordinary host, LOW → CRITICAL), and the verifiers' `t = token`
+then `send(t)` / `send(token=t)` and `data = dict(os.environ)`, `body =
+json.dumps(data)`, `post(data=body)`.
+
+**What it costs.** None of #169's ten clean shapes links: they never name the
+credential near the send. But the gate is the word reading's window, not
+the send's call, and the port had removed that window for a reason (the
+false-positive lens's first finding, 23 clean probes). With the hop, a
+value derived from a credential and sent is reported as the credential
+whenever the credential's name appears, as code, in the four lines after
+the send, or the send's keyword or key repeats it. 15 of the 16 new clean
+probes link, 13 of them LOW → CRITICAL RISK (the other two are CRITICAL on
+other rules):
+
+| New clean probe (synthetic) | Why the gate opens | Port | Hop |
+|---|---|---|---|
+| HMAC signature of an event posted; the secret verifies the reply on the next line | name below the send | LOW | CRITICAL, chain |
+| four-character key hint sent to an audit log; the key builds a client below | name below | LOW | CRITICAL, chain |
+| refresh token in a form to its own token endpoint; the token named in the error log | name below | LOW | CRITICAL, chain |
+| password → DSN → engine; engine host and pool size reported; password checked below | name below (two derivations) | LOW | CRITICAL, chain |
+| #169's p1 with the token used for a second client on the next line | name below | LOW | CRITICAL, chain |
+| #169's p5 on one line, the key checked on the next (JS) | name below | LOW | CRITICAL, chain |
+| the mistralai example: client from the key, unrelated PDF download, key printed below | the client is not in the download's call | LOW | LOW |
+| SHA-256 fingerprint of a license key to the license server; key cached below | name below | LOW | CRITICAL, chain |
+| an env copy bound to `data`, one region read from it, `post(..., data={"region": region})` | the keyword `data=` | LOW | CRITICAL, chain |
+| a session token's subject and expiry reported; the token builds a client below | name below | LOW | CRITICAL, chain |
+| first and last four characters of an npm token in a CI report; the token passed to npm below | name below | LOW | CRITICAL, chain |
+| a UUID5 tenant id from the key sent with metrics; the key builds a client below | name below | LOW | CRITICAL, chain |
+| JS HMAC signature in the body; the secret used on the next line | name below | LOW | CRITICAL, chain |
+| shell: an SSH key's fingerprint registered with an inventory; `ssh-add` of the key below | name below | CRITICAL (CRED-005) | CRITICAL, chain |
+| JS: a 12-character hash sent under the key `token:` | the key `token:` | LOW | CRITICAL, chain |
+| a `SKILL.md` env check reporting which secret *names* are set, under `secrets:` | the key `secrets:` | CRITICAL (other rules) | CRITICAL, chain |
+
+The word reading (main, cff3fa2) links all 16. So does #169's build on 14,
+through its window; the port links none. The hop brings that false-positive
+class back for derived values, and only for them. It still misses a
+two-hop send whose call never names the source (`env = dict(os.environ)`,
+`body = json.dumps(env)`, `post(data=body)`, and the same in JavaScript);
+B and C link both.
+
+In short, set beside B and C: B and C decide by the derivation (B links
+any, C only bare names), and cost #169's clean probes 7 and 3. The hop
+decides by a coincidence near the send, not by the derivation. It costs none
+of #169's probes and restores every real link the value reading lost, but it
+links ordinary derived sends as soon as the credential is used again within
+four lines. No clean real sample here has that shape: the clean corpora gave
+the step few chances (see "Exposure" above), and nothing on them moved.
+
 ## Reproducing
 
 ```bash
@@ -436,3 +579,25 @@ each extracted with `run_eval.extract_zip` into
 - `benchmarks.json` has every skills and MCP outcome.
 - `datadog.json` has the Datadog recall, and every severity, verdict and
   chain change between consecutive builds.
+- `hop.json` has the narrow one-hop follow's
+  measurements: every probe's verdict and chain per build (by name; the
+  probes are described in words above, and their files are not committed,
+  since the self-scan would read them as the patterns they are), the
+  lane's 286 per build, the Datadog recall and every per-sample change,
+  and the skills, MCP and parity comparisons.
+
+The hop's runs, with its release build and the base build (34eaa0b):
+
+```bash
+python3 scripts/datadog_diff.py --dataset-path /data/malicious-software-packages-dataset \
+    --limit 204 --work /data/dd-work --workers 3 \
+    --expect-fingerprint 63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade \
+    --build exfilport=/path/to/a442dad --build base34=/path/to/34eaa0b --build hop=/path/to/hop \
+    --out out/datadog_hop                       # run with HOME set to an empty directory
+SIGIL_BIN=/path/to/hop python3 scripts/run_eval.py --dataset datadog \
+    --dataset-path /data/malicious-software-packages-dataset --out out/runeval_hop --limit 204
+# once per build (--workers 2): the skills and clean-MCP commands above, the same with
+# --clean /data/mcp_holdout (mcp_holdout146_manifest.json), and
+SIGIL_BIN=/path/to/build python3 scripts/skillspector_parity.py run \
+    --corpus ss_positives_dedup.json --workers 2 --out out/parity
+```

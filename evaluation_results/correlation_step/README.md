@@ -20,8 +20,13 @@ Limitations: The clean corpora contain few source/sink pairs (37 in 18 of 781 sa
 | `benchmarks.json` | `scripts/benchmark_skills.py --tools sigil` outcomes: head's for every sample, then, for each pair of builds compared, every sample whose level, rule set or finding count changed (none did, apart from #170's own two holdout chains between head and the merged base) |
 | `follow_assignment.patch` | B, the propagation step as measured (a per-rule `follow_assignment`, on for EXFIL-, AGENTSC- and DESER-CHAIN) |
 | `follow_assignment_bare.patch` | C, on top of B: a derived name links only where it is used bare |
+| `narrow_hop.patch` | The exfilchain lane's narrow one-hop follow with its tests, as measured in `hop.json`, against the port's final `cli/` (34eaa0b) |
+| `hop.json` | The exfilchain lane's narrow one-hop follow (a derived name followed where the word reading's window names the bound one), measured against the port without it (34eaa0b): per-probe verdicts and chains for 37 hand-written probes (names and verdicts only; the doc describes each in words) with nine builds, including B and C rebuilt on 37c3140; the lane's 286 probes per build; the Datadog recall and every per-sample change (datadog_diff.py, empty HOME) and run_eval.py's aggregate; the skills, clean-MCP, unseen-MCP and parity comparisons. Real scans; the probes are synthetic |
 
-Neither patch is part of the shipped code. They apply to fa601b8, the tree
-they were measured on (`git apply`); with B applied, `exfil_chain_does_not_follow_a_two_hop_flow`
+None of the patches is part of the shipped code. B and C apply to fa601b8,
+the tree they were measured on, and to #169's tree, 37c3140 (`git apply`);
+with B applied, `exfil_chain_does_not_follow_a_two_hop_flow`
 and `a_value_derived_from_a_credential_does_not_link` fail by design, because
-those tests pin what the step would change.
+those tests pin what the step would change. `narrow_hop.patch` applies to the
+port's tree and replaces the first of those tests with the lane's
+`exfil_chain_follows_a_two_hop_flow_the_word_reading_linked`.

