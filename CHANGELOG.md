@@ -119,6 +119,16 @@ pass.
   (Medium) for a `bin` launcher that installs its own
   `<name>-<platform>-<arch>@<version>`. Anything the classifier cannot prove
   keeps its original rule and severity.
+- **Bin shadowing keeps the original severity** (all three lifecycle
+  rewrites). `node`, `npx`/`only-allow`, and the build leaves `tsc` / `husky` /
+  `rimraf` / `shx` / `chmod` resolve through `node_modules/.bin` first, and
+  npm/yarn/pnpm hoist workspace members' bins there. The rewrite is now refused
+  when any name it would trust is a `bin` the manifest declares itself, or —
+  when the manifest is a workspace root (`workspaces`, or a
+  `pnpm-workspace.yaml` beside it) — a `bin` any `package.json` in its subtree
+  declares, so a member shipping a `tsc` / `node` / `chmod` / `only-allow` bin
+  no longer downgrades the finding. The shell builtins `true` / `exit` are
+  exempt.
 - **`prepublishOnly` is `INSTALL-009` (Low)**: npm runs it on publish only.
   `INSTALL-004` is key-anchored (`"prepare":` / `"prepublish":`), and
   `INSTALL-REF-001` no longer links files only `prepublishOnly` runs.

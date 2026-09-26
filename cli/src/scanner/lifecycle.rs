@@ -212,6 +212,22 @@ fn is_registry_spec(spec: &Value) -> bool {
         })
 }
 
+/// The command names a manifest's `bin` field installs into `node_modules/.bin`.
+/// An object `bin` names each key; a string `bin` takes the package's own
+/// (unscoped) name. These are the names that can shadow a command a lifecycle
+/// script runs, because npm/yarn/pnpm prepend `node_modules/.bin` to PATH.
+fn bin_names(doc: &Value) -> Vec<String> {
+    match doc.get("bin") {
+        Some(Value::String(_)) => doc
+            .get("name")
+            .and_then(Value::as_str)
+            .map(|n| vec![n.rsplit('/').next().unwrap_or(n).to_string()])
+            .unwrap_or_default(),
+        Some(Value::Object(o)) => o.keys().cloned().collect(),
+        _ => Vec::new(),
+    }
+}
+
 struct Tree<'a> {
     base: &'a Path,
     present: HashSet<String>,
@@ -284,6 +300,47 @@ impl<'a> Tree<'a> {
                 .present
                 .iter()
                 .any(|p| p.starts_with(&format!("{nm}/")))
+    }
+
+    /// The command names that could be linked into `node_modules/.bin` at
+    /// this package's install, and so run in place of a command a lifecycle
+    /// script names: the manifest's own `bin` names, and — when it is a
+    /// workspace root — every `bin` declared by a `package.json` in its
+    /// subtree. npm, yarn and pnpm all hoist workspace members' bins into the
+    /// root `node_modules/.bin` and prepend that directory to PATH for
+    /// lifecycle scripts, so a member shipping a `tsc` / `node` / `chmod` /
+    /// `only-allow` bin shadows the real tool the classifier trusts.
+    fn shadowing_bins(&self, m: &Manifest) -> HashSet<String> {
+        let mut names: HashSet<String> = bin_names(&m.doc).into_iter().collect();
+        let pnpm_ws = if m.dir.is_empty() {
+            "pnpm-workspace.yaml".to_string()
+        } else {
+            format!("{}/pnpm-workspace.yaml", m.dir)
+        };
+        let is_workspace = m.doc.get("workspaces").is_some() || self.present.contains(&pnpm_ws);
+        if is_workspace {
+            let prefix = if m.dir.is_empty() {
+                String::new()
+            } else {
+                format!("{}/", m.dir)
+            };
+            for rel in &self.present {
+                if rel == &m.rel
+                    || split_rel(rel).1 != "package.json"
+                    || rel.contains("node_modules/")
+                    || !(prefix.is_empty() || rel.starts_with(&prefix))
+                {
+                    continue;
+                }
+                if let Some(doc) = self
+                    .read(rel)
+                    .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+                {
+                    names.extend(bin_names(&doc));
+                }
+            }
+        }
+        names
     }
 
     /// A lockfile beside the manifest that resolves `pkg` somewhere other
@@ -443,21 +500,22 @@ fn classify_manifest_line(
     if tree.install_side_channel(&m.dir) {
         return None;
     }
+    let shadow = tree.shadowing_bins(m);
     let mut reasons = Vec::new();
     let mut worst: Option<(&'static str, Severity, &'static str)> = None;
     for key in &keys {
         let cmd = m.script(key)?;
         let class = if rule == "INSTALL-003" {
-            if let Some(reason) = guard(cmd, m) {
+            if let Some(reason) = guard(cmd, m, &shadow) {
                 reasons.push(format!("{key}: {reason}"));
                 (RULE_GUARD, Severity::Low, TITLE_GUARD)
             } else {
-                let reason = inert_node(cmd, m, tree)?;
+                let reason = inert_node(cmd, m, tree, &shadow)?;
                 reasons.push(format!("{key}: {reason}"));
                 (RULE_INERT, Severity::Medium, TITLE_INERT)
             }
         } else {
-            let reason = build_only(key, m, tree)?;
+            let reason = build_only(key, m, tree, &shadow)?;
             reasons.push(format!("{key}: {reason}"));
             (RULE_BUILD, Severity::Low, TITLE_BUILD)
         };
@@ -479,11 +537,15 @@ fn classify_manifest_line(
 // INSTALL-011: npx only-allow
 // ---------------------------------------------------------------------------
 
-fn guard(cmd: &str, m: &Manifest) -> Option<String> {
+fn guard(cmd: &str, m: &Manifest, shadow: &HashSet<String>) -> Option<String> {
     let caps = re!(r"^npx (?:-y |--yes )?only-allow (pnpm|yarn|npm|bun)$").captures(cmd)?;
     if !m.declared_specs("only-allow").is_empty()
         || m.bundles("only-allow")
         || m.overrides("only-allow")
+        // `npx only-allow` runs the `npx` and `only-allow` bins from
+        // node_modules/.bin first; a shipped bin of either name shadows them.
+        || shadow.contains("npx")
+        || shadow.contains("only-allow")
     {
         return None;
     }
@@ -497,11 +559,21 @@ fn guard(cmd: &str, m: &Manifest) -> Option<String> {
 // INSTALL-010: node <inert local script>
 // ---------------------------------------------------------------------------
 
-fn inert_node(cmd: &str, m: &Manifest, tree: &Tree<'_>) -> Option<String> {
+fn inert_node(
+    cmd: &str,
+    m: &Manifest,
+    tree: &Tree<'_>,
+    shadow: &HashSet<String>,
+) -> Option<String> {
     let caps =
         re!(r"^node (?:\./)?([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:js|cjs|mjs))$").captures(cmd)?;
     let rel = &caps[1];
     if !is_package_relative_path(rel) {
+        return None;
+    }
+    // `node` itself resolves through node_modules/.bin first: a shipped `node`
+    // bin runs in place of the interpreter, so the target is no longer inert.
+    if shadow.contains("node") {
         return None;
     }
     let target = resolve_under(&m.dir, &m.dir, rel)?;
@@ -764,7 +836,12 @@ fn names_allowed(list: &str) -> bool {
 // INSTALL-012: build-only prepare / prepublish
 // ---------------------------------------------------------------------------
 
-fn build_only(key: &str, m: &Manifest, tree: &Tree<'_>) -> Option<String> {
+fn build_only(
+    key: &str,
+    m: &Manifest,
+    tree: &Tree<'_>,
+    shadow: &HashSet<String>,
+) -> Option<String> {
     let scripts = m.scripts()?;
     let mut leaves = Vec::new();
     // npm runs pre<key> and post<key> around the lifecycle script.
@@ -777,6 +854,15 @@ fn build_only(key: &str, m: &Manifest, tree: &Tree<'_>) -> Option<String> {
     for leaf in &leaves {
         if let Some(tool) = build_leaf(leaf)? {
             tools.push(tool);
+        }
+        // The command actually run (the first token) resolves through
+        // node_modules/.bin first — except the shell builtins `true` and
+        // `exit`, which take precedence over any file on PATH. A shipped bin of
+        // that name (a workspace member's `chmod`, or the package's own) runs
+        // in its place, so the step is not the build tool it looks like.
+        let cmd0 = leaf.split(' ').next().unwrap_or("");
+        if !matches!(cmd0, "true" | "exit") && shadow.contains(cmd0) {
+            return None;
         }
     }
     tools.sort_unstable();

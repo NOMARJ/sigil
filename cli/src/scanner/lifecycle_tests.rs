@@ -907,6 +907,210 @@ fn an_undeclared_build_tool_stays_medium() {
     );
 }
 
+/// A command a lifecycle script runs by name resolves through
+/// `node_modules/.bin` first, and npm/yarn/pnpm hoist workspace members' bins
+/// there. A member (or the manifest itself) shipping a `bin` named like the
+/// build tool, the `node` interpreter, or the `only-allow` guard would run in
+/// its place, so the classifier must not trust the script: it keeps the pack's
+/// original severity (INSTALL-003 Critical, INSTALL-004 Medium), matching main.
+#[test]
+fn a_shadowing_bin_keeps_the_original_severity() {
+    // A workspace member shipping a bin named like the build tool: INSTALL-004
+    // stays Medium, not INSTALL-012 Low.
+    let ws = |member_bin: &str| {
+        vec![
+            (
+                "package.json",
+                "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"prepare\": \"tsc\" },\n  \"devDependencies\": { \"typescript\": \"^5\" }\n}\n".to_string(),
+            ),
+            ("dist/index.js", "console.log(1)\n".to_string()),
+            (
+                "packages/h/package.json",
+                format!("{{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"bin\": {member_bin}\n}}\n"),
+            ),
+            ("packages/h/cli.js", "1\n".to_string()),
+        ]
+    };
+    for member_bin in [
+        r#"{ "tsc": "./cli.js" }"#, // object key equals the tool
+        r#""./cli.js""#,            // string bin: name is "h" (no clash)
+    ] {
+        let entries: Vec<(&str, String)> = ws(member_bin);
+        let r = scan_owned(&entries);
+        let found = rules(&r);
+        if member_bin.contains("tsc") {
+            assert!(
+                found
+                    .iter()
+                    .any(|(id, s)| id == "INSTALL-004" && *s == Severity::Medium),
+                "workspace member bin {member_bin} must keep INSTALL-004 Medium: {found:?}"
+            );
+            assert!(
+                !found.iter().any(|(id, _)| id == "INSTALL-012"),
+                "workspace member bin {member_bin} must not become INSTALL-012: {found:?}"
+            );
+        } else {
+            // The member's bin defaults to its own name ("h"), which does not
+            // clash with `tsc`, so the build step is still trusted.
+            assert!(
+                found.iter().any(|(id, _)| id == "INSTALL-012"),
+                "non-clashing member bin should still classify: {found:?}"
+            );
+        }
+    }
+
+    // A workspace member bin whose string form defaults to a clashing name.
+    let member_named_tsc = vec![
+        (
+            "package.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"prepare\": \"tsc\" },\n  \"devDependencies\": { \"typescript\": \"^5\" }\n}\n".to_string(),
+        ),
+        ("dist/index.js", "console.log(1)\n".to_string()),
+        (
+            "packages/tsc/package.json",
+            "{\n  \"name\": \"tsc\",\n  \"version\": \"1.0.0\",\n  \"bin\": \"./cli.js\"\n}\n".to_string(),
+        ),
+        ("packages/tsc/cli.js", "1\n".to_string()),
+    ];
+    let r = scan_owned(&member_named_tsc);
+    assert!(
+        rules(&r)
+            .iter()
+            .any(|(id, s)| id == "INSTALL-004" && *s == Severity::Medium)
+            && !rules(&r).iter().any(|(id, _)| id == "INSTALL-012"),
+        "a member package named tsc with a string bin shadows tsc: {:?}",
+        rules(&r)
+    );
+
+    // A workspace member shadowing the shell command `chmod` (a build leaf that
+    // needs no declared dependency): INSTALL-004 stays Medium.
+    let ws_chmod = vec![
+        (
+            "package.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"prepare\": \"chmod +x dist/index.js\" }\n}\n".to_string(),
+        ),
+        ("dist/index.js", "console.log(1)\n".to_string()),
+        (
+            "packages/h/package.json",
+            "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"bin\": { \"chmod\": \"./cli.js\" }\n}\n".to_string(),
+        ),
+        ("packages/h/cli.js", "1\n".to_string()),
+    ];
+    let r = scan_owned(&ws_chmod);
+    assert!(
+        rules(&r)
+            .iter()
+            .any(|(id, s)| id == "INSTALL-004" && *s == Severity::Medium)
+            && !rules(&r).iter().any(|(id, _)| id == "INSTALL-012"),
+        "a member bin named chmod shadows the build leaf: {:?}",
+        rules(&r)
+    );
+
+    // A workspace/own bin named `node` shadows the interpreter that runs an
+    // otherwise-inert postinstall: INSTALL-003 stays Critical.
+    let ws_node = vec![
+        (
+            "package.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"postinstall\": \"node scripts/probe.js\" }\n}\n".to_string(),
+        ),
+        ("scripts/probe.js", "console.log(process.platform)\n".to_string()),
+        (
+            "packages/h/package.json",
+            "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"bin\": { \"node\": \"./cli.js\" }\n}\n".to_string(),
+        ),
+        ("packages/h/cli.js", "1\n".to_string()),
+    ];
+    let r = scan_owned(&ws_node);
+    assert!(
+        rules(&r)
+            .iter()
+            .any(|(id, s)| id == "INSTALL-003" && *s == Severity::Critical),
+        "a member bin named node shadows the interpreter: {:?}",
+        rules(&r)
+    );
+    let own_node = vec![(
+        "package.json",
+        "{\n  \"name\": \"x\",\n  \"version\": \"1.0.0\",\n  \"bin\": { \"node\": \"./cli.js\" },\n  \"scripts\": { \"postinstall\": \"node scripts/probe.js\" }\n}\n".to_string(),
+    ), ("scripts/probe.js", "console.log(1)\n".to_string()), ("cli.js", "1\n".to_string())];
+    let r = scan_owned(&own_node);
+    assert!(
+        rules(&r)
+            .iter()
+            .any(|(id, s)| id == "INSTALL-003" && *s == Severity::Critical),
+        "the manifest's own bin named node shadows the interpreter: {:?}",
+        rules(&r)
+    );
+
+    // A workspace member bin named `only-allow` shadows what npx runs:
+    // INSTALL-003 stays Critical.
+    let ws_only = vec![
+        (
+            "package.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"workspaces\": [\"packages/*\"],\n  \"scripts\": { \"preinstall\": \"npx only-allow pnpm\" }\n}\n".to_string(),
+        ),
+        (
+            "packages/h/package.json",
+            "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"bin\": { \"only-allow\": \"./cli.js\" }\n}\n".to_string(),
+        ),
+        ("packages/h/cli.js", "1\n".to_string()),
+    ];
+    let r = scan_owned(&ws_only);
+    assert!(
+        rules(&r)
+            .iter()
+            .any(|(id, s)| id == "INSTALL-003" && *s == Severity::Critical),
+        "a member bin named only-allow shadows what npx runs: {:?}",
+        rules(&r)
+    );
+
+    // pnpm workspaces are declared in pnpm-workspace.yaml, not package.json,
+    // but hoist bins the same way.
+    let pnpm_ws = vec![
+        (
+            "package.json",
+            "{\n  \"name\": \"root\",\n  \"version\": \"1.0.0\",\n  \"scripts\": { \"prepare\": \"tsc\" },\n  \"devDependencies\": { \"typescript\": \"^5\" }\n}\n".to_string(),
+        ),
+        ("pnpm-workspace.yaml", "packages:\n  - packages/*\n".to_string()),
+        ("dist/index.js", "console.log(1)\n".to_string()),
+        (
+            "packages/h/package.json",
+            "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"bin\": { \"tsc\": \"./cli.js\" }\n}\n".to_string(),
+        ),
+        ("packages/h/cli.js", "1\n".to_string()),
+    ];
+    let r = scan_owned(&pnpm_ws);
+    assert!(
+        rules(&r)
+            .iter()
+            .any(|(id, s)| id == "INSTALL-004" && *s == Severity::Medium)
+            && !rules(&r).iter().any(|(id, _)| id == "INSTALL-012"),
+        "a pnpm-workspace member bin shadows tsc: {:?}",
+        rules(&r)
+    );
+
+    // A non-workspace nested package.json does NOT hoist its bins, so it does
+    // not block the rewrite: a single package with a build-only prepare and an
+    // unrelated nested example still classifies as INSTALL-012.
+    let nested_non_ws = vec![
+        (
+            "package.json",
+            "{\n  \"name\": \"x\",\n  \"version\": \"1.0.0\",\n  \"scripts\": { \"prepare\": \"tsc\" },\n  \"devDependencies\": { \"typescript\": \"^5\" }\n}\n".to_string(),
+        ),
+        ("dist/index.js", "console.log(1)\n".to_string()),
+        (
+            "examples/demo/package.json",
+            "{\n  \"name\": \"demo\",\n  \"version\": \"1.0.0\",\n  \"bin\": { \"tsc\": \"./cli.js\" }\n}\n".to_string(),
+        ),
+        ("examples/demo/cli.js", "1\n".to_string()),
+    ];
+    let r = scan_owned(&nested_non_ws);
+    assert!(
+        rules(&r).iter().any(|(id, _)| id == "INSTALL-012"),
+        "a nested non-workspace package must not block the rewrite: {:?}",
+        rules(&r)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Unit checks
 // ---------------------------------------------------------------------------

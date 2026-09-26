@@ -279,7 +279,8 @@ weight; its rule id, severity and snippet change, and the snippet says why.
     prototype functions, `WebAssembly`, `Worker`, `createRequire`, `with (`.
 - **`INSTALL-011`** (from `INSTALL-003`, Low). The command is exactly
   `npx [-y |--yes ]only-allow <pnpm|yarn|npm|bun>`, and the manifest neither declares,
-  bundles nor overrides `only-allow`.
+  bundles nor overrides `only-allow`, and neither `npx` nor `only-allow` is a
+  shadowing bin (see below).
 - **`INSTALL-012`** (from `INSTALL-004`, Low). The `prepare` / `prepublish` command,
   the `pre`/`post` scripts npm runs around it, and every `npm|pnpm|yarn run X` they
   reach (three levels deep, again with `preX` / `postX`) consist only of `&&`, `||` and
@@ -295,6 +296,17 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   `node_modules/.bin` to PATH for lifecycle scripts, so a dependency shipping a `tsc` /
   `husky` / `rimraf` / `shx` bin would run in place of the real tool while the package
   never named the real one, so such a `prepare` stays `INSTALL-004` (Medium).
+- **Bin shadowing (all three of the above).** A command a lifecycle script runs by name
+  — the `node` interpreter of an `INSTALL-010` script, the `npx` / `only-allow` of an
+  `INSTALL-011` guard, or a build leaf (`tsc`, `husky`, `rimraf`, `shx`, and the shell
+  command `chmod`) of an `INSTALL-012` `prepare` — resolves through `node_modules/.bin`
+  first, and npm, yarn and pnpm all **hoist workspace members' bins** into the root
+  `node_modules/.bin`. So the rewrite is refused, keeping the pack's severity, when any
+  name it would trust is a `bin` the manifest itself declares, or — when the manifest is
+  a workspace root (a `workspaces` field, or a `pnpm-workspace.yaml` beside it) — a `bin`
+  any `package.json` in its subtree declares. A string `bin` counts under the package's
+  own (unscoped) name. The shell builtins `true` and `exit` cannot be shadowed by a file
+  on PATH and are exempt.
 - **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
   manifest; the manifest lists at least two `optionalDependencies` named
   `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the

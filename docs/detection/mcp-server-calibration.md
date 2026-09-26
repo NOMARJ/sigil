@@ -607,9 +607,10 @@ Data Source: Real samples, scanned with the release build of this branch and,
                     SkillSpector's own tests.
 Sample Size: 169 MCP servers; 204 + 455 skills; 844 malicious packages;
              1,796 parity samples.
-Limitations: In-sample for the MCP corpus. The held-out MCP sample was not
-             scanned in this pass (it is reserved for the next one, and the
-             planning replay had already been checked against it). "Clean"
+Limitations: In-sample for the MCP corpus. The held-out MCP sample (146 unseen
+             servers) was scanned only for the record — the out-of-sample
+             section below — and was not used to choose or tune any rule; no
+             rule was changed for it. "Clean"
              is not "audited". Static analysis only; the MCP and skills runs
              include the OSV lookup; the Datadog runs are offline (run_eval.py's
              six phases for the severity thresholds, and all nine phases named
@@ -710,6 +711,7 @@ one of these spans would now score lower.
 | `new Function` duplicate | CODE-009 → Low | Every CODE-009 line is also CODE-008 at High (checked over the fixtures and the detection docs). |
 | Literal client key | INFER-007 → corroborate | Still Critical and still HIGH alone in a small package; CRITICAL needs a second corroborating Critical. |
 | Lifecycle classifier | INSTALL-010/011/012, CODE-016 (`scanner/lifecycle.rs`) | Positive tests over the parsed manifest and the scripts it names; anything unproven keeps the pack's severity. See [structural-checks.md](structural-checks.md#lifecycle-scripts-and-platform-launchers-install-010--012-code-016). |
+| Bin shadowing keeps the severity | INSTALL-010/011/012 | `node`, `npx`/`only-allow` and the build leaves (`tsc`, `husky`, `rimraf`, `shx`, `chmod`) resolve through `node_modules/.bin` first, where npm/yarn/pnpm hoist workspace members' bins. The rewrite is refused when a trusted name is a `bin` the manifest declares itself, or (at a workspace root) a `bin` any subtree `package.json` declares, so a member's `tsc` / `node` / `chmod` / `only-allow` bin cannot downgrade the finding. `true` / `exit` are shell builtins and exempt. |
 | Skill lifecycle keys | SKILL-006 no longer reads `package.json` | Duplicated INSTALL-003, which now reads the command. |
 | Match-local suppression | `suppress.match_context`, `suppress.value_matches` (`corpus/exempt.rs`) | A line is dropped only when every match on it is exempt; overlap-safe; fails closed past 64 matches. |
 | Definitions are not calls | CODE-001/002/003 | `def exec(`, `function eval(`, and in JS-family files a method `name(args) {`. |
@@ -721,9 +723,11 @@ one of these spans would now score lower.
 Each change has tests for the benign shape and for the attack variants it
 could have dropped: `cli/src/scanner/lifecycle_tests.rs` (about ninety
 postinstall, only-allow, launcher and prepare variants, each keeping its
-original rule and severity), `cli/src/corpus/exempt_tests.rs` (overlap, mixed
-lines, the match limit, UTF-8 windows, case, loader refusals) and
-`cli/src/corpus/mcp_fp_tests.rs`.
+original rule and severity, including `a_shadowing_bin_keeps_the_original_severity`
+for a workspace member's or the manifest's own `bin` shadowing `node`,
+`only-allow`, `chmod` or a build tool), `cli/src/corpus/exempt_tests.rs`
+(overlap, mixed lines, the match limit, UTF-8 windows, case, loader refusals)
+and `cli/src/corpus/mcp_fp_tests.rs`.
 
 ### Still blocked (24)
 
@@ -745,6 +749,68 @@ lines, the match limit, UTF-8 windows, case, loader refusals) and
   `io.github.localstack/localstack-mcp-server`,
   `io.github.dynatrace-oss/Dynatrace-mcp`, `dev.rivet/mcp`,
   `io.github.SAP/fiori-mcp-server`, `io.github.vercel/next-devtools-mcp`.
+
+### Out of sample: the held-out 146 (for the record only)
+
+The 146-server holdout was reserved so the calibration could be checked on
+servers no change was fitted to. It was scanned once with the release build of
+main and once with this branch; **no rule was changed for it** and it stays
+reserved for the next pass. The point is to see whether the in-sample gains
+carry over, and whether anything moved the wrong way.
+
+```
+Data Source: 146 held-out MCP servers, release builds of main (3982aa6) and
+             this branch, --no-cache, isolated HOME, OSV lookup on.
+Sample Size: 146 servers.
+Limitations: "Clean" is not "audited"; the holdout, like the in-sample corpus,
+             is unaudited published servers. Machine shared during the runs.
+```
+
+| | Before (main) | After (branch) | Change |
+|---|---:|---:|---:|
+| Holdout blocked (≥ HIGH) | 80/146 (54.8%) | 66/146 (45.2%) | −14 |
+| Holdout warned (≥ MEDIUM) | 135/146 (92.5%) | 114/146 (78.1%) | −21 |
+| Holdout servers that moved down a level | | 34 | |
+| Holdout servers that moved up a level | | 0 | |
+
+The drop tracks the in-sample one (39 → 24 blocked, 23.1% → 14.2%; a −8.9 pt
+in-sample fall against a −9.6 pt out-of-sample fall), and no server got worse.
+The down-movements are the same false-positive patterns, in the same order:
+
+| Lost finding | In-sample servers | Holdout servers |
+|---|---:|---:|
+| INSTALL-004 → INSTALL-009 / INSTALL-012 (`prepublishOnly` or build-only `prepare`) | 43 | 23 |
+| CODE-002 / CODE-003 (method definitions; `compile(` in JS) | 1 / 4 | 3 / 3 |
+| Bounded spans (SUPPLY-011/013/016, INFER-004/005, OBFUSC-CHAIN-009) | 4 | 5 |
+| CRED-007 / CRED-008 / CRED-011 (name-shaped values) | 10 | 0 |
+| HYGIENE-001/002 (source maps) → Low | (many, as MEDIUM→LOW) | (folded into the warned drop) |
+
+The 66 that stay blocked out of sample are held by the same detection rules as
+the 24 in-sample residual — the shapes the FP work deliberately left alone:
+
+| Blocking rule (High/Critical) | In-sample residual (of 24) | Holdout residual (of 66) |
+|---|---:|---:|
+| CODE-008 (`new Function` / `Function(` over built strings) | 5 | 22 |
+| INSTALL-003 (a real `preinstall`/`postinstall` action) | 5 | 19 |
+| CODE-002 / CODE-001 (`eval`/`exec`/dynamic import calls) | 5 / 6 | 17 / 9 |
+| CODE-014 (`execSync` of an interpolated command) | 3 | 17 |
+| NET-RCE-001 (download piped to a shell) | 5 | 10 |
+| SUPPLY-014 / SUPPLY-001 / SUPPLY-008 | 4 / 4 / 2 | 12 / 9 / 9 |
+| PROMPT-004 (injection in shipped instructions) | 5 | 7 |
+| CRED-007 / CRED-008 (real credential material) | 3 / 2 | 9 / 11 |
+| OBFUSC-006/007/012, OBFUSC-CHAIN-006 (encoding chains) | ~3 each | 5–6 each |
+| MANIP-004, PERSIST-002/005, SKILL-018/022 | 1–2 each | 5–9 each |
+| OSV advisories | 3 (1 OSV-only) | 1 |
+
+So the residual is dominated everywhere by the same install-execute,
+code-generation, download-and-run, credential and prompt-injection rules; the
+larger holdout counts are proportional to its larger blocked set, not a new
+class of finding. This is the honest next step: the twelve in-sample servers
+that "need their own rule work" (SUPPLY-001 inside a bundled real package, the
+unbounded PROMPT-004, and so on) have direct out-of-sample analogues in the
+holdout's CODE-008/CODE-014/SUPPLY-001 residual, and the next pass should reduce
+those with payload-level rules — measured first on this held-out set before it
+is folded into the in-sample corpus.
 
 ### Considered and not done
 
