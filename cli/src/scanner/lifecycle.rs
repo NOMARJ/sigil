@@ -53,20 +53,37 @@
 //!   (a hook pnpm executes), a `.npmrc` setting `script-shell` / `shell` /
 //!   `node-options` / `globalconfig` / `userconfig` or an off-registry
 //!   `registry`, or a `.yarnrc` / `.yarnrc.yml` setting `yarn-path` /
-//!   `yarnPath` / `plugins` or an off-registry server. A `.npmrc` with only
-//!   benign keys does not.
+//!   `yarnPath` / `plugins` / `packageExtensions` or an off-registry server. A
+//!   `.npmrc` with only benign keys does not; and
+//! - nothing in the install's scope can swap or add a package *below* a
+//!   trusted tool (Codex review of #172, finding B): the tool's own
+//!   dependencies are installed too, npm hoists them, and any of them can link
+//!   a bin under a trusted name. So a manifest in the scope, or in a directory
+//!   above the package, that declares a non-empty `overrides`, `resolutions`,
+//!   `pnpm.overrides`, `pnpm.packageExtensions` or `pnpm.patchedDependencies`;
+//!   a `pnpm-workspace.yaml` in those directories that declares `overrides`,
+//!   `packageExtensions`, `patchedDependencies`, `configDependencies` or a
+//!   pnpmfile, or cannot be read; and a lockfile there (`package-lock.json`,
+//!   `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock`,
+//!   `bun.lockb`) with any entry that does not resolve to the public
+//!   registry's tarball of the package it is filed under (a git, file,
+//!   tarball, link, workspace, alias or patched entry), or that cannot be
+//!   parsed, each keep the original finding. See
+//!   [`Tree::resolution_side_channel`].
 //!
 //! A lockfile is not taken as evidence that no collision exists: npm links a
 //! package's bins from the installed package's own manifest, not from the
 //! lockfile's per-package `bin` metadata, which is attacker-written text; and
 //! a dependency's lockfile is ignored when it is installed by a consumer. The
-//! lockfile is read only to reject a trusted tool resolved off the registry.
+//! lockfile is read only to reject an install that resolves anything off the
+//! registry.
 //!
 //! A rewritten finding keeps its file, line, phase and weight; its rule id,
 //! severity and snippet change, and the snippet says why. Findings from
 //! decoded content or an oversized file's tail are never rewritten: their
 //! line is not the manifest line the classifier reads.
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
@@ -97,6 +114,9 @@ const MAX_INERT_DEPTH: usize = 2;
 const MAX_RUN_DEPTH: usize = 3;
 /// Launcher scripts larger than this are not analysed.
 const MAX_LAUNCHER_BYTES: usize = 256 * 1024;
+/// A lockfile or `pnpm-workspace.yaml` larger than this is not read, and
+/// counts as one that cannot be parsed (the rewrite fails closed).
+const MAX_RESOLUTION_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
 /// A pattern compiled once per process (see [`re!`]).
 fn cached(cell: &'static OnceLock<Regex>, pattern: &str) -> &'static Regex {
@@ -252,6 +272,421 @@ fn overrides_in(doc: &Value, pkg: &str) -> bool {
         .any(|v| any_key(v, &names))
 }
 
+/// A manifest field that changes which package is installed under a name, or
+/// what an installed package contains, anywhere in the dependency tree: a
+/// non-empty `overrides` (npm), `resolutions` (yarn, including `patch:`
+/// entries), `pnpm.overrides`, `pnpm.packageExtensions` (adds dependencies to
+/// a dependency's manifest) or `pnpm.patchedDependencies` (rewrites a
+/// dependency's files). [`overrides_in`] asks this about one trusted tool; a
+/// *transitive* dependency of that tool is just as able to link a bin under
+/// a trusted name once npm hoists it, so any entry keeps the finding. A field
+/// of the wrong type is treated as non-empty (fail closed).
+fn declares_resolution_changes(doc: &Value) -> bool {
+    fn non_empty(v: Option<&Value>) -> bool {
+        match v {
+            None | Some(Value::Null) => false,
+            Some(Value::Object(o)) => !o.is_empty(),
+            Some(Value::Array(a)) => !a.is_empty(),
+            Some(_) => true,
+        }
+    }
+    if non_empty(doc.get("overrides")) || non_empty(doc.get("resolutions")) {
+        return true;
+    }
+    match doc.get("pnpm") {
+        None | Some(Value::Null) => false,
+        Some(Value::Object(p)) => ["overrides", "packageExtensions", "patchedDependencies"]
+            .iter()
+            .any(|k| non_empty(p.get(*k))),
+        Some(_) => true,
+    }
+}
+
+/// A plain version as a lockfile records a registry package: `1.2.3`,
+/// `1.0.0-beta.1`, `0.0.0+build`. Not a range, tag, path, URL or alias.
+fn is_plain_version(v: &str) -> bool {
+    v.as_bytes().first().is_some_and(u8::is_ascii_digit)
+        && v.bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'+'))
+}
+
+/// `name` split from `name@range` (a scoped name keeps its leading `@`).
+fn split_descriptor(d: &str) -> Option<(&str, &str)> {
+    let at = d.get(1..)?.find('@')? + 1;
+    Some((&d[..at], &d[at + 1..]))
+}
+
+/// A public-registry tarball URL for `name` itself:
+/// `https://registry.npmjs.org/<name>/-/<unscoped>-<version>.tgz` (or the
+/// yarn mirror of it, with an optional `#<hash>`). A tarball of another
+/// package on the same registry is an alias and does not count.
+fn is_registry_tarball_of(name: &str, url: &str) -> bool {
+    let Some(rest) = [
+        "https://registry.npmjs.org/",
+        "https://registry.yarnpkg.com/",
+    ]
+    .iter()
+    .find_map(|p| url.strip_prefix(p)) else {
+        return false;
+    };
+    let rest = rest.split('#').next().unwrap_or(rest);
+    let unscoped = name.rsplit('/').next().unwrap_or(name);
+    rest.strip_prefix(name)
+        .and_then(|r| r.strip_prefix("/-/"))
+        .and_then(|r| r.strip_prefix(unscoped))
+        .and_then(|r| r.strip_prefix('-'))
+        .and_then(|r| r.strip_suffix(".tgz"))
+        .is_some_and(is_plain_version)
+}
+
+/// `package-lock.json` / `npm-shrinkwrap.json`: `true` unless the file parses
+/// and every entry is a public-registry package under its own name. The
+/// project's own entry (`""`) is skipped; a workspace member's entry, a
+/// `link`, an entry whose `name` differs from its folder (an alias), a
+/// `resolved` that is not the registry tarball of that name, and a `version`
+/// that is not a plain version (v1 records `file:`, `git+…` and `npm:` specs
+/// there) each count as off the registry.
+fn npm_lock_off_registry(text: &str) -> bool {
+    fn entry_off(name: &str, entry: &Value) -> bool {
+        let Some(e) = entry.as_object() else {
+            return true;
+        };
+        if e.get("link").is_some_and(|v| v != &Value::Bool(false)) {
+            return true;
+        }
+        if e.get("name").is_some_and(|n| n.as_str() != Some(name)) {
+            return true;
+        }
+        if !e
+            .get("version")
+            .and_then(Value::as_str)
+            .is_some_and(is_plain_version)
+        {
+            return true;
+        }
+        // No `resolved`: a bundled dependency (it ships inside its parent's
+        // registry tarball) or a registry entry written with
+        // `omit-lockfile-registry-resolved`; the plain version above is then
+        // fetched from the configured registry, which the `.npmrc` check
+        // holds to the public one.
+        e.get("resolved")
+            .is_some_and(|r| !r.as_str().is_some_and(|u| is_registry_tarball_of(name, u)))
+    }
+    fn v1_off(deps: &Value, depth: usize) -> bool {
+        let Some(d) = deps.as_object() else {
+            return true;
+        };
+        depth > 64
+            || d.iter().any(|(name, e)| {
+                entry_off(name, e)
+                    || e.get("dependencies")
+                        .is_some_and(|nested| v1_off(nested, depth + 1))
+            })
+    }
+    let Ok(doc) = serde_json::from_str::<Value>(text) else {
+        return true;
+    };
+    let Some(obj) = doc.as_object() else {
+        return true;
+    };
+    if let Some(packages) = obj.get("packages") {
+        let Some(packages) = packages.as_object() else {
+            return true;
+        };
+        for (key, entry) in packages {
+            if key.is_empty() {
+                continue;
+            }
+            // `node_modules/a/node_modules/@s/b` is `@s/b`; a key without
+            // `node_modules/` is a workspace member's or a linked
+            // directory's own entry.
+            let Some((_, name)) = key.rsplit_once("node_modules/") else {
+                return true;
+            };
+            if entry_off(name, entry) {
+                return true;
+            }
+        }
+    }
+    obj.get("dependencies").is_some_and(|d| v1_off(d, 0))
+}
+
+/// `yarn.lock`, classic (v1) or Berry (YAML with a `__metadata` block).
+fn yarn_lock_off_registry(text: &str) -> bool {
+    if text.lines().any(|l| l.trim_end() == "__metadata:") {
+        yarn_berry_off_registry(text)
+    } else {
+        yarn_v1_off_registry(text)
+    }
+}
+
+/// A classic `yarn.lock`: every entry's descriptors are one package name with
+/// a registry range, its `version` is plain and its `resolved` (when given)
+/// is the public registry's tarball of that name. Any field or line this does
+/// not recognise counts as unparseable.
+fn yarn_v1_off_registry(text: &str) -> bool {
+    let mut current: Option<String> = None;
+    for raw in text.lines() {
+        let line = raw.trim_end_matches('\r');
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let indent = line.len() - line.trim_start_matches(' ').len();
+        if line.starts_with('\t') {
+            return true;
+        }
+        if indent == 0 {
+            let Some(header) = line.strip_suffix(':') else {
+                return true;
+            };
+            let mut name: Option<&str> = None;
+            for d in header.split(',') {
+                let d = d.trim().trim_matches('"');
+                let Some((n, range)) = split_descriptor(d) else {
+                    return true;
+                };
+                let registry_range = !range.trim().is_empty()
+                    && range.bytes().all(|b| {
+                        b.is_ascii_alphanumeric()
+                            || matches!(
+                                b,
+                                b'.' | b'^'
+                                    | b'~'
+                                    | b'<'
+                                    | b'>'
+                                    | b'='
+                                    | b'|'
+                                    | b'*'
+                                    | b'+'
+                                    | b'-'
+                                    | b' '
+                            )
+                    });
+                if !registry_range || name.is_some_and(|x| x != n) {
+                    return true;
+                }
+                name = Some(n);
+            }
+            current = name.map(str::to_string);
+            continue;
+        }
+        let Some(name) = current.as_deref() else {
+            return true;
+        };
+        if indent > 2 {
+            // A dependency range of the locked package; its resolution is an
+            // entry of its own, checked above.
+            continue;
+        }
+        let (key, value) = trimmed.split_once(' ').unwrap_or((trimmed, ""));
+        let value = value.trim().trim_matches('"');
+        match key {
+            "version" if !is_plain_version(value) => return true,
+            "resolved" if !is_registry_tarball_of(name, value) => return true,
+            "version" | "resolved" | "integrity" | "uid" => {}
+            "dependencies:" | "optionalDependencies:" if value.is_empty() => {}
+            _ => return true,
+        }
+    }
+    false
+}
+
+/// A Berry `yarn.lock` (YAML): every entry resolves to `name@npm:<version>`
+/// under the name its descriptors ask for, with `linkType: hard`. Two other
+/// entries are accepted: the project itself (`workspace:.`) and yarn's own
+/// built-in compatibility patch of a registry package
+/// (`patch:…#optional!builtin<compat/…>`), whose patch ships inside yarn.
+fn yarn_berry_off_registry(text: &str) -> bool {
+    let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(text) else {
+        return true;
+    };
+    let Some(map) = doc.as_mapping() else {
+        return true;
+    };
+    for (key, entry) in map {
+        let Some(key) = key.as_str() else {
+            return true;
+        };
+        if key == "__metadata" {
+            continue;
+        }
+        let mut name: Option<&str> = None;
+        for d in key.split(',') {
+            let Some((n, _)) = split_descriptor(d.trim()) else {
+                return true;
+            };
+            if name.is_some_and(|x| x != n) {
+                return true;
+            }
+            name = Some(n);
+        }
+        let Some(name) = name else {
+            return true;
+        };
+        let Some(entry) = entry.as_mapping() else {
+            return true;
+        };
+        let Some(resolution) = entry.get("resolution").and_then(|v| v.as_str()) else {
+            return true;
+        };
+        let link = entry.get("linkType").and_then(|v| v.as_str());
+        let Some((rname, source)) = split_descriptor(resolution) else {
+            return true;
+        };
+        if rname != name {
+            return true;
+        }
+        let ok = if let Some(v) = source.strip_prefix("npm:") {
+            is_plain_version(v) && link == Some("hard")
+        } else if source == "workspace:." {
+            link == Some("soft")
+        } else if let Some(p) = source.strip_prefix("patch:") {
+            let builtin = re!(
+                r"^(?P<n>(?:@[a-z0-9._-]+/)?[a-z0-9._-]+)@npm%3A[0-9A-Za-z.+-]+#(?:optional!)?~?builtin<compat/[a-z0-9-]+>(?:::[A-Za-z0-9=&._-]*)?$"
+            );
+            link == Some("hard") && builtin.captures(p).is_some_and(|c| &c["n"] == name)
+        } else {
+            false
+        };
+        if !ok {
+            return true;
+        }
+    }
+    false
+}
+
+/// `pnpm-lock.yaml`: `true` unless it parses as a pnpm lockfile, records no
+/// override, package extension, patch or pnpmfile, resolves every package by
+/// registry `integrity` alone (a `tarball`, git `repo` / `commit` or
+/// `directory` resolution is off the registry), and every dependency it
+/// links is a plain version (a `link:` / `file:` target or an alias to
+/// another package's name is not).
+fn pnpm_lock_off_registry(text: &str) -> bool {
+    use serde_yaml::Value as Y;
+    fn version_off(v: &Y) -> bool {
+        let s = match v {
+            Y::String(s) => s.as_str(),
+            Y::Mapping(m) => match m.get("version").and_then(Y::as_str) {
+                Some(s) => s,
+                None => return true,
+            },
+            Y::Number(_) => return false,
+            _ => return true,
+        };
+        // Peer-dependency suffixes: `1.0.0(react@18.2.0)` (v6+),
+        // `1.0.0_react@18.2.0` (v5).
+        let base = s.split(['(', '_']).next().unwrap_or(s);
+        !is_plain_version(base)
+    }
+    fn deps_off(entry: &Y) -> bool {
+        let Some(e) = entry.as_mapping() else {
+            return !entry.is_null();
+        };
+        ["dependencies", "devDependencies", "optionalDependencies"]
+            .iter()
+            .filter_map(|k| e.get(*k))
+            .any(|deps| match deps {
+                Y::Mapping(d) => d.values().any(version_off),
+                Y::Null => false,
+                _ => true,
+            })
+    }
+    let Ok(doc) = serde_yaml::from_str::<Y>(text) else {
+        return true;
+    };
+    let Some(map) = doc.as_mapping() else {
+        return true;
+    };
+    if map.get("lockfileVersion").is_none() {
+        return true;
+    }
+    if [
+        "overrides",
+        "packageExtensionsChecksum",
+        "patchedDependencies",
+        "pnpmfileChecksum",
+    ]
+    .iter()
+    .any(|k| map.get(*k).is_some_and(|v| !v.is_null()))
+    {
+        return true;
+    }
+    // A single-project v5 / v6 lockfile keeps its dependencies at the top.
+    if deps_off(&doc) {
+        return true;
+    }
+    for section in ["importers", "snapshots"] {
+        match map.get(section) {
+            None | Some(Y::Null) => {}
+            Some(Y::Mapping(m)) => {
+                if m.iter().any(|(k, e)| {
+                    k.as_str().is_none_or(|k| k.contains("patch_hash")) || deps_off(e)
+                }) {
+                    return true;
+                }
+            }
+            Some(_) => return true,
+        }
+    }
+    match map.get("packages") {
+        None | Some(Y::Null) => false,
+        Some(Y::Mapping(m)) => m.iter().any(|(k, e)| {
+            let Some(k) = k.as_str() else {
+                return true;
+            };
+            let Some(entry) = e.as_mapping() else {
+                return true;
+            };
+            let registry = entry
+                .get("resolution")
+                .and_then(Y::as_mapping)
+                .is_some_and(|r| {
+                    !r.is_empty() && r.keys().all(|k| k.as_str() == Some("integrity"))
+                });
+            !registry
+                || [
+                    "://",
+                    "file:",
+                    "link:",
+                    "git+",
+                    "git:",
+                    "github:",
+                    "patch_hash",
+                ]
+                .iter()
+                .any(|t| k.contains(t))
+                || deps_off(e)
+        }),
+        Some(_) => true,
+    }
+}
+
+/// A `pnpm-workspace.yaml` that changes what the install resolves or runs:
+/// `overrides`, `packageExtensions`, `patchedDependencies`,
+/// `configDependencies` (installed first, and able to supply a pnpmfile) or
+/// a `pnpmfile` path, or a file that does not parse as a mapping.
+fn pnpm_workspace_alters_install(text: &str) -> bool {
+    let doc = match serde_yaml::from_str::<serde_yaml::Value>(text) {
+        Ok(d) => d,
+        Err(_) => return true,
+    };
+    match doc {
+        serde_yaml::Value::Null => false,
+        serde_yaml::Value::Mapping(m) => [
+            "overrides",
+            "packageExtensions",
+            "patchedDependencies",
+            "configDependencies",
+            "pnpmfile",
+            "globalPnpmfile",
+        ]
+        .iter()
+        .any(|k| m.get(*k).is_some_and(|v| !v.is_null())),
+        _ => true,
+    }
+}
+
 /// Which install runs a lifecycle key, and so which dependency fields have
 /// put packages (and their bins) into `node_modules` before it runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -387,6 +822,9 @@ struct Tree<'a> {
     base: &'a Path,
     present: HashSet<String>,
     manifests: HashMap<String, Option<Manifest>>,
+    /// [`Tree::dir_alters_resolution`] per directory: a lockfile is parsed
+    /// once however many lifecycle findings share it.
+    resolution: RefCell<HashMap<String, bool>>,
 }
 
 impl<'a> Tree<'a> {
@@ -404,6 +842,7 @@ impl<'a> Tree<'a> {
             base,
             present,
             manifests: HashMap::new(),
+            resolution: RefCell::new(HashMap::new()),
         }
     }
 
@@ -640,6 +1079,99 @@ impl<'a> Tree<'a> {
         }
         false
     }
+
+    /// Codex review of #172, finding B, failing closed: whether anything in
+    /// the install's scope can replace or add a package anywhere in the
+    /// dependency tree, including *below* a trusted tool. The tool's own
+    /// dependencies are installed and hoisted too (rimraf's, typescript's),
+    /// so an override of one of them, a package extension that adds one, or
+    /// a lockfile entry that fetches one from elsewhere can link a bin under a
+    /// trusted name — `rimraf`, `tsc`, `node` — that runs in the tool's place.
+    /// [`overrides_in`] and [`Self::lockfile_redirects`] only ask this about
+    /// the tool's own name. `true` (no rewrite) when:
+    ///
+    /// - a manifest in the scope, or a `package.json` in any directory above
+    ///   the package, declares a resolution change
+    ///   ([`declares_resolution_changes`]) or cannot be parsed; or
+    /// - a directory in the scope or above the package holds a
+    ///   `pnpm-workspace.yaml`, lockfile or bun lockfile that
+    ///   [`Self::dir_alters_resolution`] rejects.
+    fn resolution_side_channel(&self, m: &Manifest, scope: &Scope) -> bool {
+        if scope
+            .manifests
+            .iter()
+            .any(|(_, doc)| declares_resolution_changes(doc))
+        {
+            return true;
+        }
+        let mut dirs: Vec<String> = scope.manifests.iter().map(|(d, _)| d.clone()).collect();
+        let mut d = m.dir.as_str();
+        while !d.is_empty() {
+            d = split_rel(d).0;
+            dirs.push(d.to_string());
+            // A manifest above the package that is not already in the scope
+            // (a non-workspace parent project) can still hold the root
+            // `overrides` of an install run from there.
+            let rel = join_rel(d, "package.json");
+            let path = self.base.join(&rel);
+            if path.exists() {
+                let parsed = std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|t| serde_json::from_str::<Value>(&t).ok());
+                match parsed {
+                    Some(doc) if doc.is_object() => {
+                        if declares_resolution_changes(&doc) {
+                            return true;
+                        }
+                    }
+                    _ => return true,
+                }
+            }
+        }
+        dirs.sort();
+        dirs.dedup();
+        dirs.iter().any(|dir| self.dir_alters_resolution(dir))
+    }
+
+    /// Whether `dir` holds a `pnpm-workspace.yaml` that changes resolution
+    /// ([`pnpm_workspace_alters_install`]), or a lockfile with an entry off
+    /// the public registry or that cannot be parsed
+    /// ([`npm_lock_off_registry`], [`yarn_lock_off_registry`],
+    /// [`pnpm_lock_off_registry`]). A bun lockfile (`bun.lock`, the binary
+    /// `bun.lockb`) is not read and always counts. Files are read from disk,
+    /// not the scanned set: the package manager reads them whether or not
+    /// the scan did, and a file too large or not UTF-8 counts as unparseable.
+    fn dir_alters_resolution(&self, dir: &str) -> bool {
+        if let Some(hit) = self.resolution.borrow().get(dir) {
+            return *hit;
+        }
+        let read = |name: &str| -> Option<Result<String, ()>> {
+            let path = self.base.join(join_rel(dir, name));
+            let meta = std::fs::metadata(&path).ok()?;
+            if meta.len() > MAX_RESOLUTION_FILE_BYTES {
+                return Some(Err(()));
+            }
+            Some(std::fs::read_to_string(&path).map_err(|_| ()))
+        };
+        type Check = fn(&str) -> bool;
+        let checks: [(&str, Check); 5] = [
+            ("pnpm-workspace.yaml", pnpm_workspace_alters_install),
+            ("package-lock.json", npm_lock_off_registry),
+            ("npm-shrinkwrap.json", npm_lock_off_registry),
+            ("yarn.lock", yarn_lock_off_registry),
+            ("pnpm-lock.yaml", pnpm_lock_off_registry),
+        ];
+        let hit = ["bun.lock", "bun.lockb"]
+            .iter()
+            .any(|n| self.base.join(join_rel(dir, n)).exists())
+            || checks.iter().any(|(name, off)| match read(name) {
+                None => false,
+                Some(Err(())) => true,
+                Some(Ok(text)) => off(&text),
+            });
+        self.resolution.borrow_mut().insert(dir.to_string(), hit);
+        hit
+    }
 }
 
 fn is_registry_tarball(url: &str) -> bool {
@@ -721,7 +1253,9 @@ fn yarnrc_yml_alters_install(text: &str) -> bool {
         };
         let key = key.trim();
         let value = value.trim();
-        if matches!(key, "yarnPath" | "plugins") {
+        // `packageExtensions` adds dependencies to a dependency's manifest,
+        // as pnpm's does (see `declares_resolution_changes`).
+        if matches!(key, "yarnPath" | "plugins" | "packageExtensions") {
             return true;
         }
         if key == "npmRegistryServer" && !value.is_empty() && !is_public_registry(value) {
@@ -834,6 +1368,12 @@ fn classify_manifest_line(
         return None;
     }
     let scope = tree.scope(m)?;
+    // Every rewrite below trusts what a name resolves to; an override,
+    // package extension or off-registry lockfile entry anywhere in the tree
+    // can change that below the tool itself.
+    if tree.resolution_side_channel(m, &scope) {
+        return None;
+    }
     let phase = if rule == "INSTALL-003" {
         InstallPhase::Install
     } else {

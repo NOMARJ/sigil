@@ -290,9 +290,10 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   package: no leading `/`, `~`, `$` or `-`, no `..` segment, no shell syntax. Each tool
   the steps use (`typescript`, `husky`, `shx`, `rimraf`) must be a dependency the
   manifest pins itself, with a registry version range (no `git`, `github:`, `file:`,
-  `link:`, URL, `npm:` alias or `workspace:`), and must not be bundled, overridden
-  (`overrides`, `resolutions`, `pnpm.overrides`) or resolved off the registry by a
-  shipped lockfile. An **undeclared** tool name is not trusted: npm prepends
+  `link:`, URL, `npm:` alias or `workspace:`), and must not be bundled; and nothing in
+  the install's scope may override, extend or redirect *any* package in the tree, the
+  tool's own dependencies included (the overrides-and-lockfiles rule below). An
+  **undeclared** tool name is not trusted: npm prepends
   `node_modules/.bin` to PATH for lifecycle scripts, so a dependency shipping a `tsc` /
   `husky` / `rimraf` / `shx` bin would run in place of the real tool while the package
   never named the real one, so such a `prepare` stays `INSTALL-004` (Medium). Declaring
@@ -351,7 +352,8 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   from the installed package's own `package.json`, not from the lockfile. And a
   package's lockfile is ignored when a consumer installs it as a dependency, so for
   install-phase scripts it does not even describe the tree that runs them. The
-  lockfile is read only to *reject*: a trusted tool resolved off the public registry.
+  lockfile is read only to *reject*: any entry off the public registry, or a lockfile
+  this pass cannot parse (below).
 - **Install-config side channels (`INSTALL-010` / `011` / `012`), failing closed.** npm,
   yarn and pnpm read a package-manager config file from the install directory upward
   before any script line runs, so a file the package ships (or that sits in a directory
@@ -364,9 +366,45 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   into every `node`), `globalconfig` / `userconfig` (another config file that can set
   those), or a `registry` / `<scope>:registry` off the public registry (the trusted tool,
   or `only-allow`, then comes from an attacker host); a **`.yarnrc`** setting `yarn-path`
-  or an off-registry `registry`; a **`.yarnrc.yml`** setting `yarnPath`, `plugins` or an
-  off-registry `npmRegistryServer`. A `.npmrc` / `.yarnrc` with only benign keys
-  (`save-exact`, `engine-strict`, the public registry, …) still rewrites.
+  or an off-registry `registry`; a **`.yarnrc.yml`** setting `yarnPath`, `plugins`,
+  `packageExtensions` or an off-registry `npmRegistryServer`. A `.npmrc` / `.yarnrc`
+  with only benign keys (`save-exact`, `engine-strict`, the public registry, …) still
+  rewrites.
+- **Overrides, package extensions and lockfiles (`INSTALL-010` / `011` / `012`),
+  failing closed.** The trusted tools' own dependencies are installed and hoisted too
+  (`rimraf` brings `glob`, `glob` brings more), and any of them can link a bin under a
+  trusted name. The earlier checks asked only whether the *tool's own name* was
+  overridden or lockfile-redirected, so an `overrides` entry for one of `rimraf`'s
+  dependencies, pointing at a package that exports a `rimraf` bin, left
+  `prepare: "rimraf dist"` rewritten to Low while npm ran the other package (Codex
+  review of #172). A rewrite is now refused, keeping the pack's severity, when:
+  - any manifest in the scope (the package's own and, in a workspace, every
+    `package.json` under the root), or a `package.json` in any directory above the
+    package (the project an install may be run from), declares a non-empty
+    `overrides`, `resolutions` (yarn `patch:` entries included), `pnpm.overrides`,
+    `pnpm.packageExtensions` or `pnpm.patchedDependencies` — whatever package it
+    names — or a field of the wrong type, or cannot be parsed;
+  - a `pnpm-workspace.yaml` in any of those directories declares `overrides`,
+    `packageExtensions`, `patchedDependencies`, `configDependencies` or a `pnpmfile`,
+    or does not parse as a mapping;
+  - a lockfile in any of those directories — `package-lock.json`,
+    `npm-shrinkwrap.json`, `yarn.lock` (classic or Berry), `pnpm-lock.yaml` — does not
+    parse, or has any entry that does not resolve to the public registry's tarball of
+    the package it is filed under: a `resolved` URL on another host, a git, `file:`,
+    `link:` or tarball source, a workspace member's or linked directory's entry, an
+    alias (another package's tarball, a `name` that differs from the entry's, an
+    `npm:` spec), a pnpm `tarball` / git / `directory` resolution, a lockfile that
+    records overrides, package extensions, patches or a pnpmfile, or a yarn patch
+    other than yarn's own built-in compatibility patches. The Berry project's own
+    `workspace:.` entry is accepted. A `bun.lock` / `bun.lockb` is not read and always
+    counts. Lockfiles are read from disk whether or not the scan enumerated them, and
+    one over 64 MiB counts as unparseable.
+
+  An empty `overrides: {}` / `resolutions: {}`, unrelated `pnpm` settings
+  (`onlyBuiltDependencies`) and a `pnpm-workspace.yaml` that only lists `packages`
+  change nothing. Tests: the `an_override_*`, `a_workspace_or_yarn_config_override_*`,
+  `a_lockfile_entry_off_the_registry_*` and `a_registry_only_lockfile_*` cases in
+  `cli/src/scanner/lifecycle_tests.rs` (Codex's example verbatim and its variants).
 - **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
   manifest; the manifest lists at least two `optionalDependencies` named
   `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the

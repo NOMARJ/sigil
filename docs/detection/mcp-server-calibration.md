@@ -673,7 +673,8 @@ Limitations: In-sample for the MCP corpus. The held-out MCP sample (146 unseen
 - `com.apideck/mcp`, `io.github.firebase/firebase-mcp`: HIGH → MEDIUM.
   CRED-008 no longer fires on `password: "password"` enum values or in `.d.ts`
   files; apideck's `prepublishOnly` is INSTALL-009 and its SUPPLY-008 match
-  was two tokens a bundle apart.
+  was two tokens a bundle apart. (The CRED-008 part is withdrawn by the fifth
+  change below: the same value exemption silenced real passwords.)
 - `com.audioeye/testing-sdk-mcp`: HIGH → MEDIUM. CODE-009 is a Low duplicate
   of the High CODE-008 on the same line, which halves that line's score.
 - `com.tracklution/server-side-tracking`: HIGH → LOW. CRED-011 no longer
@@ -721,8 +722,8 @@ one of these spans would now score lower.
 | Skill lifecycle keys | SKILL-006 no longer reads `package.json` | Duplicated INSTALL-003, which now reads the command. |
 | Match-local suppression | `suppress.match_context`, `suppress.value_matches` (`corpus/exempt.rs`) | A line is dropped only when every match on it is exempt; overlap-safe; fails closed past 64 matches. |
 | Definitions are not calls | CODE-001/002/003 | `def exec(`, `function eval(`, and in JS-family files a method `name(args) {`. |
-| Names are not secrets | CRED-007/011 (lowercase-word values), CRED-008 (password field names, `.d.ts`) | JWTs, `sk_live_…`, `ghp_…`, `hunter2hunter2` still fire. |
-| Arity wrapper | OBFUSC-CHAIN-011 | Exempt only when the joined array is the one the same line generated (`same: [gen, joined]`). |
+| Names are not secrets (narrowed by the fifth change) | CRED-011 only: a whole quoted value that is a property path ending in a `*_token` field | CRED-007's and CRED-008's value exemptions and CRED-008's `.d.ts` exemption are removed: a word-made value can be a real secret. |
+| Arity wrapper (narrowed by the fifth change) | OBFUSC-CHAIN-011 | Exempt only when the same line shows the whole helper: the array a `var` of the same function, reset to `[]`, filled only with generated names and joined into the body. |
 | Bounded spans | SUPPLY-007/008/011/013/016, OBFUSC-CHAIN-009, INFER-004/005 | Tokens must be within 60-300 bytes; SUPPLY-001 and PROMPT-004 keep their unbounded spans (bounding them cost Datadog recall in the replay). The gate relaxes `{0,N}` to `*` so the counting regex only runs on lines with both tokens. |
 | Source maps | HYGIENE-001/002 → Low | A shipped map exposes the publisher's source; it does not act on the installer. |
 
@@ -940,6 +941,44 @@ covered by a probe and a test (`a_directories_bin_manifest_keeps_the_original_fi
 survives on either MCP corpus or any Datadog sample; `CODE-016` still applies
 to the three Microsoft launchers.
 
+### Fifth change: Codex's second review (exemptions and overrides)
+
+Codex reviewed `955a469` and raised two findings, both confirmed by reading
+the code.
+
+**A. Value exemptions that silenced real secrets.** Every `value_matches` /
+`match_context` exemption this branch added to a pack (`git diff
+35c0155..HEAD -- cli/packs`) was re-examined by writing a realistic secret or
+attack it would silence, then tightening or removing it until none did:
+
+| Rule | Exemption as added | A real value it silenced | Decision |
+|---|---|---|---|
+| CRED-008 | `value_matches` `(?i:[a-z0-9_.-]*pass(?:word\|wd))` | `password = "password"`, `password = "backupdatabasepassword"` (Codex); also `admin_password`, `super-secret-password`, `MyPassword` | **Removed.** Only names with a separator or case boundary (`db_password`, `userPassword`, `DB_PASSWORD`) could have stayed, and only with a justification; none has one: each is a password people use too, and none fixes an in-sample false positive that changes a level (the in-sample shapes were `nve-password` and `OAuth2Password`, both on servers blocked for other reasons). No `match_context` was kept for the apideck enum: its lines are object-literal members (`Password: "password",`), which look exactly like a real config object. |
+| CRED-008 | `filename_suffix` `.d.ts` / `.d.mts` / `.d.cts` | `export declare const DB_PASSWORD = "Pr0d-Db!2024";` — tsc copies an exported const's (or an `as const` object's) literal into the declaration, and once the `.js` is minified the declaration is the only readable copy | **Removed.** |
+| CRED-007 | `value_matches` `[a-z]+(?:[-_.][a-z]+)+` | `secret_key = "my-super-secret-signing-key"` (Codex); `SECRET_KEY = "correct-horse-battery-staple"` | **Removed.** No word shape tells a field or header name from a passphrase. |
+| CRED-011 | `value_matches` `[a-z]+(?:[-_.][a-z]+)+` | `bearer: "my-static-bearer-token-value"`; with the rule's open-ended value group, also the path part of `'svc.deploy_token:<secret>'` | **Tightened** to a `match_context` on the whole quoted value: `(?:[a-z]+\.)+[a-z]+(?:_[a-z]+)*_token` followed by the closing quote. It fixes the one measured case (`com.tracklution`, `bearer: 'data.laravel_auth_token'`); a bearer token is random, vendor-prefixed or a word run, not a dotted path to a `*_token` field, and any suffix, capital or digit is reported. |
+| OBFUSC-CHAIN-011 | `match_context` for the function-arity wrapper: `t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") {…}")` with `same: [gen, joined]` | The array was never proven fresh: `t` seeded beforehand with a parameter default (`x = <expression>`) is spliced into the source `new Function` compiles | **Tightened.** The same line must show the whole helper: `function(e){var t,n=0;[if(l[e])return l[e];]for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function(…t.join(", ")…)`, with `same` tying the `var` array, the reset, the push and the join, the `var` counter (starting at 0) and the increment, and the parameter and the loop count. Only changed built-ins (`Array.prototype.join`) elsewhere in the file could still feed it. |
+| CODE-001 / CODE-002 / CODE-003 | `match_context` `def ` / `function ` / `function* ` before the name | None found: in no language is `def eval(` or `function exec(` a call | **Kept.** |
+| CODE-001 / CODE-002 | `match_context` (JavaScript-family files) `name(args) {` after `^`, whitespace, `;{},` or `async` / `static` / `get` / `set` | None found: a call followed on the same line by `{` with no parentheses in its arguments is not valid JavaScript | **Kept**; `{exec(payload)}`, `` `${eval(p)}` ``, `while (exec(p)) {`, `exec(p) \|\| {}`, `exec(atob(p)) {` and a definition followed by a call on one line are tests that must fire. |
+| CODE-003 | `filename_suffix` for JavaScript-family files (a file filter, not a `value_matches` / `match_context`; listed for completeness) | `const { compileFunction: compile } = require('vm'); compile(src)` — and no pack rule reports Node's `vm` API on its own (only fed from a Base64 decode) | Not changed in this pass; recorded as a known gap below. |
+
+**B. Overrides and lockfiles below the trusted tool.** The lifecycle rewrites
+checked overrides (`overrides_in`) and lockfile redirects only for the tool's
+own name. An `overrides` entry for one of `rimraf`'s dependencies, pointing at
+a package that exports a `rimraf` bin, is hoisted by npm and runs for
+`prepare: "rimraf dist"` while the finding read `INSTALL-012` Low; a lockfile
+entry off the registry for any package is the same risk. The rewrites now fail
+closed on any non-empty `overrides`, `resolutions`, `pnpm.overrides`,
+`pnpm.packageExtensions` or `pnpm.patchedDependencies` in a scope or parent
+manifest, on a `pnpm-workspace.yaml` or `.yarnrc.yml` that declares them, and
+on any lockfile entry that is not the registry tarball of its own package, or
+a lockfile that does not parse (rule text:
+[structural-checks.md](structural-checks.md#lifecycle-scripts-and-platform-launchers-install-010--012-code-016)).
+`ENGINE_REVISION` goes to 11. The fail-closed build already left no
+`INSTALL-010`/`011`/`012` rewrite on any measured corpus, so B is not expected
+to move a level there; A returns the false positives the removed exemptions
+had hidden.
+
 ### Considered and not done
 
 - SUPPLY-001 as corroborating: in the planning replay it cost 28 blocked and
@@ -964,6 +1003,11 @@ to the three Microsoft launchers.
 - A path that is an entry point should never count as secondary.
 - `INSTALL-REF-001` would link a `chmod +x dist/x.js` argument as an executed
   file (not observed in these corpora).
+- CODE-003 is not checked in JavaScript-family files, so a `compile` bound to
+  `vm.compileFunction` and called on a built string is not reported, and no
+  pack rule reports Node's `vm` API (`compileFunction`, `runInThisContext`,
+  `Script`) unless its argument is a Base64 decode. A `vm` rule of its own
+  would close this without bringing back `compile(` in bundles.
 
 ## Reproducing
 

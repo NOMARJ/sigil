@@ -565,9 +565,45 @@ pass.
   `suppress.value_matches` exempt one match by the text around it or the value
   it captured; a line is dropped only when every match on it is exempt. Used
   to stop reporting definitions named `eval`/`exec`/`compile` (CODE-001/002/003),
-  name-shaped credential values (CRED-007/008/011) and a fixed polyfill
+  a token field path as a bearer value (CRED-011) and a fixed polyfill
   wrapper (OBFUSC-CHAIN-011). Custom full-schema packs can use it
   ([schemas.md](docs/schemas.md#match-local-suppression-full-schema)).
+- **No credential value is exempt by its shape** (Codex review of #172,
+  finding A). The value exemptions first added here silenced real secrets:
+  CRED-008's `[a-z0-9_.-]*pass(word|wd)` (case-insensitive) passed
+  `password = "password"`, the classic default, and
+  `password = "backupdatabasepassword"`; CRED-007's and CRED-011's
+  lowercase-words-joined-by-`-_.` passed `secret_key = "my-super-secret-signing-key"`
+  and any passphrase. No value shape separates a field or enum name from a
+  password people choose (`db_password`, `userPassword`, `admin_password` are
+  both), so CRED-007 and CRED-008 have no value exemption, and CRED-008 no
+  longer skips `.d.ts` files (tsc writes an exported const's literal there,
+  and it can be the only readable copy once the JavaScript is minified).
+  CRED-011 keeps one shape, now a context check on the whole quoted value: a
+  lowercase property path whose last segment is a snake_case field ending in
+  `_token` (`data.laravel_auth_token`); a suffix after the path, a capital, a
+  digit or any other last segment is reported. OBFUSC-CHAIN-011's arity-wrapper
+  exemption now needs the whole helper on the line (the array a `var` of the
+  same function, reset to `[]`, filled only with generated names and joined
+  into the body): the loop alone let an array seeded beforehand splice text
+  into the compiled source. CODE-001/002/003's definition contexts were
+  audited against call shapes and kept, with those shapes added as tests.
+- **Lifecycle rewrites fail closed on overrides, package extensions and
+  lockfiles below the tool** (Codex review of #172, finding B). `INSTALL-012`
+  checked overrides and lockfile redirects only for the trusted tool's own
+  name, so an `overrides` entry for one of `rimraf`'s dependencies, pointing at
+  a package that exports a `rimraf` bin, left `prepare: "rimraf dist"` at Low
+  while npm hoisted and ran the other package. `INSTALL-010`, `-011` and `-012`
+  now keep the pack's rule and severity when any manifest in the scope or above
+  the package declares a non-empty `overrides`, `resolutions`,
+  `pnpm.overrides`, `pnpm.packageExtensions` or `pnpm.patchedDependencies`;
+  when a `pnpm-workspace.yaml` there declares `overrides`, `packageExtensions`,
+  `patchedDependencies`, `configDependencies` or a pnpmfile, or a `.yarnrc.yml`
+  declares `packageExtensions`; and when a `package-lock.json`,
+  `npm-shrinkwrap.json`, `yarn.lock` or `pnpm-lock.yaml` there has any entry
+  that is not the public registry's tarball of the package it is filed under,
+  or does not parse (a bun lockfile always counts). `ENGINE_REVISION` goes to
+  11.
 - **Severity changes.** CODE-009 (`new Function`, always also CODE-008 at
   High) and HYGIENE-001/002 (shipped source maps) are Low; INFER-007 (a literal
   client `apiKey`) is a corroborating Critical; CODE-003 is not checked in
