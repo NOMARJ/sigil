@@ -41,7 +41,7 @@ pub use crate::corpus::schema::Evidence;
 /// scan cache and `sigil diff` key on. **Bump it in the same change as any
 /// such logic**: a development build keeps its version string, so without a
 /// bump a cached verdict from the old logic would keep being served.
-pub const ENGINE_REVISION: u32 = 3;
+pub const ENGINE_REVISION: u32 = 4;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

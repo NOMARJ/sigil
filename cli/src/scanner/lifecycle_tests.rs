@@ -849,6 +849,64 @@ fn a_bundled_or_redirected_build_tool_stays_medium() {
     );
 }
 
+/// A build tool the manifest does not pin as a registry dependency is not a
+/// trusted build step: npm prepends `node_modules/.bin` to PATH for lifecycle
+/// scripts, so a dependency shipping a `tsc` / `husky` / `rimraf` / `shx` bin
+/// runs in place of the real tool, and the manifest never named the real one.
+/// Such a `prepare` stays INSTALL-004 Medium, not INSTALL-012 Low.
+#[test]
+fn an_undeclared_build_tool_stays_medium() {
+    // The tool is not declared anywhere.
+    for (scripts, deps) in [
+        (r#""prepare": "tsc""#, ""),
+        (r#""prepare": "husky""#, ""),
+        (
+            r#""build": "rimraf dist && tsc", "prepare": "npm run build""#,
+            "",
+        ),
+        // typescript is declared but husky, run in the same chain, is not.
+        (
+            r#""build": "tsc && husky", "prepare": "npm run build""#,
+            r#""typescript": "^5""#,
+        ),
+        // A dependency (`build-helper`) is declared, but it is not the tool the
+        // script names: a `build-helper` that ships a `tsc` bin would shadow
+        // the real compiler, and the manifest never pinned `typescript`.
+        (r#""prepare": "tsc""#, r#""build-helper": "^1.0.0""#),
+    ] {
+        let manifest = format!(
+            "{{\n  \"name\": \"x\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {{\n    {scripts}\n  }},\n  \"devDependencies\": {{ {deps} }}\n}}\n"
+        );
+        let r = scan(&[
+            ("package.json", &manifest),
+            ("dist/index.js", "console.log(1)\n"),
+        ]);
+        let found = rules(&r);
+        assert!(
+            found
+                .iter()
+                .any(|(id, s)| id == "INSTALL-004" && *s == Severity::Medium),
+            "{scripts} / [{deps}]: INSTALL-004 must stay Medium: {found:?}"
+        );
+        assert!(
+            !found.iter().any(|(id, _)| id == "INSTALL-012"),
+            "{scripts} / [{deps}]: must not become INSTALL-012: {found:?}"
+        );
+    }
+
+    // Declaring the tool as a registry dependency restores the build-step
+    // classification: this is the only difference from the cases above.
+    let declared = "{\n  \"name\": \"x\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {\n    \"prepare\": \"tsc\"\n  },\n  \"devDependencies\": { \"typescript\": \"^5\" }\n}\n";
+    let r = scan(&[("package.json", declared), ("dist/index.js", "1\n")]);
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.rule == "INSTALL-012" && f.severity == Severity::Low),
+        "declared typescript should classify as INSTALL-012: {:?}",
+        rules(&r)
+    );
+}
+
 // ---------------------------------------------------------------------------
 // Unit checks
 // ---------------------------------------------------------------------------

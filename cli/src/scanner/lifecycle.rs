@@ -782,7 +782,17 @@ fn build_only(key: &str, m: &Manifest, tree: &Tree<'_>) -> Option<String> {
     tools.sort_unstable();
     tools.dedup();
     for tool in &tools {
-        if m.declared_specs(tool).iter().any(|s| !is_registry_spec(s))
+        // The tool must be a registry dependency the manifest pins itself. An
+        // undeclared build-tool name (`prepare: "tsc"` with no `typescript`
+        // dependency) is not a build step this classifier can trust: npm
+        // prepends `node_modules/.bin` to PATH for lifecycle scripts, so a
+        // dependency that ships a `tsc` / `husky` / `rimraf` / `shx` bin runs
+        // in place of the real tool, and the package never had to name the
+        // real one. Declared-but-redirected (git/tarball spec, bundled,
+        // overridden, lockfile-redirected) is rejected the same way.
+        let specs = m.declared_specs(tool);
+        if specs.is_empty()
+            || specs.iter().any(|s| !is_registry_spec(s))
             || m.bundles(tool)
             || m.overrides(tool)
             || tree.lockfile_redirects(&m.dir, tool)
