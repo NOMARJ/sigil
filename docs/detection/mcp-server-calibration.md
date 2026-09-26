@@ -840,6 +840,10 @@ Limitations: In-sample for the 169; the holdout was not used to choose any
              and datadog_round3_diff.json.
 ```
 
+This table's "34eaa0b" column is the branch **before** the #172 lifecycle
+rewrites were made to fail closed; the fourth change below re-measures the final
+build (`ad57eff`), where the MCP figures are 28/89 (169) and 69/115 (146).
+
 | | main 35c0155 | This branch 34eaa0b | The pass's own build |
 |---|---:|---:|---:|
 | MCP blocked (≥ HIGH) | 39/169 | 24/169 | 24/169 |
@@ -869,6 +873,66 @@ with the port (a derived name the value reading does not follow; see
 [correlation-chains.md](correlation-chains.md#measurements)). This pass's
 own rule changes move no Datadog verdict here either (main and e45efc5 give
 every package the same highest severity and verdict).
+
+### Fourth change: the lifecycle rewrites fail closed (final build)
+
+Codex's review of #172 found the `INSTALL-010`/`011`/`012` rewrites too
+trusting: they followed `npm|pnpm|yarn run X` without checking the runner name
+against the shadow set, and they could not see the bins of ordinary
+dependencies (npm links every installed package's bins onto a lifecycle
+script's PATH). A follow-up adversarial pass found two more of the same class —
+a `directories.bin` directory (npm links every file in it as a bin, and the
+manifest cannot enumerate them) and an in-tree `.npmrc` / `.yarnrc` /
+`.yarnrc.yml` / `.pnpmfile.cjs` that redirects the script shell, `node`, the
+config file or the registry. All are now failed closed: an unproven rewrite
+keeps `INSTALL-003` (Critical) or `INSTALL-004` (Medium). `ENGINE_REVISION`
+goes to 10. Full rule text: [structural-checks.md](structural-checks.md#lifecycle-scripts-and-platform-launchers-install-010--012-code-016).
+
+The final build `ad57eff` was measured against main `35c0155` and against
+`34eaa0b` (the branch before the fail-closed work), every scan `--no-cache`
+with an isolated `HOME`, on 2026-09-26; no run reported `PROV-BUDGET-001`.
+
+```
+Data Source: The same 169 clean MCP servers (mcp_clean_manifest.json), the
+             146-server holdout (mcp_holdout146_manifest.json), 204 + 455
+             skills, and run_eval.py's 844-package Datadog selection.
+Sample Size: 169 + 146 servers; 659 skills; 844 Datadog packages.
+Limitations: In-sample for the 169; the holdout was not used to tune any rule.
+             'Clean' is not 'audited'. Static analysis only. Per-sample files:
+             evaluation_results/skills_benchmark/{mcp_sigil,mcp_holdout_sigil,
+             sigil}_round3.{json,md} and datadog_round3_diff.json (relabelled to
+             ad57eff). Parity was not re-run (its corpus needs a SkillSpector
+             checkout) but is unchanged: see parity_sigil_round3.md.
+```
+
+| | main 35c0155 | 34eaa0b (before fail-closed) | Final ad57eff |
+|---|---:|---:|---:|
+| MCP blocked (≥ HIGH) | 39/169 | 24/169 | 28/169 |
+| MCP warned (≥ MEDIUM) | 125/169 | 76/169 | 89/169 |
+| MCP CRITICAL | 17 | 11 | 15 |
+| Holdout blocked (≥ HIGH) | 80/146 | 66/146 | 69/146 |
+| Holdout warned (≥ MEDIUM) | 135/146 | 114/146 | 115/146 |
+| Holdout CRITICAL | | 45 | 45 |
+| Malicious skills blocked / warned | 173 / 184 | 173 / 184 | 173 / 184 |
+| Clean skills blocked / warned | 7 / 71 | 7 / 71 | 7 / 71 |
+| Datadog recall ≥ any / Medium / High / Critical | 785 / 761 / 752 / 561 | 785 / 761 / 752 / 560 | 785 / 761 / 752 / 560 |
+
+Against `34eaa0b`, `ad57eff` moved 16 in-sample servers and 4 holdout servers
+**up** a level (none down): the fail-closed dependency rule, which keeps
+`INSTALL-003`/`004` on a lifecycle script whose install adds a package beyond
+the tools it names. The three Microsoft platform launchers (three optional
+platform packages) and Postman (`npx only-allow pnpm` beside six dependencies)
+are Critical again; twelve more move `INSTALL-012` → `INSTALL-004` (a `prepare`
+that builds beside a runtime dependency). On the 844 Datadog packages the two
+builds are identical: 0 verdict, severity or chain changes. The
+`directories.bin` and install-config additions changed no number here — no
+`package.json` outside `node_modules` in either MCP corpus uses
+`directories.bin`, and none ships one of those config files — but each is
+covered by a probe and a test (`a_directories_bin_manifest_keeps_the_original_finding`,
+`an_install_config_that_alters_execution_keeps_the_original_finding` in
+`cli/src/scanner/lifecycle_tests.rs`). No `INSTALL-010`/`011`/`012` rewrite
+survives on either MCP corpus or any Datadog sample; `CODE-016` still applies
+to the three Microsoft launchers.
 
 ### Considered and not done
 

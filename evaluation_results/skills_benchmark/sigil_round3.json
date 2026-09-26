@@ -12,7 +12,7 @@
  ],
  "builds": {
   "main": "sigil 35c0155 (main, release)",
-  "branch": "sigil 34eaa0b (ws/exfil-port, release)"
+  "branch": "sigil ad57eff (ws/lifecycle-shadow, release)"
  },
  "corpora": {
   "malicious:mal_skills": 204,
@@ -20366,5 +20366,6 @@
     "error": null
    }
   ]
- }
+ },
+ "final_build_note": "Branch column re-measured on the final fail-closed build ad57eff on 2026-09-26: malicious 173/184/190, clean 7/71/224 (identical to the 34eaa0b run and to main)."
 }

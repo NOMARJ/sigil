@@ -69,6 +69,15 @@ a later Sigil build on the same 169 servers blocks 24 (14.2%), warns on 75
 SkillSpector does not, and SkillSpector blocks 86 it does not. SkillSpector was
 not re-run; its row above is from the head-to-head run.
 
+When the npm lifecycle-script rewrites were made to fail closed (they now apply
+only when the install adds no dependency beyond the tools a script names; see
+[structural-checks.md](../detection/structural-checks.md#measured-effect-of-the-runner-and-dependency-rules)),
+the release build blocks 28 of the 169 (16.6%), warns on 89 (52.7%) and reports
+15 CRITICAL, against 24 / 76 / 11 for the build before it in the same run; on the
+156 SkillSpector finished it blocks 20 (12.8%), warns on 76 (48.7%) and reports 11
+CRITICAL (16 / 63 / 7 before), blocking 5 servers SkillSpector does not while
+SkillSpector blocks 85 it does not.
+
 This is Sigil's weakest false-positive result. MCP servers ship as complete
 packages, often with minified bundles, and most of Sigil's blocks come from
 code-execution and obfuscation rules firing inside bundled JavaScript, or from

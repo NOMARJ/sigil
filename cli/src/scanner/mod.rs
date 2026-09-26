@@ -50,7 +50,15 @@ pub use crate::corpus::schema::Evidence;
 /// 8: a helper handed the bound value by reference receives it; a connection
 /// opened by a method call is followed to the send on its object; a heredoc
 /// after `&&`, `||` or `;` is read only if that command is the sink.
-pub const ENGINE_REVISION: u32 = 8;
+/// 9: the lifecycle rewrites (`INSTALL-010..012`) also trust the runners a
+/// chain follows (`npm` / `pnpm` / `yarn`, `npx`), `node` and `sh`, and
+/// apply only when the phase installs no dependency beyond the trusted
+/// tools' own packages (`scanner::lifecycle`).
+/// 10: those rewrites also fail closed on a `directories.bin` manifest (its
+/// linked bins cannot be enumerated) and on an in-tree `.npmrc` / `.yarnrc` /
+/// `.yarnrc.yml` / `.pnpmfile.cjs` that redirects the script shell, `node`,
+/// the config file or the registry (`scanner::lifecycle`).
+pub const ENGINE_REVISION: u32 = 10;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

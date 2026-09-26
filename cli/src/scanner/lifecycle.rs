@@ -13,12 +13,54 @@
 //! a finding only when a positive test passes. Everything it cannot prove
 //! stays exactly as the pack reported it:
 //!
-//! | Rule | From | Severity | Shape |
-//! |---|---|---|---|
-//! | `INSTALL-010` | `INSTALL-003` | Medium | `node <local .js>` whose script, and the local scripts it requires, use no capability (see [`inert_source`]) |
-//! | `INSTALL-011` | `INSTALL-003` | Low | exactly `npx only-allow <pm>`, with `only-allow` neither declared, bundled nor shipped |
-//! | `INSTALL-012` | `INSTALL-004` | Low | `prepare` / `prepublish` whose `npm run` chain ends only in `tsc`, `husky`, `chmod +x`, `shx` / `rimraf` file operations on package-relative paths, `true` or `exit 0` |
-//! | `CODE-016` | `CODE-014` | Medium | `execSync` of `npm install <own name>-<platform>-<arch>@<own version>` in a `bin` script whose manifest lists those platform packages |
+//! | Rule | From | Severity | Shape | Dependencies the phase may install |
+//! |---|---|---|---|---|
+//! | `INSTALL-010` | `INSTALL-003` | Medium | `node <local .js>` whose script, and the local scripts it requires, use no capability (see [`inert_source`]) | none |
+//! | `INSTALL-011` | `INSTALL-003` | Low | exactly `npx only-allow <pm>`, with `only-allow` neither declared, bundled nor shipped | none |
+//! | `INSTALL-012` | `INSTALL-004` | Low | `prepare` / `prepublish` whose `npm run` chain ends only in `tsc`, `husky`, `chmod +x`, `shx` / `rimraf` file operations on package-relative paths, `true` or `exit 0` | only the packages of the tools the steps name (`typescript`, `husky`, `shx`, `rimraf`) |
+//! | `CODE-016` | `CODE-014` | Medium | `execSync` of `npm install <own name>-<platform>-<arch>@<own version>` in a `bin` script whose manifest lists those platform packages | (not a lifecycle script) |
+//!
+//! **Every name the three lifecycle rewrites trust resolves through
+//! `node_modules/.bin` first.** npm, yarn and pnpm run a lifecycle script
+//! through the shell with the `node_modules/.bin` of the package and of every
+//! directory above it at the front of `PATH`, and link there the bins of
+//! every package the install put in the tree: direct and transitive
+//! dependencies and, at a workspace root, every member and every member's
+//! dependencies. So the interpreter (`node`), the script shell (`sh`), the
+//! runners a chain follows (`npm` / `pnpm` / `yarn` `run`, `npx`) and every
+//! leaf command (`only-allow`, `tsc`, `husky`, `shx`, `rimraf`, `chmod`) is
+//! only the real tool when nothing else the install linked has that name.
+//! The shell builtins `true` and `exit` are the one exception.
+//!
+//! The classifier cannot see a dependency's bins (it does not fetch
+//! dependencies), so it fails closed. A rewrite applies only when:
+//!
+//! - no trusted name is a `bin` of the manifest itself or, when the manifest
+//!   is a workspace root or sits inside one (a `workspaces` field or a
+//!   `pnpm-workspace.yaml`), of any `package.json` under that root. A manifest
+//!   in that set that links its bins through `directories.bin` (whose files
+//!   this pass cannot enumerate) keeps the original finding; and
+//! - the dependency set the phase installs, across those same manifests, is
+//!   empty apart from the trusted tools' own packages in the last column,
+//!   each from a registry spec. For `preinstall` / `postinstall` /
+//!   `preuninstall` / `postuninstall` that set is `dependencies`,
+//!   `optionalDependencies`, `peerDependencies` and the bundled names; for
+//!   `prepare` / `prepublish` it adds `devDependencies`. A field the
+//!   classifier cannot read, a bundled name, or a shipped `node_modules`
+//!   beside or above the package keeps the original finding; and
+//! - no package-manager config file, in the package's directory or above it,
+//!   changes what an install runs or where it fetches from: a `.pnpmfile.cjs`
+//!   (a hook pnpm executes), a `.npmrc` setting `script-shell` / `shell` /
+//!   `node-options` / `globalconfig` / `userconfig` or an off-registry
+//!   `registry`, or a `.yarnrc` / `.yarnrc.yml` setting `yarn-path` /
+//!   `yarnPath` / `plugins` or an off-registry server. A `.npmrc` with only
+//!   benign keys does not.
+//!
+//! A lockfile is not taken as evidence that no collision exists: npm links a
+//! package's bins from the installed package's own manifest, not from the
+//! lockfile's per-package `bin` metadata, which is attacker-written text; and
+//! a dependency's lockfile is ignored when it is installed by a consumer. The
+//! lockfile is read only to reject a trusted tool resolved off the registry.
 //!
 //! A rewritten finding keeps its file, line, phase and weight; its rule id,
 //! severity and snippet change, and the snippet says why. Findings from
@@ -71,6 +113,15 @@ macro_rules! re {
 // ---------------------------------------------------------------------------
 // Paths
 // ---------------------------------------------------------------------------
+
+/// `name` inside `dir` (both relative to the scan base).
+fn join_rel(dir: &str, name: &str) -> String {
+    if dir.is_empty() {
+        name.to_string()
+    } else {
+        format!("{dir}/{name}")
+    }
+}
 
 fn split_rel(rel: &str) -> (&str, &str) {
     match rel.rsplit_once('/') {
@@ -172,27 +223,120 @@ impl Manifest {
     /// Does an `overrides` / `resolutions` / `pnpm` block mention `pkg`?
     /// Any of them can swap the package for a git or tarball source.
     fn overrides(&self, pkg: &str) -> bool {
-        // npm `overrides` nest by package name, yarn `resolutions` key by a
-        // path (`**/pkg`, `a/pkg`), pnpm `overrides` by `pkg@range` or
-        // `a>pkg`: a key names `pkg` when its last segment is `pkg`, with
-        // or without a version.
-        let names = Regex::new(&format!(r"(?:^|[/>*]){}(?:@[^/>]*)?$", regex::escape(pkg)));
-        let Ok(names) = names else {
-            return true;
-        };
-        fn any_key(v: &Value, names: &Regex) -> bool {
-            match v {
-                Value::Object(o) => o
-                    .iter()
-                    .any(|(k, v)| names.is_match(k) || any_key(v, names)),
-                Value::Array(a) => a.iter().any(|v| any_key(v, names)),
-                _ => false,
-            }
+        overrides_in(&self.doc, pkg)
+    }
+}
+
+/// [`Manifest::overrides`] for any parsed manifest.
+fn overrides_in(doc: &Value, pkg: &str) -> bool {
+    // npm `overrides` nest by package name, yarn `resolutions` key by a
+    // path (`**/pkg`, `a/pkg`), pnpm `overrides` by `pkg@range` or
+    // `a>pkg`: a key names `pkg` when its last segment is `pkg`, with
+    // or without a version.
+    let names = Regex::new(&format!(r"(?:^|[/>*]){}(?:@[^/>]*)?$", regex::escape(pkg)));
+    let Ok(names) = names else {
+        return true;
+    };
+    fn any_key(v: &Value, names: &Regex) -> bool {
+        match v {
+            Value::Object(o) => o
+                .iter()
+                .any(|(k, v)| names.is_match(k) || any_key(v, names)),
+            Value::Array(a) => a.iter().any(|v| any_key(v, names)),
+            _ => false,
         }
-        ["overrides", "resolutions", "pnpm"]
-            .iter()
-            .filter_map(|k| self.doc.get(k))
-            .any(|v| any_key(v, &names))
+    }
+    ["overrides", "resolutions", "pnpm"]
+        .iter()
+        .filter_map(|k| doc.get(k))
+        .any(|v| any_key(v, &names))
+}
+
+/// Which install runs a lifecycle key, and so which dependency fields have
+/// put packages (and their bins) into `node_modules` before it runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum InstallPhase {
+    /// `preinstall` / `postinstall` / `preuninstall` / `postuninstall`: a
+    /// consumer's install of the package, which installs its dependencies,
+    /// optional and peer dependencies (npm 7+ installs peers).
+    Install,
+    /// `prepare` / `prepublish` and the `pre` / `post` scripts npm runs
+    /// around them: a local install, a git dependency's install or a
+    /// publish, all of which install `devDependencies` as well.
+    Prepare,
+}
+
+impl InstallPhase {
+    fn dependency_fields(self) -> &'static [&'static str] {
+        match self {
+            InstallPhase::Install => &["dependencies", "optionalDependencies", "peerDependencies"],
+            InstallPhase::Prepare => &[
+                "dependencies",
+                "optionalDependencies",
+                "peerDependencies",
+                "devDependencies",
+            ],
+        }
+    }
+}
+
+/// The manifests whose packages share `node_modules/.bin` with a lifecycle
+/// script, as far as the scanned tree shows them: the script's own manifest
+/// and, when it is a workspace root or sits inside one, the root's and every
+/// other `package.json` under that root (npm, yarn and pnpm hoist every
+/// member, and every member's dependencies, into the root `node_modules`).
+struct Scope {
+    /// `(directory, parsed document)` of each manifest, the script's own first.
+    manifests: Vec<(String, Value)>,
+    /// Every command name those manifests' own `bin` fields link.
+    bins: HashSet<String>,
+    /// A manifest in the scope declares `directories.bin`: npm links *every*
+    /// file in that directory as a bin, and this pass cannot enumerate them
+    /// (a file may be skipped or binary), so the set of linked names is
+    /// unknown and any trusted name might collide.
+    bins_unknown: bool,
+}
+
+impl Scope {
+    /// Does any name the rewrite trusts collide with a bin the scope's own
+    /// manifests link? `sh` is always trusted: npm and pnpm spawn the script
+    /// shell by name with the lifecycle `PATH`. When a scope manifest uses
+    /// `directories.bin` the linked names cannot be enumerated, so every
+    /// trusted name is treated as shadowed (fail closed).
+    fn shadows<'n>(&self, trusted: impl IntoIterator<Item = &'n str>) -> bool {
+        self.bins_unknown
+            || self.bins.contains("sh")
+            || trusted.into_iter().any(|n| self.bins.contains(n))
+    }
+
+    /// Finding 2 of the #172 review, failing closed: `true` only when every
+    /// package the phase installs, across every manifest in the scope, is one
+    /// of `allowed` (the trusted tools' own packages) declared with a registry
+    /// spec. Any other dependency could link a bin with a trusted name that
+    /// runs in the tool's place, and this pass cannot see a dependency's bins.
+    /// A dependency field that is not an object, and any bundled name (a
+    /// bundled package ships its own bins), fail. A lockfile is not consulted:
+    /// its per-package `bin` metadata is not what npm links.
+    fn installs_only(&self, phase: InstallPhase, allowed: &[&str]) -> bool {
+        self.manifests.iter().all(|(_, doc)| {
+            phase
+                .dependency_fields()
+                .iter()
+                .all(|field| match doc.get(*field) {
+                    None => true,
+                    Some(Value::Object(deps)) => deps.iter().all(|(name, spec)| {
+                        allowed.contains(&name.as_str()) && is_registry_spec(spec)
+                    }),
+                    Some(_) => false,
+                })
+                && ["bundleDependencies", "bundledDependencies"]
+                    .iter()
+                    .all(|k| match doc.get(*k) {
+                        None | Some(Value::Bool(false)) => true,
+                        Some(Value::Array(a)) => a.is_empty(),
+                        Some(_) => false,
+                    })
+        })
     }
 }
 
@@ -226,6 +370,17 @@ fn bin_names(doc: &Value) -> Vec<String> {
         Some(Value::Object(o)) => o.keys().cloned().collect(),
         _ => Vec::new(),
     }
+}
+
+/// Whether a manifest links its bins through `directories.bin`: npm adds every
+/// file in that directory as a `node_modules/.bin` entry when it packs the
+/// package, so a `directories.bin` directory can ship a file named like any
+/// trusted tool, runner or interpreter. [`bin_names`] cannot list them from
+/// the manifest alone, so its presence makes the scope's bin set unknowable.
+fn declares_directories_bin(doc: &Value) -> bool {
+    doc.get("directories")
+        .and_then(|d| d.get("bin"))
+        .is_some_and(|v| !v.is_null())
 }
 
 struct Tree<'a> {
@@ -302,45 +457,136 @@ impl<'a> Tree<'a> {
                 .any(|p| p.starts_with(&format!("{nm}/")))
     }
 
-    /// The command names that could be linked into `node_modules/.bin` at
-    /// this package's install, and so run in place of a command a lifecycle
-    /// script names: the manifest's own `bin` names, and — when it is a
-    /// workspace root — every `bin` declared by a `package.json` in its
-    /// subtree. npm, yarn and pnpm all hoist workspace members' bins into the
-    /// root `node_modules/.bin` and prepend that directory to PATH for
-    /// lifecycle scripts, so a member shipping a `tsc` / `node` / `chmod` /
-    /// `only-allow` bin shadows the real tool the classifier trusts.
-    fn shadowing_bins(&self, m: &Manifest) -> HashSet<String> {
-        let mut names: HashSet<String> = bin_names(&m.doc).into_iter().collect();
-        let pnpm_ws = if m.dir.is_empty() {
-            "pnpm-workspace.yaml".to_string()
-        } else {
-            format!("{}/pnpm-workspace.yaml", m.dir)
-        };
-        let is_workspace = m.doc.get("workspaces").is_some() || self.present.contains(&pnpm_ws);
-        if is_workspace {
-            let prefix = if m.dir.is_empty() {
+    /// The [`Scope`] of `m`'s lifecycle scripts: `m`, and — when `m` is a
+    /// workspace root or sits inside one (a `workspaces` field, or a
+    /// `pnpm-workspace.yaml` beside the manifest) — every `package.json` under
+    /// the outermost such root. npm, yarn and pnpm hoist workspace members'
+    /// bins, and their dependencies' bins, into the root `node_modules/.bin`,
+    /// and a member's scripts run with that directory on PATH too. `None`
+    /// (no rewrite) when a manifest in the scope, or one above `m` that
+    /// decides whether it is in a workspace, cannot be read as JSON: npm might
+    /// read what this pass cannot, bins included.
+    fn scope(&self, m: &Manifest) -> Option<Scope> {
+        let mut root: Option<&str> = None;
+        let mut dir = m.dir.as_str();
+        loop {
+            let declares_workspaces = if dir == m.dir {
+                m.doc.get("workspaces").is_some()
+            } else {
+                let rel = join_rel(dir, "package.json");
+                if self.present.contains(&rel) {
+                    let doc: Value = serde_json::from_str(&self.read(&rel)?).ok()?;
+                    doc.get("workspaces").is_some()
+                } else {
+                    false
+                }
+            };
+            if declares_workspaces || self.present.contains(&join_rel(dir, "pnpm-workspace.yaml")) {
+                root = Some(dir);
+            }
+            if dir.is_empty() {
+                break;
+            }
+            dir = split_rel(dir).0;
+        }
+        let mut manifests = vec![(m.dir.clone(), m.doc.clone())];
+        if let Some(root) = root {
+            let prefix = if root.is_empty() {
                 String::new()
             } else {
-                format!("{}/", m.dir)
+                format!("{root}/")
             };
-            for rel in &self.present {
-                if rel == &m.rel
-                    || split_rel(rel).1 != "package.json"
-                    || rel.contains("node_modules/")
-                    || !(prefix.is_empty() || rel.starts_with(&prefix))
-                {
-                    continue;
+            let mut members: Vec<&String> = self
+                .present
+                .iter()
+                .filter(|rel| {
+                    *rel != &m.rel
+                        && split_rel(rel).1 == "package.json"
+                        && !rel.contains("node_modules/")
+                        && rel.starts_with(&prefix)
+                })
+                .collect();
+            members.sort();
+            for rel in members {
+                let doc: Value = serde_json::from_str(&self.read(rel)?).ok()?;
+                if !doc.is_object() {
+                    return None;
                 }
-                if let Some(doc) = self
-                    .read(rel)
-                    .and_then(|t| serde_json::from_str::<Value>(&t).ok())
-                {
-                    names.extend(bin_names(&doc));
-                }
+                manifests.push((split_rel(rel).0.to_string(), doc));
             }
         }
-        names
+        let bins = manifests.iter().flat_map(|(_, d)| bin_names(d)).collect();
+        let bins_unknown = manifests.iter().any(|(_, d)| declares_directories_bin(d));
+        Some(Scope {
+            manifests,
+            bins,
+            bins_unknown,
+        })
+    }
+
+    /// A `node_modules` shipped in a directory above the package: npm puts the
+    /// `node_modules/.bin` of every ancestor directory on a lifecycle
+    /// script's PATH, so whatever that tree links can shadow a trusted name.
+    /// (The package's own directory is [`Self::install_side_channel`].)
+    fn ancestor_node_modules(&self, dir: &str) -> bool {
+        let mut d = dir;
+        while !d.is_empty() {
+            d = split_rel(d).0;
+            let nm = join_rel(d, "node_modules");
+            if self.base.join(&nm).exists()
+                || self
+                    .present
+                    .iter()
+                    .any(|p| p.starts_with(&format!("{nm}/")))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// An in-tree package-manager config file, in `dir` or any directory
+    /// above it, that can change what an install runs or where it fetches a
+    /// package from — before a single script line changes. npm, yarn and pnpm
+    /// read these from the install directory upward, so a package that ships
+    /// one (or that is cloned or installed as a git dependency, where its own
+    /// directory is the project root) runs with it in effect:
+    ///
+    /// - `.pnpmfile.cjs` is a JavaScript hook pnpm executes during resolution;
+    /// - `.npmrc` can set `script-shell` / `shell` (the program that runs every
+    ///   lifecycle script), `node-options` (`--require` preloads a module into
+    ///   every `node`), `globalconfig` / `userconfig` (another config file that
+    ///   can set those), or a `registry` off the public registry (the trusted
+    ///   tool, or `only-allow`, then comes from an attacker host);
+    /// - `.yarnrc` / `.yarnrc.yml` can set `yarn-path` / `yarnPath` (the JS run
+    ///   as yarn), `plugins` (JS loaded into yarn), or an off-registry
+    ///   `npmRegistryServer`.
+    ///
+    /// Any of these keeps the finding at its original severity. A `.npmrc` /
+    /// `.yarnrc` with only benign keys does not.
+    fn install_config_side_channel(&self, dir: &str) -> bool {
+        // npm/yarn/pnpm read these whether or not the scan enumerated them, so
+        // consult the filesystem directly rather than the scanned-file set.
+        let read = |rel: &str| std::fs::read_to_string(self.base.join(rel)).ok();
+        let mut d = dir;
+        loop {
+            if self.base.join(join_rel(d, ".pnpmfile.cjs")).exists() {
+                return true;
+            }
+            if read(&join_rel(d, ".npmrc")).is_some_and(|t| npmrc_alters_install(&t)) {
+                return true;
+            }
+            if read(&join_rel(d, ".yarnrc")).is_some_and(|t| yarnrc_alters_install(&t)) {
+                return true;
+            }
+            if read(&join_rel(d, ".yarnrc.yml")).is_some_and(|t| yarnrc_yml_alters_install(&t)) {
+                return true;
+            }
+            if d.is_empty() {
+                return false;
+            }
+            d = split_rel(d).0;
+        }
     }
 
     /// A lockfile beside the manifest that resolves `pkg` somewhere other
@@ -399,6 +645,90 @@ impl<'a> Tree<'a> {
 fn is_registry_tarball(url: &str) -> bool {
     url.starts_with("https://registry.npmjs.org/")
         || url.starts_with("https://registry.yarnpkg.com/")
+}
+
+/// A registry URL value that points at the public npm/yarn registry.
+fn is_public_registry(value: &str) -> bool {
+    let v = value.trim().trim_matches(['"', '\'']);
+    let host = v
+        .strip_prefix("https://")
+        .or_else(|| v.strip_prefix("http://"))
+        .unwrap_or(v);
+    host == "registry.npmjs.org"
+        || host == "registry.yarnpkg.com"
+        || host.starts_with("registry.npmjs.org/")
+        || host.starts_with("registry.yarnpkg.com/")
+}
+
+/// A `.npmrc` that changes the program a lifecycle script runs under, preloads
+/// code into `node`, points npm at another config file, or fetches packages
+/// off the public registry. Comments (`#`, `;`) and benign keys are ignored.
+fn npmrc_alters_install(text: &str) -> bool {
+    for raw in text.lines() {
+        let line = raw.split(['#', ';']).next().unwrap_or("").trim();
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        let key = key.trim().to_ascii_lowercase();
+        let value = value.trim();
+        if matches!(
+            key.as_str(),
+            "script-shell" | "shell" | "node-options" | "globalconfig" | "userconfig"
+        ) {
+            return true;
+        }
+        if (key == "registry" || key.ends_with(":registry")) && !is_public_registry(value) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A classic `.yarnrc` that points yarn at a different binary or fetches off
+/// the public registry.
+fn yarnrc_alters_install(text: &str) -> bool {
+    for raw in text.lines() {
+        let line = raw.split('#').next().unwrap_or("").trim();
+        let mut tokens = line.splitn(2, char::is_whitespace);
+        let key = tokens.next().unwrap_or("").trim();
+        let value = tokens.next().unwrap_or("").trim();
+        if matches!(key, "yarn-path" | "script-shell") {
+            return true;
+        }
+        if key == "registry" && !is_public_registry(value) {
+            return true;
+        }
+    }
+    false
+}
+
+/// A `.yarnrc.yml` (Yarn Berry) that runs a different binary as yarn, loads a
+/// plugin, or fetches off the public registry.
+fn yarnrc_yml_alters_install(text: &str) -> bool {
+    for raw in text.lines() {
+        let line = raw.split('#').next().unwrap_or("");
+        // A top-level key (no leading indentation) followed by `:`.
+        if line.starts_with([' ', '\t']) {
+            // A `plugins:` block lists its entries indented beneath it; a
+            // `- path:` line inside it still names a plugin to load.
+            if line.trim_start().starts_with("- path:") || line.trim_start().starts_with("path:") {
+                return true;
+            }
+            continue;
+        }
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+        if matches!(key, "yarnPath" | "plugins") {
+            return true;
+        }
+        if key == "npmRegistryServer" && !value.is_empty() && !is_public_registry(value) {
+            return true;
+        }
+    }
+    false
 }
 
 fn is_registry_tarball_line(line: &str) -> bool {
@@ -497,25 +827,33 @@ fn classify_manifest_line(
     if keys.is_empty() {
         return None;
     }
-    if tree.install_side_channel(&m.dir) {
+    if tree.install_side_channel(&m.dir)
+        || tree.ancestor_node_modules(&m.dir)
+        || tree.install_config_side_channel(&m.dir)
+    {
         return None;
     }
-    let shadow = tree.shadowing_bins(m);
+    let scope = tree.scope(m)?;
+    let phase = if rule == "INSTALL-003" {
+        InstallPhase::Install
+    } else {
+        InstallPhase::Prepare
+    };
     let mut reasons = Vec::new();
     let mut worst: Option<(&'static str, Severity, &'static str)> = None;
     for key in &keys {
         let cmd = m.script(key)?;
         let class = if rule == "INSTALL-003" {
-            if let Some(reason) = guard(cmd, m, &shadow) {
+            if let Some(reason) = guard(cmd, m, &scope, phase) {
                 reasons.push(format!("{key}: {reason}"));
                 (RULE_GUARD, Severity::Low, TITLE_GUARD)
             } else {
-                let reason = inert_node(cmd, m, tree, &shadow)?;
+                let reason = inert_node(cmd, m, tree, &scope, phase)?;
                 reasons.push(format!("{key}: {reason}"));
                 (RULE_INERT, Severity::Medium, TITLE_INERT)
             }
         } else {
-            let reason = build_only(key, m, tree, &shadow)?;
+            let reason = build_only(key, m, tree, &scope, phase)?;
             reasons.push(format!("{key}: {reason}"));
             (RULE_BUILD, Severity::Low, TITLE_BUILD)
         };
@@ -537,15 +875,19 @@ fn classify_manifest_line(
 // INSTALL-011: npx only-allow
 // ---------------------------------------------------------------------------
 
-fn guard(cmd: &str, m: &Manifest, shadow: &HashSet<String>) -> Option<String> {
+fn guard(cmd: &str, m: &Manifest, scope: &Scope, phase: InstallPhase) -> Option<String> {
     let caps = re!(r"^npx (?:-y |--yes )?only-allow (pnpm|yarn|npm|bun)$").captures(cmd)?;
     if !m.declared_specs("only-allow").is_empty()
         || m.bundles("only-allow")
         || m.overrides("only-allow")
         // `npx only-allow` runs the `npx` and `only-allow` bins from
-        // node_modules/.bin first; a shipped bin of either name shadows them.
-        || shadow.contains("npx")
-        || shadow.contains("only-allow")
+        // node_modules/.bin first, and both are `#!/usr/bin/env node`
+        // scripts, so `node` resolves there too; a shipped bin of any of
+        // those names shadows them.
+        || scope.shadows(["npx", "only-allow", "node"])
+        // Any package the install adds could link one of those names: only
+        // an install that adds none rules that out.
+        || !scope.installs_only(phase, &[])
     {
         return None;
     }
@@ -563,7 +905,8 @@ fn inert_node(
     cmd: &str,
     m: &Manifest,
     tree: &Tree<'_>,
-    shadow: &HashSet<String>,
+    scope: &Scope,
+    phase: InstallPhase,
 ) -> Option<String> {
     let caps =
         re!(r"^node (?:\./)?([A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:js|cjs|mjs))$").captures(cmd)?;
@@ -571,9 +914,11 @@ fn inert_node(
     if !is_package_relative_path(rel) {
         return None;
     }
-    // `node` itself resolves through node_modules/.bin first: a shipped `node`
-    // bin runs in place of the interpreter, so the target is no longer inert.
-    if shadow.contains("node") {
+    // `node` itself resolves through node_modules/.bin first: a `node` bin
+    // the package, a workspace member or any package the install adds links
+    // there runs in place of the interpreter, so the target is not what runs.
+    // (The `node` package on npm is one such dependency.)
+    if scope.shadows(["node"]) || !scope.installs_only(phase, &[]) {
         return None;
     }
     let target = resolve_under(&m.dir, &m.dir, rel)?;
@@ -840,17 +1185,20 @@ fn build_only(
     key: &str,
     m: &Manifest,
     tree: &Tree<'_>,
-    shadow: &HashSet<String>,
+    scope: &Scope,
+    phase: InstallPhase,
 ) -> Option<String> {
     let scripts = m.scripts()?;
     let mut leaves = Vec::new();
+    let mut runners: Vec<&'static str> = Vec::new();
     // npm runs pre<key> and post<key> around the lifecycle script.
     for name in [format!("pre{key}"), key.to_string(), format!("post{key}")] {
         if let Some(cmd) = scripts.get(&name) {
-            run_leaves(cmd.as_str()?, scripts, 0, &mut leaves)?;
+            run_leaves(cmd.as_str()?, scripts, 0, &mut leaves, &mut runners)?;
         }
     }
     let mut tools: Vec<&'static str> = Vec::new();
+    let mut trusted: Vec<&str> = Vec::new();
     for leaf in &leaves {
         if let Some(tool) = build_leaf(leaf)? {
             tools.push(tool);
@@ -861,12 +1209,31 @@ fn build_only(
         // that name (a workspace member's `chmod`, or the package's own) runs
         // in its place, so the step is not the build tool it looks like.
         let cmd0 = leaf.split(' ').next().unwrap_or("");
-        if !matches!(cmd0, "true" | "exit") && shadow.contains(cmd0) {
-            return None;
+        if !matches!(cmd0, "true" | "exit") {
+            trusted.push(cmd0);
         }
+    }
+    // Finding 1 of the #172 review: the runner of every `npm|pnpm|yarn run X`
+    // the chain followed is itself run by name, from the same PATH, so a bin
+    // named `npm` runs in its place and the script it "runs" is never
+    // reached. And every runner and tool package bin is a
+    // `#!/usr/bin/env node` script, so `node` is trusted as well.
+    trusted.extend(runners.iter().copied());
+    if !tools.is_empty() || !runners.is_empty() {
+        trusted.push("node");
+    }
+    if scope.shadows(trusted) {
+        return None;
     }
     tools.sort_unstable();
     tools.dedup();
+    // Finding 2: a bin with any of those names could come from any package
+    // the prepare install adds, dependencies and devDependencies alike, and
+    // this pass cannot see a dependency's bins. Only the tools' own packages
+    // may be installed.
+    if !scope.installs_only(phase, &tools) {
+        return None;
+    }
     for tool in &tools {
         // The tool must be a registry dependency the manifest pins itself. An
         // undeclared build-tool name (`prepare: "tsc"` with no `typescript`
@@ -885,6 +1252,16 @@ fn build_only(
         {
             return None;
         }
+        // In a workspace the root's overrides and lockfile decide which
+        // `typescript` is hoisted for a member too: hold every manifest in
+        // the scope to the same test.
+        if scope
+            .manifests
+            .iter()
+            .any(|(dir, doc)| overrides_in(doc, tool) || tree.lockfile_redirects(dir, tool))
+        {
+            return None;
+        }
     }
     let mut shown: Vec<&str> = leaves.iter().map(String::as_str).collect();
     shown.dedup();
@@ -894,12 +1271,16 @@ fn build_only(
 /// The leaf commands of `cmd`, following `npm|pnpm|yarn run X` into the
 /// named script (and the `preX` / `postX` scripts npm runs around it) to
 /// [`MAX_RUN_DEPTH`]. `None` for anything with shell syntax beyond `&&`,
-/// `||` and `;`, or a run of a script that does not exist.
+/// `||` and `;`, or a run of a script that does not exist. Every runner a
+/// followed step names (`npm`, `pnpm`, `yarn`) is added to `runners`: it is
+/// run by name from the lifecycle PATH like any leaf, so the caller must
+/// trust it too.
 fn run_leaves(
     cmd: &str,
     scripts: &serde_json::Map<String, Value>,
     depth: usize,
     out: &mut Vec<String>,
+    runners: &mut Vec<&'static str>,
 ) -> Option<()> {
     if cmd.chars().any(|c| {
         matches!(
@@ -918,11 +1299,19 @@ fn run_leaves(
         if part.is_empty() {
             continue;
         }
-        if let Some(c) = re!(r"^(?:npm|pnpm|yarn) run ([A-Za-z0-9:._-]+)$").captures(&part) {
+        if let Some(c) = re!(r"^(npm|pnpm|yarn) run ([A-Za-z0-9:._-]+)$").captures(&part) {
             if depth >= MAX_RUN_DEPTH {
                 return None;
             }
-            let name = &c[1];
+            let runner = match &c[1] {
+                "npm" => "npm",
+                "pnpm" => "pnpm",
+                _ => "yarn",
+            };
+            if !runners.contains(&runner) {
+                runners.push(runner);
+            }
+            let name = &c[2];
             scripts.get(name)?;
             for s in [
                 format!("pre{name}"),
@@ -930,7 +1319,7 @@ fn run_leaves(
                 format!("post{name}"),
             ] {
                 if let Some(next) = scripts.get(&s) {
-                    run_leaves(next.as_str()?, scripts, depth + 1, out)?;
+                    run_leaves(next.as_str()?, scripts, depth + 1, out, runners)?;
                 }
             }
         } else {

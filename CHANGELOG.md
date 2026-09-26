@@ -20,9 +20,10 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
-On 169 clean MCP servers from the official registry, Sigil blocks 24 (14.2%;
-39 before the third false-positive pass below); SkillSpector blocks 100 of the
-156 it finished (64.1%; it timed out on 13).
+On 169 clean MCP servers from the official registry, Sigil blocks 28 (16.6%;
+24 before the lifecycle rewrites were made to fail closed, 39 before the third
+false-positive pass below); SkillSpector blocks 100 of the 156 it finished
+(64.1%; it timed out on 13).
 
 On the 844-package Datadog selection (npm and PyPI malware, same samples as the
 previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
@@ -505,6 +506,53 @@ pass.
   declares, so a member shipping a `tsc` / `node` / `chmod` / `only-allow` bin
   no longer downgrades the finding. The shell builtins `true` / `exit` are
   exempt.
+- **Lifecycle rewrites fail closed on runners and dependencies** (review of
+  #172). The runner of every `npm|pnpm|yarn run X` a `prepare` chain follows,
+  `npx`, `node` (every tool and runner is a `#!/usr/bin/env node` script) and
+  the script shell `sh` are now trusted names too, so a `bin` of the package
+  or a workspace member named `npm` no longer turns `prepare: "npm run build"`
+  into `INSTALL-012`. And because npm links the bins of every package the
+  install adds into `node_modules/.bin`, which this pass cannot see, a
+  rewrite now applies only when the dependency set the lifecycle phase
+  installs is empty apart from the trusted tools' own packages (`typescript`,
+  `husky`, `shx`, `rimraf`; none for `node`, `npx`, `only-allow`, `chmod`,
+  `true`, `exit 0`): `dependencies`, `optionalDependencies`,
+  `peerDependencies` and bundled names for `preinstall` / `postinstall`, plus
+  `devDependencies` for `prepare` / `prepublish`, across every
+  `package.json` of a workspace the manifest is the root of or sits in. Any
+  other dependency, an unreadable field, or a `node_modules` above the
+  package keeps `INSTALL-003` (Critical) or `INSTALL-004` (Medium). A
+  lockfile is not taken as proof that nothing collides: npm links bins from
+  each installed package's own manifest, not from the lockfile's `bin`
+  metadata, and a dependency's lockfile is ignored by the consumer's install.
+  The Microsoft platform launchers' postinstall (three optional platform
+  packages) is `INSTALL-003` again, and `ENGINE_REVISION` goes to 9, so cached
+  scans are recomputed. Measured against `34eaa0b` (the code of #172's head):
+  clean MCP servers blocked 24 → 28 of 169 and 66 → 69 of 146 unseen, warned
+  76 → 89 and 114 → 115; skills and the 844 Datadog samples unchanged at the
+  verdict and severity level. No server in either MCP corpus, and no Datadog
+  sample, keeps an `INSTALL-010`, `-011` or `-012` rewrite: all of them
+  install more than the tools their scripts name. Every server that moved is
+  listed in
+  [structural-checks.md](docs/detection/structural-checks.md#measured-effect-of-the-runner-and-dependency-rules).
+- **Lifecycle rewrites also fail closed on `directories.bin` and install-config
+  side channels** (adversarial re-review of #172). npm links every file in a
+  `directories.bin` directory as a `node_modules/.bin` entry when it packs the
+  package, so a package (or a workspace member) that uses `directories.bin`
+  could ship a file named like any trusted tool, runner or interpreter; the
+  linked names cannot be enumerated from the manifest, so the rewrite now keeps
+  the pack's severity. Separately, npm / yarn / pnpm read a config file from the
+  install directory upward before any script line runs: a `.pnpmfile.cjs` (a
+  hook pnpm executes), a `.npmrc` setting `script-shell` / `shell` /
+  `node-options` / `globalconfig` / `userconfig` or an off-registry `registry`,
+  or a `.yarnrc` / `.yarnrc.yml` setting `yarn-path` / `yarnPath` / `plugins`
+  or an off-registry server, all of which can redirect the shell, `node`, the
+  config file or the package source — any of these in the package's directory
+  or above it now keeps the finding. A `.npmrc` with only benign keys still
+  rewrites. `ENGINE_REVISION` goes to 10. No `package.json` outside
+  `node_modules` in either MCP corpus uses `directories.bin`, and none ships
+  one of those config files, so the measured MCP and Datadog numbers above are
+  unchanged from the runner-and-dependency build.
 - **`prepublishOnly` is `INSTALL-009` (Low)**: npm runs it on publish only.
   `INSTALL-004` is key-anchored (`"prepare":` / `"prepublish":`), and
   `INSTALL-REF-001` no longer links files only `prepublishOnly` runs.

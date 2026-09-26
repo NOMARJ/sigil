@@ -948,9 +948,9 @@ moved some findings to new ids:
 
 | Was | Now | When |
 |---|---|---|
-| `INSTALL-003` (Critical) | `INSTALL-010` (Medium) | `preinstall`/`postinstall` is exactly `node <local script>` and the script passes the inert test |
-| `INSTALL-003` (Critical) | `INSTALL-011` (Low) | the command is exactly `npx only-allow <pm>` |
-| `INSTALL-004` (Medium) | `INSTALL-012` (Low) | `prepare`/`prepublish` runs only build steps (`tsc`, `husky`, `chmod +x`, `shx`/`rimraf` on package paths) |
+| `INSTALL-003` (Critical) | `INSTALL-010` (Medium) | `preinstall`/`postinstall` is exactly `node <local script>`, the script passes the inert test, and the install adds no dependency |
+| `INSTALL-003` (Critical) | `INSTALL-011` (Low) | the command is exactly `npx only-allow <pm>` and the install adds no dependency |
+| `INSTALL-004` (Medium) | `INSTALL-012` (Low) | `prepare`/`prepublish` runs only build steps (`tsc`, `husky`, `chmod +x`, `shx`/`rimraf` on package paths) and the install adds no dependency beyond those tools' own packages |
 | `INSTALL-004` (Medium) | `INSTALL-009` (Low) | the key is `prepublishOnly`, which npm runs on publish only |
 | `CODE-014` (High) | `CODE-016` (Medium) | a `bin` launcher installs its own platform package at run time |
 | `SKILL-006` on `package.json` | (none) | `INSTALL-003` already reports npm lifecycle keys |

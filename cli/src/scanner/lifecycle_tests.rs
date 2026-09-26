@@ -172,6 +172,31 @@ fn microsoft_shape() -> Vec<(&'static str, String)> {
     ]
 }
 
+/// The Microsoft postinstall in a manifest that installs nothing: the shape
+/// `INSTALL-010` still rewrites. (The launcher manifest's optional platform
+/// packages are dependencies the install adds before the postinstall runs,
+/// so there it stays `INSTALL-003`.) The `INSTALL-003` attack variants below
+/// each change one thing about this shape, so each stays Critical because of
+/// that change, not because of the dependency rule.
+const INERT_MANIFEST: &str = r#"{
+  "name": "@acme/tool-mcp",
+  "version": "1.4.0",
+  "scripts": {
+    "postinstall": "node ./scripts/post-install-script.js"
+  }
+}
+"#;
+
+fn inert_shape() -> Vec<(&'static str, String)> {
+    vec![
+        ("package/package.json", INERT_MANIFEST.to_string()),
+        (
+            "package/scripts/post-install-script.js",
+            INERT_POSTINSTALL.to_string(),
+        ),
+    ]
+}
+
 fn scan_owned(entries: &[(&str, String)]) -> ScanResult {
     let borrowed: Vec<(&str, &str)> = entries.iter().map(|(p, b)| (*p, b.as_str())).collect();
     scan(&borrowed)
@@ -210,25 +235,51 @@ fn titles_match_the_documented_engine_rules() {
 // ---------------------------------------------------------------------------
 
 /// com.microsoft/azure, microsoft-fabric, template-server-name: CRITICAL
-/// on the postinstall, HIGH on the launcher. The postinstall is inert and the
-/// launcher installs the package's own platform build, so MEDIUM.
+/// on the postinstall, HIGH on the launcher. The launcher installs the
+/// package's own platform build, so CODE-016 Medium. The postinstall script
+/// is inert, but the three optional platform packages are installed before
+/// it runs and any of them could link a `node` bin that runs in place of the
+/// interpreter; nothing in the package rules that out, so INSTALL-003 stays
+/// Critical. (Before the dependency rule this shape was INSTALL-010 Medium;
+/// the rewrite itself is now pinned on the dependency-free shape below.)
 #[test]
-fn the_microsoft_launcher_shape_is_medium() {
+fn the_microsoft_launcher_shape_keeps_its_postinstall_critical() {
     let r = scan_owned(&microsoft_shape());
+    let found = rules(&r);
+    assert!(
+        found
+            .iter()
+            .any(|(id, s)| id == "INSTALL-003" && *s == Severity::Critical),
+        "{found:?}"
+    );
+    assert!(
+        !found
+            .iter()
+            .any(|(id, _)| id == "INSTALL-010" || id == "CODE-014" || id == "SKILL-006"),
+        "{found:?}"
+    );
+    let launches: Vec<&Finding> = r.findings.iter().filter(|f| f.rule == "CODE-016").collect();
+    assert_eq!(launches.len(), 2, "{found:?}");
+    assert!(launches.iter().all(|f| f.severity == Severity::Medium));
+    assert_eq!(r.verdict, Verdict::CriticalRisk, "{found:?}");
+}
+
+/// The same inert postinstall in a manifest with nothing to install: nothing
+/// but the real interpreter can be `node`, so INSTALL-010, Medium.
+#[test]
+fn an_inert_postinstall_with_no_dependencies_is_medium() {
+    let r = scan_owned(&inert_shape());
     let found = rules(&r);
     assert!(
         !found
             .iter()
-            .any(|(id, _)| id == "INSTALL-003" || id == "CODE-014" || id == "SKILL-006"),
+            .any(|(id, _)| id == "INSTALL-003" || id == "SKILL-006"),
         "{found:?}"
     );
     let inert = find(&r, "INSTALL-010").expect("INSTALL-010");
     assert_eq!(inert.severity, Severity::Medium);
     assert!(inert.snippet.starts_with(TITLE_INERT), "{}", inert.snippet);
     assert!(inert.snippet.contains("os"), "{}", inert.snippet);
-    let launches: Vec<&Finding> = r.findings.iter().filter(|f| f.rule == "CODE-016").collect();
-    assert_eq!(launches.len(), 2, "{found:?}");
-    assert!(launches.iter().all(|f| f.severity == Severity::Medium));
     assert_eq!(r.verdict, Verdict::MediumRisk, "{found:?}");
 }
 
@@ -342,7 +393,7 @@ fn assert_install003_stays_critical(entries: &[(&str, String)], what: &str) {
 
 fn postinstall_with(script: &str) -> Vec<(&'static str, String)> {
     with(
-        microsoft_shape(),
+        inert_shape(),
         "package/scripts/post-install-script.js",
         script,
     )
@@ -451,7 +502,7 @@ fn an_oversized_non_ascii_or_missing_target_stays_critical() {
     );
     let long_line = format!("console.log('{}');\n", "a".repeat(220));
     assert_install003_stays_critical(&postinstall_with(&long_line), "line over 200 bytes");
-    let missing: Vec<(&str, String)> = microsoft_shape()
+    let missing: Vec<(&str, String)> = inert_shape()
         .into_iter()
         .filter(|(p, _)| !p.ends_with("post-install-script.js"))
         .collect();
@@ -459,7 +510,7 @@ fn an_oversized_non_ascii_or_missing_target_stays_critical() {
 }
 
 fn manifest_with_postinstall(cmd: &str) -> String {
-    LAUNCHER_MANIFEST.replace("node ./scripts/post-install-script.js", cmd)
+    INERT_MANIFEST.replace("node ./scripts/post-install-script.js", cmd)
 }
 
 #[test]
@@ -473,7 +524,7 @@ fn any_other_postinstall_command_stays_critical() {
         "node scripts/post-install-script.ts",
     ] {
         let entries = with(
-            microsoft_shape(),
+            inert_shape(),
             "package/package.json",
             &manifest_with_postinstall(cmd),
         );
@@ -538,7 +589,7 @@ fn only_allow_variants_stay_critical() {
 #[test]
 fn a_binding_gyp_keeps_the_postinstall_critical() {
     let entries = with(
-        microsoft_shape(),
+        inert_shape(),
         "package/binding.gyp",
         "{ \"targets\": [] }\n",
     );
@@ -1109,6 +1160,673 @@ fn a_shadowing_bin_keeps_the_original_severity() {
         "a nested non-workspace package must not block the rewrite: {:?}",
         rules(&r)
     );
+}
+
+// ---------------------------------------------------------------------------
+// Runners and dependencies (the two #172 review findings)
+// ---------------------------------------------------------------------------
+
+/// `{ "name": "x", "version": "1.0.0", "scripts": { <scripts> }<extra> }`.
+fn pkg(scripts: &str, extra: &str) -> String {
+    format!(
+        "{{\n  \"name\": \"x\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {{ {scripts} }}{extra}\n}}\n"
+    )
+}
+
+/// `rewritten`: the `prepare` classifies as INSTALL-012 Low; otherwise it
+/// keeps INSTALL-004 Medium.
+fn assert_prepare(entries: &[(&str, String)], rewritten: bool, what: &str) {
+    let r = scan_owned(entries);
+    let found = rules(&r);
+    let low = found
+        .iter()
+        .any(|(id, s)| id == "INSTALL-012" && *s == Severity::Low);
+    let medium = found
+        .iter()
+        .any(|(id, s)| id == "INSTALL-004" && *s == Severity::Medium);
+    if rewritten {
+        assert!(low && !medium, "{what}: expected INSTALL-012: {found:?}");
+    } else {
+        assert!(
+            medium && !low,
+            "{what}: INSTALL-004 must stay Medium: {found:?}"
+        );
+    }
+}
+
+/// `rewritten`: the install key classifies as `rule`; otherwise it keeps
+/// INSTALL-003 Critical.
+fn assert_install_key(entries: &[(&str, String)], rewritten: Option<&str>, what: &str) {
+    match rewritten {
+        Some(rule) => {
+            let r = scan_owned(entries);
+            let found = rules(&r);
+            assert!(
+                found.iter().any(|(id, _)| id == rule)
+                    && !found.iter().any(|(id, _)| id == "INSTALL-003"),
+                "{what}: expected {rule}: {found:?}"
+            );
+        }
+        None => assert_install003_stays_critical(entries, what),
+    }
+}
+
+/// Finding 1: `npm run build` runs `npm` by name from the lifecycle PATH
+/// before it reaches `build`, and so do `pnpm run` and `yarn run`. A bin
+/// named like the runner — the package's own, or a workspace member's — runs
+/// in its place and the chain it appears to follow never runs: INSTALL-004
+/// stays Medium, as it does when a leaf is shadowed.
+#[test]
+fn a_shadowed_runner_keeps_install004() {
+    for runner in ["npm", "pnpm", "yarn"] {
+        let scripts = format!(r#""build": "tsc", "prepare": "{runner} run build""#);
+        let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+        // Control: nothing collides, so the chain is a build step.
+        assert_prepare(
+            &[("package.json", pkg(&scripts, ts))],
+            true,
+            &format!("{runner}: no collision"),
+        );
+        // The manifest's own object bin named like the runner.
+        let own = pkg(
+            &scripts,
+            &format!(r#", "bin": {{ "{runner}": "./cli.js" }}{ts}"#),
+        );
+        assert_prepare(
+            &[("package.json", own), ("cli.js", "1\n".to_string())],
+            false,
+            &format!("own bin {runner}"),
+        );
+        // A string bin takes the package's own name.
+        let named = pkg(&scripts, &format!(r#", "bin": "./cli.js"{ts}"#))
+            .replace("\"name\": \"x\"", &format!("\"name\": \"{runner}\""));
+        assert_prepare(
+            &[("package.json", named), ("cli.js", "1\n".to_string())],
+            false,
+            &format!("package named {runner} with a string bin"),
+        );
+        // A workspace member exporting the runner.
+        let root = pkg(&scripts, &format!(r#", "workspaces": ["packages/*"]{ts}"#));
+        let member = format!(
+            "{{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"bin\": {{ \"{runner}\": \"./cli.js\" }}\n}}\n"
+        );
+        assert_prepare(
+            &[
+                ("package.json", root.clone()),
+                ("packages/h/package.json", member),
+                ("packages/h/cli.js", "1\n".to_string()),
+            ],
+            false,
+            &format!("workspace member bin {runner}"),
+        );
+        // The same workspace with a member that links nothing classifies.
+        assert_prepare(
+            &[
+                ("package.json", root),
+                (
+                    "packages/h/package.json",
+                    "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\"\n}\n".to_string(),
+                ),
+            ],
+            true,
+            &format!("{runner}: workspace member without bins"),
+        );
+    }
+    // A runner reached two hops down is trusted the same way.
+    let nested = pkg(
+        r#""compile": "tsc", "build": "pnpm run compile", "prepare": "npm run build""#,
+        r#", "bin": { "pnpm": "./cli.js" }, "devDependencies": { "typescript": "^5" }"#,
+    );
+    assert_prepare(
+        &[("package.json", nested), ("cli.js", "1\n".to_string())],
+        false,
+        "own bin pnpm on the second hop",
+    );
+}
+
+/// Every tool and runner a rewrite trusts is a `#!/usr/bin/env node` script,
+/// and npm spawns the script shell by name: an own bin named `node` or `sh`
+/// shadows them for every rewrite that runs one.
+#[test]
+fn an_own_node_or_sh_bin_keeps_the_original_finding() {
+    let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+    for bin in ["node", "sh"] {
+        let extra = format!(r#", "bin": {{ "{bin}": "./cli.js" }}"#);
+        assert_prepare(
+            &[
+                (
+                    "package.json",
+                    pkg(r#""prepare": "tsc""#, &format!("{extra}{ts}")),
+                ),
+                ("cli.js", "1\n".to_string()),
+            ],
+            false,
+            &format!("prepare tsc with an own {bin} bin"),
+        );
+        assert_install_key(
+            &[
+                (
+                    "package.json",
+                    pkg(r#""preinstall": "npx only-allow pnpm""#, &extra),
+                ),
+                ("cli.js", "1\n".to_string()),
+            ],
+            None,
+            &format!("only-allow with an own {bin} bin"),
+        );
+    }
+    // `sh` runs every step, `true` and `exit 0` included.
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(r#""prepare": "exit 0""#, r#", "bin": { "sh": "./cli.js" }"#),
+            ),
+            ("cli.js", "1\n".to_string()),
+        ],
+        false,
+        "exit 0 with an own sh bin",
+    );
+    // Control: `chmod +x` alone runs no node script, so an own `node` bin
+    // does not collide with it.
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(
+                    r#""prepare": "chmod +x dist/index.js""#,
+                    r#", "bin": { "node": "./cli.js" }"#,
+                ),
+            ),
+            ("cli.js", "1\n".to_string()),
+            ("dist/index.js", "console.log(1)\n".to_string()),
+        ],
+        true,
+        "chmod with an own node bin",
+    );
+}
+
+/// Finding 2, the guard: any package the install adds could link an
+/// `only-allow`, `npx` or `node` bin, and this pass cannot see a dependency's
+/// bins, so `npx only-allow` with any dependency stays INSTALL-003 Critical.
+#[test]
+fn only_allow_with_any_dependency_stays_critical() {
+    for key in ["preinstall", "postinstall"] {
+        let guard = format!(r#""{key}": "npx only-allow pnpm""#);
+        assert_install_key(
+            &[("package.json", pkg(&guard, ""))],
+            Some("INSTALL-011"),
+            &format!("{key}: no dependencies"),
+        );
+        for extra in [
+            r#", "dependencies": { "left-pad": "^1.3.0" }"#,
+            r#", "dependencies": { "@modelcontextprotocol/sdk": "^1.0.0", "zod": "^3.23.0" }"#,
+            r#", "optionalDependencies": { "fsevents": "^2.3.3" }"#,
+            r#", "peerDependencies": { "react": ">=18" }"#,
+            r#", "bundleDependencies": ["left-pad"]"#,
+            r#", "bundledDependencies": ["left-pad"]"#,
+            r#", "bundleDependencies": true"#,
+            r#", "dependencies": { "npm": "^10.0.0" }"#,
+            r#", "dependencies": { "helper": "github:x/helper" }"#,
+            // Fields this pass cannot read are not an empty set.
+            r#", "dependencies": ["left-pad"]"#,
+            r#", "dependencies": "left-pad""#,
+            r#", "dependencies": null"#,
+            r#", "optionalDependencies": { "fsevents": 2 }"#,
+        ] {
+            assert_install_key(
+                &[("package.json", pkg(&guard, extra))],
+                None,
+                &format!("{key}{extra}"),
+            );
+        }
+    }
+    // An empty field installs nothing.
+    assert_install_key(
+        &[(
+            "package.json",
+            pkg(
+                r#""preinstall": "npx only-allow pnpm""#,
+                r#", "dependencies": {}, "bundleDependencies": []"#,
+            ),
+        )],
+        Some("INSTALL-011"),
+        "empty dependency fields",
+    );
+}
+
+/// Finding 2, the inert script: a dependency could link a `node` bin (the
+/// `node` package on npm does exactly that), so `node inert.js` with any
+/// dependency stays INSTALL-003 Critical.
+#[test]
+fn an_inert_postinstall_with_any_dependency_stays_critical() {
+    for extra in [
+        r#""dependencies": { "left-pad": "^1.3.0" }"#,
+        r#""dependencies": { "node": "^20.0.0" }"#,
+        r#""optionalDependencies": { "@acme/tool-mcp-linux-x64": "1.4.0" }"#,
+        r#""peerDependencies": { "typescript": "^5" }"#,
+        r#""bundleDependencies": ["left-pad"]"#,
+    ] {
+        let manifest = INERT_MANIFEST.replace(
+            "  \"scripts\": {",
+            &format!("  {extra},\n  \"scripts\": {{"),
+        );
+        assert!(manifest.contains(extra), "fixture drifted: {extra}");
+        let entries = with(inert_shape(), "package/package.json", &manifest);
+        assert_install003_stays_critical(&entries, extra);
+    }
+}
+
+/// Finding 2, the build chain: `prepare` runs after devDependencies are
+/// installed too, so any package beyond the tools' own (`typescript` for
+/// `tsc`, `husky`, `shx`, `rimraf`; none for `chmod`, `true`, `exit 0`) keeps
+/// INSTALL-004 Medium. A lockfile saying the extra package links no such
+/// bin is not evidence: npm links bins from the installed package's own
+/// manifest, and the lockfile's `bin` metadata is text the author wrote.
+#[test]
+fn a_build_step_beside_any_other_dependency_stays_medium() {
+    let files = |manifest: String| {
+        vec![
+            ("package.json", manifest),
+            ("dist/index.js", "console.log(1)\n".to_string()),
+        ]
+    };
+    for (scripts, fields) in [
+        (
+            r#""prepare": "tsc""#,
+            r#", "devDependencies": { "typescript": "^5", "@types/node": "^22" }"#,
+        ),
+        (
+            r#""prepare": "tsc""#,
+            r#", "dependencies": { "zod": "^3" }, "devDependencies": { "typescript": "^5" }"#,
+        ),
+        (
+            r#""prepare": "tsc""#,
+            r#", "optionalDependencies": { "fsevents": "^2" }, "devDependencies": { "typescript": "^5" }"#,
+        ),
+        (
+            r#""prepare": "tsc""#,
+            r#", "peerDependencies": { "react": ">=18" }, "devDependencies": { "typescript": "^5" }"#,
+        ),
+        (
+            r#""prepare": "tsc""#,
+            r#", "devDependencies": { "typescript": "^5", "husky": "^9" }"#,
+        ),
+        (
+            r#""prepare": "husky""#,
+            r#", "devDependencies": { "husky": "^9", "lint-staged": "^15" }"#,
+        ),
+        (
+            r#""build": "tsc && shx chmod +x dist/*.js", "prepare": "npm run build""#,
+            r#", "devDependencies": { "typescript": "^5", "shx": "^0.4", "eslint": "^9" }"#,
+        ),
+        (
+            r#""prepare": "chmod +x dist/index.js""#,
+            r#", "dependencies": { "left-pad": "^1.3.0" }"#,
+        ),
+        (
+            r#""prepare": "exit 0""#,
+            r#", "devDependencies": { "left-pad": "^1.3.0" }"#,
+        ),
+        (
+            r#""prepare": "tsc""#,
+            r#", "devDependencies": { "typescript": "^5" }, "dependencies": ["zod"]"#,
+        ),
+    ] {
+        assert_prepare(
+            &files(pkg(scripts, fields)),
+            false,
+            &format!("{scripts} {fields}"),
+        );
+    }
+    // A lockfile claiming the extra package links no bin changes nothing.
+    let lock = r#"{"lockfileVersion":3,"packages":{"":{"devDependencies":{"typescript":"^5","helper":"^1.0.0"}},"node_modules/typescript":{"version":"5.9.3","resolved":"https://registry.npmjs.org/typescript/-/typescript-5.9.3.tgz","bin":{"tsc":"bin/tsc","tsserver":"bin/tsserver"}},"node_modules/helper":{"version":"1.0.0","resolved":"https://registry.npmjs.org/helper/-/helper-1.0.0.tgz"}}}"#;
+    let mut entries = files(pkg(
+        r#""prepare": "tsc""#,
+        r#", "devDependencies": { "typescript": "^5", "helper": "^1.0.0" }"#,
+    ));
+    entries.push(("package-lock.json", lock.to_string()));
+    assert_prepare(&entries, false, "lockfile says helper has no bin");
+    // Zero other dependencies: each tool with exactly its own package.
+    for (scripts, fields) in [
+        (
+            r#""prepare": "tsc""#,
+            r#", "devDependencies": { "typescript": "^5" }"#,
+        ),
+        (
+            r#""prepare": "tsc""#,
+            r#", "dependencies": { "typescript": "^5" }"#,
+        ),
+        (r#""prepare": "chmod +x dist/index.js""#, ""),
+        (r#""prepare": "exit 0""#, ""),
+        (
+            r#""clean": "rimraf dist", "build": "npm run clean && tsc", "prepare": "npm run build""#,
+            r#", "devDependencies": { "typescript": "^5", "rimraf": "^6" }"#,
+        ),
+    ] {
+        assert_prepare(
+            &files(pkg(scripts, fields)),
+            true,
+            &format!("{scripts} {fields}"),
+        );
+    }
+}
+
+/// At a workspace root the install adds every member and every member's
+/// dependencies, and a member's own scripts run with the root's
+/// `node_modules/.bin` on PATH: the dependency rule covers the whole
+/// workspace in both directions.
+#[test]
+fn a_workspace_counts_every_members_dependencies() {
+    let member =
+        |extra: &str| format!("{{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\"{extra}\n}}\n");
+    let root = |scripts: &str, extra: &str| {
+        pkg(
+            scripts,
+            &format!(r#", "workspaces": ["packages/*"]{extra}"#),
+        )
+    };
+    let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+    let dep = r#", "dependencies": { "left-pad": "^1.3.0" }"#;
+
+    // The root's prepare, a member with a dependency.
+    for (m, rewritten) in [(member(""), true), (member(dep), false)] {
+        assert_prepare(
+            &[
+                ("package.json", root(r#""prepare": "tsc""#, ts)),
+                ("packages/h/package.json", m.clone()),
+            ],
+            rewritten,
+            &format!("root prepare, member {m}"),
+        );
+        // The root's guard and inert postinstall: install-phase fields.
+        assert_install_key(
+            &[
+                (
+                    "package.json",
+                    root(r#""preinstall": "npx only-allow pnpm""#, ""),
+                ),
+                ("packages/h/package.json", m.clone()),
+            ],
+            rewritten.then_some("INSTALL-011"),
+            &format!("root guard, member {m}"),
+        );
+        assert_install_key(
+            &[
+                (
+                    "package.json",
+                    root(r#""postinstall": "node scripts/probe.js""#, ""),
+                ),
+                (
+                    "scripts/probe.js",
+                    "console.log(process.platform)\n".to_string(),
+                ),
+                ("packages/h/package.json", m.clone()),
+            ],
+            rewritten.then_some("INSTALL-010"),
+            &format!("root inert postinstall, member {m}"),
+        );
+    }
+    // A member's devDependency is installed for the root's prepare.
+    assert_prepare(
+        &[
+            ("package.json", root(r#""prepare": "tsc""#, ts)),
+            (
+                "packages/h/package.json",
+                member(r#", "devDependencies": { "vitest": "^2" }"#),
+            ),
+        ],
+        false,
+        "member devDependency, root prepare",
+    );
+    // A member whose manifest this pass cannot read could declare anything.
+    assert_prepare(
+        &[
+            ("package.json", root(r#""prepare": "tsc""#, ts)),
+            (
+                "packages/h/package.json",
+                "{ \"name\": \"h\", \n".to_string(),
+            ),
+        ],
+        false,
+        "unreadable member manifest",
+    );
+    // A member's own prepare sees the root's packages: the root, or a
+    // sibling, with a dependency keeps it Medium.
+    let member_prepare = pkg(r#""prepare": "tsc""#, ts).replace("\"x\"", "\"a\"");
+    for (root_extra, sibling, rewritten) in [
+        ("", member(""), true),
+        (dep, member(""), false),
+        ("", member(dep), false),
+    ] {
+        assert_prepare(
+            &[
+                ("package.json", root(r#""test": "true""#, root_extra)),
+                ("packages/a/package.json", member_prepare.clone()),
+                ("packages/h/package.json", sibling.clone()),
+            ],
+            rewritten,
+            &format!("member prepare, root [{root_extra}], sibling {sibling}"),
+        );
+    }
+    // pnpm declares the workspace in pnpm-workspace.yaml.
+    assert_prepare(
+        &[
+            ("package.json", pkg(r#""test": "true""#, dep)),
+            (
+                "pnpm-workspace.yaml",
+                "packages:\n  - packages/*\n".to_string(),
+            ),
+            ("packages/a/package.json", member_prepare.clone()),
+        ],
+        false,
+        "pnpm workspace root with a dependency, member prepare",
+    );
+}
+
+/// npm puts the `node_modules/.bin` of every directory above the package on
+/// PATH too, so a `node_modules` shipped above it keeps the finding.
+#[test]
+fn a_node_modules_above_the_package_keeps_the_original_finding() {
+    let manifest = pkg(
+        r#""prepare": "tsc""#,
+        r#", "devDependencies": { "typescript": "^5" }"#,
+    );
+    assert_prepare(
+        &[("package/package.json", manifest.clone())],
+        true,
+        "control: nothing above the package",
+    );
+    assert_prepare(
+        &[
+            ("package/package.json", manifest),
+            (
+                "node_modules/.bin/tsc",
+                "#!/bin/sh\necho build\n".to_string(),
+            ),
+        ],
+        false,
+        "node_modules/.bin above the package",
+    );
+}
+
+/// npm links *every* file in a `directories.bin` directory as a
+/// `node_modules/.bin` entry, and this pass cannot enumerate them, so a
+/// manifest (or a workspace member) that uses `directories.bin` could ship a
+/// file named like any trusted tool, runner or interpreter: the rewrite fails
+/// closed. `directories` without a `bin` key, or `directories.bin: null`, does
+/// not.
+#[test]
+fn a_directories_bin_manifest_keeps_the_original_finding() {
+    let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+    // prepare -> INSTALL-012, guard -> INSTALL-011, inert -> INSTALL-010.
+    let dirbin = r#", "directories": { "bin": "./b" }"#;
+    assert_prepare(
+        &[(
+            "package.json",
+            pkg(r#""prepare": "tsc""#, &format!("{dirbin}{ts}")),
+        )],
+        false,
+        "prepare tsc with directories.bin",
+    );
+    // Even with the shipped file actually named like the runner.
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(
+                    r#""build": "tsc", "prepare": "npm run build""#,
+                    &format!("{dirbin}{ts}"),
+                ),
+            ),
+            ("b/npm", "#!/bin/sh\nid\n".to_string()),
+        ],
+        false,
+        "npm run build with a directories.bin/npm",
+    );
+    assert_install_key(
+        &[(
+            "package.json",
+            pkg(r#""preinstall": "npx only-allow pnpm""#, dirbin),
+        )],
+        None,
+        "only-allow with directories.bin",
+    );
+    assert_install_key(
+        &[
+            (
+                "package.json",
+                pkg(r#""postinstall": "node ./s.js""#, dirbin),
+            ),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+        ],
+        None,
+        "inert postinstall with directories.bin",
+    );
+    // A workspace member's directories.bin is hoisted to the root's PATH.
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(
+                    r#""build": "tsc", "prepare": "npm run build""#,
+                    &format!(r#", "workspaces": ["packages/*"]{ts}"#),
+                ),
+            ),
+            (
+                "packages/h/package.json",
+                "{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\",\n  \"directories\": { \"bin\": \"./b\" }\n}\n"
+                    .to_string(),
+            ),
+        ],
+        false,
+        "workspace member directories.bin",
+    );
+    // Controls: another `directories` key, or an explicit null, still rewrite.
+    assert_prepare(
+        &[(
+            "package.json",
+            pkg(
+                r#""prepare": "tsc""#,
+                &format!(r#", "directories": {{ "lib": "src" }}{ts}"#),
+            ),
+        )],
+        true,
+        "directories.lib only",
+    );
+    assert_prepare(
+        &[(
+            "package.json",
+            pkg(
+                r#""prepare": "tsc""#,
+                &format!(r#", "directories": {{ "bin": null }}{ts}"#),
+            ),
+        )],
+        true,
+        "directories.bin: null",
+    );
+}
+
+/// npm, yarn and pnpm read a package-manager config file from the install
+/// directory upward before a script line runs. One that redirects the script
+/// shell, `node`, the config file itself or the registry, or that runs a hook
+/// or a different binary as the package manager, keeps the original finding. A
+/// config with only benign keys does not.
+#[test]
+fn an_install_config_that_alters_execution_keeps_the_original_finding() {
+    let ts = r#", "devDependencies": { "typescript": "^5" }"#;
+    let prepare = || pkg(r#""prepare": "tsc""#, ts);
+    // Each of these config files makes the prepare keep INSTALL-004 Medium.
+    let dangerous: &[(&str, &str)] = &[
+        (".npmrc", "script-shell=./e.js\n"),
+        (".npmrc", "shell=/tmp/e\n"),
+        (".npmrc", "node-options=--require ./e.js\n"),
+        (".npmrc", "globalconfig=./other-npmrc\n"),
+        (".npmrc", "userconfig=./other-npmrc\n"),
+        (".npmrc", "registry=https://evil.example/\n"),
+        (".npmrc", "@acme:registry=https://evil.example/\n"),
+        (
+            ".pnpmfile.cjs",
+            "module.exports={hooks:{readPackage:p=>p}}\n",
+        ),
+        (".yarnrc", "yarn-path \"./e.js\"\n"),
+        (".yarnrc", "registry \"https://evil.example/\"\n"),
+        (".yarnrc.yml", "yarnPath: ./.yarn/releases/e.cjs\n"),
+        (".yarnrc.yml", "plugins:\n  - path: ./p.cjs\n"),
+        (".yarnrc.yml", "npmRegistryServer: https://evil.example/\n"),
+    ];
+    for (name, body) in dangerous {
+        assert_prepare(
+            &[("package.json", prepare()), (name, body.to_string())],
+            false,
+            &format!("{name}: {}", body.trim()),
+        );
+    }
+    // The guard and the inert postinstall fail closed the same way.
+    assert_install_key(
+        &[
+            (
+                "package.json",
+                pkg(r#""preinstall": "npx only-allow pnpm""#, ""),
+            ),
+            (".npmrc", "script-shell=./e.js\n".to_string()),
+        ],
+        None,
+        "only-allow with .npmrc script-shell",
+    );
+    assert_install_key(
+        &[
+            ("package.json", pkg(r#""postinstall": "node ./s.js""#, "")),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+            (".npmrc", "registry=http://evil.example/\n".to_string()),
+        ],
+        None,
+        "inert postinstall with an off-registry .npmrc",
+    );
+    // A config file in a directory above the package still applies.
+    assert_prepare(
+        &[
+            ("pkg/package.json", prepare()),
+            (".npmrc", "script-shell=./e.js\n".to_string()),
+        ],
+        false,
+        ".npmrc in an ancestor directory",
+    );
+    // Controls: a benign config with only harmless keys still rewrites.
+    for (name, body) in [
+        (
+            ".npmrc",
+            "save-exact=true\nengine-strict=true\nregistry=https://registry.npmjs.org/\n",
+        ),
+        (".yarnrc.yml", "nodeLinker: node-modules\n"),
+        (".yarnrc", "save-prefix \"~\"\n"),
+    ] {
+        assert_prepare(
+            &[("package.json", prepare()), (name, body.to_string())],
+            true,
+            &format!("benign {name}"),
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
