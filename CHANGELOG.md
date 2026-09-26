@@ -515,7 +515,9 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   samples lose EXFIL-CHAIN-001. All are versions of `artifact-lab-3-package`,
   which sends the environment in two hops, and all stay CRITICAL RISK on
   NET-007 and INSTALL-001. No level changed on the 204 malicious and 455
-  clean skills or on 323 MCP servers.
+  clean skills or on 323 MCP servers. In a Python file a bare name inside
+  `{...}` is still a value (`json={token: ...}`, `f"{token:>40}"`): Python
+  evaluates it, where JavaScript only names a property.
 - **One propagation step was measured and not adopted.** Under the step, a
   line between source and sink of the form `new = f(bound)` would make `new`
   a source too. It wins back the 17 chain labels, but it changes no real

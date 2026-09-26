@@ -355,12 +355,15 @@ fn is_ident_byte(b: u8) -> bool {
 /// or when it is a key: followed by `:` (not `::`), after `{`, `,`, `(` or at
 /// the start of the line, bare or quoted (`"token": ...`). The value side is
 /// still a use: `headers=headers`, `{ auth: token }`, `f"Bearer {token}"`,
-/// `{ agent, headers }`.
-fn uses_word(text: &str, ident: &str) -> bool {
+/// `{ agent, headers }`. In Python (`python`), a bare name inside `{...}` is
+/// evaluated, not named: `{token: "x"}` sends the value as a dict key and
+/// `f"{token:>40}"` formats it, so there it is a use.
+fn uses_word(text: &str, ident: &str, python: bool) -> bool {
     if ident.is_empty() {
         return false;
     }
     let bytes = text.as_bytes();
+    let mut open_brackets: Option<Vec<u8>> = None;
     let mut start = 0;
     while let Some(pos) = text[start..].find(ident) {
         let at = start + pos;
@@ -368,11 +371,29 @@ fn uses_word(text: &str, ident: &str) -> bool {
         start = at + 1;
         let before_ok = at == 0 || !is_ident_byte(bytes[at - 1]);
         let after_ok = end >= bytes.len() || !is_ident_byte(bytes[end]);
-        if before_ok && after_ok && !names_a_parameter(bytes, at, end) {
+        if !(before_ok && after_ok) {
+            continue;
+        }
+        if !names_a_parameter(bytes, at, end) {
             return true;
+        }
+        // In Python a bare name inside `{...}` is an expression: a dict key,
+        // a set element, an f-string field (`{token:>40}`, `{token=}`).
+        if python && !quoted(bytes, at, end) {
+            let opens = open_brackets.get_or_insert_with(|| innermost_open(bytes));
+            if opens[at] == b'{' {
+                return true;
+            }
         }
     }
     false
+}
+
+/// Is the word at `bytes[at..end]` a quoted string of its own (`"token"`)?
+fn quoted(bytes: &[u8], at: usize, end: usize) -> bool {
+    at.checked_sub(1)
+        .map(|i| bytes[i])
+        .is_some_and(|q| (q == b'"' || q == b'\'') && bytes.get(end) == Some(&q))
 }
 
 /// Is the word at `bytes[at..end]` a keyword-argument name, an assignment
@@ -380,19 +401,16 @@ fn uses_word(text: &str, ident: &str) -> bool {
 fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
     let is_blank = |b: u8| b == b' ' || b == b'\t';
     // A quoted key: `"token": ...` / `'token': ...`.
-    let quote = at
-        .checked_sub(1)
-        .map(|i| bytes[i])
-        .filter(|&q| (q == b'"' || q == b'\'') && bytes.get(end) == Some(&q));
-    let mut j = if quote.is_some() { end + 1 } else { end };
+    let quote = quoted(bytes, at, end);
+    let mut j = if quote { end + 1 } else { end };
     while j < bytes.len() && is_blank(bytes[j]) {
         j += 1;
     }
     let after = bytes.get(j + 1).copied();
     match bytes.get(j) {
-        Some(b'=') if quote.is_none() => after != Some(b'='),
+        Some(b'=') if !quote => after != Some(b'='),
         Some(b':') if after != Some(b':') => {
-            let mut i = if quote.is_some() { at - 1 } else { at };
+            let mut i = if quote { at - 1 } else { at };
             while i > 0 && is_blank(bytes[i - 1]) {
                 i -= 1;
             }
@@ -400,6 +418,33 @@ fn names_a_parameter(bytes: &[u8], at: usize, end: usize) -> bool {
         }
         _ => false,
     }
+}
+
+/// For each byte of `bytes`, the innermost bracket still open there (`0`
+/// for none), in one pass: a window can be one very long line. Brackets in
+/// string literals are not told apart; an unmatched closer is ignored.
+fn innermost_open(bytes: &[u8]) -> Vec<u8> {
+    let mut open: Vec<u8> = Vec::new();
+    let mut out = Vec::with_capacity(bytes.len());
+    for &b in bytes {
+        out.push(open.last().copied().unwrap_or(0));
+        match b {
+            b'(' | b'[' | b'{' => open.push(b),
+            b')' | b']' | b'}' => {
+                open.pop();
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Python source, whose `{...}` holds expressions (see [`uses_word`]).
+fn is_python(file: &str) -> bool {
+    std::path::Path::new(file)
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "py" | "pyw" | "pyi"))
 }
 
 /// Run every correlation rule over one file's findings.
@@ -453,8 +498,9 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
             // rule reads the sink line and the lines after it.
             let statement_mode = !file_only && rule.sink_window_before > 0;
             let by_value = statement_mode || value_uses;
+            let python = is_python(&sink.file);
             let scope = if statement_mode {
-                statement_scope(lines, sink_line, rule.sink_window_before)
+                statement_scope(lines, sink_line, rule.sink_window_before, python)
             } else {
                 SinkScope::line(sink_line, arg_window(lines, sink_line))
             };
@@ -507,7 +553,7 @@ pub fn apply(rules: &[CorrelationRule], findings: &[Finding], lines: &[&str]) ->
                         // the same way.
                         bound.iter().any(|ident| {
                             if by_value {
-                                uses_word(link_text, ident)
+                                uses_word(link_text, ident, python)
                             } else {
                                 contains_word(link_text, ident)
                             }
@@ -751,7 +797,7 @@ fn is_keyed_literal(code: &[u8]) -> bool {
 /// Any other line near the sink is a different statement about something
 /// else, and is not read: a key used by `client = OpenAI(api_key=key)` on the
 /// line above an unrelated insecure request is not sent by that request.
-fn statement_scope(lines: &[&str], sink_line: usize, before: usize) -> SinkScope {
+fn statement_scope(lines: &[&str], sink_line: usize, before: usize, python: bool) -> SinkScope {
     if sink_line == 0 || sink_line > lines.len() {
         return SinkScope::line(sink_line, String::new());
     }
@@ -771,13 +817,13 @@ fn statement_scope(lines: &[&str], sink_line: usize, before: usize) -> SinkScope
     let mut keep: Vec<usize> = (top..start)
         .filter(|&n| {
             leading_name(line(n)).is_some_and(|(name, attr)| {
-                (attr || locals.contains(&name)) && uses_word(&statement, name)
+                (attr || locals.contains(&name)) && uses_word(&statement, name, python)
             })
         })
         .collect();
     keep.extend(start..=end);
     if let Some((bound, _)) = assigned_name(line(start)) {
-        keep.extend((end + 1..=last).filter(|&n| uses_word(line(n), bound)));
+        keep.extend((end + 1..=last).filter(|&n| uses_word(line(n), bound, python)));
     }
     SinkScope {
         start,
@@ -1617,7 +1663,7 @@ mod tests {
         assert_eq!(continuation_start(&call, 5, 10), 2);
         assert_eq!(continuation_start(&call, 5, 2), 3, "bounded by `before`");
         assert_eq!(continuation_start(&call, 5, 0), 5);
-        let s = statement_scope(&call, 5, 10);
+        let s = statement_scope(&call, 5, 10, false);
         assert_eq!((s.start, s.end), (2, 6));
         // Line 1 assigns `token`, a local the call uses: set-up, kept.
         assert_eq!(
@@ -1629,8 +1675,8 @@ mod tests {
         assert_eq!(arg_window(&call, 5), "    flag=off,\n)\nafter()");
         assert_eq!(arg_window(&call, 0), "");
         assert_eq!(arg_window(&call, 20), "");
-        assert_eq!(statement_scope(&call, 0, 5).text, "");
-        assert_eq!(statement_scope(&call, 20, 5).text, "");
+        assert_eq!(statement_scope(&call, 0, 5, false).text, "");
+        assert_eq!(statement_scope(&call, 20, 5, false).text, "");
         // Object literals continue; blocks do not.
         for open in [
             "const options = {",
@@ -1671,33 +1717,41 @@ mod tests {
 
     /// `name_uses: value`: a keyword argument's name, an assignment target
     /// or an object key that repeats a bound name is not a use of it; the
-    /// value side of each still is. The default reading links on any whole
-    /// word.
+    /// value side of each still is. A bare key in Python is an expression,
+    /// so it is a use there. The default reading links on any whole word.
     #[test]
     fn value_uses_skip_names_that_only_repeat_the_binding() {
         let value = CorrelationRule {
             name_uses: NameUses::Value,
             ..rule()
         };
-        let findings = vec![f("CRED-012", 1), f("NET-001", 2)];
-        for (sink, by_value) in [
-            ("send(dest, conn=other)", false),
-            ("conn = other_thing(dest)", false),
-            ("send(dest, json={\"conn\": 1})", false),
-            ("send(dest, json={ conn: 1 })", false),
-            ("send(dest, body=conn)", true),
-            ("send(dest, json={\"k\": conn})", true),
-            ("send(dest, data=f\"{conn}\")", true),
-            ("send(dest, conn=conn)", true),
+        let in_file = |file: &str| {
+            [f("CRED-012", 1), f("NET-001", 2)].map(|x| Finding {
+                file: file.to_string(),
+                ..x
+            })
+        };
+        for (sink, in_js, in_py) in [
+            ("send(dest, conn=other)", false, false),
+            ("conn = other_thing(dest)", false, false),
+            ("send(dest, json={\"conn\": 1})", false, false),
+            ("send(dest, json={ conn: 1 })", false, true),
+            ("send(dest, body=conn)", true, true),
+            ("send(dest, json={\"k\": conn})", true, true),
+            ("send(dest, data=f\"{conn}\")", true, true),
+            ("send(dest, conn=conn)", true, true),
         ] {
             let src = format!("conn = read_setting()\n{sink}\n");
             let lines: Vec<&str> = src.lines().collect();
-            assert_eq!(apply(&[rule()], &findings, &lines).len(), 1, "{sink}");
-            assert_eq!(
-                apply(std::slice::from_ref(&value), &findings, &lines).len(),
-                usize::from(by_value),
-                "{sink}"
-            );
+            for (file, by_value) in [("a.js", in_js), ("a.py", in_py)] {
+                let findings = in_file(file);
+                assert_eq!(apply(&[rule()], &findings, &lines).len(), 1, "{sink}");
+                assert_eq!(
+                    apply(std::slice::from_ref(&value), &findings, &lines).len(),
+                    usize::from(by_value),
+                    "{file}: {sink}"
+                );
+            }
         }
     }
 
@@ -1723,7 +1777,7 @@ mod tests {
             ("session.get(url)", "session"),
             ("  token,", "token"),
         ] {
-            assert!(uses_word(text, ident), "{text}");
+            assert!(uses_word(text, ident, false), "{text}");
         }
         // Names given to something else.
         for (text, ident) in [
@@ -1742,13 +1796,44 @@ mod tests {
             ("const f = token => 1", "token"),
             ("my_token = 1", "token"),
         ] {
-            assert!(!uses_word(text, ident), "{text}");
+            assert!(!uses_word(text, ident, false), "{text}");
         }
         // One use among the names is enough.
-        assert!(uses_word("post(u, token=token)", "token"));
-        assert!(!uses_word("anything", ""));
+        assert!(uses_word("post(u, token=token)", "token", false));
+        assert!(!uses_word("anything", "", false));
         // A Rust path is not a key.
-        assert!(uses_word("let c = token::parse(s);", "token"));
+        assert!(uses_word("let c = token::parse(s);", "token", false));
+    }
+
+    /// In Python a bare name inside `{...}` is evaluated: a dict key or set
+    /// element sends the value, an f-string field formats it. Quoted keys,
+    /// keyword arguments and annotations are still names.
+    #[test]
+    fn python_braces_hold_values() {
+        for text in [
+            "json={token: \"x\"}",
+            "data=f\"{token:>40}\"",
+            "f\"{token=}\"",
+            "json={\"a\": 1, token: 2}",
+            "json={\n    token: 2,\n}",
+            "{token}",
+        ] {
+            assert!(uses_word(text, "token", true), "{text}");
+        }
+        for text in [
+            "json={\"token\": 1}",
+            "send(a, token=1)",
+            "json={\"k\": wrap(token=1)}",
+            "def send(token: str):",
+            "def send(a, token: str):",
+            "token: str = other",
+        ] {
+            assert!(!uses_word(text, "token", true), "{text}");
+        }
+        // Elsewhere a bare key names a property.
+        assert!(!uses_word("json={token: \"x\"}", "token", false));
+        assert!(is_python("pkg/setup.py") && is_python("stubs/x.PYI"));
+        assert!(!is_python("index.js") && !is_python("Makefile"));
     }
 
     #[test]

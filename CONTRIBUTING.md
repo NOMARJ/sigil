@@ -214,7 +214,9 @@ must be one JSON object, complete or still open at the cut.
 `name_uses` (`word`, the default, or `value`) says which occurrences of a
 bound name in the window link. `word` takes any whole word; `value` skips a
 keyword argument's name, an assignment target or an object key that only
-repeats the name, the reading the statement mode always uses. Every built-in
+repeats the name, the reading the statement mode always uses. In a Python
+file a bare name inside `{...}` is an expression, not a key (`{token: 1}` sends
+the token, `f"{token:>40}"` formats it), so it is still a use there. Every built-in
 chain sets `value`: a request's `url=` keyword argument does not send a `url`
 bound from the database URL in the environment two lines up. The link is one hop,
 the bound name itself; a value computed from it on another line

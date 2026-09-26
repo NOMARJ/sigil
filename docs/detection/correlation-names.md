@@ -112,6 +112,37 @@ The old link was a coincidence of names. The same code with the copy called
 NET-007 is Critical on the collector URL, and 16 of the 17 also have the
 Critical install hook INSTALL-001.
 
+### Found in review: Python braces
+
+The value reading treated every bare `name:` after `{` or `,` as an object
+key. In JavaScript that is right: `{ token: "public" }` names a property.
+In Python it is wrong. A bare name inside `{...}` is evaluated, as a dict
+key, a set element or an f-string field. So `json={token: "stolen"}` sends
+the credential, and `data=f"{token:>40}"` formats it into the body.
+
+Both were CRITICAL RISK on head and LOW RISK on the first build of this
+change. In a Python file, a bare name whose innermost open bracket is `{`
+is now read as a value. Quoted keys, keyword arguments and annotations
+(`def send(token: str)`) are still names. The language comes from the sink
+file's extension (`.py`, `.pyw`, `.pyi`). Every other file keeps the key
+reading, including a Python snippet inside Markdown.
+
+| Probe (synthetic) | head | name_uses, first build | shipped |
+|---|---|---|---|
+| Python `requests.post(u, json={token: "stolen"})` | CRITICAL | LOW | CRITICAL |
+| Python `requests.post(u, data=f"{token:>40}")` | CRITICAL | LOW | CRITICAL |
+| JS `fetch(u, { body: JSON.stringify({ token: "public" }) })` | CRITICAL | LOW | LOW |
+
+Measured, the first build → shipped: no sample changed on any corpus.
+There were 0 level, rule-set or finding-count changes on the skills, clean
+MCP and holdout corpora. On Datadog, recall and every chain were identical.
+No sample in these corpora sends a credential this way, so the fix restores
+detection only of shapes like the probes. B and C below were measured on the
+first build; the fix touches neither the step nor any sample they changed.
+The fix as shipped reads the brackets in one pass over the window, so one
+long line cannot make it quadratic. It was re-run against the version
+measured above on every corpus, with identical results.
+
 ## The propagation step
 
 A line strictly between the source and the sink (so within `window_lines`),
@@ -309,7 +340,9 @@ python3 evaluation_results/corpora/fetch_mcp_clean.py --out /data/mcp_holdout \
     --from-manifest evaluation_results/corpora/mcp_holdout_rederived_manifest.json
 # (the selection itself: evaluation_results/corpora/select_mcp_holdout.py)
 
-# The experiment builds: apply a patch to this change's tree, then `cargo build --release`
+# The experiment builds: apply a patch to fa601b8 (the tree B and C were
+# measured on, before the Python-braces fix), then `cargo build --release`
+git checkout fa601b8
 git apply evaluation_results/correlation_step/follow_assignment.patch        # B
 git apply evaluation_results/correlation_step/follow_assignment_bare.patch   # C, on top of B
 
@@ -325,7 +358,7 @@ SIGIL_BIN=/path/to/build python3 scripts/benchmark_skills.py --tools sigil \
 python3 scripts/datadog_diff.py --dataset-path /data/malicious-software-packages-dataset \
     --limit 204 --work /data/dd-work \
     --expect-fingerprint 63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade \
-    --build head=/path/to/head --build name_uses=/path/to/this-change \
+    --build head=/path/to/head --build name_uses=/path/to/fa601b8 \
     --build follow_assignment=/path/to/B --build follow_assignment_bare=/path/to/C \
     --out out/datadog
 ```

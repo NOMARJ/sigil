@@ -1,14 +1,15 @@
 {
- "generated_by": "scripts/datadog_diff.py, run 2026-09-26; diffs recomputed from its rows with the committed diff(), chain snippets reduced to their link with link_of()",
+ "generated_by": "scripts/datadog_diff.py, two runs on 2026-09-26: (1) head, name_uses, B, C; (2) name_uses, name_uses_python_keys. Diffs recomputed from their rows with the committed diff() (whole chain records, counted); chain snippets reduced to their link with link_of()",
  "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
  "fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
  "limit": 204,
  "phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
  "builds": {
   "head-ef0b95f": "release build of ef0b95f (per-sample identical to cff3fa2 in a separate run)",
-  "name_uses": "release build of this change: every built-in chain reads names as values",
-  "follow_assignment": "name_uses + evaluation_results/correlation_step/follow_assignment.patch (B)",
-  "follow_assignment_bare": "B + follow_assignment_bare.patch (C)"
+  "name_uses": "release build of fa601b8: every built-in chain reads names as values",
+  "follow_assignment": "fa601b8 + evaluation_results/correlation_step/follow_assignment.patch (B)",
+  "follow_assignment_bare": "B + follow_assignment_bare.patch (C)",
+  "name_uses_python_keys": "this change as shipped: name_uses, and a bare name inside {...} in a Python file read as a value (measured with its first implementation; the single-pass bracket scan that ships was re-run against it on every corpus: identical)"
  },
  "recall": {
   "head-ef0b95f": {
@@ -34,13 +35,20 @@
    "Medium": 761,
    "High": 752,
    "Critical": 561
+  },
+  "name_uses_python_keys": {
+   "any": 785,
+   "Medium": 761,
+   "High": 752,
+   "Critical": 561
   }
  },
  "exfil_chain_samples": {
   "head-ef0b95f": 40,
   "name_uses": 23,
   "follow_assignment": 41,
-  "follow_assignment_bare": 40
+  "follow_assignment_bare": 40,
+  "name_uses_python_keys": 23
  },
  "budget_expired": {
   "head-ef0b95f": [
@@ -52,9 +60,11 @@
    "samples/npm/compromised_lib/@automagik@genie/4.260421.33/2026-04-21-@automagik_genie-v4.260421.33.zip"
   ],
   "follow_assignment": [],
-  "follow_assignment_bare": []
+  "follow_assignment_bare": [],
+  "name_uses (run 2)": [],
+  "name_uses_python_keys (run 2)": []
  },
- "budget_check": "Samples that hit the 30 s per-file budget (PROV-BUDGET-001) in some runs were rescanned with every build and SIGIL_FILE_BUDGET_SECS=0: the chain findings are identical across all four builds (the two @asyncapi/studio samples: 44 each; @automagik/genie 4.260421.33: 2). The two chain changes marked budget_expired below are timing, not the build.",
+ "budget_check": "Samples that hit the 30 s per-file budget (PROV-BUDGET-001) in some runs were rescanned with every build of run 1 and SIGIL_FILE_BUDGET_SECS=0: the chain findings are identical across all four builds (the two @asyncapi/studio samples: 44 each; @automagik/genie 4.260421.33: 2). The chain changes marked budget_expired below are timing, not the build.",
  "diffs": {
   "head-ef0b95f->name_uses": {
    "recall": {
@@ -88,18 +98,6 @@
       [
        "OBFUSC-CHAIN-006",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       417,
-       "Zero-width Unicode characters detected \u2014 potential steganography"
-      ],
-      [
-       "OBFUSC-CHAIN-006",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       420,
-       "Zero-width Unicode characters detected \u2014 potential steganography"
-      ],
-      [
-       "OBFUSC-CHAIN-006",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1200,
        "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
@@ -110,16 +108,16 @@
        "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
       [
-       "OBFUSC-CHAIN-008",
+       "OBFUSC-CHAIN-006",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        417,
-       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+       "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
       [
-       "OBFUSC-CHAIN-008",
+       "OBFUSC-CHAIN-006",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        420,
-       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+       "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
       [
        "OBFUSC-CHAIN-008",
@@ -138,6 +136,24 @@
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1771,
        "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
       ],
       [
        "OBFUSC-CHAIN-009",
@@ -158,28 +174,10 @@
        "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
       ],
       [
-       "OBFUSC-CHAIN-009",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       1771,
-       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
-      ],
-      [
        "OBFUSC-CHAIN-012",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1769,
        "Run of ASCII Unicode escapes \u2014 text hidden from a plain-text search"
-      ],
-      [
-       "OBFUSC-CHAIN-013",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       417,
-       "Mixed script characters in identifiers \u2014 potential homograph attack"
-      ],
-      [
-       "OBFUSC-CHAIN-013",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       420,
-       "Mixed script characters in identifiers \u2014 potential homograph attack"
       ],
       [
        "OBFUSC-CHAIN-013",
@@ -191,6 +189,18 @@
        "OBFUSC-CHAIN-013",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1771,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
        "Mixed script characters in identifiers \u2014 potential homograph attack"
       ]
      ],
@@ -539,18 +549,6 @@
       [
        "OBFUSC-CHAIN-006",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       417,
-       "Zero-width Unicode characters detected \u2014 potential steganography"
-      ],
-      [
-       "OBFUSC-CHAIN-006",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       420,
-       "Zero-width Unicode characters detected \u2014 potential steganography"
-      ],
-      [
-       "OBFUSC-CHAIN-006",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1200,
        "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
@@ -561,16 +559,16 @@
        "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
       [
-       "OBFUSC-CHAIN-008",
+       "OBFUSC-CHAIN-006",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        417,
-       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+       "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
       [
-       "OBFUSC-CHAIN-008",
+       "OBFUSC-CHAIN-006",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        420,
-       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+       "Zero-width Unicode characters detected \u2014 potential steganography"
       ],
       [
        "OBFUSC-CHAIN-008",
@@ -589,6 +587,24 @@
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1771,
        "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-008",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
+       "Combining characters stacked on ASCII identifiers \u2014 potential payload hiding"
+      ],
+      [
+       "OBFUSC-CHAIN-009",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       1771,
+       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
       ],
       [
        "OBFUSC-CHAIN-009",
@@ -609,28 +625,10 @@
        "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
       ],
       [
-       "OBFUSC-CHAIN-009",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       1771,
-       "Potential Unicode homograph attack in domain \u2014 Cyrillic characters"
-      ],
-      [
        "OBFUSC-CHAIN-012",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1769,
        "Run of ASCII Unicode escapes \u2014 text hidden from a plain-text search"
-      ],
-      [
-       "OBFUSC-CHAIN-013",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       417,
-       "Mixed script characters in identifiers \u2014 potential homograph attack"
-      ],
-      [
-       "OBFUSC-CHAIN-013",
-       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
-       420,
-       "Mixed script characters in identifiers \u2014 potential homograph attack"
       ],
       [
        "OBFUSC-CHAIN-013",
@@ -642,6 +640,18 @@
        "OBFUSC-CHAIN-013",
        "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
        1771,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       417,
+       "Mixed script characters in identifiers \u2014 potential homograph attack"
+      ],
+      [
+       "OBFUSC-CHAIN-013",
+       "tmp/tmp8cnz7mvt/@asyncapi-studio/package/build/standalone/apps/studio/build/server/app/page.js",
+       420,
        "Mixed script characters in identifiers \u2014 potential homograph attack"
       ]
      ]
@@ -1011,6 +1021,29 @@
      "gained": []
     }
    ]
+  },
+  "name_uses->name_uses_python_keys (run 2)": {
+   "recall": {
+    "any": [
+     785,
+     785
+    ],
+    "Medium": [
+     761,
+     761
+    ],
+    "High": [
+     752,
+     752
+    ],
+    "Critical": [
+     561,
+     561
+    ]
+   },
+   "severity": [],
+   "verdict": [],
+   "chains": []
   }
  },
  "per_sample_head": [

@@ -16,12 +16,12 @@ Limitations: The clean corpora contain few source/sink pairs (37 in 18 of 778 sa
 
 | File | What it is |
 |---|---|
-| `datadog.json` | `scripts/datadog_diff.py` over head (ef0b95f), `name_uses` (this change), B and C: recall per build, and every max-severity, verdict and chain change between consecutive builds. A change on a sample that hit the 30 s per-file budget is marked `budget_expired`; the two such changes in this run are timing (see `budget_check`) |
+| `datadog.json` | `scripts/datadog_diff.py` over head (ef0b95f), `name_uses` (fa601b8), B and C, and a second run of `name_uses` against the shipped build (Python braces read as values): recall per build, and every max-severity, verdict and chain change between the builds compared. A change on a sample that hit the 30 s per-file budget is marked `budget_expired`; the two such changes in the first run are timing (see `budget_check`) |
 | `benchmarks.json` | `scripts/benchmark_skills.py --tools sigil` outcomes: head's for every sample, then every sample whose level, rule set or finding count changed from one build to the next (none did) |
 | `follow_assignment.patch` | B, the propagation step as measured (a per-rule `follow_assignment`, on for EXFIL-, AGENTSC- and DESER-CHAIN) |
 | `follow_assignment_bare.patch` | C, on top of B: a derived name links only where it is used bare |
 
-Neither patch is part of the shipped code. They apply to this change's tree
-(`git apply`); with B applied, `exfil_chain_does_not_follow_a_two_hop_flow`
+Neither patch is part of the shipped code. They apply to fa601b8, the tree
+they were measured on (`git apply`); with B applied, `exfil_chain_does_not_follow_a_two_hop_flow`
 and `a_value_derived_from_a_credential_does_not_link` fail by design, because
 those tests pin what the step would change.

@@ -1,5 +1,5 @@
 {
-"note": "benchmark_skills.py --tools sigil outcomes. 'head-ef0b95f' lists every sample; each other build lists only the samples whose level, rule set or finding count differ from the build before it (none do).",
+"note": "benchmark_skills.py --tools sigil outcomes. 'head-ef0b95f' lists every sample; 'changes' lists, for each pair of builds, every sample whose level, rule set or finding count differs (none do). name_uses_python_keys is this change as shipped.",
 "corpora": {
 "mcp_clean (169, --clean-sample-depth 1)": {
 "summary": {
@@ -28,6 +28,14 @@
 }
 },
 "follow_assignment_bare": {
+"clean": {
+"scanned": 169,
+"errors": 0,
+"block": 39,
+"warn": 125
+}
+},
+"name_uses_python_keys": {
 "clean": {
 "scanned": 169,
 "errors": 0,
@@ -2518,7 +2526,8 @@
 "changes": {
 "head-ef0b95f->name_uses": [],
 "name_uses->follow_assignment": [],
-"follow_assignment->follow_assignment_bare": []
+"follow_assignment->follow_assignment_bare": [],
+"name_uses->name_uses_python_keys": []
 }
 },
 "mcp_holdout re-derived (154, --clean-sample-depth 1)": {
@@ -2548,6 +2557,14 @@
 }
 },
 "follow_assignment_bare": {
+"clean": {
+"scanned": 154,
+"errors": 0,
+"block": 85,
+"warn": 143
+}
+},
+"name_uses_python_keys": {
 "clean": {
 "scanned": 154,
 "errors": 0,
@@ -5615,7 +5632,8 @@
 "changes": {
 "head-ef0b95f->name_uses": [],
 "name_uses->follow_assignment": [],
-"follow_assignment->follow_assignment_bare": []
+"follow_assignment->follow_assignment_bare": [],
+"name_uses->name_uses_python_keys": []
 }
 },
 "skills (204 malicious --sample-depth 2; 455 clean)": {
@@ -5663,6 +5681,20 @@
 }
 },
 "follow_assignment_bare": {
+"malicious": {
+"scanned": 204,
+"errors": 0,
+"block": 173,
+"warn": 184
+},
+"clean": {
+"scanned": 455,
+"errors": 0,
+"block": 7,
+"warn": 71
+}
+},
+"name_uses_python_keys": {
 "malicious": {
 "scanned": 204,
 "errors": 0,
@@ -11880,7 +11912,8 @@
 "changes": {
 "head-ef0b95f->name_uses": [],
 "name_uses->follow_assignment": [],
-"follow_assignment->follow_assignment_bare": []
+"follow_assignment->follow_assignment_bare": [],
+"name_uses->name_uses_python_keys": []
 }
 }
 }
