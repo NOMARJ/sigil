@@ -7,7 +7,13 @@ window uses it. This page covers two decisions about that link:
 
 1. **Names are read as values.** Every built-in chain sets
    `"name_uses": "value"`. A keyword argument's name, an assignment target or
-   an object key that only *repeats* the bound name does not link.
+   an object key that only *repeats* the bound name does not link. That
+   reading was later extended, by the fixes for 20 attack findings against
+   it (code only, the sink's own call, parameters, attributes and more);
+   [correlation-chains.md](correlation-chains.md) has the whole reading, the
+   286 probes behind it, and what it still gets wrong. None of those fixes
+   follows a value computed from the bound name, so the decision below
+   stands for the reading as it is now.
 2. **One propagation step was measured and not adopted.** Under that step, a
    line between source and sink of the form `new = <expression using the bound
    name>` would bind `new` too. It would win back the one family that (1)
@@ -42,8 +48,8 @@ Limitations: The clean corpora gave the step few chances: 37 source/sink pairs i
 ## Provenance of the baseline
 
 The change that introduced `name_uses` was built on a branch, `ws/exfilchain`,
-whose commits were not pushed anywhere this measurement could reach. It is
-re-implemented here from its description:
+whose commits were not pushed anywhere this measurement could reach at the
+time. It was re-implemented here from its description:
 
 - the `name_uses` field (`word`, the default, or `value`);
 - `value` on every built-in chain;
@@ -58,6 +64,26 @@ CRITICAL RISK (cff3fa2) to LOW RISK. If the original commits land first, they
 replace the reconstruction commit; the rest of this change does not depend on
 which one ships.
 
+The original commits did land later, with the attack-finding fixes on top
+(`ws/exfilchain-v`), merged into the branch that already held this
+reconstruction. The reconstruction's schema was kept (`name_uses` defaults
+to `word`; a rule with `sink_window_before` reads names as values whatever
+the field says), and so was this page's decision: that lane had added a
+narrower form of the step (a derived name followed only where the old word
+reading's window names the bound one in its code, which restores exactly
+the 17 artifact-lab links), and it was **not** ported. Its effect on the
+attack probes (ten true probes it links and this branch does not) is in
+[correlation-chains.md](correlation-chains.md#the-attack-probes). The
+branch's final build (34eaa0b, the port with both of its verifications'
+fixes) was measured on the Datadog selection sample by sample against main
+and e45efc5 ([correlation-chains.md](correlation-chains.md#measurements)):
+it loses EXFIL-CHAIN-001 on the same 17 packages as this page's build, and
+on 4 more `artifact-lab-3-package` versions that e45efc5 still linked
+because its window reached a derivation, a comment or the next block. One of
+those four, `artifact-lab-3-package-b1ec2b9f` 0.2.3, drops from CRITICAL to
+HIGH RISK (Critical recall 561 to 560 of 844); the other 20 stay CRITICAL
+RISK.
+
 The corpora were rebuilt from their public sources and checked against the
 recorded runs before anything was compared:
 
@@ -66,7 +92,7 @@ recorded runs before anything was compared:
 | Datadog 844 | `run_eval.dataset_fingerprint` | `63fcde5b…`, identical; recall 785 / 761 / 752 / 561 at any / Med / High / Crit, identical to [the recorded run](../../evaluation_results/honest_detection_eval_7826ea1.md); cff3fa2 and head (ef0b95f) per-sample identical to each other |
 | Skills 659 | head's per-sample level, rule set, finding count vs `evaluation_results/skills_benchmark/sigil_tls.json` | 659 of 659 identical |
 | MCP clean 169 | archive sha256 (manifest); head per-sample vs `mcp_sigil_tls.json` | 169 of 169 identical |
-| MCP holdout | no manifest was published | re-derived from the stated criteria: 157 selected (a second run of `select_mcp_holdout.py` selects the same 157), 154 fetched (3 over the 30 MB archive cap) |
+| MCP holdout | no manifest was published at the time (the original 146's is now `evaluation_results/corpora/mcp_holdout146_manifest.json`; the figures on this page stay on the re-derived set) | re-derived from the stated criteria: 157 selected (a second run of `select_mcp_holdout.py` selects the same 157), 154 fetched (3 over the 30 MB archive cap) |
 
 The first holdout selection run lost one server to a throttled npm lookup,
 `io.github.cameroncooke/XcodeBuildMCP`. It publishes the same npm package as
@@ -134,7 +160,12 @@ Neither patch ships. A linked chain names the hop in its snippet
 ### Probes (synthetic)
 
 Each probe is a real `sigil scan` of one constructed file. Verdicts are
-listed; `*` marks a file where a chain fired.
+listed; `*` marks a file where a chain fired. "name_uses (shipped)" is the
+reading as #169 shipped it (37c3140). The reading on the branch now is
+narrower (see [correlation-chains.md](correlation-chains.md)) and follows no
+derived name either; `a_value_derived_from_a_credential_does_not_link`
+(p1, p2, p5, p8, p10) and `exfil_chain_does_not_follow_a_two_hop_flow` (t1)
+pass on it unchanged.
 
 | Probe | Shape | name_uses (shipped) | B | C |
 |---|---|---|---|---|

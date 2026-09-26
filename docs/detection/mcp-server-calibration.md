@@ -759,8 +759,10 @@ reserved for the next pass. The point is to see whether the in-sample gains
 carry over, and whether anything moved the wrong way.
 
 ```
-Data Source: 146 held-out MCP servers, release builds of main (3982aa6) and
-             this branch, --no-cache, isolated HOME, OSV lookup on.
+Data Source: 146 held-out MCP servers (manifest, published later:
+             evaluation_results/corpora/mcp_holdout146_manifest.json), release
+             builds of main (3982aa6) and this branch, --no-cache, isolated
+             HOME, OSV lookup on.
 Sample Size: 146 servers.
 Limitations: "Clean" is not "audited"; the holdout, like the in-sample corpus,
              is unaudited published servers. Machine shared during the runs.
@@ -811,6 +813,62 @@ unbounded PROMPT-004, and so on) have direct out-of-sample analogues in the
 holdout's CODE-008/CODE-014/SUPPLY-001 residual, and the next pass should reduce
 those with payload-level rules — measured first on this held-out set before it
 is folded into the in-sample corpus.
+
+### Re-measured on the merged branch
+
+The figures above are the pass's own build. The branch has since merged the
+insecure-transport pack (from main), #169 and #170 (correlation names and
+source maps) and the port of the value reading with both of its
+verifications' fixes; the release build of the result (34eaa0b) was run
+again on every corpus, sample by sample against the release build of main
+35c0155, which already carries the insecure-transport pack.
+
+```
+Data Source: Real samples: the 169 clean MCP servers (mcp_clean_manifest.json),
+             the 146-server holdout (mcp_holdout146_manifest.json), 204 + 455
+             skills, the 1,796-example parity corpus and run_eval.py's
+             844-package Datadog selection (--limit 204). Release builds of
+             main 35c0155, of e45efc5 (this pass merged with #169 and #170,
+             before the port) and of 34eaa0b; --no-cache, isolated HOME.
+Sample Size: 169 + 146 servers; 659 skills; 1,796 parity examples; 844
+             Datadog packages; each scanned once per build.
+Limitations: In-sample for the 169; the holdout was not used to choose any
+             rule. "Clean" is not "audited". One run per build on a 4-core
+             machine (--workers 2); no run reported PROV-BUDGET-001.
+             Per-sample files: evaluation_results/skills_benchmark/
+             {mcp_sigil,mcp_holdout_sigil,sigil,parity_sigil}_round3.{json,md}
+             and datadog_round3_diff.json.
+```
+
+| | main 35c0155 | This branch 34eaa0b | The pass's own build |
+|---|---:|---:|---:|
+| MCP blocked (≥ HIGH) | 39/169 | 24/169 | 24/169 |
+| MCP warned (≥ MEDIUM) | 125/169 | 76/169 | 75/169 |
+| MCP servers that moved down / up | | 62 / 0 | 63 / 0 |
+| Holdout blocked (≥ HIGH) | 80/146 | 66/146 | 66/146 |
+| Holdout warned (≥ MEDIUM) | 135/146 | 114/146 | 114/146 |
+| Holdout servers that moved down / up | | 34 / 0 | 34 / 0 |
+| Malicious skills blocked / warned | 173 / 184 of 204 | 173 / 184 | 173 / 184 |
+| Clean skills blocked / warned | 7 / 71 of 455 | 7 / 71 | 7 / 71 |
+| SkillSpector parity, flagged / ≥ High | 626 / 385 of 1,796 | 626 / 385 | 623 / 385 (before the insecure-transport pack) |
+| Datadog six offline phases, ≥ any / Medium / High / Critical | 785 / 761 / 752 / 561 of 844 | 785 / 761 / 752 / 560 | 785 / 761 / 752 / 561 |
+
+The one level that differs from the pass's own run is `com.zeroheight/zeroheight`,
+which stays MEDIUM (it was LOW with the pass's build) on a TLS-005 finding:
+the insecure-transport pack, which main and this branch carry and the pass's
+build did not. The e45efc5 build gives every one of the 169 servers the same
+level, rule set and finding count as 34eaa0b, so the port changed nothing
+here; on the holdout the only correlation change against main is #170's
+(DROPPER-CHAIN-001 no longer read inside two one-line `.js.map` source maps;
+both servers stay CRITICAL). On the 844 Datadog packages
+(run_eval.py's six phases, `datadog_round3_diff.json`) main, e45efc5 and
+this branch detect the same 785 / 761 / 752 at any / Medium / High; at
+Critical main and e45efc5 detect 561 and this branch 560, the one package
+being `artifact-lab-3-package-b1ec2b9f` 0.2.3, which loses EXFIL-CHAIN-001
+with the port (a derived name the value reading does not follow; see
+[correlation-chains.md](correlation-chains.md#measurements)). This pass's
+own rule changes move no Datadog verdict here either (main and e45efc5 give
+every package the same highest severity and verdict).
 
 ### Considered and not done
 

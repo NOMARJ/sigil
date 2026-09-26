@@ -150,9 +150,9 @@ implementations with empty `checkServerTrusted` bodies, and `.wgetrc` /
 
 The chain is a correlation rule (see `CONTRIBUTING.md`) that reads the
 *statement* the TLS finding belongs to, not a fixed band of lines around it
-(`sink_window_before: 10`, `max_line_length: 500`). A credential finding
-(CRED-001 `token = os.getenv("GITHUB_TOKEN")`, a hardcoded key) links to the
-TLS finding when, within 60 lines:
+(`sink_window_before: 10`, `max_line_length: 500`, `name_uses: value`). A
+credential finding (CRED-001 `token = os.getenv("GITHUB_TOKEN")`, a hardcoded
+key) links to the TLS finding when, within 60 lines:
 
 1. **It is in the same call or literal.** The statement is the TLS line, the
    lines above it that continue into it (the call's opening line and earlier
@@ -184,7 +184,11 @@ TLS finding when, within 60 lines:
    use a `headers` dict built from the token elsewhere, and
    `hvac.Client(token=role_token)` does not use a `token` variable; the
    value side (`headers=headers`, `{ auth: token }`, `f"Bearer {token}"`)
-   is.
+   is. The statement is read as code, as every chain with `name_uses: value`
+   reads it ([correlation-chains.md](correlation-chains.md)): a word inside
+   a string or a comment, an attribute of another object, a destructuring
+   target or a count is not a use, and a credential finding that matched
+   only a line's comment does not put that line in the call.
 
 ```python
 token = os.getenv("GITHUB_TOKEN")          # CRED-001 binds `token`
@@ -288,6 +292,11 @@ Limitations: Constructed to probe the rules, so they show which shapes change,
 | A minified bundle's `new a.Agent({keepAlive:!0,rejectUnauthorized:!1})` | not reported, LOW RISK | TLS-004, MEDIUM RISK |
 | `checkServerIdentity: () => void 0` (esbuild's `undefined`) | not reported | TLS-004 |
 | `ctx.verify_mode = ssl.VerifyMode.CERT_NONE` | not reported | TLS-002 |
+
+The `DATABASE_URL` row is the TLS lane's result. EXFIL-CHAIN-001 has since
+been switched to read names as values too (`"name_uses": "value"`, see
+[correlation-chains.md](correlation-chains.md)), and that file is now MEDIUM
+RISK on TLS-001 alone.
 
 The sibling rule has a cost: got's options, written with the headers and the
 TLS switch as sibling literals (`headers: { Authorization: ... }` beside
@@ -405,8 +414,12 @@ Data Source: Real samples. 146 MCP servers from the official MCP registry: lates
              (148 selected, 2 failed to download).
 Sample Size: 146 MCP servers.
 Limitations: "Clean" means popular and registry-listed, not audited. The selection
-             manifest is not published with this change.
+             manifest was not published with this change.
 ```
+
+The selection manifest has since been published as
+`evaluation_results/corpora/mcp_holdout146_manifest.json`; it rebuilds this
+146-server corpus with `fetch_mcp_clean.py --from-manifest`.
 
 | | main (no TLS rules) | First build of the pack | First review | Final build |
 |---|---:|---:|---:|---:|

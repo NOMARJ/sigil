@@ -213,6 +213,130 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   the pack). 22 of the 29 turn verification off; 7 are changelog or README
   text that describes the setting. TLS-CHAIN-001 fired on none.
 
+### 🔗 Correlation chains read names as sent values
+
+- **A chain links only what the sink sends.** EXFIL-CHAIN-001,
+  DROPPER-CHAIN-001, AGENTSC-CHAIN-001, AGENTSC-CHAIN-002 and DESER-CHAIN-001
+  linked a source to a sink on any whole-word occurrence of the name the
+  source binds in the sink line and the four lines after it, so a clean file
+  with `url = os.environ["DATABASE_URL"]` handed to `create_engine(url)`, and a
+  later `requests.get(url=base + "/ping")`, was CRITICAL RISK on
+  EXFIL-CHAIN-001 (`CRED-001 (@L4) reaches NET-001 (@L9)`). It is LOW RISK
+  now. Every built-in chain sets `name_uses: "value"`, which reads the window
+  as code in the sink file's language (comments, string contents and regular
+  expressions blanked; what a string interpolates kept, `f"{token:>40}"`,
+  `f"{token=}"`, `"${TOKEN:-}"`, Ruby's `"#{key}"` and `%x(... #{key})`,
+  Swift's `"\(key)"` and C#'s `$"{key}"` included) and limits it to the sink's
+  own call, including a heredoc the call reads (`curl --data-binary @- <<EOF`;
+  a quoted delimiter expands nothing and is not read; a heredoc after `&&`,
+  `||` or `;` is another command's unless the sink's rule matches that
+  command), and, for a sink that opens a destination (a webhook URL, a
+  socket), the later lines that use the name it assigns or the object it
+  connects (`s.connect(...)`, then `s.sendall(key)`).
+  A keyword argument's name, an object key, a TypeScript member, an attribute
+  of another object (`r.url`), a destructuring target, an export list, a count
+  (`len(secrets)`) and a function parameter of the same name (unless the
+  function is called with the bound value, or handed on by reference beside
+  it as in `Thread(target=send, args=(token,))`, within 500 lines, where the
+  name is still the source's) are not uses;
+  `data=token`, `json={"k": api_key}`, `f"...{token}"`, `token=token`, a
+  positional `token`, a Python dict keyed by the variable, `{ body: token }`
+  and `{ token }` are. A same-line link needs the source and the sink to match
+  code, not the line's comment. DROPPER-CHAIN-001 links only when the launch
+  runs the downloaded file as its program, not when it hands it to another
+  program as data, and that is what the value reading does for it: on the
+  same build with the chain switched back to `"word"`, 8 of 8 clean dropper
+  probes link again (as with cff3fa2) and the 7 Datadog packages it fires on
+  keep the same 15 findings either way.
+- **One hop: the bound name itself.** A value computed from it on another
+  line is not followed. That costs the flows that linked only because the
+  send's keyword repeated the source's name: `artifact-lab-3-package` (17 of
+  the 844 Datadog samples) copies `dict(os.environ)` into `data`, encodes it,
+  and sends `Request(url, data=encoded_data)`; all 17 lose EXFIL-CHAIN-001
+  and stay CRITICAL RISK on NET-007 (16 also on INSTALL-001). With the sink's
+  window limited to its own call, 4 more versions of the same family lose it,
+  and one of them its CRITICAL verdict (see "Measured" below). One
+  propagation step (`new = f(bound)` makes `new` a source) was measured and
+  not adopted: it wins back those 17 chain labels but changes no real verdict
+  except through one wrong link, in mistralai's own example code, and it turns
+  7 of 10 constructed clean uses of a credential (a client, an engine, a
+  connection, an HMAC signature, a refresh-token body, a key hint) into
+  CRITICAL RISK; a variant restricted to bare uses still turns 3. A narrower
+  form built alongside the value-reading fixes (follow only where the old
+  word reading linked) is not included either. Method, per-sample results and
+  how it relates to ADR-0005:
+  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
+- **`name_uses` on correlation rules.** `"value"` (every built-in chain) or
+  `"word"` (any whole-word occurrence, the old reading, and the default), so
+  a custom pack that leaves it out links as it did outside the statement
+  mode; a rule with `sink_window_before` reads names as values whatever it
+  says, now with the fuller reading above (strings and comments blanked,
+  attributes, destructuring targets and counts skipped). Details and the
+  probes behind each part of the reading:
+  [docs/detection/correlation-chains.md](docs/detection/correlation-chains.md).
+- **Unknown keys on a custom correlation rule warn, and fail validation.** An
+  unknown key on a correlation rule or its `source`/`sink` selector, and a
+  selector that names no rule, do not refuse the pack in a scan (earlier
+  versions accepted them, and a signed pack cannot be edited without
+  re-signing): the scan ignores the key and prints a warning on stderr.
+  `sigil rules validate`, `sigil config --validate` and `sigil rules sign`
+  reject it, with a "did you mean" hint. An unknown `name_uses` value is an
+  error everywhere; `name_uses: null` (an empty YAML value) is the default, as
+  a missing field is, instead of refusing the whole pack.
+- **The corpus digest covers `name_uses`**, and the engine revision moved
+  (8), so a scan cached under one reading is not served under another.
+- **Verified against the port, twice.** 87 hand-written probes around each
+  resolution of the port found five things it lost, each fixed with tests: a
+  heredoc body the call reads, Ruby/Swift/C# interpolation, a helper called
+  with the secret beyond the rule's window, a same-line comment check that ran
+  once per pair (2.46 s against 1.25 s for e45efc5 on a 3.9 MB minified line;
+  1.33 s after), and `name_uses: null` refusing a pack. 37 more around those
+  fixes found three, also fixed with tests: a helper handed the secret by
+  reference (`Thread(target=upload, args=(token,))`, `setTimeout(upload, 0,
+  token)`, `upload.call(null, token)`), which the port reported LOW RISK
+  where e45efc5 reported CRITICAL; a socket connected by `s.connect(...)` and
+  sent on the next line; and a heredoc of another command (`curl ... && cat
+  <<EOF > notes.txt`) read as the request's body. Of the 124 probes (91 true,
+  33 clean; synthetic), e45efc5 gets 81 right, the port 79 and this change
+  105; the two it gets wrong that e45efc5 got right are a function called with
+  a name assigned from the secret (`t = token`, `send(t)`), the derived name
+  left out on purpose.
+- **Linear on long lines.** A work-in-progress version of this reading
+  re-read the line for every occurrence of the name it skipped (2.0 s and
+  5.6 s against 0.6 s for cff3fa2 on a 200 KB line, growing with the square
+  of the length, after the per-file time budget); this change stays within
+  0.2 s of cff3fa2 on 3.5 to 5 MB lines (0.3 s more on a line of 500,000
+  regular-expression openings that never close; one run each, indicative),
+  with a timing test.
+- **Measured.** Probes (synthetic, hand-written: 263 from two review lenses
+  that attacked the first cut, 23 more for the fixes' edges; each scanned
+  with an empty HOME): of 286, cff3fa2 gets 198 right, the first cut as
+  merged (e45efc5) 168, and this change 269. Every clean probe loses its
+  chain (81 of 83 linked with cff3fa2; 79 drop a level, 58 of them from
+  CRITICAL to LOW RISK), no probe gains one, and 186 of the 196 true links
+  cff3fa2 made are kept at the same verdict. The 10 lost are the two-hop
+  flows above and a function called with a name assigned from the secret
+  (`t = token`, `send(t)`), all of which the lane's build with its one-hop
+  follow linked. Corpora, with the release build of this branch (34eaa0b)
+  against main (35c0155), sample by sample in both directions (real samples;
+  one run per build; `evaluation_results/skills_benchmark/*_round3*`,
+  `datadog_round3_diff.json` and
+  `evaluation_results/honest_detection_eval_round3.*`): the 169 clean MCP
+  servers go from 39 to 24 blocked and 125 to 76 warned and the 146 unseen
+  ones from 80 to 66 and 135 to 114, every change downward and all of it the
+  MCP false-positive pass (e45efc5, the branch before the port, gives the 169
+  the same level, rules and finding count as this build); the only
+  correlation change there is DROPPER-CHAIN-001 leaving two one-line source
+  maps (#170; both servers stay CRITICAL). Skills (204 + 455) and
+  SkillSpector's 1,796 examples keep every level (626 / 385 flagged).
+  Datadog (844 packages): recall 785 / 761 / 752 at any / Medium / High
+  as on main, and 560 at Critical against 561: EXFIL-CHAIN-001 leaves 21
+  `artifact-lab-3-package` versions, the 17 above (already with e45efc5) and
+  4 that e45efc5 linked only through a derivation, a comment or the next
+  block inside its five-line window; `artifact-lab-3-package-b1ec2b9f` 0.2.3
+  drops from CRITICAL to HIGH RISK, the other 20 stay CRITICAL. No chain was
+  gained anywhere, and no other chain moved.
+
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 
 - **A second opinion from a model you choose.** `--llm-review` (or
@@ -581,29 +705,6 @@ pass.
   through `--rules`/`rule_packs` (documented in the same section). The tests
   use stub engines that print the recorded formats, so CI needs neither
   engine.
-
-### 🔗 Correlation chains read names as values
-
-- **A keyword argument that repeats a bound name is not a link.** Every
-  built-in chain now sets `name_uses: value`. A keyword argument's name, an
-  assignment target or an object key that only repeats the name the source
-  bound does not link it. A clean health check,
-  `url = os.environ["DATABASE_URL"]` then `requests.get(url=base + "/ping")`,
-  was CRITICAL RISK. The corpus digest covers the setting, so a cached result
-  from the old reading is not reused. Measured cost: 17 of the 844 Datadog
-  samples lose EXFIL-CHAIN-001. All are versions of `artifact-lab-3-package`,
-  which sends the environment in two hops, and all stay CRITICAL RISK on
-  NET-007 and INSTALL-001. No level changed on the 204 malicious and 455
-  clean skills or on 323 MCP servers.
-- **One propagation step was measured and not adopted.** Under the step, a
-  line between source and sink of the form `new = f(bound)` would make `new`
-  a source too. It wins back the 17 chain labels, but it changes no real
-  verdict except through one wrong link, in mistralai's own example code.
-  It turns 7 of 10 constructed clean uses of a credential into CRITICAL RISK:
-  a client, an engine, a connection, an HMAC signature, a refresh-token body
-  and a key hint. A variant restricted to bare uses still turns 3 of them.
-  Method, per-sample results and how it relates to ADR-0005:
-  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
 
 ### 🎯 Verdict
 

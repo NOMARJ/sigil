@@ -662,6 +662,18 @@ impl CompiledCorpus {
         self.meta_by_id.get(id)
     }
 
+    /// Does the content rule `id`'s pattern match `text`? `None` when no
+    /// content rule has that id (an engine, provenance or YARA rule, or a
+    /// correlation chain). Correlation asks this to tell a finding that
+    /// matched only a line's comment.
+    pub fn rule_matches(&self, id: &str, text: &str) -> Option<bool> {
+        self.per_phase
+            .values()
+            .flat_map(|p| p.rules.iter())
+            .find(|r| r.id == id)
+            .map(|r| r.regex.is_match(text))
+    }
+
     #[allow(dead_code)]
     pub fn phase(&self, phase: Phase) -> Option<&CompiledPhase> {
         self.per_phase.get(&phase)
@@ -1518,5 +1530,25 @@ mod tests {
         let a = corpus() as *const CompiledCorpus;
         let b = corpus() as *const CompiledCorpus;
         assert_eq!(a, b, "corpus() must return the same cached instance");
+    }
+
+    /// A chain's `name_uses` changes which findings it produces, so a cached
+    /// scan made under one reading must not be served under another.
+    #[test]
+    fn the_digest_moves_with_a_chains_name_reading() {
+        use crate::corpus::schema::NameUses;
+        let packs = all_packs();
+        let base = CompiledCorpus::from_packs(&packs).digest();
+        // The field's default is `word`, so dropping it from the pack is the
+        // same change as spelling it out.
+        let mut edited = packs.clone();
+        let rule = edited
+            .iter_mut()
+            .flat_map(|p| p.correlation_rules.iter_mut())
+            .find(|r| r.id == "EXFIL-CHAIN-001")
+            .expect("EXFIL-CHAIN-001 is built in");
+        assert_eq!(rule.name_uses, NameUses::Value);
+        rule.name_uses = NameUses::Word;
+        assert_ne!(CompiledCorpus::from_packs(&edited).digest(), base);
     }
 }

@@ -3,8 +3,10 @@
 
 docs/detection/insecure-transport.md describes a holdout of popular MCP
 servers that none of the calibration used, but its selection manifest was not
-published. This script re-selects from the stated criteria. The result is a
-*different* sample (157 selected here against 148 there); it is recorded in
+published when this was written (it now is: mcp_holdout146_manifest.json,
+selected by ``fetch_mcp_clean.py --mode popular``). This script re-selects
+from the stated criteria. The result is a *different* sample (157 selected
+here against 148 there); it is recorded in
 mcp_holdout_rederived_manifest.json and rebuilt byte for byte with
 
     python3 evaluation_results/corpora/fetch_mcp_clean.py --out /path/to/mcp_holdout \\
