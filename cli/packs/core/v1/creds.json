@@ -155,9 +155,9 @@
       "id": "CRED-007",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)[\"']?(api[_-]?key|api[_-]?secret|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)[\"']?\\s*[:=]\\s*['\"][A-Za-z0-9+/=_\\-]{16,}['\"]",
+      "pattern": "(?i)[\"']?(api[_-]?key|api[_-]?secret|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)[\"']?\\s*[:=]\\s*['\"](?P<value>[A-Za-z0-9+/=_\\-]{16,})['\"]",
       "description": "Hardcoded API key or secret",
-      "remediation": "Move the secret to the environment or a secrets manager and rotate it.",
+      "remediation": "Move the secret to the environment or a secrets manager and rotate it. A value made only of lowercase words joined by '-', '_' or '.' (a header, field or option name such as x-api-key-header-name) is a name, not a secret, and is not reported.",
       "references": [
         "CWE-798"
       ],
@@ -184,6 +184,9 @@
           "INSERT_",
           "1234567890\"",
           "1234567890'"
+        ],
+        "value_matches": [
+          "[a-z]+(?:[-_.][a-z]+)+"
         ]
       }
     },
@@ -191,10 +194,16 @@
       "id": "CRED-008",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)(password|passwd|pwd)\\s*[:=]\\s*['\\\"][^'\\\"$<{%][^'\\\"]{7,}",
+      "pattern": "(?i)(password|passwd|pwd)\\s*[:=]\\s*['\\\"](?P<value>[^'\\\"$<{%][^'\\\"]{7,})",
       "description": "Hardcoded password",
       "suppress": {
+        "value_matches": [
+          "(?i:[a-z0-9_.-]*pass(?:word|wd))"
+        ],
         "filename_suffix": [
+          ".d.ts",
+          ".d.mts",
+          ".d.cts",
           ".md",
           ".rst",
           ".txt"
@@ -223,7 +232,7 @@
           "xxxx"
         ]
       },
-      "remediation": "Move the password out of source and rotate it.",
+      "remediation": "Move the password out of source and rotate it. A value that is itself a password field or key name (db_password, userPassword) is a name, not a password, and TypeScript declaration files (.d.ts) carry types, not values; neither is reported.",
       "references": [
         "CWE-259"
       ],
@@ -265,9 +274,9 @@
       "id": "CRED-011",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)[\"']?(bearer|authorization)[\"']?\\s*[:=]\\s*['\"][a-zA-Z0-9._\\-]{20,}",
+      "pattern": "(?i)[\"']?(bearer|authorization)[\"']?\\s*[:=]\\s*['\"](?P<value>[a-zA-Z0-9._\\-]{20,})",
       "description": "Authorization / bearer token",
-      "remediation": "Move the token out of source and rotate it.",
+      "remediation": "Move the token out of source and rotate it. A value made only of lowercase words joined by '-', '_' or '.' (an auth scheme or header name) is a name, not a token, and is not reported.",
       "references": [
         "CWE-798"
       ],
@@ -287,6 +296,9 @@
           "REPLACE",
           "insert_",
           "INSERT_"
+        ],
+        "value_matches": [
+          "[a-z]+(?:[-_.][a-z]+)+"
         ]
       }
     },

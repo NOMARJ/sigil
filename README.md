@@ -282,8 +282,12 @@ Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not m
 
 | Clean MCP servers | Blocked | Warned |
 |---|---:|---:|
-| **Sigil** | **39/169 (23.1%)** | **125/169 (74.0%)** |
+| **Sigil** | **24/169 (14.2%)** | **75/169 (44.4%)** |
 | SkillSpector 2.11.2 | 100/156 (64.1%), 13 timed out | 127/156 (81.4%) |
+
+Sigil's MCP row is from the third false-positive pass (39 and 125 before it);
+SkillSpector was not re-run for it. See
+[docs/detection/mcp-server-calibration.md](docs/detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression).
 
 Median scan time per skill, both tools in one run on the same machine: 1.38 s
 for Sigil (before this change) and 26.82 s for SkillSpector; the current build

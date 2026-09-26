@@ -17,6 +17,7 @@ not available yet is marked **not available**.
 - [Claude Code: enforce the guard with managed settings](#claude-code-enforce-the-guard-with-managed-settings)
 - [Optional LLM review and data egress](#optional-llm-review-and-data-egress)
 - [Air-gapped and offline operation](#air-gapped-and-offline-operation)
+- [Rule ids that changed (lifecycle classification)](#rule-ids-that-changed-lifecycle-classification)
 - [Limitations](#limitations)
 
 Policy file keys, the baseline format and the compact rule format are
@@ -210,6 +211,10 @@ file named at scan time can never replace a core pack and remove its
 detections. (Replacing a core pack remains possible, deliberately, only from
 the machine-level `~/.sigil/packs/` directory.) Rule ids must look like
 `PREFIX-NAME` so `sigil:ignore` markers and policy globs can name them.
+A full-schema rule can exempt individual matches by the text around them
+(`suppress.match_context`) or by the value it captured
+(`suppress.value_matches`) instead of dropping whole lines; see
+[schemas.md](schemas.md#match-local-suppression-full-schema).
 
 Author, check and try rules without scanning anything:
 
@@ -914,6 +919,33 @@ The stage has not been measured on a live model; see the disclosure in
 - `--llm-review` needs a model endpoint. Behind an air gap, point it at a
   model you host inside the boundary (`llm_endpoint` in the organisation
   policy), or lock `llm_review: false`.
+
+## Rule ids that changed (lifecycle classification)
+
+Policies, baselines and SIEM rules key on rule ids and fingerprints. The
+third MCP false-positive pass
+([mcp-server-calibration.md](detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression))
+moved some findings to new ids:
+
+| Was | Now | When |
+|---|---|---|
+| `INSTALL-003` (Critical) | `INSTALL-010` (Medium) | `preinstall`/`postinstall` is exactly `node <local script>` and the script passes the inert test |
+| `INSTALL-003` (Critical) | `INSTALL-011` (Low) | the command is exactly `npx only-allow <pm>` |
+| `INSTALL-004` (Medium) | `INSTALL-012` (Low) | `prepare`/`prepublish` runs only build steps (`tsc`, `husky`, `chmod +x`, `shx`/`rimraf` on package paths) |
+| `INSTALL-004` (Medium) | `INSTALL-009` (Low) | the key is `prepublishOnly`, which npm runs on publish only |
+| `CODE-014` (High) | `CODE-016` (Medium) | a `bin` launcher installs its own platform package at run time |
+| `SKILL-006` on `package.json` | (none) | `INSTALL-003` already reports npm lifecycle keys |
+
+- A `disable_rules` or `severity_overrides` entry for `INSTALL-003`,
+  `INSTALL-004` or `CODE-014` no longer applies to the findings that moved;
+  add the new id if you want the same treatment. Globs such as `INSTALL-*`
+  keep matching.
+- The fingerprint covers the rule id, the file and the snippet, so a baseline entry for a
+  moved finding is reported stale and the finding comes back under its new id.
+  Regenerate the baseline (`sigil baseline`) after upgrading.
+- The corpus digest now covers every rule field that can change a finding
+  (severity, evidence, suppressions, provenance rules, an engine revision), so
+  cached scan results are invalidated once on upgrade.
 
 ## Limitations
 

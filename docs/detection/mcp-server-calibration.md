@@ -350,9 +350,14 @@ line" under Known gaps).
   `io.github.ChromeDevTools/chrome-devtools-mcp` (execSync, puppeteer's
   ``new Function(`return ${fn}`)``, a Google API key).
 - **Download-and-execute or remote update (3).** `ai.dimensions/analytics-mcp`
-  runs `irm …/install.ps1 | iex` from its auto-updater (plus INFER-007 on
+  (NET-RCE-001 on its install one-liners, plus INFER-007 on
   `apiKey: "DIMENSIONS_DSL_API_KEY"`, an environment-variable name, which is a
-  false positive); `com.browser-use/browser-use` (a `curl … | sh` install
+  false positive). *Correction (third pass):* an earlier version of this
+  sentence said the server "runs `irm …/install.ps1 | iex` from its
+  auto-updater". It does not: `src/mcp/auto-update.ts` only interpolates its
+  `INSTALL_SH` and `INSTALL_PS1` one-liners into a message printed for the
+  user, and its only process launches are `spawnSync` of npm and a re-exec of
+  itself. `com.browser-use/browser-use` (a `curl … | sh` install
   constant, an `exec(code, ns)` tool, CRED-040 on a comment about decrypted
   cookies); `io.github.Azure/containerization-assist` (NET-RCE-001 in its
   knowledge packs, `eval('require(…)')`, and a shipped SKILL.md that says "Do
@@ -580,6 +585,258 @@ HIGH) and to DD_O14 Datadog samples; it fired on no clean MCP server or skill.
   have no clean hits in any corpus measured, which with this few positives says
   little about their precision elsewhere.
 
+## Third pass: lifecycle scripts and match-local suppression
+
+The second pass left 39 of the 169 servers blocked. This pass removed the
+blocks that came from a rule unable to see what a line does, where the
+remaining evidence could be read without trusting anything a malicious
+package could forge. It was planned by replaying candidate changes over
+recorded scans (two designs, merged), then implemented in Rust and measured
+with the built binary; every figure below is from the built binary.
+
+```
+Data Source: Real samples, scanned with the release build of this branch and,
+             for "before", the release build of main (3982aa6); both with
+             --no-cache and an isolated HOME.
+             Clean MCP servers: the 169-server corpus described above
+                    (in-sample: the changes were chosen after reading them).
+             Skills: 204 malicious (Datadog ai-skills) and 455 vendor skills.
+             Malicious packages: Datadog malicious-software-packages-dataset,
+                    run_eval.py selection (--limit 204), 844 samples.
+             SkillSpector parity: 1,796 de-duplicated findings constructed by
+                    SkillSpector's own tests.
+Sample Size: 169 MCP servers; 204 + 455 skills; 844 malicious packages;
+             1,796 parity samples.
+Limitations: In-sample for the MCP corpus. The held-out MCP sample (146 unseen
+             servers) was scanned only for the record — the out-of-sample
+             section below — and was not used to choose or tune any rule; no
+             rule was changed for it. "Clean"
+             is not "audited". Static analysis only; the MCP and skills runs
+             include the OSV lookup; the Datadog runs are offline (run_eval.py's
+             six phases for the severity thresholds, and all nine phases named
+             with --phases, which skips the network feeds, for the verdicts).
+             The machine was shared (load average 3-14 during these runs); no
+             run reported PROV-BUDGET-001, so no result was cut short by the
+             per-file time budget.
+```
+
+### Results
+
+| | Before (main) | After | Change |
+|---|---:|---:|---:|
+| MCP blocked (≥ HIGH) | 39/169 (23.1%) | 24/169 (14.2%) | −15 |
+| MCP warned (≥ MEDIUM) | 125/169 (74.0%) | 75/169 (44.4%) | −50 |
+| MCP CRITICAL | 17 | 11 | −6 |
+| MCP servers whose verdict rose | | 0 | |
+| Malicious skills blocked / warned | 173 / 184 of 204 | 173 / 184 | 0 |
+| Clean skills blocked / warned | 7 / 71 of 455 | 7 / 71 | 0 |
+| Skills whose verdict changed | | 0 of 659 | |
+| SkillSpector parity, flagged / ≥ High | 623 / 385 of 1,796 | 623 / 385 | 0 |
+| Parity samples whose result changed | | 0 | |
+| Datadog verdict blocked / warned / CRITICAL (all nine phases) | 756 / 813 / 531 of 844 | 756 / 813 / 531 | 0 |
+| Datadog six offline phases, ≥ any / Medium / High / Critical | 785 / 761 / 752 / 561 of 844 | 785 / 761 / 752 / 561 | 0 |
+| Datadog samples whose verdict or highest severity changed | | 0 of 844 | |
+
+63 servers moved down and none moved up. The 15 that left the blocked set:
+
+- `com.microsoft/azure`, `com.microsoft/microsoft-fabric`,
+  `com.microsoft/template-server-name`: CRITICAL → MEDIUM. The postinstall
+  (`node ./scripts/post-install-script.js`) only checks `require.resolve` of
+  the package's own platform build, so INSTALL-003 became INSTALL-010
+  (Medium); the launcher's `execSync(`npm install ${platformPackageName}@${packageVersion}`)`
+  installs the package's own `<name>-<platform>-<arch>` at its own version, so
+  CODE-014 became CODE-016 (Medium); SKILL-006 no longer repeats INSTALL-003
+  on `package.json`.
+- `com.postman/postman-mcp-server`: CRITICAL → LOW. `npx only-allow pnpm` in
+  both of its manifests is INSTALL-011 (Low).
+- `ai.dimensions/analytics-mcp`: CRITICAL → MEDIUM. INFER-007 on
+  `apiKey: "DIMENSIONS_DSL_API_KEY"` is a corroborating Critical; its
+  NET-RCE-001 findings on printed install one-liners remain (see the correction
+  in "Still blocked" above).
+- `io.github.ChromeDevTools/chrome-devtools-mcp`: CRITICAL → MEDIUM. The
+  function-arity wrapper in its bundled lighthouse code is exempt from
+  OBFUSC-CHAIN-011. Its remaining High findings are all under
+  `build/src/third_party/`, which the verdict treats as vendored code.
+- `com.aave/mcp`, `io.frase/mcp-server`, `io.github.mozilla/firefox-devtools-mcp`,
+  `io.github.cloudinary/asset-management-mcp`: HIGH → MEDIUM. Their
+  `prepublishOnly` script is INSTALL-009 (Low, not an action), so their High
+  findings no longer meet the action-corroborated HIGH bar; `cloudinary` also
+  lost SUPPLY-008 to the bounded span.
+- `io.qase/mcp-server`: HIGH → MEDIUM. `prepare: husky || true` is INSTALL-012,
+  and `async exec(fn) {` is a method definition, not a CODE-002 call.
+- `com.apideck/mcp`, `io.github.firebase/firebase-mcp`: HIGH → MEDIUM.
+  CRED-008 no longer fires on `password: "password"` enum values or in `.d.ts`
+  files; apideck's `prepublishOnly` is INSTALL-009 and its SUPPLY-008 match
+  was two tokens a bundle apart.
+- `com.audioeye/testing-sdk-mcp`: HIGH → MEDIUM. CODE-009 is a Low duplicate
+  of the High CODE-008 on the same line, which halves that line's score.
+- `com.tracklution/server-side-tracking`: HIGH → LOW. CRED-011 no longer
+  fires on `bearer: 'data.laravel_auth_token'`, a field path.
+
+The other 48 moved MEDIUM → LOW. Their Medium-or-above findings before (from
+the recorded scans of main) were INSTALL-004 on a `prepublishOnly` or a
+build-only `prepare` (37 servers), a shipped source map (HYGIENE-001, 19),
+CRED-007 or CRED-008 on a name-shaped value (6), and one SUPPLY-011 span
+across a bundle; several had more than one.
+
+**Datadog at the rule level.** No Datadog sample's verdict or highest
+severity moved, but 407 of the 844 lost at least one Medium-or-above
+finding. Samples carrying each rule at that severity, main → this branch:
+
+| Rule (severity on main) | Samples | Where the lost findings were |
+|---|---:|---|
+| SKILL-006 (High) | 276 → 0 | `package.json` lifecycle keys, which INSTALL-003/004 still report |
+| HYGIENE-001 / -002 (Medium) | 197 → 0, 3 → 0 | Now Low |
+| INFER-005 (High) | 105 → 3 | All 102 are versions of `@0xobelisk/sui-cli`: a backtick far before `process.env.*_KEY` on one minified line |
+| INSTALL-004 (Medium) | 67 → 18 | 49 compromised libraries, now with 30 INSTALL-009 (`prepublishOnly`) and 24 INSTALL-012 (a `prepare` of `husky` or `npm run build` → `tsc`) findings between them. They include the `@ctrl/*` packages, whose `postinstall: node bundle.js` payload is still INSTALL-003 (Critical) |
+| CODE-002 (High), CODE-003 (Medium), CODE-009 (High) | 148 → 141, 30 → 19, 14 → 0 | Method definitions in bundled code; `compile(` in JavaScript; CODE-009 is now Low |
+| SUPPLY-007/008/011/013 (High), SUPPLY-016 (Critical) | 16 → 13, 12 → 7, 17 → 0, 3 → 0, 6 → 0 | Spans across bundled code: litellm's SUPPLY-016 matched across a tokenizer JSON, `@asyncapi/studio`'s across Next.js build chunks and a `.nft.json` file list |
+| OBFUSC-CHAIN-009 (Medium) | 21 → 4 | Cyrillic prose followed by an ASCII URL, such as `aiogram-types-v3`'s Ukrainian `.po` translations |
+| CRED-007 / 008 / 011 (High) | 17 → 15, 14 → 12, 3 → 1 | Name-shaped values in compromised libraries |
+
+Every sample that lost one of the SUPPLY, CODE, CRED or INSTALL findings is
+a compromised copy of a real library (the npm and PyPI `compromised_lib`
+buckets); the table's third column is from reading the main build's findings
+on the samples named, not on all 407. These rule-level losses are what
+narrowing rules on clean code costs: a future sample whose only evidence is
+one of these spans would now score lower.
+
+### What changed
+
+| Change | Rules | Why it is safe |
+|---|---|---|
+| Cache digest covers every finding-changing field | `CompiledCorpus::digest`, `ENGINE_REVISION` | It hashed only rule ids and regexes, so a severity or suppression change kept serving stale cached verdicts. Now severities, evidence, weights, filters, suppressions, provenance, correlation and engine-rule fields and an engine revision are hashed. |
+| `prepublishOnly` split out | INSTALL-004 → `"(prepare\|prepublish)"\s*:`; new INSTALL-009 (Low, `publish_time_script`) | npm runs `prepublishOnly` on publish only. `INSTALL-REF-001` no longer links files only it runs, except through a lifecycle script that runs `npm run prepublishOnly`. |
+| `compile(` in JavaScript | CODE-003 suppressed in JS-family files | JavaScript has no global `compile`; eval, Function and vm have their own rules. Python, markdown, notebooks and extensionless files stay covered. |
+| `new Function` duplicate | CODE-009 → Low | Every CODE-009 line is also CODE-008 at High (checked over the fixtures and the detection docs). |
+| Literal client key | INFER-007 → corroborate | Still Critical and still HIGH alone in a small package; CRITICAL needs a second corroborating Critical. |
+| Lifecycle classifier | INSTALL-010/011/012, CODE-016 (`scanner/lifecycle.rs`) | Positive tests over the parsed manifest and the scripts it names; anything unproven keeps the pack's severity. See [structural-checks.md](structural-checks.md#lifecycle-scripts-and-platform-launchers-install-010--012-code-016). |
+| Bin shadowing keeps the severity | INSTALL-010/011/012 | `node`, `npx`/`only-allow` and the build leaves (`tsc`, `husky`, `rimraf`, `shx`, `chmod`) resolve through `node_modules/.bin` first, where npm/yarn/pnpm hoist workspace members' bins. The rewrite is refused when a trusted name is a `bin` the manifest declares itself, or (at a workspace root) a `bin` any subtree `package.json` declares, so a member's `tsc` / `node` / `chmod` / `only-allow` bin cannot downgrade the finding. `true` / `exit` are shell builtins and exempt. |
+| Skill lifecycle keys | SKILL-006 no longer reads `package.json` | Duplicated INSTALL-003, which now reads the command. |
+| Match-local suppression | `suppress.match_context`, `suppress.value_matches` (`corpus/exempt.rs`) | A line is dropped only when every match on it is exempt; overlap-safe; fails closed past 64 matches. |
+| Definitions are not calls | CODE-001/002/003 | `def exec(`, `function eval(`, and in JS-family files a method `name(args) {`. |
+| Names are not secrets | CRED-007/011 (lowercase-word values), CRED-008 (password field names, `.d.ts`) | JWTs, `sk_live_…`, `ghp_…`, `hunter2hunter2` still fire. |
+| Arity wrapper | OBFUSC-CHAIN-011 | Exempt only when the joined array is the one the same line generated (`same: [gen, joined]`). |
+| Bounded spans | SUPPLY-007/008/011/013/016, OBFUSC-CHAIN-009, INFER-004/005 | Tokens must be within 60-300 bytes; SUPPLY-001 and PROMPT-004 keep their unbounded spans (bounding them cost Datadog recall in the replay). The gate relaxes `{0,N}` to `*` so the counting regex only runs on lines with both tokens. |
+| Source maps | HYGIENE-001/002 → Low | A shipped map exposes the publisher's source; it does not act on the installer. |
+
+Each change has tests for the benign shape and for the attack variants it
+could have dropped: `cli/src/scanner/lifecycle_tests.rs` (about ninety
+postinstall, only-allow, launcher and prepare variants, each keeping its
+original rule and severity, including `a_shadowing_bin_keeps_the_original_severity`
+for a workspace member's or the manifest's own `bin` shadowing `node`,
+`only-allow`, `chmod` or a build tool), `cli/src/corpus/exempt_tests.rs`
+(overlap, mixed lines, the match limit, UTF-8 windows, case, loader refusals)
+and `cli/src/corpus/mcp_fp_tests.rs`.
+
+### Still blocked (24)
+
+- **Correct or defensible (10).** `ai.autoblocks/ctxl` (a shipped private
+  key), `com.gitkraken/gk-cli` (`node install.js`, which downloads a
+  binary), `io.github.SAP-samples/hana-cli` (a postinstall with filesystem
+  access), `io.snyk/mcp` (`node wrapper_dist/bootstrap.js exec`),
+  `io.github.mapbox/mcp-server` and `mcp-devkit-server` (`patch-package`),
+  `io.slingdata/sling-cli` (setup.py `cmdclass`), `io.github.NVIDIA/elements`,
+  `io.github.mongodb-js/mongodb-mcp-server`, `com.browser-use/browser-use`.
+- **OSV advisories (2).** `io.github.awslabs/mcp-server-for-oscal`,
+  `io.scrapfly.mcp/mcp`.
+- **Need their own rule work (12).** `dev.svelte/mcp` and `ly.img/codesign`
+  (SUPPLY-001 inside a bundled copy of a real package; SUPPLY-001 cannot be
+  bounded or made corroborating without losing Datadog recall until the
+  payload it protects has a rule of its own), `com.keboola/mcp`,
+  `com.altmetric.mcp/altmetric-mcp`, `com.automox/automox-mcp`,
+  `io.fusionauth/mcp-api`, `io.github.Azure/containerization-assist`,
+  `io.github.localstack/localstack-mcp-server`,
+  `io.github.dynatrace-oss/Dynatrace-mcp`, `dev.rivet/mcp`,
+  `io.github.SAP/fiori-mcp-server`, `io.github.vercel/next-devtools-mcp`.
+
+### Out of sample: the held-out 146 (for the record only)
+
+The 146-server holdout was reserved so the calibration could be checked on
+servers no change was fitted to. It was scanned once with the release build of
+main and once with this branch; **no rule was changed for it** and it stays
+reserved for the next pass. The point is to see whether the in-sample gains
+carry over, and whether anything moved the wrong way.
+
+```
+Data Source: 146 held-out MCP servers, release builds of main (3982aa6) and
+             this branch, --no-cache, isolated HOME, OSV lookup on.
+Sample Size: 146 servers.
+Limitations: "Clean" is not "audited"; the holdout, like the in-sample corpus,
+             is unaudited published servers. Machine shared during the runs.
+```
+
+| | Before (main) | After (branch) | Change |
+|---|---:|---:|---:|
+| Holdout blocked (≥ HIGH) | 80/146 (54.8%) | 66/146 (45.2%) | −14 |
+| Holdout warned (≥ MEDIUM) | 135/146 (92.5%) | 114/146 (78.1%) | −21 |
+| Holdout servers that moved down a level | | 34 | |
+| Holdout servers that moved up a level | | 0 | |
+
+The drop tracks the in-sample one (39 → 24 blocked, 23.1% → 14.2%; a −8.9 pt
+in-sample fall against a −9.6 pt out-of-sample fall), and no server got worse.
+The down-movements are the same false-positive patterns, in the same order:
+
+| Lost finding | In-sample servers | Holdout servers |
+|---|---:|---:|
+| INSTALL-004 → INSTALL-009 / INSTALL-012 (`prepublishOnly` or build-only `prepare`) | 43 | 23 |
+| CODE-002 / CODE-003 (method definitions; `compile(` in JS) | 1 / 4 | 3 / 3 |
+| Bounded spans (SUPPLY-011/013/016, INFER-004/005, OBFUSC-CHAIN-009) | 4 | 5 |
+| CRED-007 / CRED-008 / CRED-011 (name-shaped values) | 10 | 0 |
+| HYGIENE-001/002 (source maps) → Low | (many, as MEDIUM→LOW) | (folded into the warned drop) |
+
+The 66 that stay blocked out of sample are held by the same detection rules as
+the 24 in-sample residual — the shapes the FP work deliberately left alone:
+
+| Blocking rule (High/Critical) | In-sample residual (of 24) | Holdout residual (of 66) |
+|---|---:|---:|
+| CODE-008 (`new Function` / `Function(` over built strings) | 5 | 22 |
+| INSTALL-003 (a real `preinstall`/`postinstall` action) | 5 | 19 |
+| CODE-002 / CODE-001 (`eval`/`exec`/dynamic import calls) | 5 / 6 | 17 / 9 |
+| CODE-014 (`execSync` of an interpolated command) | 3 | 17 |
+| NET-RCE-001 (download piped to a shell) | 5 | 10 |
+| SUPPLY-014 / SUPPLY-001 / SUPPLY-008 | 4 / 4 / 2 | 12 / 9 / 9 |
+| PROMPT-004 (injection in shipped instructions) | 5 | 7 |
+| CRED-007 / CRED-008 (real credential material) | 3 / 2 | 9 / 11 |
+| OBFUSC-006/007/012, OBFUSC-CHAIN-006 (encoding chains) | ~3 each | 5–6 each |
+| MANIP-004, PERSIST-002/005, SKILL-018/022 | 1–2 each | 5–9 each |
+| OSV advisories | 3 (1 OSV-only) | 1 |
+
+So the residual is dominated everywhere by the same install-execute,
+code-generation, download-and-run, credential and prompt-injection rules; the
+larger holdout counts are proportional to its larger blocked set, not a new
+class of finding. This is the honest next step: the twelve in-sample servers
+that "need their own rule work" (SUPPLY-001 inside a bundled real package, the
+unbounded PROMPT-004, and so on) have direct out-of-sample analogues in the
+holdout's CODE-008/CODE-014/SUPPLY-001 residual, and the next pass should reduce
+those with payload-level rules — measured first on this held-out set before it
+is folded into the in-sample corpus.
+
+### Considered and not done
+
+- SUPPLY-001 as corroborating: in the planning replay it cost 28 blocked and
+  104 CRITICAL Datadog verdicts.
+- Bounding PROMPT-004: in the planning replay it cost one Datadog verdict
+  (HIGH → MEDIUM, a sample whose match spanned 19 KB of JSON) to unblock one
+  held-out server. (Replay figures are from a Python replay over recorded
+  scans, not from the built binary, and are not re-measured here.)
+- README as human documentation, test paths never Critical, `.html` bundles,
+  bundled-region markers, comment-only NET-RCE-001, `.eval(` as Medium,
+  single-operand OBFUSC-004 as Low, the SKILL-012 licence exemption: each is
+  forgeable or cheaply evaded (an agent reads the README; `require('./tests/x')`
+  from `main`; a `//` line inside a template passed to a shell), or out of
+  scope.
+
+### Found in passing (separate work)
+
+- `INSTALL-003` omits npm's `install` key, and a JSON-escaped key
+  (`"postinstall"`) evades every lifecycle rule. Emitting findings from
+  the parsed `scripts` object would close both; it needs its own
+  false-positive measurement (`node-gyp rebuild`).
+- A path that is an entry point should never count as secondary.
+- `INSTALL-REF-001` would link a `chmod +x dist/x.js` argument as an executed
+  file (not observed in these corpora).
+
 ## Reproducing
 
 ```bash
@@ -604,4 +861,8 @@ SKILLSPECTOR_BIN=/path/to/skillspector python3 scripts/benchmark_skills.py \
     --stride 10 --workers 1 --timeout 1200 --out out/mcp_ss
 
 # Skills and Datadog: as in docs/detection/fp-calibration.md
+# Datadog verdicts (third pass): each run_eval.py sample, extracted, scanned
+# with every offline phase named so the network feeds do not run
+$SIGIL_BIN scan <sample> --no-cache --format json --phases \
+    install_hooks,code_patterns,network_exfil,credentials,obfuscation,provenance,prompt_injection,skill_security,inference_security
 ```

@@ -427,6 +427,42 @@ The full schema is `SignaturePack` in `cli/src/corpus/schema.rs`. A signed
 pack carries `meta.signature`: base64 Ed25519 over the compact JSON
 serialisation of the pack without that field.
 
+### Match-local suppression (full schema)
+
+Besides the line-level predicates (`path_contains`, `filename_suffix`,
+`line_contains`, `nearby_contains`, `file_header_contains`, `safe_domains`),
+a full-schema rule's `suppress` block may exempt individual *matches*. A line
+is dropped only when every match of the rule on it is exempt, so an exempt
+match beside a real one never hides it.
+
+| Key | Meaning |
+|---|---|
+| `value_matches` | List of regexes. A match is exempt when the text of the rule's `(?P<value>...)` group matches one of them in full. Compiled on their own and case-sensitively, even when the rule's pattern is `(?i)`. The rule's pattern must define a `value` group. |
+| `match_context` | List of contexts; a match is exempt when any one fits. Each has `before` (regex for the up to 120 bytes that end where the rule's `(?P<anchor>...)` group starts, or the whole match when there is no anchor; matched as `(?:before)$`), `after` (regex for the up to 120 bytes that start where the anchor ends; matched as `^(?:after)`), optional `extensions` (the file extensions, without the dot, the context applies in) and optional `same` (pairs of named groups from `before` / `after` whose captured texts must be equal). At least one of `before` / `after` is required. |
+
+The search restarts one character after each exempt match, so an exempt match
+cannot swallow an overlapping real one, and a line with more than 64 matches
+of the rule keeps its finding. Windows are cut on UTF-8 character boundaries.
+A pack whose `value_matches` has no `value` group to read, whose `same` names
+a group its context does not define, or whose predicates do not compile is
+refused by `sigil rules validate`, by `--rules` and when loaded from
+`~/.sigil/packs/`. Example, from the built-in `CODE-002`:
+
+```json
+"pattern": "(?m)(^|[^.\\w$])(?P<anchor>exec\\s*\\()\\s*(?:[^\\s\\w)\\[]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
+"suppress": {
+  "match_context": [
+    {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"},
+    {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)",
+     "after": "[^()]*\\)\\s*\\{",
+     "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
+  ]
+}
+```
+
+`def exec(self, sql):` and a JavaScript method `async exec(fn) {` are
+definitions and are not reported; `exec(payload)` on the same line still is.
+
 ### YARA rule file (`.yar`, `.yara`)
 
 UTF-8 YARA source: the subset described in

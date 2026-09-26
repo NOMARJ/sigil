@@ -61,6 +61,14 @@ comparable size, so this measures false positives only.
 Sigil blocks 6 servers SkillSpector does not; SkillSpector blocks 78 Sigil does
 not.
 
+After the third MCP false-positive pass
+([mcp-server-calibration.md](../detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression)),
+a later Sigil build on the same 169 servers blocks 24 (14.2%), warns on 75
+(44.4%) and reports 11 CRITICAL; on the 156 SkillSpector finished it blocks 16
+(10.3%), warns on 62 (39.7%) and reports 7 CRITICAL. It then blocks 2 servers
+SkillSpector does not, and SkillSpector blocks 86 it does not. SkillSpector was
+not re-run; its row above is from the head-to-head run.
+
 This is Sigil's weakest false-positive result. MCP servers ship as complete
 packages, often with minified bundles, and most of Sigil's blocks come from
 code-execution and obfuscation rules firing inside bundled JavaScript, or from

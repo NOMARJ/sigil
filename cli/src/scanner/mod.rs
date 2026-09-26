@@ -8,6 +8,9 @@ pub mod correlate;
 pub mod coverage;
 pub mod depsrc;
 pub mod derive;
+pub mod lifecycle;
+#[cfg(test)]
+mod lifecycle_tests;
 pub mod lpriv;
 pub mod manifests;
 pub mod normalize;
@@ -27,6 +30,18 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 pub use crate::corpus::schema::Evidence;
+
+/// Revision of the Rust code that classifies or rewrites findings after the
+/// rule packs have run, or that decides how a pack's predicates are
+/// evaluated: anything that changes a finding's rule, severity, evidence or
+/// snippet without a pack edit, such as the lifecycle-script classifier in
+/// [`lifecycle`].
+///
+/// It is hashed into the corpus digest (`CompiledCorpus::digest`), which the
+/// scan cache and `sigil diff` key on. **Bump it in the same change as any
+/// such logic**: a development build keeps its version string, so without a
+/// bump a cached verdict from the old logic would keep being served.
+pub const ENGINE_REVISION: u32 = 5;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1556,6 +1571,13 @@ pub fn run_scan(
             format!("could not be listed: {what}"),
         ));
     }
+
+    // Lifecycle and launcher findings whose command the parsed manifest and
+    // the scripts it names show cannot act on the installing machine are
+    // rewritten to their own, lower rules (scanner::lifecycle).
+    timing::measure(timing::Stage::Manifests, || {
+        lifecycle::classify_lifecycle(strip_base, &files, &mut findings)
+    });
 
     // A lifecycle script that runs a file with findings is its own finding,
     // one level above the worst of them: that code executes on install,

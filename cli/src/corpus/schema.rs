@@ -97,6 +97,46 @@ pub struct SuppressionPredicates {
     /// these domain strings.
     #[serde(default)]
     pub safe_domains: Vec<String>,
+
+    /// Match-local exemptions: a match is exempt when the text around it
+    /// fits one of these contexts (see [`MatchContext`]). Unlike the
+    /// line-level predicates above, a line is dropped only when *every*
+    /// match of the rule on it is exempt, so an exempt match cannot hide a
+    /// real one beside it.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub match_context: Vec<MatchContext>,
+
+    /// Match-local exemption by value: a match is exempt when the text its
+    /// `(?P<value>...)` group captured matches one of these regexes in full.
+    /// Compiled case-sensitively on their own, even when the rule's pattern
+    /// is `(?i)`. A rule that lists them must have a `value` group.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub value_matches: Vec<String>,
+}
+
+/// The text around one match of a rule, for [`SuppressionPredicates::match_context`].
+///
+/// The windows are taken around the rule's `(?P<anchor>...)` group, or the
+/// whole match when the pattern has none: `before` is matched against at
+/// most 120 bytes ending where the anchor starts (anchored at its end),
+/// `after` against at most 120 bytes starting where it ends (anchored at its
+/// start). Both must match when both are given.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct MatchContext {
+    /// Regex for the text just before the anchor, matched as `(?:before)$`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before: Option<String>,
+    /// Regex for the text just after the anchor, matched as `^(?:after)`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
+    /// File extensions (no leading dot) this context applies in; empty
+    /// means every file.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extensions: Vec<String>,
+    /// Pairs of named groups from `before` / `after` whose captured texts
+    /// must be equal (the regex crate has no backreferences).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub same: Vec<[String; 2]>,
 }
 
 impl SuppressionPredicates {
