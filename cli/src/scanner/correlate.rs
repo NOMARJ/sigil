@@ -1642,13 +1642,14 @@ fn call_scope(code: &CodeLines, sink_line: usize, follow_uses: bool) -> (String,
 const MAX_HOP_LINE: usize = 1_000;
 
 /// Names assigned, on the lines after `source_line` and before `send_line`
-/// (the last line of the sink's [`call_scope`]), from an expression that
-/// uses a `bound` name — or a name derived before it — as a value: `encoded
-/// = urlencode(data)` after `data = dict(os.environ)`, `b64env =
-/// b64encode(benv)` after `benv = env.encode()`.
+/// (the last line of the sink's [`call_scope`], or the line of a call
+/// [`called_with`] looks at), from an expression that uses a `bound` name —
+/// or a name derived before it — as a value: `encoded = urlencode(data)`
+/// after `data = dict(os.environ)`, `b64env = b64encode(benv)` after `benv =
+/// env.encode()`. A count of it (`n = len(secrets)`) is not one.
 ///
 /// The value reading follows these only where the word reading's window
-/// names a bound name in its code (see [`apply`]): an exfiltration that
+/// names a bound name in its code (see [`apply_matching`]): an exfiltration that
 /// encodes the secret into a new name before a send whose window also names
 /// the secret (`Request(url, data=encoded_data)` beside a bound `data`)
 /// keeps the link the word reading made, and no link is made that the word

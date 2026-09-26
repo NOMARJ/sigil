@@ -174,24 +174,53 @@ one place a pack can say "line 9 feeds line 10" without the engine executing
 anything: the link is a text identity check, not taint analysis.
 
 `name_uses` says what counts as the name appearing there, and every
-built-in chain sets it to `"value"`: the name must be *used* in the window,
-not only repeated as a keyword argument's name, an assignment target or an
-object key (`name=` but not `==`; `name:` after `{`, `,`, `(` or at the start
-of a line; a quoted `"name":`). With `url` bound from a credential read, a
-later `requests.get(url=base + "/ping")` sends `base + "/ping"` and does not
-link, and neither does `requests.post(u, json={"token": "x"})` beside a bound
-`token`; `data=token`, `json={"k": token}`, `f"...{token}"`, `token=token`, a
-positional `token` and JavaScript's `{ body: token }` or `{ token }` do. Two
-f-string forms send the value but read as a name, and do not link: Python's
-self-documenting `f"{token=}"` (an assignment) and a format spec such as
-`f"{token:>40}"` (a key after `{`). `"word"` links on any whole-word
-occurrence, keyword names included, which is how every chain but
+built-in chain sets it to `"value"`: the sink must *send* the bound value.
+The window is read as code, by the sink file's language: comments and the
+contents of string literals are blanked, and what a string interpolates is
+kept (`f"...{token}"`, `f"{token:>40}"`, `f"{token=}"`, `` `${token}` ``,
+`"$TOKEN"`, `"${TOKEN:-default}"`, a `"{token}"` formatted with `locals()`).
+An occurrence that only names something is not a use: a keyword argument's
+name or an assignment target (`name=` but not `==`), an object key (`name:`
+after `{`, `,`, `(`, `;` or at the start of a line, bare or quoted; a Python
+dict key is an expression and *is* a use), a TypeScript member
+(`token?: string`, `private token: string`), an attribute of another object
+(`r.url`; `self.token` and the source's own receiver are the value), a
+destructuring target (`const { token } = await res.json()`), an export list,
+a count (`len(token)`, `token.length`), or a parameter of a function the sink
+is in (`def ping(url):`), unless that function is called with the bound
+value or a name assigned from it. JavaScript regular-expression literals are
+text too. Outside the statement mode the window is the sink's own call: the
+sink line and the lines its call continues onto (plus, for a sink that only
+names a destination, such as a webhook URL, the lines that use the name it
+assigns), not the next function or a log line after it. A name assigned from
+the bound one before the send (`encoded = urlencode(data)`) is followed only
+where the word reading's window names the bound one in its code, so the value
+reading never links what the word reading did not. A source and a sink on one
+line link unless one of them matched only the line's comment, and a
+`.map` source map is not linked at all. For `DROPPER-CHAIN-001` the written
+path must be the program the launch runs, not a data file handed to it.
+
+With `url` bound from a credential read, a later
+`requests.get(url=base + "/ping")` sends `base + "/ping"` and does not link;
+`data=token`, `json={"k": token}`, `token=token`, a positional `token` and
+JavaScript's `{ body: token }` or `{ token }` do. `"word"` links on any
+whole-word occurrence in the sink line and the four lines after it, keyword
+names, strings and comments included, which is how every chain but
 `TLS-CHAIN-001` linked before the field existed. A rule that leaves
 `name_uses` out keeps its old behaviour: `"value"` with `sink_window_before`
-set, `"word"` without it. Any other value, or a misspelt key in a custom
-pack's correlation rule, is refused when the pack loads. Set it on every new
-chain; `docs/detection/correlation-chains.md` lists each built-in chain and
-what it links through.
+set, `"word"` without it. Set it on every new chain;
+`docs/detection/correlation-chains.md` lists each built-in chain, what it
+links through, the probes behind each part of the reading and its known
+gaps.
+
+A custom pack's correlation rule is checked for unknown keys, on the rule and
+on its `source` and `sink` selectors (`rule_ids`, `rule_prefixes`), and for a
+selector that names no rule. Earlier versions accepted any key there, so a
+pack that has one still loads: the scan ignores the key and prints a warning
+on stderr. `sigil rules validate`, `sigil config --validate` and
+`sigil rules sign` reject it, with a "did you mean" hint for a near-miss
+(`name_use`, `rule_idz`). An unknown `name_uses` *value* is an error
+everywhere, because no earlier pack can carry the field.
 
 The sink's argument window is the sink line and the four lines after it.
 `sink_window_before` (default 0, at most 20 in a custom pack) switches a rule

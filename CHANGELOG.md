@@ -211,55 +211,78 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   the pack). 22 of the 29 turn verification off; 7 are changelog or README
   text that describes the setting. TLS-CHAIN-001 fired on none.
 
-### 🔗 Correlation chains read names as values
+### 🔗 Correlation chains read names as sent values
 
-- **A keyword name or an object key no longer links a chain.** EXFIL-CHAIN-001,
+- **A chain links only what the sink sends.** EXFIL-CHAIN-001,
   DROPPER-CHAIN-001, AGENTSC-CHAIN-001, AGENTSC-CHAIN-002 and DESER-CHAIN-001
-  linked a source to a sink on any whole-word occurrence of the name the source
-  binds, so a clean file with `url = os.environ["DATABASE_URL"]` handed to
-  `create_engine(url)`, and a later `requests.get(url=base + "/ping")`, was
-  CRITICAL RISK on EXFIL-CHAIN-001 (`CRED-001 (@L4) reaches NET-001 (@L9)`).
-  Every chain now links only where the sink's window uses the name as a value,
-  the reading TLS-CHAIN-001 already had: `url=`, `json={"token": "x"}` and `{
-  token: "x" }` are names something else is given; `data=token`, `json={"k":
-  api_key}`, `f"...{token}"`, `token=token`, a positional `token`, `{ body:
-  token }` and `{ token }` are uses. DROPPER-CHAIN-001, which links only
-  through a written file named on the launch line, was switched too: a download
-  written to `open(PATH, 'wb')` linked to an unrelated launch that sets
-  `env={"PATH": ...}`. Two f-string forms that do send the value now read as a
-  name and do not link: `f"{token=}"` and `f"{token:>40}"`.
+  linked a source to a sink on any whole-word occurrence of the name the
+  source binds in the sink line and the four lines after it, so a clean file
+  with `url = os.environ["DATABASE_URL"]` handed to `create_engine(url)`, and a
+  later `requests.get(url=base + "/ping")`, was CRITICAL RISK on
+  EXFIL-CHAIN-001 (`CRED-001 (@L4) reaches NET-001 (@L9)`). It is LOW RISK
+  now. Every built-in chain sets `name_uses: "value"`, which reads the window
+  as code in the sink file's language (comments, string contents and regular
+  expressions blanked; what a string interpolates kept, `f"{token:>40}"`,
+  `f"{token=}"`, `"${TOKEN:-}"` included) and limits it to the sink's own call.
+  A keyword argument's name, an object key, a TypeScript member, an attribute
+  of another object (`r.url`), a destructuring target, an export list, a count
+  (`len(secrets)`) and a function parameter of the same name are not uses;
+  `data=token`, `json={"k": api_key}`, `f"...{token}"`, `token=token`, a
+  positional `token`, a Python dict keyed by the variable, `{ body: token }`
+  and `{ token }` are. A same-line link needs the source and the sink to match
+  code, not the line's comment, and a `.map` source map is not linked.
+  DROPPER-CHAIN-001 links only when the launch runs the downloaded file as its
+  program, not when it hands it to another program as data.
+- **Two hops where the send repeats the source's name.** A name assigned from
+  the bound one before the send (`encoded = urlencode(data)`, then
+  `Request(url, data=encoded)`) is followed where the old reading linked, so
+  the exfiltration that encodes `dict(os.environ)` under a new name keeps its
+  chain, and no link is made that the old reading did not make.
 - **`name_uses` on correlation rules.** `"value"` (every built-in chain) or
-  `"word"` (any whole-word occurrence, the old reading). Left out, a rule keeps
-  the behaviour it had before the key existed: `"value"` with
+  `"word"` (any whole-word occurrence, the old reading). Left out, a rule
+  keeps the behaviour it had before the key existed: `"value"` with
   `sink_window_before`, `"word"` without, so custom packs link as they did.
-  An unknown value, or a misspelt key on a custom pack's correlation rule, is
-  refused when the pack loads. Details:
+  Details and the probes behind each part of the reading:
   [docs/detection/correlation-chains.md](docs/detection/correlation-chains.md).
-- **Measured** (real runs, the cff3fa2 release build against this change,
-  sample by sample). No sample in any corpus changes its verdict level or its
-  highest severity. Clean MCP servers: 39/169 blocked and 125/169 warned with
-  both; unseen MCP servers: 80/146 blocked and 135/146 warned with both; skills:
-  173/204 malicious and 7/455 clean blocked with both, every sample with the
-  same findings; SkillSpector's 1,796 test examples 626 flagged (385 at High)
-  with both, each with the same rules. On the Datadog selection (844
-  packages) recall is unchanged at every threshold (785 / 761 / 752 / 561,
-  also from `scripts/run_eval.py` itself with the final build),
-  but EXFIL-CHAIN-001 now fires on 23 packages instead of 40: the 17 it
-  dropped are one family (artifact-lab-3-package and renamed copies), which
-  encodes `dict(os.environ)` into another name before `Request(url,
-  data=encoded_data)` and was linked only because the keyword `data=` shared
-  the variable's name. They stay Critical on NET-007 (the webhook
-  host) and INSTALL-001; a constructed variant with an ordinary host drops
-  from CRITICAL to LOW RISK. No clean MCP server or skill carried a chain this
-  change removes, so these corpora show nothing else moved, not how often the
-  removed false positive occurs; the reported file and 38 hand-written probes
-  are that evidence (ten keyword-name or key links removed across the five
-  chains, 23 value-side links kept, two f-string forms lost).
-- **The corpus digest covers `name_uses`.** It keyed correlation rules by id
-  and description only, so a cached scan made before the switch was served
-  after it (the same digest, the same package version): the reported file
-  stayed CRITICAL RISK from the cache. The digest now changes with a chain's
-  reading.
+- **Unknown keys on a custom correlation rule warn, and fail validation.** An
+  unknown key on a correlation rule or its `source`/`sink` selector, and a
+  selector that names no rule, no longer refuse the pack in a scan (earlier
+  versions accepted them, and a signed pack cannot be edited without
+  re-signing): the scan ignores the key and prints a warning on stderr.
+  `sigil rules validate`, `sigil config --validate` and `sigil rules sign`
+  reject it, with a "did you mean" hint. An unknown `name_uses` value is an
+  error everywhere.
+- **The corpus digest covers `name_uses`**, so a scan cached under one reading
+  is not served under another (the reported file stayed CRITICAL RISK from
+  the cache before this).
+- **Linear on long lines.** The work-in-progress version of this reading
+  re-read the line for every occurrence of the name it skipped (2.0 s and
+  5.6 s against 0.6 s for cff3fa2 on a 200 KB line, growing with the square
+  of the length, after the per-file time budget); the final build stays
+  within 0.2 s of cff3fa2 on 3.5 to 5 MB lines (0.5 s on a line of 500,000
+  regular-expression openings that never close), with a timing test.
+- **Measured** (real runs, the cff3fa2 release build against this change's
+  final build, sample by sample, both directions). No sample in any corpus
+  changes its verdict level or its highest severity. Clean MCP servers:
+  39/169 blocked and 125/169 warned with both, every server with the same
+  findings. Unseen MCP servers: 80/146 blocked and 135/146 warned with both;
+  the only change is DROPPER-CHAIN-001 no longer firing on two one-line
+  `.js.map` source maps (false positives; both servers stay CRITICAL on
+  other rules). Skills: 173/204 malicious and 7/455 clean blocked with both,
+  every sample with the same findings. SkillSpector's 1,796 test examples:
+  626 flagged (385 at High) with both, each with the same rules. Datadog
+  (844 packages): every package has the same rules, finding count and chain
+  findings; 785 / 761 / 752 / 561 detected at any / Medium / High /
+  Critical (also from `scripts/run_eval.py` itself with the final build). The
+  first cut of this change lost
+  EXFIL-CHAIN-001 on 17 Datadog packages (one family); the one-hop follow
+  restores all 17. On 286 hand-written probes (synthetic: 263 from two
+  review lenses, 23 for this change) every true link cff3fa2 made is kept
+  at the same verdict (196 probes; 7 more true probes link with neither
+  build), and 81 of the 83 clean probes lose the chain (the other 2 never
+  linked); the first cut had lost 42 true links and kept 62 false ones.
+  Per-sample outputs: `evaluation_results/skills_benchmark/*_exfilchain*`
+  and `evaluation_results/honest_detection_eval_exfilchain.*`.
 
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 

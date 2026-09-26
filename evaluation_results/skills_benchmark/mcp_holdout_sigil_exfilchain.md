@@ -1,6 +1,6 @@
 # Skill scanner head-to-head
 
-_Generated 2026-09-25T21:52:05+00:00 by `scripts/benchmark_skills.py`._
+_Generated 2026-09-26T04:55:18+00:00 by `scripts/benchmark_skills.py`._
 
 ```
 Data Source: Real samples. Malicious: 
@@ -20,7 +20,7 @@ Limitations: Static analysis only for every tool (SkillSpector --no-llm, Sigil o
 
 | Tool | Malicious blocked (≥ HIGH) | Malicious warned (≥ MEDIUM) | Clean blocked (FP) | Clean warned (FP) | Errors | Scan time |
 |---|---:|---:|---:|---:|---:|---:|
-| sigil | 0/0 (n/a) | 0/0 (n/a) | 80/146 (54.8%) | 135/146 (92.5%) | 0 | 630s |
+| sigil | 0/0 (n/a) | 0/0 (n/a) | 80/146 (54.8%) | 135/146 (92.5%) | 0 | 640s |
 
 ## Clean samples blocked
 
@@ -30,8 +30,8 @@ Limitations: Static analysis only for every tool (SkillSpector --no-llm, Sigil o
 - sigil: `corpora/mcp_holdout/com.local-mcp__local-mcp` — CRITICAL ['CODE-002', 'CODE-007', 'CODE-014', 'CODE-MCP-001', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-041', 'CRED-ENV-001'] (High/Critical: ['CODE-002', 'CODE-014', 'CRED-041', 'INSTALL-003', 'NET-RCE-001', 'PERSIST-002', 'SKILL-006'])
 - sigil: `corpora/mcp_holdout/com.scopeblind__protect-mcp` — CRITICAL ['CODE-003', 'CODE-007', 'CODE-011', 'CODE-012', 'CODE-014', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-041'] (High/Critical: ['CODE-014', 'CRED-041'])
 - sigil: `corpora/mcp_holdout/com.shipstatic__mcp` — HIGH ['CRED-008', 'INSTALL-004', 'PERSIST-012'] (High/Critical: ['CRED-008'])
-- sigil: `corpora/mcp_holdout/com.vibgrate__ai-context` — CRITICAL ['CODE-002', 'CODE-003', 'CODE-007', 'CODE-MCP-001', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-ENV-001', 'DROPPER-CHAIN-001'] (High/Critical: ['CODE-002', 'DROPPER-CHAIN-001', 'INSTALL-003', 'MANIP-004', 'NET-018', 'PERSIST-005', 'SKILL-006', 'SKILL-018', 'SUPPLY-001', 'SUPPLY-008', 'SUPPLY-011', 'SUPPLY-012', 'SUPPLY-015'])
-- sigil: `corpora/mcp_holdout/dev.jasonpearson__auto-mobile` — CRITICAL ['CODE-002', 'CODE-003', 'CODE-007', 'CODE-MCP-001', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-008', 'CRED-ENV-001'] (High/Critical: ['CODE-002', 'CRED-008', 'DROPPER-CHAIN-001', 'NET-018', 'NET-RCE-001', 'OBFUSC-007', 'PROMPT-004', 'SUPPLY-001', 'SUPPLY-008', 'SUPPLY-014'])
+- sigil: `corpora/mcp_holdout/com.vibgrate__ai-context` — CRITICAL ['CODE-002', 'CODE-003', 'CODE-007', 'CODE-MCP-001', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-ENV-001', 'HYGIENE-001'] (High/Critical: ['CODE-002', 'INSTALL-003', 'MANIP-004', 'NET-018', 'PERSIST-005', 'SKILL-006', 'SKILL-018', 'SUPPLY-001', 'SUPPLY-008', 'SUPPLY-011', 'SUPPLY-012', 'SUPPLY-015'])
+- sigil: `corpora/mcp_holdout/dev.jasonpearson__auto-mobile` — CRITICAL ['CODE-002', 'CODE-003', 'CODE-007', 'CODE-MCP-001', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-008', 'CRED-ENV-001'] (High/Critical: ['CODE-002', 'CRED-008', 'NET-018', 'NET-RCE-001', 'OBFUSC-007', 'PROMPT-004', 'SUPPLY-001', 'SUPPLY-008', 'SUPPLY-014'])
 - sigil: `corpora/mcp_holdout/io.github.AVIDS2__memorix` — CRITICAL ['CODE-002', 'CODE-003', 'CODE-007', 'CODE-012', 'CODE-013', 'CODE-014', 'CODE-RUNFILE-001', 'CRED-002'] (High/Critical: ['CODE-002', 'CODE-014', 'CRED-041', 'NET-013', 'NET-RCE-001', 'OBFUSC-006', 'OBFUSC-007', 'OBFUSC-012', 'PERSIST-002', 'PROMPT-007', 'PROMPT-014', 'SUPPLY-014', 'SUPPLY-016'])
 - sigil: `corpora/mcp_holdout/io.github.Agent360dk__browser-mcp` — CRITICAL ['CODE-007', 'CODE-008', 'CODE-009', 'CODE-014', 'CODE-RUNFILE-001', 'CRED-002', 'CRED-005', 'OBFUSC-003'] (High/Critical: ['CODE-008', 'CODE-009', 'CODE-014', 'CRED-005'])
 - sigil: `corpora/mcp_holdout/io.github.AlgoVaultFi__crypto-quant-signal-mcp` — HIGH ['CODE-002', 'CODE-006', 'CODE-007', 'CODE-012', 'CRED-002', 'HYGIENE-001', 'INSTALL-004', 'INSTALL-MCP-002'] (High/Critical: ['CODE-002', 'INSTR-002', 'NET-RCE-001', 'SUPPLY-008'])

@@ -184,7 +184,11 @@ key) links to the TLS finding when, within 60 lines:
    use a `headers` dict built from the token elsewhere, and
    `hvac.Client(token=role_token)` does not use a `token` variable; the
    value side (`headers=headers`, `{ auth: token }`, `f"Bearer {token}"`)
-   is.
+   is. The statement is read as code, as every chain with `name_uses: value`
+   reads it ([correlation-chains.md](correlation-chains.md)): a word inside
+   a string or a comment, an attribute of another object, a destructuring
+   target or a count is not a use, and a credential finding that matched
+   only a line's comment does not put that line in the call.
 
 ```python
 token = os.getenv("GITHUB_TOKEN")          # CRED-001 binds `token`

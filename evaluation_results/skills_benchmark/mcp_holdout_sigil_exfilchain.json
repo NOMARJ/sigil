@@ -14,7 +14,7 @@
     "block": 80,
     "warn": 135,
     "any": 144,
-    "seconds": 630.1
+    "seconds": 640.4
    }
   }
  },
@@ -42,7 +42,7 @@
     "NET-007",
     "SKILL-018"
    ],
-   "seconds": 2.45,
+   "seconds": 1.71,
    "error": null
   },
   {
@@ -64,7 +64,7 @@
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 3.08,
+   "seconds": 1.94,
    "error": null
   },
   {
@@ -79,7 +79,7 @@
     "CODE-RUNFILE-001"
    ],
    "high_rules": [],
-   "seconds": 0.99,
+   "seconds": 0.79,
    "error": null
   },
   {
@@ -106,7 +106,7 @@
     "PROMPT-004",
     "SUPPLY-008"
    ],
-   "seconds": 2.22,
+   "seconds": 1.51,
    "error": null
   },
   {
@@ -133,7 +133,7 @@
     "AGENTSC-013",
     "INSTR-001"
    ],
-   "seconds": 3.57,
+   "seconds": 2.19,
    "error": null
   },
   {
@@ -149,7 +149,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.71,
+   "seconds": 1.05,
    "error": null
   },
   {
@@ -178,7 +178,7 @@
     "CODE-002",
     "CRED-007"
    ],
-   "seconds": 6.45,
+   "seconds": 3.95,
    "error": null
   },
   {
@@ -213,7 +213,7 @@
     "PERSIST-002",
     "SKILL-006"
    ],
-   "seconds": 1.19,
+   "seconds": 1.1,
    "error": null
   },
   {
@@ -242,7 +242,7 @@
     "INFER-004",
     "INFER-005"
    ],
-   "seconds": 3.42,
+   "seconds": 1.93,
    "error": null
   },
   {
@@ -262,7 +262,7 @@
    "high_rules": [
     "SKILL-018"
    ],
-   "seconds": 1.75,
+   "seconds": 1.01,
    "error": null
   },
   {
@@ -298,7 +298,7 @@
     "CODE-014",
     "CRED-041"
    ],
-   "seconds": 3.96,
+   "seconds": 2.8,
    "error": null
   },
   {
@@ -316,7 +316,7 @@
    "high_rules": [
     "CRED-008"
    ],
-   "seconds": 1.69,
+   "seconds": 1.05,
    "error": null
   },
   {
@@ -332,7 +332,7 @@
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 2.04,
+   "seconds": 1.12,
    "error": null
   },
   {
@@ -341,7 +341,7 @@
    "corpus": "mcp_holdout",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 362,
+   "findings": 361,
    "rules": [
     "CODE-002",
     "CODE-003",
@@ -350,7 +350,6 @@
     "CODE-RUNFILE-001",
     "CRED-002",
     "CRED-ENV-001",
-    "DROPPER-CHAIN-001",
     "HYGIENE-001",
     "INFER-002",
     "INFER-011",
@@ -382,7 +381,6 @@
    ],
    "high_rules": [
     "CODE-002",
-    "DROPPER-CHAIN-001",
     "INSTALL-003",
     "MANIP-004",
     "NET-018",
@@ -395,7 +393,7 @@
     "SUPPLY-012",
     "SUPPLY-015"
    ],
-   "seconds": 10.55,
+   "seconds": 6.87,
    "error": null
   },
   {
@@ -412,7 +410,7 @@
     "OBFUSC-008"
    ],
    "high_rules": [],
-   "seconds": 1.99,
+   "seconds": 1.63,
    "error": null
   },
   {
@@ -421,7 +419,7 @@
    "corpus": "mcp_holdout",
    "tool": "sigil",
    "level": "CRITICAL",
-   "findings": 95,
+   "findings": 94,
    "rules": [
     "CODE-002",
     "CODE-003",
@@ -431,7 +429,6 @@
     "CRED-002",
     "CRED-008",
     "CRED-ENV-001",
-    "DROPPER-CHAIN-001",
     "HYGIENE-001",
     "INFER-010",
     "INFER-011",
@@ -459,7 +456,6 @@
    "high_rules": [
     "CODE-002",
     "CRED-008",
-    "DROPPER-CHAIN-001",
     "NET-018",
     "NET-RCE-001",
     "OBFUSC-007",
@@ -468,7 +464,7 @@
     "SUPPLY-008",
     "SUPPLY-014"
    ],
-   "seconds": 25.71,
+   "seconds": 17.72,
    "error": null
   },
   {
@@ -482,7 +478,7 @@
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 1.06,
+   "seconds": 0.69,
    "error": null
   },
   {
@@ -506,7 +502,7 @@
    "high_rules": [
     "NET-RCE-001"
    ],
-   "seconds": 1.53,
+   "seconds": 1.02,
    "error": null
   },
   {
@@ -574,7 +570,7 @@
     "SUPPLY-014",
     "SUPPLY-016"
    ],
-   "seconds": 22.2,
+   "seconds": 14.71,
    "error": null
   },
   {
@@ -601,7 +597,7 @@
     "CODE-014",
     "CRED-005"
    ],
-   "seconds": 1.51,
+   "seconds": 1.04,
    "error": null
   },
   {
@@ -618,7 +614,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.0,
+   "seconds": 0.72,
    "error": null
   },
   {
@@ -654,7 +650,7 @@
     "NET-RCE-001",
     "SUPPLY-008"
    ],
-   "seconds": 4.7,
+   "seconds": 3.49,
    "error": null
   },
   {
@@ -680,7 +676,7 @@
     "PROMPT-014",
     "SKILL-006"
    ],
-   "seconds": 0.82,
+   "seconds": 1.45,
    "error": null
   },
   {
@@ -712,7 +708,7 @@
     "SUPPLY-007",
     "SUPPLY-008"
    ],
-   "seconds": 2.47,
+   "seconds": 2.76,
    "error": null
   },
   {
@@ -770,7 +766,7 @@
     "SUPPLY-014",
     "SUPPLY-015"
    ],
-   "seconds": 6.62,
+   "seconds": 7.35,
    "error": null
   },
   {
@@ -790,7 +786,7 @@
     "INSTALL-003",
     "SKILL-006"
    ],
-   "seconds": 0.84,
+   "seconds": 0.75,
    "error": null
   },
   {
@@ -816,7 +812,7 @@
     "SKILL-013"
    ],
    "high_rules": [],
-   "seconds": 2.73,
+   "seconds": 2.61,
    "error": null
   },
   {
@@ -828,7 +824,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 0.68,
+   "seconds": 0.66,
    "error": null
   },
   {
@@ -843,7 +839,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 0.83,
+   "seconds": 0.74,
    "error": null
   },
   {
@@ -872,7 +868,7 @@
     "CODE-009",
     "SUPPLY-014"
    ],
-   "seconds": 2.47,
+   "seconds": 2.32,
    "error": null
   },
   {
@@ -886,7 +882,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.75,
+   "seconds": 1.9,
    "error": null
   },
   {
@@ -898,7 +894,7 @@
    "findings": 0,
    "rules": [],
    "high_rules": [],
-   "seconds": 0.64,
+   "seconds": 0.63,
    "error": null
   },
   {
@@ -914,7 +910,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 0.76,
+   "seconds": 0.69,
    "error": null
   },
   {
@@ -951,7 +947,7 @@
     "SKILL-022",
     "SUPPLY-014"
    ],
-   "seconds": 4.19,
+   "seconds": 3.84,
    "error": null
   },
   {
@@ -974,7 +970,7 @@
     "INSTALL-REF-001",
     "SKILL-006"
    ],
-   "seconds": 0.83,
+   "seconds": 0.9,
    "error": null
   },
   {
@@ -1001,7 +997,7 @@
    "high_rules": [
     "CODE-014"
    ],
-   "seconds": 1.51,
+   "seconds": 1.48,
    "error": null
   },
   {
@@ -1031,7 +1027,7 @@
     "NET-013",
     "NET-RCE-001"
    ],
-   "seconds": 1.26,
+   "seconds": 1.29,
    "error": null
   },
   {
@@ -1104,7 +1100,7 @@
     "SUPPLY-011",
     "SUPPLY-014"
    ],
-   "seconds": 18.82,
+   "seconds": 14.34,
    "error": null
   },
   {
@@ -1123,7 +1119,7 @@
     "TLS-005"
    ],
    "high_rules": [],
-   "seconds": 3.93,
+   "seconds": 3.38,
    "error": null
   },
   {
@@ -1141,7 +1137,7 @@
     "UNICODE-001"
    ],
    "high_rules": [],
-   "seconds": 2.52,
+   "seconds": 1.28,
    "error": null
   },
   {
@@ -1188,7 +1184,7 @@
     "SUPPLY-011",
     "SUPPLY-016"
    ],
-   "seconds": 3.14,
+   "seconds": 2.1,
    "error": null
   },
   {
@@ -1216,7 +1212,7 @@
     "CODE-002",
     "MANIP-004"
    ],
-   "seconds": 2.66,
+   "seconds": 2.21,
    "error": null
   },
   {
@@ -1240,7 +1236,7 @@
     "TLS-004"
    ],
    "high_rules": [],
-   "seconds": 2.21,
+   "seconds": 1.73,
    "error": null
   },
   {
@@ -1263,7 +1259,7 @@
    "high_rules": [
     "CODE-002"
    ],
-   "seconds": 1.8,
+   "seconds": 1.2,
    "error": null
   },
   {
@@ -1292,7 +1288,7 @@
     "INSTALL-003",
     "SKILL-006"
    ],
-   "seconds": 2.0,
+   "seconds": 1.57,
    "error": null
   },
   {
@@ -1315,7 +1311,7 @@
     "CODE-001",
     "CRED-007"
    ],
-   "seconds": 1.29,
+   "seconds": 0.74,
    "error": null
   },
   {
@@ -1335,7 +1331,7 @@
    "high_rules": [
     "OBFUSC-007"
    ],
-   "seconds": 1.45,
+   "seconds": 0.85,
    "error": null
   },
   {
@@ -1357,7 +1353,7 @@
    "high_rules": [
     "NET-RCE-001"
    ],
-   "seconds": 2.88,
+   "seconds": 1.86,
    "error": null
   },
   {
@@ -1386,7 +1382,7 @@
     "CODE-009",
     "SUPPLY-008"
    ],
-   "seconds": 4.0,
+   "seconds": 2.14,
    "error": null
   },
   {
@@ -1406,7 +1402,7 @@
    "high_rules": [
     "PROMPT-008"
    ],
-   "seconds": 1.47,
+   "seconds": 1.17,
    "error": null
   },
   {
@@ -1436,7 +1432,7 @@
     "NET-CLEAR-001",
     "OBFUSC-CHAIN-006"
    ],
-   "seconds": 3.63,
+   "seconds": 2.34,
    "error": null
   },
   {
@@ -1462,7 +1458,7 @@
     "PROMPT-006",
     "TYPOSQUAT-001"
    ],
-   "seconds": 2.76,
+   "seconds": 1.55,
    "error": null
   },
   {
@@ -1477,7 +1473,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.03,
+   "seconds": 0.67,
    "error": null
   },
   {
@@ -1539,7 +1535,7 @@
     "SUPPLY-008",
     "UNICODE-003"
    ],
-   "seconds": 12.16,
+   "seconds": 10.53,
    "error": null
   },
   {
@@ -1653,7 +1649,7 @@
     "SKILL-022",
     "SUPPLY-014"
    ],
-   "seconds": 19.8,
+   "seconds": 15.2,
    "error": null
   },
   {
@@ -1675,7 +1671,7 @@
    "high_rules": [
     "NET-013"
    ],
-   "seconds": 2.77,
+   "seconds": 1.8,
    "error": null
   },
   {
@@ -1695,7 +1691,7 @@
     "UNICODE-003"
    ],
    "high_rules": [],
-   "seconds": 3.52,
+   "seconds": 2.0,
    "error": null
   },
   {
@@ -1713,7 +1709,7 @@
     "NET-UPLOAD-001"
    ],
    "high_rules": [],
-   "seconds": 1.91,
+   "seconds": 1.21,
    "error": null
   },
   {
@@ -1732,7 +1728,7 @@
     "NET-UPLOAD-001"
    ],
    "high_rules": [],
-   "seconds": 2.78,
+   "seconds": 1.74,
    "error": null
   },
   {
@@ -1760,7 +1756,7 @@
     "PERSIST-002",
     "SKILL-006"
    ],
-   "seconds": 2.05,
+   "seconds": 1.37,
    "error": null
   },
   {
@@ -1804,7 +1800,7 @@
     "SUPPLY-013",
     "SUPPLY-016"
    ],
-   "seconds": 6.99,
+   "seconds": 5.52,
    "error": null
   },
   {
@@ -1825,7 +1821,7 @@
    "high_rules": [
     "PROMPT-004"
    ],
-   "seconds": 2.11,
+   "seconds": 1.55,
    "error": null
   },
   {
@@ -1848,7 +1844,7 @@
    "high_rules": [
     "TYPOSQUAT-001"
    ],
-   "seconds": 2.34,
+   "seconds": 1.92,
    "error": null
   },
   {
@@ -1872,7 +1868,7 @@
     "INFER-004",
     "INFER-005"
    ],
-   "seconds": 1.3,
+   "seconds": 1.22,
    "error": null
   },
   {
@@ -1909,7 +1905,7 @@
     "SKILL-006",
     "SKILL-018"
    ],
-   "seconds": 2.63,
+   "seconds": 2.62,
    "error": null
   },
   {
@@ -1944,7 +1940,7 @@
     "PROMPT-006",
     "SUPPLY-014"
    ],
-   "seconds": 6.27,
+   "seconds": 5.75,
    "error": null
   },
   {
@@ -1959,7 +1955,7 @@
     "PROV-001"
    ],
    "high_rules": [],
-   "seconds": 1.7,
+   "seconds": 2.09,
    "error": null
   },
   {
@@ -1975,7 +1971,7 @@
     "UNICODE-003"
    ],
    "high_rules": [],
-   "seconds": 2.26,
+   "seconds": 1.86,
    "error": null
   },
   {
@@ -2003,7 +1999,7 @@
     "PERSIST-001",
     "PERSIST-002"
    ],
-   "seconds": 1.5,
+   "seconds": 1.73,
    "error": null
   },
   {
@@ -2023,7 +2019,7 @@
     "INSTALL-003",
     "SKILL-006"
    ],
-   "seconds": 1.58,
+   "seconds": 1.39,
    "error": null
   },
   {
@@ -2064,7 +2060,7 @@
     "NET-013",
     "OBFUSC-006"
    ],
-   "seconds": 8.19,
+   "seconds": 9.75,
    "error": null
   },
   {
@@ -2114,7 +2110,7 @@
     "PROMPT-014",
     "SKILL-017"
    ],
-   "seconds": 4.6,
+   "seconds": 6.38,
    "error": null
   },
   {
@@ -2141,7 +2137,7 @@
     "CRED-041",
     "SKILL-001"
    ],
-   "seconds": 1.87,
+   "seconds": 2.5,
    "error": null
   },
   {
@@ -2167,7 +2163,7 @@
     "CODE-001",
     "CRED-023"
    ],
-   "seconds": 4.76,
+   "seconds": 6.04,
    "error": null
   },
   {
@@ -2214,7 +2210,7 @@
     "PROMPT-012",
     "SKILL-006"
    ],
-   "seconds": 4.97,
+   "seconds": 6.58,
    "error": null
   },
   {
@@ -2243,7 +2239,7 @@
     "CRED-007",
     "CRED-008"
    ],
-   "seconds": 4.57,
+   "seconds": 4.41,
    "error": null
   },
   {
@@ -2291,7 +2287,7 @@
     "PYSEC-2026-338",
     "SKILL-006"
    ],
-   "seconds": 2.86,
+   "seconds": 3.81,
    "error": null
   },
   {
@@ -2312,7 +2308,7 @@
    "high_rules": [
     "SKILL-022"
    ],
-   "seconds": 2.87,
+   "seconds": 2.16,
    "error": null
   },
   {
@@ -2437,7 +2433,7 @@
     "SUPPLY-014",
     "TYPOSQUAT-001"
    ],
-   "seconds": 35.05,
+   "seconds": 36.81,
    "error": null
   },
   {
@@ -2457,7 +2453,7 @@
     "UNICODE-003"
    ],
    "high_rules": [],
-   "seconds": 4.36,
+   "seconds": 5.04,
    "error": null
   },
   {
@@ -2476,7 +2472,7 @@
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 5.12,
+   "seconds": 4.54,
    "error": null
   },
   {
@@ -2491,7 +2487,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 2.69,
+   "seconds": 2.3,
    "error": null
   },
   {
@@ -2533,7 +2529,7 @@
     "SKILL-001",
     "SUPPLY-008"
    ],
-   "seconds": 14.34,
+   "seconds": 13.1,
    "error": null
   },
   {
@@ -2548,7 +2544,7 @@
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 1.49,
+   "seconds": 2.52,
    "error": null
   },
   {
@@ -2563,7 +2559,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.45,
+   "seconds": 1.62,
    "error": null
   },
   {
@@ -2577,7 +2573,7 @@
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 1.08,
+   "seconds": 1.4,
    "error": null
   },
   {
@@ -2603,7 +2599,7 @@
     "CRED-006",
     "MANIP-004"
    ],
-   "seconds": 2.04,
+   "seconds": 2.95,
    "error": null
   },
   {
@@ -2647,7 +2643,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.09,
+   "seconds": 0.96,
    "error": null
   },
   {
@@ -2662,7 +2658,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 2.17,
+   "seconds": 1.17,
    "error": null
   },
   {
@@ -2680,7 +2676,7 @@
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 1.53,
+   "seconds": 1.07,
    "error": null
   },
   {
@@ -2696,7 +2692,7 @@
     "OBFUSC-008"
    ],
    "high_rules": [],
-   "seconds": 1.79,
+   "seconds": 1.29,
    "error": null
   },
   {
@@ -2710,7 +2706,7 @@
     "ARTIFACT-007"
    ],
    "high_rules": [],
-   "seconds": 1.35,
+   "seconds": 0.88,
    "error": null
   },
   {
@@ -2736,7 +2732,7 @@
    "high_rules": [
     "OBFUSC-007"
    ],
-   "seconds": 5.14,
+   "seconds": 3.24,
    "error": null
   },
   {
@@ -2760,7 +2756,7 @@
    "high_rules": [
     "NET-RCE-001"
    ],
-   "seconds": 2.8,
+   "seconds": 2.2,
    "error": null
   },
   {
@@ -2785,7 +2781,7 @@
    "high_rules": [
     "SKILL-018"
    ],
-   "seconds": 1.75,
+   "seconds": 1.08,
    "error": null
   },
   {
@@ -2802,7 +2798,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 1.65,
+   "seconds": 1.05,
    "error": null
   },
   {
@@ -2831,7 +2827,7 @@
     "INSTALL-REF-001",
     "SKILL-006"
    ],
-   "seconds": 1.42,
+   "seconds": 0.97,
    "error": null
   },
   {
@@ -2856,7 +2852,7 @@
    "high_rules": [
     "INSTR-001"
    ],
-   "seconds": 5.95,
+   "seconds": 4.16,
    "error": null
   },
   {
@@ -2882,7 +2878,7 @@
    "high_rules": [
     "ARTIFACT-011"
    ],
-   "seconds": 5.41,
+   "seconds": 3.25,
    "error": null
   },
   {
@@ -2897,7 +2893,7 @@
     "CRED-ENV-001"
    ],
    "high_rules": [],
-   "seconds": 1.09,
+   "seconds": 0.8,
    "error": null
   },
   {
@@ -2914,7 +2910,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 1.25,
+   "seconds": 0.77,
    "error": null
   },
   {
@@ -2931,7 +2927,7 @@
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.9,
+   "seconds": 1.02,
    "error": null
   },
   {
@@ -2953,7 +2949,7 @@
     "CRED-007",
     "INFER-006"
    ],
-   "seconds": 1.41,
+   "seconds": 0.89,
    "error": null
   },
   {
@@ -3025,7 +3021,7 @@
     "SUPPLY-008",
     "SUPPLY-013"
    ],
-   "seconds": 93.43,
+   "seconds": 110.82,
    "error": null
   },
   {
@@ -3059,7 +3055,7 @@
     "NET-013",
     "SKILL-006"
    ],
-   "seconds": 4.11,
+   "seconds": 2.56,
    "error": null
   },
   {
@@ -3077,7 +3073,7 @@
     "NET-MCP-002"
    ],
    "high_rules": [],
-   "seconds": 2.27,
+   "seconds": 1.44,
    "error": null
   },
   {
@@ -3114,7 +3110,7 @@
     "PERSIST-002",
     "PROMPT-012"
    ],
-   "seconds": 7.61,
+   "seconds": 4.79,
    "error": null
   },
   {
@@ -3210,7 +3206,7 @@
     "SUPPLY-014",
     "SUPPLY-016"
    ],
-   "seconds": 28.42,
+   "seconds": 32.05,
    "error": null
   },
   {
@@ -3249,7 +3245,7 @@
     "SUPPLY-006",
     "SUPPLY-008"
    ],
-   "seconds": 14.32,
+   "seconds": 18.54,
    "error": null
   },
   {
@@ -3276,7 +3272,7 @@
     "PROMPT-004",
     "SUPPLY-002"
    ],
-   "seconds": 17.21,
+   "seconds": 22.06,
    "error": null
   },
   {
@@ -3290,7 +3286,7 @@
     "CODE-007"
    ],
    "high_rules": [],
-   "seconds": 0.85,
+   "seconds": 1.15,
    "error": null
   },
   {
@@ -3346,7 +3342,7 @@
     "PERSIST-011",
     "SKILL-006"
    ],
-   "seconds": 9.18,
+   "seconds": 13.11,
    "error": null
   },
   {
@@ -3375,7 +3371,7 @@
     "NET-013",
     "PROMPT-006"
    ],
-   "seconds": 1.94,
+   "seconds": 3.6,
    "error": null
   },
   {
@@ -3400,7 +3396,7 @@
     "CODE-002",
     "SKILL-018"
    ],
-   "seconds": 1.43,
+   "seconds": 2.0,
    "error": null
   },
   {
@@ -3438,7 +3434,7 @@
     "OBFUSC-012",
     "SUPPLY-014"
    ],
-   "seconds": 3.18,
+   "seconds": 4.26,
    "error": null
   },
   {
@@ -3463,7 +3459,7 @@
     "CRED-007",
     "SUPPLY-001"
    ],
-   "seconds": 1.65,
+   "seconds": 2.44,
    "error": null
   },
   {
@@ -3478,7 +3474,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 0.83,
+   "seconds": 1.15,
    "error": null
   },
   {
@@ -3497,7 +3493,7 @@
     "CODE-002",
     "OBFUSC-CHAIN-006"
    ],
-   "seconds": 0.88,
+   "seconds": 1.09,
    "error": null
   },
   {
@@ -3513,7 +3509,7 @@
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 1.29,
+   "seconds": 2.04,
    "error": null
   },
   {
@@ -3532,7 +3528,7 @@
    "high_rules": [
     "NET-RCE-001"
    ],
-   "seconds": 1.0,
+   "seconds": 1.95,
    "error": null
   },
   {
@@ -3569,7 +3565,7 @@
     "SUPPLY-001",
     "SUPPLY-014"
    ],
-   "seconds": 1.66,
+   "seconds": 3.43,
    "error": null
   },
   {
@@ -3603,7 +3599,7 @@
     "OBFUSC-CHAIN-006",
     "SUPPLY-014"
    ],
-   "seconds": 1.75,
+   "seconds": 3.33,
    "error": null
   },
   {
@@ -3625,7 +3621,7 @@
    "high_rules": [
     "CODE-002"
    ],
-   "seconds": 0.88,
+   "seconds": 1.65,
    "error": null
   },
   {
@@ -3641,7 +3637,7 @@
     "PERSIST-009"
    ],
    "high_rules": [],
-   "seconds": 1.1,
+   "seconds": 2.62,
    "error": null
   },
   {
@@ -3663,7 +3659,7 @@
     "CODE-014",
     "PROMPT-009"
    ],
-   "seconds": 1.02,
+   "seconds": 2.13,
    "error": null
   },
   {
@@ -3691,7 +3687,7 @@
     "CODE-002",
     "CRED-007"
    ],
-   "seconds": 2.55,
+   "seconds": 6.42,
    "error": null
   },
   {
@@ -3729,7 +3725,7 @@
     "SUPPLY-001",
     "SUPPLY-008"
    ],
-   "seconds": 2.07,
+   "seconds": 5.33,
    "error": null
   },
   {
@@ -3750,7 +3746,7 @@
    "high_rules": [
     "OBFUSC-007"
    ],
-   "seconds": 0.89,
+   "seconds": 1.33,
    "error": null
   },
   {
@@ -3767,7 +3763,7 @@
     "OBFUSC-003"
    ],
    "high_rules": [],
-   "seconds": 1.2,
+   "seconds": 3.32,
    "error": null
   },
   {
@@ -3784,7 +3780,7 @@
    "high_rules": [
     "PROMPT-004"
    ],
-   "seconds": 0.95,
+   "seconds": 2.1,
    "error": null
   },
   {
@@ -3809,7 +3805,7 @@
     "CRED-019",
     "PROMPT-006"
    ],
-   "seconds": 1.41,
+   "seconds": 3.34,
    "error": null
   },
   {
@@ -3823,7 +3819,7 @@
     "INSTALL-004"
    ],
    "high_rules": [],
-   "seconds": 0.82,
+   "seconds": 1.49,
    "error": null
   },
   {
@@ -3841,7 +3837,7 @@
    "high_rules": [
     "PROMPT-006"
    ],
-   "seconds": 1.01,
+   "seconds": 2.6,
    "error": null
   },
   {
@@ -3874,7 +3870,7 @@
     "OBFUSC-CHAIN-006",
     "SKILL-022"
    ],
-   "seconds": 1.95,
+   "seconds": 5.29,
    "error": null
   },
   {
@@ -3918,7 +3914,7 @@
     "PERSIST-008",
     "SKILL-017"
    ],
-   "seconds": 1.35,
+   "seconds": 3.1,
    "error": null
   },
   {
@@ -3932,7 +3928,7 @@
     "OBFUSC-004"
    ],
    "high_rules": [],
-   "seconds": 0.71,
+   "seconds": 1.93,
    "error": null
   },
   {
@@ -3946,7 +3942,7 @@
     "CRED-002"
    ],
    "high_rules": [],
-   "seconds": 0.62,
+   "seconds": 1.48,
    "error": null
   },
   {
@@ -3996,7 +3992,7 @@
     "SKILL-006",
     "SKILL-014"
    ],
-   "seconds": 1.62,
+   "seconds": 3.7,
    "error": null
   },
   {
@@ -4029,7 +4025,7 @@
     "INFER-005",
     "TYPOSQUAT-001"
    ],
-   "seconds": 1.39,
+   "seconds": 2.93,
    "error": null
   },
   {
@@ -4067,7 +4063,7 @@
     "MANIP-004",
     "MANIP-007"
    ],
-   "seconds": 2.27,
+   "seconds": 5.44,
    "error": null
   },
   {
@@ -4113,7 +4109,7 @@
     "SKILL-006",
     "TYPOSQUAT-001"
    ],
-   "seconds": 3.0,
+   "seconds": 6.98,
    "error": null
   },
   {
@@ -4136,7 +4132,7 @@
     "MANIP-004",
     "NET-013"
    ],
-   "seconds": 1.01,
+   "seconds": 1.84,
    "error": null
   },
   {
@@ -4158,7 +4154,7 @@
     "CODE-008",
     "CODE-009"
    ],
-   "seconds": 1.11,
+   "seconds": 2.13,
    "error": null
   },
   {
@@ -4172,7 +4168,7 @@
     "HYGIENE-001"
    ],
    "high_rules": [],
-   "seconds": 0.68,
+   "seconds": 1.02,
    "error": null
   },
   {
@@ -4209,7 +4205,7 @@
     "OBFUSC-012",
     "SKILL-022"
    ],
-   "seconds": 1.27,
+   "seconds": 1.86,
    "error": null
   }
  ]
