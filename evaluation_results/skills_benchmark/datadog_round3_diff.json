@@ -14,7 +14,7 @@
  "builds": {
   "main": "sigil 35c0155 (release)",
   "e45efc5": "sigil e45efc5 (release)",
-  "branch": "sigil 34eaa0b (release)"
+  "branch": "sigil ad57eff (release)"
  },
  "aggregate": {
   "main": {
@@ -61416,5 +61416,6 @@
     "chains": []
    }
   ]
- }
+ },
+ "final_build_note": "The final build ad57eff was compared to 34eaa0b on all 844 Datadog samples on 2026-09-26: 0 verdict, severity or chain changes, so this main-vs-34eaa0b per-sample diff is identical for main-vs-ad57eff."
 }

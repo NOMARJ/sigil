@@ -535,6 +535,24 @@ pass.
   install more than the tools their scripts name. Every server that moved is
   listed in
   [structural-checks.md](docs/detection/structural-checks.md#measured-effect-of-the-runner-and-dependency-rules).
+- **Lifecycle rewrites also fail closed on `directories.bin` and install-config
+  side channels** (adversarial re-review of #172). npm links every file in a
+  `directories.bin` directory as a `node_modules/.bin` entry when it packs the
+  package, so a package (or a workspace member) that uses `directories.bin`
+  could ship a file named like any trusted tool, runner or interpreter; the
+  linked names cannot be enumerated from the manifest, so the rewrite now keeps
+  the pack's severity. Separately, npm / yarn / pnpm read a config file from the
+  install directory upward before any script line runs: a `.pnpmfile.cjs` (a
+  hook pnpm executes), a `.npmrc` setting `script-shell` / `shell` /
+  `node-options` / `globalconfig` / `userconfig` or an off-registry `registry`,
+  or a `.yarnrc` / `.yarnrc.yml` setting `yarn-path` / `yarnPath` / `plugins`
+  or an off-registry server, all of which can redirect the shell, `node`, the
+  config file or the package source — any of these in the package's directory
+  or above it now keeps the finding. A `.npmrc` with only benign keys still
+  rewrites. `ENGINE_REVISION` goes to 10. No `package.json` outside
+  `node_modules` in either MCP corpus uses `directories.bin`, and none ships
+  one of those config files, so the measured MCP and Datadog numbers above are
+  unchanged from the runner-and-dependency build.
 - **`prepublishOnly` is `INSTALL-009` (Low)**: npm runs it on publish only.
   `INSTALL-004` is key-anchored (`"prepare":` / `"prepublish":`), and
   `INSTALL-REF-001` no longer links files only `prepublishOnly` runs.

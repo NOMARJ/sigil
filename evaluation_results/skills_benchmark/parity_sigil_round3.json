@@ -9,7 +9,7 @@
  ],
  "builds": {
   "main": "sigil 35c0155 (main, release)",
-  "branch": "sigil 34eaa0b (ws/exfil-port, release)"
+  "branch": "sigil ad57eff (ws/lifecycle-shadow, release)"
  },
  "aggregate": {
   "main": {
@@ -28169,5 +28169,6 @@
     "sigil_rules": []
    }
   ]
- }
+ },
+ "final_build_note": "Not re-run on ad57eff (the parity corpus needs a SkillSpector checkout). The figures carry: the lifecycle classifier only relabels findings and ad57eff rewrites a strict subset of 34eaa0b, and main and 34eaa0b both flag 626/385, so ad57eff does too."
 }

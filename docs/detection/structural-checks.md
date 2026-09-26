@@ -313,7 +313,10 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   `pnpm-workspace.yaml`, at its directory or any directory above it in the scan) — a
   `bin` any `package.json` under the outermost such root declares. A string `bin`
   counts under the package's own (unscoped) name. The shell builtins `true` and `exit`
-  cannot be shadowed by a file on PATH and are exempt.
+  cannot be shadowed by a file on PATH and are exempt. A manifest in that set that links
+  its bins through **`directories.bin`** (npm adds every file in that directory as a
+  `node_modules/.bin` entry when it packs the package, and this pass cannot enumerate
+  them) keeps the pack's severity for the same reason.
 - **Dependencies (all three of the above), failing closed.** npm links into
   `node_modules/.bin` the bins of *every* package the install puts in the tree —
   direct and transitive dependencies, and at a workspace root every member's — and
@@ -349,6 +352,21 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   package's lockfile is ignored when a consumer installs it as a dependency, so for
   install-phase scripts it does not even describe the tree that runs them. The
   lockfile is read only to *reject*: a trusted tool resolved off the public registry.
+- **Install-config side channels (`INSTALL-010` / `011` / `012`), failing closed.** npm,
+  yarn and pnpm read a package-manager config file from the install directory upward
+  before any script line runs, so a file the package ships (or that sits in a directory
+  above it, or that is in effect when the package is cloned or installed as a git
+  dependency) can change what an install runs or where it fetches from without touching
+  a script. A rewrite is refused, keeping the pack's severity, when such a file is present
+  in the manifest's directory or any directory above it: a **`.pnpmfile.cjs`** (JavaScript
+  pnpm executes during resolution); a **`.npmrc`** setting `script-shell` / `shell` (the
+  program that runs every lifecycle script), `node-options` (`--require` preloads a module
+  into every `node`), `globalconfig` / `userconfig` (another config file that can set
+  those), or a `registry` / `<scope>:registry` off the public registry (the trusted tool,
+  or `only-allow`, then comes from an attacker host); a **`.yarnrc`** setting `yarn-path`
+  or an off-registry `registry`; a **`.yarnrc.yml`** setting `yarnPath`, `plugins` or an
+  off-registry `npmRegistryServer`. A `.npmrc` / `.yarnrc` with only benign keys
+  (`save-exact`, `engine-strict`, the public registry, …) still rewrites.
 - **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
   manifest; the manifest lists at least two `optionalDependencies` named
   `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the
@@ -394,14 +412,20 @@ What the classifier trusts, and so what it cannot see:
 - `INSTALL-003` itself does not cover npm's `install` key, or a key written with JSON
   escapes (`"postinstall"`); both are open gaps, independent of this pass.
 
-### Measured effect of the runner and dependency rules
+### Measured effect of the runner, dependency and side-channel rules
 
-Release build of `3d8aa73` (this rule) against the release build of `34eaa0b` (the
-code of #172's head, `1ae5cbe`, before it), every scan `--no-cache` with an empty
-`HOME`, on 2026-09-26, run one corpus at a time on a 4-CPU machine with no build
-running. No scan in any run reported `PROV-BUDGET-001`, and none errored.
+Release build of `ad57eff` (the final fail-closed build, which adds the
+`directories.bin` and install-config checks to `3d8aa73`) against the release build
+of `34eaa0b` (the code of #172's head, `1ae5cbe`, before any of the fail-closed
+work), every scan `--no-cache` with an empty `HOME`, re-measured on 2026-09-26, run
+one corpus at a time on a 4-CPU machine with no build running. No scan in any run
+reported `PROV-BUDGET-001`, and none errored. The `directories.bin` and
+install-config additions changed no number below: no `package.json` outside
+`node_modules` in either MCP corpus uses `directories.bin`, none ships a `.npmrc` /
+`.yarnrc` / `.yarnrc.yml` / `.pnpmfile.cjs`, and no Datadog sample's verdict, highest
+severity or chain moved between `3d8aa73` and `ad57eff`.
 
-| Corpus | Before (`34eaa0b`) | After (`3d8aa73`) | Level changes |
+| Corpus | Before (`34eaa0b`) | After (`ad57eff`) | Level changes |
 |---|---:|---:|---|
 | Clean MCP servers, in-sample (169): blocked / warned / CRITICAL | 24 / 76 / 11 | 28 / 89 / 15 | 16, all up |
 | Clean MCP servers, unseen (146): blocked / warned / CRITICAL | 66 / 114 / 45 | 69 / 115 / 45 | 4, all up |
@@ -412,9 +436,11 @@ running. No scan in any run reported `PROV-BUDGET-001`, and none errored.
 
 Every level change comes from the dependency rule. None of the 149 + 156
 `package.json` files in the two MCP corpora (outside `node_modules`) declares a bin
-with any name the rewrites trust, so the runner rule (finding 1) and the `node` / `sh`
-checks cannot have changed anything there, and none of the changed manifests is in a
-workspace. After the change **no server in either MCP corpus and no Datadog sample
+with any name the rewrites trust, none uses `directories.bin`, and none of the two
+corpora ships a `.npmrc` / `.yarnrc` / `.yarnrc.yml` / `.pnpmfile.cjs` outside
+`node_modules`, so the runner rule (finding 1), the `node` / `sh` checks, the
+`directories.bin` check and the install-config check cannot have changed anything
+there, and none of the changed manifests is in a workspace. After the change **no server in either MCP corpus and no Datadog sample
 keeps an `INSTALL-010`, `INSTALL-011` or `INSTALL-012` rewrite**: every one of them
 installs something besides the tools its script names. The 169-server corpus had 3
 `INSTALL-010`, 1 `INSTALL-011` and 16 `INSTALL-012` servers before; the unseen 146 had 17
