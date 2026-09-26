@@ -213,6 +213,92 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   the pack). 22 of the 29 turn verification off; 7 are changelog or README
   text that describes the setting. TLS-CHAIN-001 fired on none.
 
+### 🔗 Correlation chains read names as sent values
+
+- **A chain links only what the sink sends.** EXFIL-CHAIN-001,
+  DROPPER-CHAIN-001, AGENTSC-CHAIN-001, AGENTSC-CHAIN-002 and DESER-CHAIN-001
+  linked a source to a sink on any whole-word occurrence of the name the
+  source binds in the sink line and the four lines after it, so a clean file
+  with `url = os.environ["DATABASE_URL"]` handed to `create_engine(url)`, and a
+  later `requests.get(url=base + "/ping")`, was CRITICAL RISK on
+  EXFIL-CHAIN-001 (`CRED-001 (@L4) reaches NET-001 (@L9)`). It is LOW RISK
+  now. Every built-in chain sets `name_uses: "value"`, which reads the window
+  as code in the sink file's language (comments, string contents and regular
+  expressions blanked; what a string interpolates kept, `f"{token:>40}"`,
+  `f"{token=}"`, `"${TOKEN:-}"` included) and limits it to the sink's own call.
+  A keyword argument's name, an object key, a TypeScript member, an attribute
+  of another object (`r.url`), a destructuring target, an export list, a count
+  (`len(secrets)`) and a function parameter of the same name are not uses;
+  `data=token`, `json={"k": api_key}`, `f"...{token}"`, `token=token`, a
+  positional `token`, a Python dict keyed by the variable, `{ body: token }`
+  and `{ token }` are. A same-line link needs the source and the sink to match
+  code, not the line's comment. DROPPER-CHAIN-001 links only when the launch
+  runs the downloaded file as its program, not when it hands it to another
+  program as data, and that is what the value reading does for it: on the
+  same build with the chain switched back to `"word"`, 8 of 8 clean dropper
+  probes link again (as with cff3fa2) and the 7 Datadog packages it fires on
+  keep the same 15 findings either way.
+- **One hop: the bound name itself.** A value computed from it on another
+  line is not followed. That costs the flows that linked only because the
+  send's keyword repeated the source's name: `artifact-lab-3-package` (17 of
+  the 844 Datadog samples) copies `dict(os.environ)` into `data`, encodes it,
+  and sends `Request(url, data=encoded_data)`; all 17 lose EXFIL-CHAIN-001
+  and stay CRITICAL RISK on NET-007 (16 also on INSTALL-001). One
+  propagation step (`new = f(bound)` makes `new` a source) was measured and
+  not adopted: it wins back those 17 chain labels but changes no real verdict
+  except through one wrong link, in mistralai's own example code, and it turns
+  7 of 10 constructed clean uses of a credential (a client, an engine, a
+  connection, an HMAC signature, a refresh-token body, a key hint) into
+  CRITICAL RISK; a variant restricted to bare uses still turns 3. A narrower
+  form built alongside the value-reading fixes (follow only where the old
+  word reading linked) is not included either. Method, per-sample results and
+  how it relates to ADR-0005:
+  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
+- **`name_uses` on correlation rules.** `"value"` (every built-in chain) or
+  `"word"` (any whole-word occurrence, the old reading, and the default), so
+  a custom pack that leaves it out links as it did outside the statement
+  mode; a rule with `sink_window_before` reads names as values whatever it
+  says, now with the fuller reading above (strings and comments blanked,
+  attributes, destructuring targets and counts skipped). Details and the
+  probes behind each part of the reading:
+  [docs/detection/correlation-chains.md](docs/detection/correlation-chains.md).
+- **Unknown keys on a custom correlation rule warn, and fail validation.** An
+  unknown key on a correlation rule or its `source`/`sink` selector, and a
+  selector that names no rule, do not refuse the pack in a scan (earlier
+  versions accepted them, and a signed pack cannot be edited without
+  re-signing): the scan ignores the key and prints a warning on stderr.
+  `sigil rules validate`, `sigil config --validate` and `sigil rules sign`
+  reject it, with a "did you mean" hint. An unknown `name_uses` value is an
+  error everywhere.
+- **The corpus digest covers `name_uses`**, and the engine revision moved
+  (6), so a scan cached under one reading is not served under another.
+- **Linear on long lines.** A work-in-progress version of this reading
+  re-read the line for every occurrence of the name it skipped (2.0 s and
+  5.6 s against 0.6 s for cff3fa2 on a 200 KB line, growing with the square
+  of the length, after the per-file time budget); this change stays within
+  0.2 s of cff3fa2 on 3.5 to 5 MB lines (0.3 s more on a line of 500,000
+  regular-expression openings that never close; one run each, indicative),
+  with a timing test.
+- **Measured.** Probes (synthetic, hand-written: 263 from two review lenses
+  that attacked the first cut, 23 more for the fixes' edges; each scanned
+  with an empty HOME): of 286, cff3fa2 gets 198 right, the first cut as
+  merged (e45efc5) 168, and this change 269. Every clean probe loses its
+  chain (81 of 83 linked with cff3fa2; 79 drop a level, 58 of them from
+  CRITICAL to LOW RISK), no probe gains one, and 186 of the 196 true links
+  cff3fa2 made are kept at the same verdict. The 10 lost are the two-hop
+  flows above and a function called with a name assigned from the secret
+  (`t = token`, `send(t)`), all of which the lane's build with its one-hop
+  follow linked. Corpora: the per-sample runs published with this work
+  (`evaluation_results/skills_benchmark/*_exfilchain*`,
+  `evaluation_results/honest_detection_eval_exfilchain.*`) are of that lane
+  build (d89c600, one-hop follow on): no verdict level or highest severity
+  changed on 169 + 146 MCP servers, 659 skills, 1,796 SkillSpector examples
+  or 844 Datadog packages, and the two DROPPER-CHAIN-001 links it removed
+  were in source maps, which this branch leaves out of correlation anyway.
+  #169 measured its first cut on the same corpora with no level change and
+  the 17 Datadog chain labels above lost. This change has not been
+  re-measured on the corpora as a whole.
+
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 
 - **A second opinion from a model you choose.** `--llm-review` (or
@@ -581,29 +667,6 @@ pass.
   through `--rules`/`rule_packs` (documented in the same section). The tests
   use stub engines that print the recorded formats, so CI needs neither
   engine.
-
-### 🔗 Correlation chains read names as values
-
-- **A keyword argument that repeats a bound name is not a link.** Every
-  built-in chain now sets `name_uses: value`. A keyword argument's name, an
-  assignment target or an object key that only repeats the name the source
-  bound does not link it. A clean health check,
-  `url = os.environ["DATABASE_URL"]` then `requests.get(url=base + "/ping")`,
-  was CRITICAL RISK. The corpus digest covers the setting, so a cached result
-  from the old reading is not reused. Measured cost: 17 of the 844 Datadog
-  samples lose EXFIL-CHAIN-001. All are versions of `artifact-lab-3-package`,
-  which sends the environment in two hops, and all stay CRITICAL RISK on
-  NET-007 and INSTALL-001. No level changed on the 204 malicious and 455
-  clean skills or on 323 MCP servers.
-- **One propagation step was measured and not adopted.** Under the step, a
-  line between source and sink of the form `new = f(bound)` would make `new`
-  a source too. It wins back the 17 chain labels, but it changes no real
-  verdict except through one wrong link, in mistralai's own example code.
-  It turns 7 of 10 constructed clean uses of a credential into CRITICAL RISK:
-  a client, an engine, a connection, an HMAC signature, a refresh-token body
-  and a key hint. A variant restricted to bare uses still turns 3 of them.
-  Method, per-sample results and how it relates to ADR-0005:
-  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
 
 ### 🎯 Verdict
 

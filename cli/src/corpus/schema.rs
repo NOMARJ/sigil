@@ -432,12 +432,13 @@ pub struct CorrelationRule {
     /// about each other.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub max_line_length: usize,
-    /// Which occurrences of a bound name in the sink's window link. `word`
-    /// (the default) takes any whole word; `value` takes only a use of the
-    /// name as a value, so a keyword argument's name, an assignment target
-    /// or an object key that merely repeats it (a call's `url=` keyword
-    /// beside a bound `url`) does not link. A rule with
-    /// `sink_window_before` reads names as `value` whatever this says.
+    /// Which occurrences of a bound name in the sink's window link (see
+    /// [`NameUses`]). `word` (the default) takes any whole word; `value`
+    /// takes only a use of the name as a value, so a keyword argument's name,
+    /// an assignment target or an object key that merely repeats it (a call's
+    /// `url=` keyword beside a bound `url`) does not link. Every built-in
+    /// chain sets `value`. A rule with `sink_window_before` reads names as
+    /// `value` whatever this says.
     #[serde(default, skip_serializing_if = "NameUses::is_word")]
     pub name_uses: NameUses,
     /// Substrings whose presence in the sink's argument window disqualifies
@@ -452,15 +453,40 @@ pub struct CorrelationRule {
     pub tags: Vec<String>,
 }
 
-/// How a correlation rule recognises a bound name in the sink's window (see
-/// [`CorrelationRule::name_uses`]).
+/// Which occurrences of a bound name in a sink's window link a correlation
+/// rule's source to its sink ([`CorrelationRule::name_uses`]).
+///
+/// The difference is the names a call gives its parameters. With `url` bound
+/// from a credential read (`url = os.environ[...]`) and a later
+/// `requests.get(url=base + "/ping")`, the word `url` is in the call, but
+/// only as the keyword argument's name: the value sent is `base + "/ping"`.
+/// `json={"token": "x"}` beside a bound `token` is the same, with an object
+/// key.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NameUses {
-    /// Any whole-word occurrence.
+    /// Links on any whole-word occurrence in the argument window
+    /// (`scanner::correlate::contains_word`), keyword names, keys, strings
+    /// and comments included. The default: a rule without the field links
+    /// this way outside the statement mode.
     #[default]
     Word,
-    /// Only an occurrence used as a value.
+    /// Links only where the sink sends the bound value
+    /// (`scanner::correlate::uses_value`; the module documentation has the
+    /// whole reading). The window is read as code: comments and string
+    /// contents are blanked, what a string interpolates is kept
+    /// (`f"{token:>40}"`, `f"{token=}"`, `"${TOKEN:-}"`). An occurrence that
+    /// is a keyword argument's name, an assignment or destructuring target,
+    /// an object key (`name:` after `{`, `,`, `(`, `;` or at the start of a
+    /// line; a quoted `"name":`; not a Python dict key, which is an
+    /// expression), a TypeScript member, an attribute of another object, an
+    /// export list, a count (`len(token)`), or a parameter of a function the
+    /// sink is in, is skipped. Outside the statement mode the window is the
+    /// sink's own call, not the lines after it. `data=token`,
+    /// `json={"k": token}`, `f"...{token}"`, `token=token`, `{ token }` and a
+    /// positional `token` are uses. Only the bound name itself links: a
+    /// value computed from it on another line (`encoded = urlencode(data)`)
+    /// is not followed (docs/detection/correlation-names.md).
     Value,
 }
 

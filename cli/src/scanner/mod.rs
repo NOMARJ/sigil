@@ -41,7 +41,10 @@ pub use crate::corpus::schema::Evidence;
 /// scan cache and `sigil diff` key on. **Bump it in the same change as any
 /// such logic**: a development build keeps its version string, so without a
 /// bump a cached verdict from the old logic would keep being served.
-pub const ENGINE_REVISION: u32 = 5;
+///
+/// 6: correlation reads a chain's names as values in the sink's own call,
+/// with strings and comments blanked (`scanner::correlate`).
+pub const ENGINE_REVISION: u32 = 6;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1535,11 +1538,7 @@ pub fn run_scan(
                 {
                     return Vec::new();
                 }
-                correlate::apply(
-                    &crate::corpus::compiled::corpus().correlation_rules,
-                    &kept,
-                    &lines,
-                )
+                correlate::apply_corpus(&kept, &lines)
             });
             let (chain_kept, mut chain_silenced) = suppress::apply(&markers, chains);
             kept.extend(chain_kept);

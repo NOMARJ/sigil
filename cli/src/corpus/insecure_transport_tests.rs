@@ -867,11 +867,20 @@ fn no_chain_through_a_keyword_or_key_that_shares_the_name() {
         );
         assert_ne!(r.verdict, Verdict::HighRisk, "{path}: {:#?}", r.findings);
     }
-    // `url=` is a keyword; the secret `url` goes to create_engine. (The file
-    // is still judged on EXFIL-CHAIN-001, which reads names the old way.)
+    // `url=` is a keyword; the secret `url` goes to create_engine. EXFIL-CHAIN-001
+    // reads names the same way now (`name_uses: "value"`), so the file is
+    // judged on the TLS finding alone.
     let db = "import os\nimport requests\n\nurl = os.environ[\"DATABASE_U~~RL\"]\nengine = create_engine(url)\n\n\ndef ping(base):\n    return requests.get(url=base + \"/ping\", verify=Fal~~se)\n";
     let r = scan_tree(&[("db.py", db)]);
     assert!(chain_lines(&r).is_empty(), "{:#?}", r.findings);
+    assert!(
+        !r.findings.iter().any(|f| f.rule == "EXFIL-CHAIN-001"),
+        "{:#?}",
+        r.findings
+    );
+    assert!(r.findings.iter().any(|f| f.rule == "TLS-001"));
+    assert_ne!(r.verdict, Verdict::CriticalRisk, "{:#?}", r.findings);
+    assert_ne!(r.verdict, Verdict::HighRisk, "{:#?}", r.findings);
 }
 
 #[test]

@@ -74,6 +74,31 @@ const FULL_RULE_KEYS: &[&str] = &[
     "tags",
 ];
 
+/// Keys a correlation rule's `source` and `sink` selectors may carry. A
+/// misspelt `rule_ids` would otherwise leave the selector empty, and the
+/// chain would never fire.
+const SELECTOR_KEYS: &[&str] = &["rule_prefixes", "rule_ids"];
+
+/// Keys a correlation rule may carry. A misspelt `name_uses` would otherwise
+/// fall back to the default without a word.
+const CORRELATION_RULE_KEYS: &[&str] = &[
+    "id",
+    "phase",
+    "severity",
+    "description",
+    "weight",
+    "source",
+    "sink",
+    "window_lines",
+    "sink_window_before",
+    "name_uses",
+    "max_line_length",
+    "sink_excludes",
+    "remediation",
+    "references",
+    "tags",
+];
+
 /// Keys a compact rule may carry.
 const COMPACT_RULE_KEYS: &[&str] = &[
     "id",
@@ -152,6 +177,12 @@ pub struct CustomPack {
     pub signature: SignatureStatus,
     /// Non-fatal observations, e.g. `evidence` on a non-critical rule.
     pub warnings: Vec<String>,
+    /// Problems `sigil rules validate` and `sigil rules sign` reject but a
+    /// scan only warns about, because packs carrying them loaded before
+    /// the check existed: an unknown key on a correlation rule or its
+    /// source or sink selector (the scan ignores the key), and a selector
+    /// that names no rule (the chain never fires).
+    pub ignored: Vec<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -333,10 +364,11 @@ pub fn parse_pack(text: &str, path: &Path) -> Result<CustomPack, Vec<String>> {
 
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
+    let mut ignored = Vec::new();
     let pack = if compact {
         compact_to_pack(&doc, path, &mut errors)
     } else {
-        full_to_pack(&doc, &mut errors)
+        full_to_pack(&doc, &mut errors, &mut ignored)
     };
     if let Some(pack) = &pack {
         validate_pack(pack, &mut errors, &mut warnings);
@@ -352,6 +384,7 @@ pub fn parse_pack(text: &str, path: &Path) -> Result<CustomPack, Vec<String>> {
             },
             signature,
             warnings,
+            ignored,
         }),
         _ => Err(errors),
     }
@@ -389,8 +422,13 @@ fn signature_status(doc: &Value, compact: bool) -> Result<SignatureStatus, Strin
 }
 
 /// Convert a full-schema document, checking each rule separately so an error
-/// names the rule it is in.
-fn full_to_pack(doc: &Value, errors: &mut Vec<String>) -> Option<SignaturePack> {
+/// names the rule it is in. What a scan only warns about goes to `ignored`
+/// (see [`CustomPack::ignored`]).
+fn full_to_pack(
+    doc: &Value,
+    errors: &mut Vec<String>,
+    ignored: &mut Vec<String>,
+) -> Option<SignaturePack> {
     let Some(obj) = doc.as_object() else {
         errors.push("a pack must be a mapping with `meta` and `rules`".to_string());
         return None;
@@ -441,6 +479,44 @@ fn full_to_pack(doc: &Value, errors: &mut Vec<String>) -> Option<SignaturePack> 
         }),
         None => Vec::new(),
     };
+    // Earlier versions read a correlation rule without checking its keys, so
+    // a pack with an extra one loaded, and may be signed as it is: a scan
+    // warns and ignores the key, validation and signing refuse it.
+    if let Some(list) = obj.get("correlation_rules").and_then(Value::as_array) {
+        for (i, raw) in list.iter().enumerate() {
+            let label = format!(
+                "correlation_rules[{i}] ({})",
+                raw.get("id").and_then(Value::as_str).unwrap_or("?")
+            );
+            for key in raw.as_object().map(|m| m.keys()).into_iter().flatten() {
+                if !CORRELATION_RULE_KEYS.contains(&key.as_str()) {
+                    ignored.push(unknown_key(&label, key, CORRELATION_RULE_KEYS));
+                }
+            }
+            for side in ["source", "sink"] {
+                let Some(sel) = raw.get(side).and_then(Value::as_object) else {
+                    continue;
+                };
+                for key in sel.keys() {
+                    if !SELECTOR_KEYS.contains(&key.as_str()) {
+                        ignored.push(unknown_key(&format!("{label}.{side}"), key, SELECTOR_KEYS));
+                    }
+                }
+                let names_one = SELECTOR_KEYS.iter().any(|k| {
+                    sel.get(*k)
+                        .and_then(Value::as_array)
+                        .is_some_and(|a| !a.is_empty())
+                });
+                if !names_one {
+                    ignored.push(format!(
+                        "{label}.{side}: names no rule (rule_ids and rule_prefixes are empty), so \
+                         the chain never fires"
+                    ));
+                }
+            }
+        }
+    }
+    // An unknown `name_uses` value fails here, naming the values it accepts.
     let correlation_rules = match obj.get("correlation_rules") {
         Some(v) => serde_json::from_value(v.clone()).unwrap_or_else(|e| {
             errors.push(format!("correlation_rules: {e}"));
@@ -971,11 +1047,14 @@ pub fn sign_file(path: &Path, key: &ed25519_dalek::SigningKey) -> Result<String,
     let compact = !doc.get("meta").is_some_and(|m| m.is_object());
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
+    let mut ignored = Vec::new();
     let pack = if compact {
         compact_to_pack(&doc, path, &mut errors)
     } else {
-        full_to_pack(&doc, &mut errors)
+        full_to_pack(&doc, &mut errors, &mut ignored)
     };
+    // A signed pack is a new pack: what a scan would ignore is refused.
+    errors.append(&mut ignored);
     if let Some(p) = &pack {
         validate_pack(p, &mut errors, &mut warnings);
     }
@@ -1172,6 +1251,112 @@ rules:
                 .digest()
         };
         assert_ne!(digest(&word), digest(&value));
+    }
+
+    #[test]
+    fn a_correlation_rule_states_how_it_reads_names() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        let pack = |extra: &str| {
+            format!(
+                r#"{{"meta":{{"id":"p","name":"p","version":"1","updated_at":"","author":"","description":""}},
+                "correlation_rules":[{{"id":"P-CHAIN-1","phase":"network_exfil","severity":"high","description":"d",
+                "source":{{"rule_ids":["P-1"]}},"sink":{{"rule_ids":["P-2"]}}{extra}}}]}}"#
+            )
+        };
+        for (extra, want) in [
+            (r#","name_uses":"value""#, NameUses::Value),
+            (r#","name_uses":"word""#, NameUses::Word),
+            ("", NameUses::Word),
+        ] {
+            let ok = parse("p.json", &pack(extra)).expect("loads");
+            assert_eq!(ok.pack.correlation_rules[0].name_uses, want, "{extra}");
+        }
+        let yaml =
+            "meta: {id: p, name: p, version: '1', updated_at: '', author: '', description: ''}\n\
+            correlation_rules:\n\
+            \x20 - id: P-CHAIN-1\n\
+            \x20   phase: network_exfil\n\
+            \x20   severity: high\n\
+            \x20   description: d\n\
+            \x20   source: {rule_ids: [P-1]}\n\
+            \x20   sink: {rule_ids: [P-2]}\n\
+            \x20   name_uses: value\n";
+        let ok = parse("p.yaml", yaml).expect("YAML loads");
+        assert_eq!(ok.pack.correlation_rules[0].name_uses, NameUses::Value);
+        // An unknown value is refused, naming the ones that exist.
+        let errs = parse("p.json", &pack(r#","name_uses":"values""#)).expect_err("must fail");
+        assert!(
+            errs.iter()
+                .any(|e| e.contains("unknown variant `values`") && e.contains("`value`")),
+            "{errs:?}"
+        );
+        // A misspelt key would fall back to the default without a word. The
+        // pack still loads (earlier versions accepted any key on a
+        // correlation rule, and a signed pack cannot be edited without
+        // re-signing), and the key is named with a hint for the warning
+        // the scan prints and the error `sigil rules validate` reports.
+        let ok = parse("p.json", &pack(r#","name_use":"value""#)).expect("still loads");
+        assert_eq!(ok.pack.correlation_rules[0].name_uses, NameUses::Word);
+        assert!(
+            ok.ignored
+                .iter()
+                .any(|e| e.contains("correlation_rules[0] (P-CHAIN-1)")
+                    && e.contains("did you mean 'name_uses'")),
+            "{:?}",
+            ok.ignored
+        );
+        assert!(ok.warnings.iter().all(|w| !w.contains("name_use")));
+        // A pack without problems has nothing ignored.
+        assert!(parse("p.json", &pack(""))
+            .expect("loads")
+            .ignored
+            .is_empty());
+    }
+
+    /// An extra key on a correlation rule (a note for the team that owns
+    /// it) loaded before the keys were checked; it still loads, with the
+    /// key ignored and named. So does a misspelt selector key, which leaves
+    /// the selector empty: that chain never fires, and says so.
+    #[test]
+    fn unknown_correlation_keys_are_ignored_with_a_warning() {
+        let _g = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+        let extra = r#"{"meta":{"id":"acme","name":"acme","version":"1","updated_at":"2026-01-01","author":"a","description":"d"},
+            "correlation_rules":[{"id":"ACME-CHAIN-001","phase":"network_exfil","severity":"high","description":"acme chain",
+            "source":{"rule_prefixes":["CRED-"],"rule_ids":[]},"sink":{"rule_prefixes":[],"rule_ids":["NET-001"]},
+            "window_lines":20,"sink_excludes":[],"notes":"owned by the platform team"}]}"#;
+        let ok = parse("pack_extra.json", extra).expect("an extra key does not refuse the pack");
+        assert_eq!(ok.pack.correlation_rules.len(), 1);
+        assert_eq!(ok.ignored.len(), 1, "{:?}", ok.ignored);
+        assert!(
+            ok.ignored[0].contains("correlation_rules[0] (ACME-CHAIN-001): unknown key 'notes'")
+        );
+        let selector = extra
+            .replace(r#""rule_ids":["NET-001"]"#, r#""rule_idz":["NET-001"]"#)
+            .replace(r#","notes":"owned by the platform team""#, "");
+        let ok = parse("pack_sel.json", &selector).expect("loads");
+        assert!(
+            ok.ignored.iter().any(|e| e
+                .contains("correlation_rules[0] (ACME-CHAIN-001).sink: unknown key 'rule_idz'")
+                && e.contains("did you mean 'rule_ids'")),
+            "{:?}",
+            ok.ignored
+        );
+        assert!(
+            ok.ignored
+                .iter()
+                .any(|e| e.contains(".sink: names no rule")),
+            "{:?}",
+            ok.ignored
+        );
+        // Signing makes a new pack, and refuses what a scan would ignore.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let file = dir.path().join("pack_extra.json");
+        std::fs::write(&file, extra).expect("write");
+        let key = ed25519_dalek::SigningKey::from_bytes(&[7u8; 32]);
+        let err = sign_file(&file, &key).expect_err("signing refuses an unknown key");
+        assert!(err.contains("unknown key 'notes'"), "{err}");
     }
 
     #[test]
