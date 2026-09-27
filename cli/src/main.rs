@@ -3820,9 +3820,11 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
     match install_binary(&current_exe, &target) {
         Ok(InstallOutcome::AlreadyInstalled) => {
             println!(
-                "{} {} already is this binary; nothing to do",
+                "{} {} already is this binary (sigil {} at {}); nothing to do",
                 "sigil:".bold().green(),
-                target.display()
+                target.display(),
+                env!("CARGO_PKG_VERSION"),
+                current_exe.display()
             );
             0
         }
@@ -3837,7 +3839,14 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
         Err(err) => {
             eprintln!("{} installation failed: {}", "error:".bold().red(), err);
             if err.kind() == std::io::ErrorKind::PermissionDenied {
-                eprintln!("hint: you may need to run with sudo");
+                // The full path, so sudo runs this build rather than
+                // whichever `sigil` root's PATH finds first.
+                eprintln!(
+                    "hint: installing needs write access to {}; re-run with sudo: sudo \"{}\" install --path \"{}\"",
+                    install_dir.display(),
+                    current_exe.display(),
+                    install_dir.display()
+                );
             }
             1
         }
@@ -3891,20 +3900,12 @@ fn install_binary(source: &Path, target: &Path) -> std::io::Result<InstallOutcom
 
     let mut src = std::fs::File::open(source)?;
     let permissions = src.metadata()?.permissions();
-    // create_new (O_EXCL) never opens an existing file or follows a symlink,
-    // so nothing planted at the temporary name is written to. A leftover from
-    // an interrupted run with the same pid is removed once (unlinking a
-    // symlink never touches its target) and creation is retried.
-    let create = || {
-        std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&temp)
-    };
-    let mut out = match create() {
+    // A leftover from an interrupted run with the same pid is removed once
+    // (unlinking a symlink never touches its target) and creation is retried.
+    let mut out = match create_install_temp(&temp) {
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
             std::fs::remove_file(&temp)?;
-            create()?
+            create_install_temp(&temp)?
         }
         other => other?,
     };
@@ -3918,6 +3919,24 @@ fn install_binary(source: &Path, target: &Path) -> std::io::Result<InstallOutcom
         let _ = std::fs::remove_file(&temp);
     }
     result.map(|_| InstallOutcome::Installed)
+}
+
+/// Create the temporary file for [`install_binary`].
+///
+/// create_new (O_EXCL) never opens an existing file or follows a symlink, so
+/// nothing planted at the name is written to. On Unix it starts owner-only
+/// (0700 whatever the umask), so nobody else can open it for writing while
+/// the binary is copied in. `set_permissions` gives it the source's mode
+/// only once the copy is complete.
+fn create_install_temp(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o700);
+    }
+    options.open(path)
 }
 
 /// Whether `a` and `b` resolve to the same file. Following symlinks is the
@@ -4523,7 +4542,7 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
 
 #[cfg(test)]
 mod install_tests {
-    use super::{install_binary, InstallOutcome};
+    use super::{create_install_temp, install_binary, InstallOutcome};
     use std::fs;
     use std::path::{Path, PathBuf};
     use tempfile::{tempdir, TempDir};
@@ -4668,6 +4687,37 @@ mod install_tests {
         assert!(leftovers(&bin).is_empty());
     }
 
+    /// Nobody else can open the half-written file: it starts owner-only
+    /// under any umask (the default 0666 & ~umask would be 0644 under 022).
+    #[cfg(unix)]
+    #[test]
+    fn the_temporary_file_starts_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_root, _src, bin) = setup();
+        let temp = bin.join(".sigil.install-test");
+
+        create_install_temp(&temp).unwrap();
+
+        let mode = fs::metadata(&temp).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0, "mode {mode:o}");
+    }
+
+    /// A copy that fails once the temporary file exists keeps the old binary
+    /// and removes the temporary file.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_failed_copy_keeps_the_old_binary_and_removes_the_temporary_file() {
+        let (root, _src, bin) = setup();
+        let target = bin.join("sigil");
+        fs::write(&target, b"an older sigil").unwrap();
+        // A directory opens for reading on Linux, then fails to read (EISDIR).
+        let unreadable = root.path().join("src");
+
+        assert!(install_binary(&unreadable, &target).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"an older sigil");
+        assert!(leftovers(&bin).is_empty(), "{:?}", leftovers(&bin));
+    }
+
     #[test]
     fn a_missing_install_directory_fails_and_leaves_the_source_alone() {
         let (root, src, _bin) = setup();
@@ -4686,10 +4736,19 @@ mod install_tests {
         let (_root, src, bin) = setup();
         let target = bin.join("sigil");
         fs::copy("/bin/sleep", &target).unwrap();
-        let mut running = std::process::Command::new(&target)
-            .arg("30")
-            .spawn()
-            .unwrap();
+        // Retry the rare `Text file busy` of executing a file that another
+        // test's fork may still hold open for writing.
+        let mut running = (0..20)
+            .find_map(
+                |_| match std::process::Command::new(&target).arg("30").spawn() {
+                    Err(e) if e.raw_os_error() == Some(26) => {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        None
+                    }
+                    other => Some(other.unwrap()),
+                },
+            )
+            .expect("spawned without Text file busy");
 
         let result = install_binary(&src, &target);
         let _ = running.kill();

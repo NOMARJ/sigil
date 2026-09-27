@@ -10,16 +10,26 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 - **`sigil install` can no longer empty its own binary.** It copied the running
   binary with `std::fs::copy`, which truncates its destination and follows
-  symlinks. So `sigil install` onto a path that already was that binary
-  truncated it to 0 bytes before reading it: running `/usr/local/bin/sigil
-  install`, or installing where `/usr/local/bin/sigil` is a package manager's
-  link to it. On Linux the kernel refused the write (`Text file busy`), which
-  hid the bug; macOS was not tested. Now a target that is the same file (the
-  path itself, a symlink or a hard link) is reported as already installed and
-  left alone. Any other target gets a new file in the install directory, created
-  exclusively and renamed into place. So a symlink there is replaced rather than
-  written through, a running copy is replaced instead of failing with
-  `Text file busy`, and a failed install leaves the old binary intact.
+  symlinks. Installing onto a path that already was that binary would empty
+  it: running `/usr/local/bin/sigil install`, or installing where
+  `/usr/local/bin/sigil` is a package manager's link to it. The truncation was
+  reproduced on Linux with a file that was not running. On Linux a running
+  binary fails with `Text file busy` instead; where the OS lets a running binary
+  be written (expected on macOS, not tested), it would be emptied.
+  - A target that is the same file (the path itself, or a symlink to it; on
+    macOS and Linux also a hard link) is now reported as already installed and
+    left alone.
+  - Any other target gets a new, owner-only file in the install directory. It is
+    created exclusively and given the binary's mode once the copy is complete,
+    then renamed into place.
+  - So a symlink there is replaced rather than written through, a running copy
+    is replaced instead of failing with `Text file busy` (tested on Linux), and a
+    failed install leaves the old binary intact.
+  - Because the file is replaced, installing needs write access to the install
+    directory (sudo for `/usr/local/bin`) even when the existing binary is yours,
+    and the new file is owned by whoever ran the install. The permission hint
+    now prints the full `sudo "<path to this sigil>" install --path <dir>`
+    command, so sudo runs the same build.
 - **The unknown-phase warning for cloud signatures no longer suggests
   `sigil install --update`**, a flag that does not exist. It now says to update
   sigil to the latest release.

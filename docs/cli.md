@@ -23,7 +23,17 @@ Copies the running `sigil` binary to an install directory (default `/usr/local/b
 sigil install [--path <dir>]
 ```
 
-If `<dir>/sigil` already is the running binary (the same file, or a symlink or hard link to it, such as a package manager's link), it says so and changes nothing. Otherwise it writes the copy to a new file in `<dir>` and renames it into place. So an existing symlink there is replaced rather than written through, a copy of `sigil` that is running is replaced safely, and a failed install leaves the old binary intact. To upgrade, use the channel you installed from (`brew upgrade`, `npm`, `pip`, `cargo install`).
+If `<dir>/sigil` already is the running binary, it says so and changes nothing. That covers the same file, a symlink to it (such as a package manager's link), and on macOS and Linux a hard link.
+
+Otherwise it writes the copy to a new file in `<dir>` and renames it into place:
+
+- an existing symlink there is replaced rather than written through;
+- a copy of `sigil` that is running is replaced rather than rewritten;
+- a failed install leaves the old binary intact.
+
+It therefore needs write access to `<dir>` itself, even when the existing `<dir>/sigil` is yours. On a permission error it prints the `sudo` command with this binary's full path, so sudo runs the same build rather than whichever `sigil` root's `PATH` finds first.
+
+`sigil install` targets macOS and Linux: it always writes a file named `sigil`, with no `.exe`. To upgrade, use the channel you installed from (`brew upgrade`, `npm`, `pip`, `cargo install`).
 
 For shell aliases, Claude Code wiring, and git hooks, use `sigil setup`.
 
