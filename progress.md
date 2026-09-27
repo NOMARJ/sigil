@@ -341,17 +341,26 @@
 
 ## Decisions Log
 
-- 2026-04-11: Auth0 v4 SDK adopted for dashboard (breaking change from v3)
-- 2026-04-15: Stripe price IDs captured in `.nomark/resources.json` (not hardcoded)
-- 2026-04-20: Checkout uses `payment_mode: subscription` (not one-time)
-- 2026-04-22: `require_plan` implemented as FastAPI Depends (not middleware) for per-route granularity
-- 2026-05-01: Stripe env vars confirmed via Azure CLI (not assumed from Terraform)
-- 2026-05-03: Live-mode webhook fix applied via operator-authorized Stripe API POST
-- 2026-05-04: US-003 deferred to operator — credential boundary per CHARTER II.5
-- 2026-06-11: F-008 Phase G complete; Rust engine is the detection engine for API and bash
-- 2026-06-11: F-009 scope approved: Fable 5 + Opus 4.8 fallback; free teaser + Pro-unlimited
-- 2026-06-12: F-009 US-112 deployed to prod; Fable-5 adjudication live
-- 2026-06-21: US-003 re-attempted (NOM-884); all three blocking conditions unchanged
+| Date | Decision | Rationale |
+|------|----------|-----------|
+| 2026-04-02 | Start with policy schema before runtime enforcement | Schema is the foundation — generation, validation, and sandbox all depend on it |
+| 2026-04-02 | Use Docker/Podman for sandbox, not Landlock/seccomp directly | Broader platform support (macOS, Linux, WSL). OpenShell's Landlock approach is Linux-only |
+| 2026-04-02 | Port Phases 7-8 before adding Phase 10 | Phases 7-8 already exist in Python API — port is lower risk than new phase design |
+| 2026-04-02 | SBOM in Rust CLI, not Python API | Aligns with Rust CLI strategy; parsing lockfiles is well-suited to Rust |
+| 2026-04-02 | 9 stories across 3 phases, not 10+ | Scoped to actionable deliverables; bypass monitoring and OCSF deferred to future phase |
+| 2026-04-11 | Auth0 v4 SDK adopted for dashboard | Align dashboard auth work with the v4 SDK surface instead of the deprecated v3 integration |
+| 2026-04-15 | Stripe price IDs captured in `.nomark/resources.json` | Keep environment-specific billing identifiers out of application code |
+| 2026-04-20 | Checkout uses `payment_mode: subscription` | Pro billing is recurring and must create subscriptions rather than one-time payments |
+| 2026-04-22 | `require_plan` implemented as FastAPI Depends | Preserve per-route billing-gate granularity instead of enforcing plans in global middleware |
+| 2026-05-01 | Stripe env vars confirmed via Azure CLI | Verify deployed billing configuration directly rather than infer it from Terraform |
+| 2026-05-03 | Story IDs for F-003 use STORY-100+ prefix | Avoid collision with existing OpenShell STORY-001..STORY-009 in the same `progress.md` |
+| 2026-05-03 | Live-mode webhook fix applied via operator-authorized Stripe API POST | Restore the live endpoint to the required 6-event subscription set |
+| 2026-05-04 | US-003 deferred to operator | Test-mode webhook audit is blocked on credentials the agent cannot access under CHARTER II.5 |
+| 2026-06-11 | F-008 Phase G complete; Rust engine is the detection engine for API and bash | Record the runtime handoff to the Rust scanner across shipped surfaces |
+| 2026-06-11 | F-009 scope approved: Fable 5 + Opus 4.8 fallback; free teaser + Pro-unlimited | Lock the product scope before implementation and deployment work proceeds |
+| 2026-06-12 | F-009 US-112 deployed to prod; Fable-5 adjudication live | Capture the production deployment milestone for the adjudication path |
+| 2026-06-21 | US-003 re-attempted (NOM-884); all three blocking conditions unchanged | Preserve the second operator-gated audit attempt and its unchanged blockers |
+
 
 ---
 
@@ -978,3 +987,12 @@
 - **Blast radius:** `RateLimiter` is the only callable-class dependency in `api/`; one fix covers scan (×4), metrics, billing, email, rescan.
 - **Evidence:** `api/tests/test_scan.py` 8/8 pass (were failing pre-fix). Initial full `api/` suite after this rate-limiter fix: 210 passed, 13 failed — all 13 pre-existing and unrelated to rate limiting. Superseded by launch-readiness reassessment fixes: full `api/` suite now passes with `223 passed, 339 skipped, 6 warnings`. Field-level check: `RateLimiter query=[] req_param=request`.
 - **Follow-up (DONE, owner-approved 2026-06-08):** The `RequestValidationError` handler in `api/main.py` flattened every client validation error to `{"detail":"Bad request"}`, which made this near-undebuggable and gave API callers no actionable detail. Now returns `{"detail":"Validation error","errors":[{loc,msg,type},...]}` — actionable field locations while sanitising the raw Pydantic error (drops `input`/`ctx`/`url`, which echo the caller's submitted data and leak internals). Regression test in `api/tests/test_scan.py::test_submit_scan_validation_error` asserts both the actionable shape and that a submitted canary value is never echoed back.
+
+### NOM-616: Attestation signing failures are silent — make fatal or alertable (2026-06-22)
+- **Status:** DONE ✅ (completed in prior session, commit 3961569, PR #126)
+- **Linear:** NOM-616
+- **Scope:** moderate
+- **Goal:** When `SIGIL_PACK_PUBLIC_KEY` is set and a user-installed pack fails signature verification, the scan must abort with a fatal error rather than silently continuing with fewer rules.
+- **Root cause:** `load_packs_from_dir` in `cli/src/corpus/loader.rs` swallowed signature failures via `eprintln!`, letting the scan proceed silently — risking false negatives when an attacker tampers with installed packs.
+- **Fix:** Changed `load_packs_from_dir` → `Result<Vec<SignaturePack>, String>` propagating `[SECURITY]`-prefixed errors; changed `load_all_packs` → `Result<...>`; in `phases.rs` `all_packs()`, added `process::exit(2)` on security failure so the scan aborts with a clear fatal message. Parse errors (non-security) continue to be logged and skipped.
+- **Evidence:** Commit `3961569 NOM-616: make pack signature verification failures alertable (#126)` merged to main. Branch `claude/admiring-hopper-vyyjx1` has no commits ahead of `origin/main` (`git log origin/main..HEAD` → empty).

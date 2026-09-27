@@ -18,7 +18,7 @@ interface AuthGuardProps {
 }
 
 export default function AuthGuard({ children }: AuthGuardProps) {
-  const { user, loading } = useAuth();
+  const { user, loading, emailUnverified } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -32,7 +32,9 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   useEffect(() => {
     if (loading) return;
 
-    if (!user && !isPublicRoute) {
+    // Signed in but email not verified yet: keep the user here and show the
+    // verification screen instead of bouncing them back to /login.
+    if (!user && !emailUnverified && !isPublicRoute) {
       router.replace("/login");
     }
 
@@ -41,7 +43,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     if (user && isAuthRoute) {
       router.replace("/");
     }
-  }, [user, loading, isPublicRoute, isAuthRoute, router]);
+  }, [user, loading, emailUnverified, isPublicRoute, isAuthRoute, router]);
 
   // Show a loading state while checking auth
   if (loading) {
@@ -78,6 +80,12 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
+  // Signed in, but the email address has not been verified yet — show the
+  // verification prompt instead of redirecting to /login with no explanation.
+  if (!user && emailUnverified && !isPublicRoute) {
+    return <VerifyEmailScreen />;
+  }
+
   // If not authenticated and not on a public route, don't render children
   // (redirect will happen via useEffect above)
   if (!user && !isPublicRoute) {
@@ -91,4 +99,60 @@ export default function AuthGuard({ children }: AuthGuardProps) {
   }
 
   return <>{children}</>;
+}
+
+/**
+ * Shown when the user has an active session but their email address has not
+ * been verified yet. Auth0 sends the verification email at signup; there is
+ * currently no backend endpoint to resend it, so this screen offers a
+ * re-check ("I've verified my email") and sign-out instead.
+ */
+function VerifyEmailScreen() {
+  const { unverifiedEmail, logout } = useAuth();
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-950 px-4">
+      <div className="card w-full max-w-md">
+        <div className="card-body flex flex-col items-center text-center gap-4">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-brand-600 text-white font-bold text-xl">
+            S
+          </div>
+          <h1 className="text-xl font-semibold text-gray-100">
+            Verify your email
+          </h1>
+          <p className="text-sm text-gray-400">
+            We sent a verification link to{" "}
+            {unverifiedEmail ? (
+              <span className="font-medium text-gray-200">
+                {unverifiedEmail}
+              </span>
+            ) : (
+              "your email address"
+            )}
+            . Check your inbox (and spam folder) and click the link to activate
+            your account.
+          </p>
+          <div className="flex flex-col w-full gap-2 pt-2">
+            <button
+              type="button"
+              className="btn-primary w-full"
+              onClick={() => window.location.reload()}
+            >
+              I&apos;ve verified my email
+            </button>
+            <button
+              type="button"
+              className="btn-secondary w-full"
+              onClick={() => void logout()}
+            >
+              Sign out
+            </button>
+          </div>
+          <p className="text-xs text-gray-500">
+            Verified but still seeing this? Sign out and sign back in.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -25,13 +25,13 @@ sh install.sh
 
 Detects your platform, downloads a pre-built binary from the latest GitHub release if one exists for your OS/arch, falls back to the bash script otherwise. Installs to `/usr/local/bin` and runs `sigil install` to set up shell aliases.
 
-### Option 2: Homebrew (coming soon)
+### Option 2: Homebrew
 
 ```bash
 brew install nomarj/tap/sigil
 ```
 
-### Option 3: npm global package (coming soon)
+### Option 3: npm global package
 
 ```bash
 npm install -g @nomarj/sigil
@@ -76,7 +76,7 @@ You should see the Sigil help menu listing all available commands.
 
 ## Installing Optional Security Scanners
 
-Sigil's built-in scanner runs all six phases without any external tools. However, installing additional scanners improves detection quality:
+Sigil's built-in scanner runs all eight phases without any external tools. However, installing additional scanners improves detection quality:
 
 ```bash
 # Python security scanners
@@ -110,7 +110,7 @@ sigil clone https://github.com/someone/interesting-mcp-server
 What happens:
 
 1. Sigil clones the repository into `~/.sigil/quarantine/<id>/` (shallow clone, depth 1)
-2. The six scan phases run against the quarantined copy
+2. The eight scan phases run against the quarantined copy
 3. External scanners run if available
 4. A risk score and verdict are displayed
 5. A detailed report is saved to `~/.sigil/reports/`
@@ -192,13 +192,17 @@ Copies the directory into quarantine and scans the copy.
 
 After every scan, Sigil produces a risk score and verdict:
 
-| Score | Verdict         | What It Means                                  | What to Do                                    |
-| ----- | --------------- | ---------------------------------------------- | --------------------------------------------- |
-| 0     | **CLEAN**       | No suspicious patterns detected                | Safe to approve                               |
-| 1-9   | **LOW RISK**    | Minor findings, likely false positives         | Review the flagged items, then approve        |
-| 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention       | Read the report, check each finding manually  |
-| 25-49 | **HIGH RISK**   | Significant suspicious patterns                | Do not approve without thorough manual review |
-| 50+   | **CRITICAL**    | Multiple strong indicators of malicious intent | Reject and report                             |
+| Score / Evidence                     | Verdict           | What It Means                                              | What to Do                                    |
+| ------------------------------------ | ----------------- | ---------------------------------------------------------- | --------------------------------------------- |
+| 0-9                                  | **LOW RISK**      | No known malicious patterns detected                       | Review any flagged items, then approve        |
+| 10-24                                | **MEDIUM RISK**   | Multiple findings that warrant attention                   | Read the report, check each finding manually  |
+| HIGH gate (see the CLI reference)    | **HIGH RISK**     | Significant suspicious patterns                            | Do not approve without thorough manual review |
+| Critical evidence                    | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report                             |
+
+CRITICAL is evidence-gated: it needs one Critical finding from a rule whose
+evidence stands alone, or Critical findings from two *different* rules that are
+individually inconclusive (a private key in a test fixture, for instance). See
+[Verdicts and Scoring](cli.md#verdicts-and-scoring) for the full rule.
 
 ### Reading the Report
 
@@ -216,7 +220,7 @@ The report lists every finding from every phase, with file names and line number
 After reviewing the scan results:
 
 ```bash
-# Approve -- move the code out of quarantine
+# Approve -- mark as trusted and pin its digest in the trust ledger
 sigil approve <quarantine-id>
 
 # Reject -- permanently delete the quarantined code
@@ -226,29 +230,23 @@ sigil reject <quarantine-id>
 sigil list
 ```
 
-Approved code is moved to `~/.sigil/approved/<id>/`. You can then copy or symlink it into your project.
+Approved code stays at `~/.sigil/quarantine/<id>/` — approval records the item in the trust ledger (so future digest-matching scans are allowlisted). Copy or symlink the files into your project yourself.
 
 ## Shell Aliases Setup
 
 Sigil can install shell aliases that wrap your existing commands with automatic quarantine and scanning:
 
 ```bash
-sigil aliases
+sigil setup shell
 ```
 
 This adds the following aliases to your `.bashrc` or `.zshrc`:
 
-| Alias             | What It Does                                            |
-| ----------------- | ------------------------------------------------------- |
-| `gclone <url>`    | `git clone` with quarantine + scan                      |
-| `safepip <pkg>`   | `pip install` with scan first, prompts to install after |
-| `safenpm <pkg>`   | `npm install` with scan first, prompts to install after |
-| `safefetch <url>` | Download + quarantine + scan                            |
-| `audit <path>`    | Shortcut for `sigil scan`                               |
-| `audithere`       | Scan the current directory                              |
-| `qls`             | Show quarantine status                                  |
-| `qapprove`        | Approve the most recent quarantined item                |
-| `qreject`         | Reject the most recent quarantined item                 |
+| Alias           | What It Does                       |
+| --------------- | ---------------------------------- |
+| `gclone <url>`  | `git clone` with quarantine + scan |
+| `safepip <pkg>` | `pip install` with scan first      |
+| `safenpm <pkg>` | `npm install` with scan first      |
 
 After installation, reload your shell:
 
@@ -256,25 +254,16 @@ After installation, reload your shell:
 source ~/.bashrc   # or source ~/.zshrc
 ```
 
-You can also print the aliases without installing them:
-
-```bash
-sigil aliases --print
-```
-
 ## Git Hooks Setup
 
-Install a pre-commit hook that scans staged files for dangerous patterns:
+Install a pre-commit hook that scans the repository before each commit:
 
 ```bash
 # Install in the current repository
-sigil hooks
-
-# Install in a specific repository
-sigil hooks /path/to/repo
+sigil setup git
 ```
 
-The pre-commit hook checks every staged file for patterns like `eval()`, `exec()`, `__import__()`, `subprocess` with `shell=True`, `os.system`, `pickle.loads`, and `child_process`. If any are found, the commit is blocked with a warning. You can bypass it with `git commit --no-verify` when you know the pattern is safe.
+The pre-commit hook runs `sigil scan . --fail-on high` — all eight scan phases — and blocks the commit on HIGH or CRITICAL findings. You can bypass it with `git commit --no-verify` when you know a finding is safe.
 
 ## Connecting to Cloud (sigil login)
 
@@ -290,7 +279,7 @@ This prompts for your email and password (or opens a browser for SSO). After aut
 
 | Feature                      | Offline | Authenticated   |
 | ---------------------------- | ------- | --------------- |
-| Six scan phases              | Yes     | Yes             |
+| Eight scan phases            | Yes     | Yes             |
 | External scanner integration | Yes     | Yes             |
 | Threat intelligence lookups  | No      | Yes             |
 | Publisher reputation scores  | No      | Yes             |

@@ -33,7 +33,7 @@ Update the version in both plugin manifests:
 }
 ```
 
-**`plugins/claude-code/.claude-plugin/marketplace.json`:**
+**`.claude-plugin/marketplace.json` (repo root):**
 ```json
 {
   ...
@@ -97,7 +97,7 @@ claude --plugin-dir ./plugins/claude-code
 /sigil-security:scan-repo .
 /sigil-security:scan-package lodash
 /sigil-security:scan-file bin/sigil
-/sigil-security:quarantine-review
+/sigil-security:review-quarantine
 
 # Test agents:
 @security-auditor analyze this code
@@ -120,7 +120,7 @@ Verify:
 ```bash
 # Stage changes
 git add plugins/claude-code/.claude-plugin/plugin.json
-git add plugins/claude-code/.claude-plugin/marketplace.json
+git add .claude-plugin/marketplace.json
 git add plugins/claude-code/CHANGELOG.md
 
 # Commit
@@ -168,8 +168,8 @@ After the workflow completes:
 **Test Installation:**
 ```bash
 # Install from marketplace
-claude plugin marketplace add https://github.com/NOMARJ/sigil.git
-claude plugin install sigil-security@sigil
+claude plugin marketplace add NOMARJ/sigil
+claude plugin install sigil-security@sigil-marketplace
 
 # Verify version
 claude plugin list | grep sigil-security
@@ -247,16 +247,16 @@ gh release create plugin-v1.1.0 \
 
 ### 3. Update Marketplace
 
-Manually update `plugins/claude-code/.claude-plugin/marketplace.json` and push to main:
+Manually update `.claude-plugin/marketplace.json` (repo root) and push to main:
 
 ```bash
 # Update version in marketplace.json
 jq '.plugins[0].version = "1.1.0"' \
-  plugins/claude-code/.claude-plugin/marketplace.json > tmp.json
-mv tmp.json plugins/claude-code/.claude-plugin/marketplace.json
+  .claude-plugin/marketplace.json > tmp.json
+mv tmp.json .claude-plugin/marketplace.json
 
 # Commit and push
-git add plugins/claude-code/.claude-plugin/marketplace.json
+git add .claude-plugin/marketplace.json
 git commit -m "chore: update plugin marketplace to v1.1.0"
 git push origin main
 ```
@@ -300,7 +300,7 @@ GitHub Actions will create a pre-release. Users can test with:
 
 ```bash
 # Install specific version
-claude plugin install sigil-security@sigil#plugin-v1.2.0-beta.1
+claude plugin install sigil-security@sigil-marketplace#plugin-v1.2.0-beta.1
 ```
 
 ## Rollback
@@ -318,10 +318,10 @@ If a release has critical issues:
    ```bash
    # Update marketplace.json to previous version
    jq '.plugins[0].version = "1.0.0"' \
-     plugins/claude-code/.claude-plugin/marketplace.json > tmp.json
-   mv tmp.json plugins/claude-code/.claude-plugin/marketplace.json
+     .claude-plugin/marketplace.json > tmp.json
+   mv tmp.json .claude-plugin/marketplace.json
 
-   git add plugins/claude-code/.claude-plugin/marketplace.json
+   git add .claude-plugin/marketplace.json
    git commit -m "chore: rollback plugin to v1.0.0"
    git push origin main
    ```
@@ -370,7 +370,7 @@ fi
 rm -rf ~/.claude/cache/plugins/sigil-security
 
 # Reinstall
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 ```
 
 ## Release Checklist

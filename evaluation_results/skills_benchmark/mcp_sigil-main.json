@@ -1,0 +1,3677 @@
+{
+ "summary": {
+  "sigil": {
+   "errors": 0,
+   "malicious": {
+    "scanned": 0,
+    "block": 0,
+    "warn": 0,
+    "any": 0,
+    "seconds": 0
+   },
+   "clean": {
+    "scanned": 169,
+    "block": 39,
+    "warn": 125,
+    "any": 162,
+    "seconds": 559.4
+   }
+  }
+ },
+ "corpora": {
+  "clean:mcp_clean": 169
+ },
+ "outcomes": [
+  {
+   "sample": "corpora/mcp_clean/ai.autoblocks__contextlayer-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 0.6,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.autoblocks__ctxl",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 2,
+   "rules": [
+    "CRED-006",
+    "HYGIENE-005"
+   ],
+   "high_rules": [
+    "CRED-006"
+   ],
+   "seconds": 0.6,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.autoblocks__ctxl-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 0.64,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.dimensions__analytics-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 338,
+   "rules": [
+    "CODE-007",
+    "CODE-MCP-001",
+    "CRED-002",
+    "CRED-007",
+    "CRED-ENV-001",
+    "HYGIENE-001",
+    "INFER-002",
+    "INFER-007",
+    "NET-012",
+    "NET-RCE-001",
+    "OBFUSC-004"
+   ],
+   "high_rules": [
+    "CRED-007",
+    "INFER-007",
+    "NET-RCE-001"
+   ],
+   "seconds": 1.26,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.elfa__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "INSTALL-004",
+    "NET-012"
+   ],
+   "high_rules": [],
+   "seconds": 0.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.perplexity__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004",
+    "INSTALL-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 0.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.reka__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 79,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "NET-012",
+    "PROV-001"
+   ],
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 0.82,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ai.wavespeed__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 0.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/aws.api.us-east-1.ecs-mcp__server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 276,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "INFER-009",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.12,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/aws.api.us-east-1.eks-mcp__server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 276,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "INFER-009",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.0,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.aave__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 4,
+   "rules": [
+    "INSTALL-004",
+    "NET-012",
+    "OBFUSC-002",
+    "PROMPT-003"
+   ],
+   "high_rules": [
+    "PROMPT-003"
+   ],
+   "seconds": 0.9,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.adbutler__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 84,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "SKILL-018"
+   ],
+   "high_rules": [
+    "SKILL-018"
+   ],
+   "seconds": 0.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.allstacks__allstacks-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-MCP-001"
+   ],
+   "high_rules": [],
+   "seconds": 0.73,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.altmetric.mcp__altmetric-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 11,
+   "rules": [
+    "CRED-001",
+    "CRED-002",
+    "NET-012",
+    "NET-RCE-001",
+    "PROMPT-007"
+   ],
+   "high_rules": [
+    "NET-RCE-001",
+    "PROMPT-007"
+   ],
+   "seconds": 1.12,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.apideck__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 3549,
+   "rules": [
+    "CODE-002",
+    "CODE-003",
+    "CODE-006",
+    "CODE-007",
+    "CODE-012",
+    "CODE-MCP-001",
+    "CRED-002",
+    "CRED-007",
+    "CRED-008",
+    "HYGIENE-001",
+    "INFER-011",
+    "INSTALL-004",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-006",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-012",
+    "OBFUSC-CHAIN-013",
+    "PROV-004",
+    "SUPPLY-007",
+    "SUPPLY-008",
+    "UNICODE-001",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CODE-002",
+    "CRED-007",
+    "CRED-008",
+    "OBFUSC-006",
+    "OBFUSC-CHAIN-006",
+    "SUPPLY-007",
+    "SUPPLY-008"
+   ],
+   "seconds": 11.75,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.appfigures__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 14,
+   "rules": [
+    "CODE-003",
+    "CRED-002",
+    "CRED-ENV-001",
+    "INFER-002",
+    "INFER-011",
+    "OBFUSC-002",
+    "OBFUSC-004",
+    "OBFUSC-CHAIN-013",
+    "UNICODE-002"
+   ],
+   "high_rules": [],
+   "seconds": 3.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.audioeye__testing-sdk-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 7,
+   "rules": [
+    "CODE-008",
+    "CODE-009",
+    "CODE-012",
+    "CRED-002",
+    "INFER-010",
+    "INFER-011",
+    "PROMPT-014"
+   ],
+   "high_rules": [
+    "CODE-008",
+    "CODE-009",
+    "PROMPT-014"
+   ],
+   "seconds": 3.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.auth0__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 40,
+   "rules": [
+    "HYGIENE-001",
+    "OBFUSC-CHAIN-006"
+   ],
+   "high_rules": [
+    "OBFUSC-CHAIN-006"
+   ],
+   "seconds": 0.99,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.automox__automox-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 70,
+   "rules": [
+    "CODE-011",
+    "CODE-014",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "NET-010",
+    "NET-013",
+    "NET-MCP-001",
+    "NET-MCP-002",
+    "OBFUSC-008",
+    "OBFUSC-CHAIN-006",
+    "PROMPT-001",
+    "PROMPT-002",
+    "PROMPT-004",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CODE-014",
+    "CRED-007",
+    "NET-013",
+    "OBFUSC-CHAIN-006",
+    "PROMPT-001",
+    "PROMPT-002",
+    "PROMPT-004"
+   ],
+   "seconds": 2.26,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.blackduck__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 162,
+   "rules": [
+    "CODE-007",
+    "CRED-ENV-001",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "NET-005"
+   ],
+   "high_rules": [],
+   "seconds": 1.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.blindpay__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 7,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.36,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.browser-use__browser-use",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 84,
+   "rules": [
+    "CODE-002",
+    "CODE-004",
+    "CODE-011",
+    "CODE-013",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "CRED-040",
+    "CRED-ENV-001",
+    "INSTR-021",
+    "NET-002",
+    "NET-008",
+    "NET-012",
+    "NET-RCE-001",
+    "OBFUSC-001",
+    "PROMPT-003"
+   ],
+   "high_rules": [
+    "CODE-002",
+    "CRED-007",
+    "CRED-040",
+    "NET-008",
+    "NET-RCE-001",
+    "PROMPT-003"
+   ],
+   "seconds": 4.44,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.clicksend__clicksend-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "CODE-006",
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.29,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.codescene__codescene-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "CODE-007"
+   ],
+   "high_rules": [],
+   "seconds": 2.1,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.cosmicjs__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 20,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "NET-MCP-002",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 1.53,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.dbconvert__streams",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "CODE-007",
+    "CRED-ENV-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.58,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.docfork__docfork-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "CRED-002",
+    "OBFUSC-010"
+   ],
+   "high_rules": [],
+   "seconds": 1.57,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.easyship__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 18,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "CRED-027",
+    "NET-012"
+   ],
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 2.32,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.eclipsesource__review-guard",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 18,
+   "rules": [
+    "CODE-007",
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.91,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.eztexting__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "CODE-007",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.files__python-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 12,
+   "rules": [
+    "CODE-011",
+    "CODE-MCP-001",
+    "CRED-001",
+    "NET-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.geekflare__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.05,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.gitkraken__gk-cli",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "high_rules": [
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 1.73,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.growsurf__growsurf",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 49,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 2.11,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__airbnb",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.71,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__amazon",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__bing",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.07,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__booking",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.42,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hasdata__duckduckgo",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.04,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.hovercode__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 4,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.07,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.intellegens__alchemite-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 14,
+   "rules": [
+    "CODE-MCP-001",
+    "DEPSRC-003"
+   ],
+   "high_rules": [],
+   "seconds": 1.56,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.ismalicious__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 6,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 2.25,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.keboola__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 24,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "NET-007",
+    "NET-012",
+    "OBFUSC-001",
+    "OBFUSC-011",
+    "SKILL-012"
+   ],
+   "high_rules": [
+    "NET-007",
+    "SKILL-012"
+   ],
+   "seconds": 3.45,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.kudosity__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.9,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.letta__memory-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.2,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.macroaxis__macroaxis-api",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "CRED-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.21,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft.esrp__esrp-oss-mcp-test",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 0.99,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__azure",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 8,
+   "rules": [
+    "CODE-007",
+    "CODE-012",
+    "CODE-014",
+    "CODE-MCP-001",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "high_rules": [
+    "CODE-014",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 1.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__esrp-oss-mcp-test",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 1.1,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__microsoft-fabric",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 10,
+   "rules": [
+    "CODE-007",
+    "CODE-012",
+    "CODE-014",
+    "CODE-MCP-001",
+    "INSTALL-003",
+    "SKILL-006",
+    "SKILL-015"
+   ],
+   "high_rules": [
+    "CODE-014",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 1.45,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__powerbi-modeling-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 4,
+   "rules": [
+    "CODE-007",
+    "CODE-012",
+    "NET-015"
+   ],
+   "high_rules": [],
+   "seconds": 1.81,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.microsoft__template-server-name",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 10,
+   "rules": [
+    "CODE-007",
+    "CODE-012",
+    "CODE-014",
+    "CODE-MCP-001",
+    "INSTALL-003",
+    "SKILL-006",
+    "SKILL-015"
+   ],
+   "high_rules": [
+    "CODE-014",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 0.97,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.mux__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 346,
+   "rules": [
+    "CODE-001",
+    "HYGIENE-001",
+    "OBFUSC-003"
+   ],
+   "high_rules": [
+    "CODE-001"
+   ],
+   "seconds": 2.95,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.mysupermarket__grocery-prices",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 0.95,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.offensive360__o360-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "CRED-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.44,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.opensolr__opensolr-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.44,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.opsmill__infrahub-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 14,
+   "rules": [
+    "CODE-MCP-001",
+    "INFER-002",
+    "NET-012",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 58.99,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pdfgate__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 62,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.67,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.postman__postman-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 6,
+   "rules": [
+    "INFER-002",
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "high_rules": [
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 2.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.proabono__mcp-installation",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 23,
+   "rules": [
+    "CRED-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__appsignal",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 10,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.87,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__dynamodb",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 15,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.19,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__fetchpet",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 8,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004",
+    "OBFUSC-003",
+    "OBFUSC-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__fly-io",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 14,
+   "rules": [
+    "CODE-007",
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.31,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__gcs",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 7,
+   "rules": [
+    "CODE-MCP-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.39,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.pulsemcp__remote-filesystem",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 15,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 1.16,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.rootly__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 29,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "NET-001",
+    "NET-012",
+    "PERSIST-004",
+    "PERSIST-005",
+    "PROMPT-017",
+    "PROV-004"
+   ],
+   "high_rules": [
+    "PERSIST-005"
+   ],
+   "seconds": 2.53,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.scoutapm__scout-mcp-local",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.46,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.smartbear__smartbear-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 10,
+   "rules": [
+    "CODE-006",
+    "CRED-002",
+    "CRED-007",
+    "CRED-023",
+    "INSTALL-004",
+    "NET-MCP-002",
+    "OBFUSC-002"
+   ],
+   "high_rules": [
+    "CRED-007",
+    "CRED-023"
+   ],
+   "seconds": 3.36,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.stackhawk__stackhawk",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 41,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.streamkap__tools",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 187,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "MANIP-008",
+    "NET-MCP-002",
+    "OBFUSC-003",
+    "PERSIST-004"
+   ],
+   "high_rules": [],
+   "seconds": 2.47,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.supabase__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 28,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "INFER-010",
+    "OBFUSC-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.98,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.synder__gl-importer-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 26,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.tracklution__server-side-tracking",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "CRED-011",
+    "NET-MCP-002"
+   ],
+   "high_rules": [
+    "CRED-011"
+   ],
+   "seconds": 1.12,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.vaiz__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 22,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 0.98,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.xcodebuildmcp__XcodeBuildMCP",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 429,
+   "rules": [
+    "CODE-007",
+    "CODE-014",
+    "CRED-ENV-001",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "NET-MCP-002",
+    "OBFUSC-003",
+    "PROV-004"
+   ],
+   "high_rules": [
+    "CODE-014"
+   ],
+   "seconds": 8.61,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.xverum__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "CODE-007",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 0.97,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.zeroheight__zeroheight",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 48,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "NET-MCP-002",
+    "SUPPLY-011"
+   ],
+   "high_rules": [
+    "SUPPLY-011"
+   ],
+   "seconds": 1.78,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/com.zype.mcp__server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.23,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.edgegap__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 1,
+   "rules": [
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.39,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.openfeature__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 19,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.19,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.rivet__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 42,
+   "rules": [
+    "CODE-003",
+    "CODE-008",
+    "CODE-009",
+    "HYGIENE-001",
+    "NET-018",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-006",
+    "OBFUSC-012",
+    "OBFUSC-CHAIN-013",
+    "SUPPLY-013",
+    "SUPPLY-014",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CODE-008",
+    "CODE-009",
+    "NET-018",
+    "OBFUSC-006",
+    "OBFUSC-012",
+    "SUPPLY-013",
+    "SUPPLY-014"
+   ],
+   "seconds": 8.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.svelte__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 122,
+   "rules": [
+    "CODE-003",
+    "CODE-012",
+    "HYGIENE-001",
+    "NET-018",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "PROV-004",
+    "PROV-INCOMPLETE-001",
+    "SUPPLY-001",
+    "SUPPLY-007",
+    "SUPPLY-011",
+    "SUPPLY-013",
+    "SUPPLY-016",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "NET-018",
+    "SUPPLY-001",
+    "SUPPLY-007",
+    "SUPPLY-011",
+    "SUPPLY-013",
+    "SUPPLY-016"
+   ],
+   "seconds": 7.13,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/dev.tinify__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "NET-012"
+   ],
+   "high_rules": [],
+   "seconds": 1.61,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.aiven__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 102,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 2.82,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.capawesome__capacitor-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.21,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.capawesome__ionic-framework-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.capawesome__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.18,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.carbone__carbone-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 3,
+   "rules": [
+    "CRED-002",
+    "NET-012",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 2.2,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.form__formio-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "CODE-002",
+    "CODE-007",
+    "CRED-002"
+   ],
+   "high_rules": [
+    "CODE-002"
+   ],
+   "seconds": 2.32,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.form__formio-uag",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 2.5,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.frase__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 159,
+   "rules": [
+    "CODE-003",
+    "CODE-007",
+    "CODE-014",
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004"
+   ],
+   "high_rules": [
+    "CODE-014"
+   ],
+   "seconds": 3.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.fusionauth__mcp-api",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 3,
+   "rules": [
+    "CODE-001",
+    "HYGIENE-001"
+   ],
+   "high_rules": [
+    "CODE-001"
+   ],
+   "seconds": 2.25,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.gainium__gainium-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 9,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.getunleash__unleash-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 84,
+   "rules": [
+    "CODE-001",
+    "CODE-002",
+    "HYGIENE-001",
+    "INFER-002",
+    "NET-001"
+   ],
+   "high_rules": [
+    "CODE-001",
+    "CODE-002"
+   ],
+   "seconds": 2.05,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Automattic__simplenote-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 16,
+   "rules": [
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Azure__containerization-assist",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 732,
+   "rules": [
+    "CODE-001",
+    "CODE-006",
+    "CODE-007",
+    "CODE-MCP-001",
+    "CRED-002",
+    "CRED-ENV-001",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "MANIP-004",
+    "MANIP-006",
+    "NET-004",
+    "NET-012",
+    "NET-RCE-001",
+    "OBFUSC-003",
+    "PERSIST-001",
+    "PROV-002"
+   ],
+   "high_rules": [
+    "CODE-001",
+    "MANIP-004",
+    "NET-RCE-001",
+    "PERSIST-001"
+   ],
+   "seconds": 9.31,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.ChromeDevTools__chrome-devtools-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 126,
+   "rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-003",
+    "CODE-007",
+    "CODE-008",
+    "CODE-009",
+    "CODE-012",
+    "CODE-014",
+    "CODE-MCP-001",
+    "CRED-007",
+    "CRED-018",
+    "CRED-ENV-001",
+    "INSTALL-004",
+    "NET-015",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-008",
+    "OBFUSC-010",
+    "OBFUSC-CHAIN-010",
+    "OBFUSC-CHAIN-011",
+    "OBFUSC-CHAIN-012",
+    "PERSIST-004",
+    "PROV-004",
+    "SUPPLY-008",
+    "SUPPLY-014"
+   ],
+   "high_rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-008",
+    "CODE-009",
+    "CODE-014",
+    "CRED-007",
+    "CRED-018",
+    "OBFUSC-CHAIN-010",
+    "OBFUSC-CHAIN-011",
+    "SUPPLY-008",
+    "SUPPLY-014"
+   ],
+   "seconds": 19.56,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.ClickHouse__mcp-clickhouse",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 174,
+   "rules": [
+    "CODE-010",
+    "CODE-011",
+    "CODE-013",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "CRED-008",
+    "CRED-033",
+    "NET-001",
+    "NET-012",
+    "NET-MCP-001",
+    "NET-MCP-002",
+    "OBFUSC-CHAIN-017",
+    "PROV-001",
+    "SKILL-014"
+   ],
+   "high_rules": [
+    "CRED-007",
+    "CRED-008",
+    "CRED-033",
+    "OBFUSC-CHAIN-017",
+    "SKILL-014"
+   ],
+   "seconds": 3.32,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.CrowdStrike__falcon-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 300,
+   "rules": [
+    "CODE-011",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "NET-MCP-001",
+    "NET-MCP-002"
+   ],
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 3.2,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Decodo__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 84,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 1.75,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.GoogleCloudPlatform__gemini-cloud-assist-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "INSTALL-004",
+    "SUPPLY-005"
+   ],
+   "high_rules": [],
+   "seconds": 1.67,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.NVIDIA__elements",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 89,
+   "rules": [
+    "CODE-003",
+    "CODE-006",
+    "CODE-007",
+    "CODE-008",
+    "CODE-009",
+    "CODE-014",
+    "CODE-RUNFILE-001",
+    "CRED-008",
+    "INFER-010",
+    "NET-012",
+    "NET-EXE-001",
+    "NET-MCP-002",
+    "NET-RCE-001",
+    "OBFUSC-001",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-008",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-009",
+    "OBFUSC-CHAIN-013",
+    "PERSIST-004",
+    "PROMPT-004",
+    "PROMPT-017",
+    "SUPPLY-008",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CODE-008",
+    "CODE-009",
+    "CODE-014",
+    "CRED-008",
+    "NET-RCE-001",
+    "OBFUSC-CHAIN-006",
+    "PROMPT-004",
+    "SUPPLY-008"
+   ],
+   "seconds": 8.39,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.PagerDuty__pagerduty-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 11,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "NET-002"
+   ],
+   "high_rules": [],
+   "seconds": 2.86,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.PrefectHQ__prefect-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 63,
+   "rules": [
+    "CODE-013",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "INFER-011",
+    "INSTALL-MCP-002",
+    "NET-012",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 4.14,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.SAP-samples__hana-cli",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 1501,
+   "rules": [
+    "ARTIFACT-007",
+    "ARTIFACT-008",
+    "ARTIFACT-011",
+    "CODE-001",
+    "CODE-002",
+    "CODE-003",
+    "CODE-007",
+    "CODE-008",
+    "CODE-009",
+    "CODE-012",
+    "CODE-014",
+    "CODE-RUNFILE-001",
+    "CRED-002",
+    "CRED-008",
+    "CRED-011",
+    "CRED-033",
+    "CRED-ENV-001",
+    "DEPSRC-005",
+    "GHSA-28wg-ghj8-5hjv",
+    "GHSA-2v37-7h3g-55p8",
+    "GHSA-2v8p-3f2j-5mp7",
+    "GHSA-3rrr-jr9j-h3q3",
+    "GHSA-4r6h-8v6p-xvw6",
+    "GHSA-55q2-fjhq-7xh7",
+    "GHSA-5pgg-2g8v-p4x9",
+    "GHSA-6x64-9x62-f2gx",
+    "GHSA-82fw-gwwq-j7x9",
+    "GHSA-8r6m-32jq-jx6q",
+    "GHSA-c2j3-45gr-mqc4",
+    "GHSA-c4c3-pg64-4m4v",
+    "GHSA-fxqj-rqcc-2cmp",
+    "GHSA-r28c-9q8g-f849",
+    "GHSA-rhh3-jpg6-66xh",
+    "HYGIENE-001",
+    "INFER-002",
+    "INFER-011",
+    "INSTALL-003",
+    "INSTALL-004",
+    "INSTR-019",
+    "MANIP-004",
+    "MANIP-006",
+    "MANIP-008",
+    "NET-004",
+    "NET-012",
+    "NET-MCP-002",
+    "NET-RCE-001",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-006",
+    "OBFUSC-008",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-008",
+    "OBFUSC-CHAIN-009",
+    "OBFUSC-CHAIN-010",
+    "OBFUSC-CHAIN-012",
+    "OBFUSC-CHAIN-013",
+    "PERSIST-004",
+    "PERSIST-005",
+    "PROMPT-004",
+    "PROMPT-014",
+    "PROV-001",
+    "PROV-004",
+    "SKILL-006",
+    "SKILL-013",
+    "SKILL-015",
+    "SUPPLY-001",
+    "SUPPLY-007",
+    "SUPPLY-008",
+    "SUPPLY-014",
+    "UNICODE-001",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "ARTIFACT-011",
+    "CODE-001",
+    "CODE-002",
+    "CODE-008",
+    "CODE-009",
+    "CODE-014",
+    "CRED-008",
+    "CRED-011",
+    "CRED-033",
+    "DEPSRC-005",
+    "GHSA-28wg-ghj8-5hjv",
+    "GHSA-2v37-7h3g-55p8",
+    "GHSA-4r6h-8v6p-xvw6",
+    "GHSA-5pgg-2g8v-p4x9",
+    "GHSA-8r6m-32jq-jx6q",
+    "GHSA-r28c-9q8g-f849",
+    "INSTALL-003",
+    "MANIP-004",
+    "NET-RCE-001",
+    "OBFUSC-006",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-010",
+    "PERSIST-005",
+    "PROMPT-004",
+    "PROMPT-014",
+    "SKILL-006",
+    "SUPPLY-001",
+    "SUPPLY-007",
+    "SUPPLY-008",
+    "SUPPLY-014"
+   ],
+   "seconds": 59.55,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.SAP__fiori-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 104,
+   "rules": [
+    "CODE-003",
+    "CODE-008",
+    "CODE-009",
+    "CODE-012",
+    "CRED-008",
+    "CRED-ENV-001",
+    "INFER-010",
+    "INFER-011",
+    "NET-012",
+    "NET-013",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-008",
+    "OBFUSC-CHAIN-012",
+    "OBFUSC-CHAIN-015",
+    "PERSIST-004",
+    "PERSIST-005",
+    "PROV-002",
+    "PROV-004",
+    "PROV-BUDGET-001",
+    "PROV-INCOMPLETE-001",
+    "SUPPLY-008",
+    "SUPPLY-014",
+    "UNICODE-001"
+   ],
+   "high_rules": [
+    "CODE-008",
+    "CODE-009",
+    "CRED-008",
+    "NET-013",
+    "OBFUSC-CHAIN-015",
+    "PERSIST-005",
+    "SUPPLY-008",
+    "SUPPLY-014"
+   ],
+   "seconds": 31.25,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.Snowflake-Labs__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 16,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "NET-001",
+    "NET-012",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.44,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.ZenRows__zenrows-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 6,
+   "rules": [
+    "CRED-001",
+    "CRED-002",
+    "INSTALL-004",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 0.99,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.appwrite__mcp-for-api",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 10,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "NET-012",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 0.98,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.aws__aws-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 276,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "INFER-009",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 2.65,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.aws__mcp-proxy-for-aws",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 267,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "INFER-009",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 2.26,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.awslabs__mcp-server-for-oscal",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 119,
+   "rules": [
+    "ARTIFACT-007",
+    "CODE-010",
+    "CODE-011",
+    "CODE-013",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-ENV-001",
+    "GHSA-4q5v-7g7x-j79w",
+    "GHSA-4xgf-cpjx-pc3j",
+    "GHSA-537c-gmf6-5ccf",
+    "GHSA-5p39-cfhj-2xmp",
+    "GHSA-5rvq-cxj2-64vf",
+    "GHSA-65pc-fj4g-8rjx",
+    "GHSA-6jv3-5f52-599m",
+    "GHSA-82r6-8w77-94w6",
+    "GHSA-82w8-qh3p-5jfq",
+    "GHSA-86qp-5c8j-p5mr",
+    "GHSA-993g-76c3-p5m4",
+    "GHSA-fhv5-28vv-h8m8",
+    "GHSA-g3vg-vx23-3858",
+    "GHSA-g6cj-pr64-35w5",
+    "GHSA-gg2g-p7xc-qqmm",
+    "GHSA-h47f-gmjp-m7rr",
+    "GHSA-hvrp-rf83-w775",
+    "GHSA-jp82-jpqv-5vv3",
+    "GHSA-jpw9-pfvf-9f58",
+    "GHSA-jq35-7prp-9v3f",
+    "GHSA-jw39-3688-r4rx",
+    "GHSA-jwv3-5hgf-82ww",
+    "GHSA-m2h6-j472-rp4c",
+    "GHSA-m959-cc7f-wv43",
+    "GHSA-mf9v-mfxr-j63j",
+    "GHSA-mj4x-vf5c-5xg8",
+    "GHSA-mj87-hwqh-73pj",
+    "GHSA-mr95-65j8-9mxp",
+    "GHSA-p423-j2cm-9vmq",
+    "GHSA-pp6c-gr5w-3c5g",
+    "GHSA-qccp-gfcp-xxvc",
+    "GHSA-r374-rxx8-8654",
+    "GHSA-r4vp-3vw6-r2x5",
+    "GHSA-v9pg-7xvm-68hf",
+    "GHSA-vffw-93wf-4j4q",
+    "GHSA-vj7q-gjh5-988w",
+    "GHSA-w76h-q7c6-jpjp",
+    "GHSA-w7vc-732c-9m39",
+    "GHSA-wqp7-x3pw-xc5r",
+    "GHSA-x746-7m8f-x49c",
+    "GHSA-xgmm-8j9v-c9wx",
+    "INSTALL-MCP-002",
+    "MANIP-008",
+    "NET-001",
+    "NET-012",
+    "NET-MCP-001",
+    "OBFUSC-CHAIN-017",
+    "PROV-001",
+    "PYSEC-2026-141",
+    "PYSEC-2026-142",
+    "PYSEC-2026-161",
+    "PYSEC-2026-175",
+    "PYSEC-2026-177",
+    "PYSEC-2026-178",
+    "PYSEC-2026-179",
+    "PYSEC-2026-2132",
+    "PYSEC-2026-215",
+    "PYSEC-2026-2280",
+    "PYSEC-2026-2281",
+    "PYSEC-2026-2423",
+    "PYSEC-2026-2424",
+    "PYSEC-2026-2425",
+    "PYSEC-2026-2426",
+    "PYSEC-2026-2427",
+    "PYSEC-2026-248",
+    "PYSEC-2026-249",
+    "PYSEC-2026-2858",
+    "PYSEC-2026-3036",
+    "PYSEC-2026-3037",
+    "PYSEC-2026-3038",
+    "PYSEC-2026-3039",
+    "PYSEC-2026-3040",
+    "PYSEC-2026-3041",
+    "PYSEC-2026-3481",
+    "PYSEC-2026-3482",
+    "PYSEC-2026-3483",
+    "PYSEC-2026-35",
+    "PYSEC-2026-3552",
+    "PYSEC-2026-3553",
+    "PYSEC-2026-3554",
+    "PYSEC-2026-36",
+    "PYSEC-2026-3659",
+    "PYSEC-2026-3817"
+   ],
+   "high_rules": [
+    "GHSA-4q5v-7g7x-j79w",
+    "GHSA-537c-gmf6-5ccf",
+    "GHSA-5rvq-cxj2-64vf",
+    "GHSA-82r6-8w77-94w6",
+    "GHSA-82w8-qh3p-5jfq",
+    "GHSA-g3vg-vx23-3858",
+    "GHSA-g6cj-pr64-35w5",
+    "GHSA-gg2g-p7xc-qqmm",
+    "GHSA-h47f-gmjp-m7rr",
+    "GHSA-hvrp-rf83-w775",
+    "GHSA-jpw9-pfvf-9f58",
+    "GHSA-jw39-3688-r4rx",
+    "GHSA-jwv3-5hgf-82ww",
+    "GHSA-mf9v-mfxr-j63j",
+    "GHSA-mr95-65j8-9mxp",
+    "GHSA-pp6c-gr5w-3c5g",
+    "GHSA-qccp-gfcp-xxvc",
+    "GHSA-r4vp-3vw6-r2x5",
+    "GHSA-vj7q-gjh5-988w",
+    "GHSA-wqp7-x3pw-xc5r",
+    "GHSA-xgmm-8j9v-c9wx",
+    "OBFUSC-CHAIN-017",
+    "PYSEC-2026-142",
+    "PYSEC-2026-161",
+    "PYSEC-2026-179",
+    "PYSEC-2026-2132",
+    "PYSEC-2026-2281",
+    "PYSEC-2026-2423",
+    "PYSEC-2026-2424",
+    "PYSEC-2026-2425",
+    "PYSEC-2026-2426",
+    "PYSEC-2026-249",
+    "PYSEC-2026-3036",
+    "PYSEC-2026-3039",
+    "PYSEC-2026-3481",
+    "PYSEC-2026-3482",
+    "PYSEC-2026-3483",
+    "PYSEC-2026-3552",
+    "PYSEC-2026-3553",
+    "PYSEC-2026-3554",
+    "PYSEC-2026-36",
+    "PYSEC-2026-3659",
+    "PYSEC-2026-3817"
+   ],
+   "seconds": 14.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.brave__brave-search-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 10,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "INSTALL-004",
+    "NET-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.6,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.brightdata__brightdata-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 7,
+   "rules": [
+    "AGENTSC-033",
+    "CODE-MCP-001",
+    "CRED-002",
+    "MANIP-006"
+   ],
+   "high_rules": [],
+   "seconds": 1.06,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.browserbase__mcp-server-browserbase",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 5,
+   "rules": [
+    "CRED-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.browserstack__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 20,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "INFER-004",
+    "INFER-005",
+    "INSTR-019",
+    "NET-004",
+    "OBFUSC-003"
+   ],
+   "high_rules": [
+    "INFER-004",
+    "INFER-005"
+   ],
+   "seconds": 2.54,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-browser",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 61,
+   "rules": [
+    "CODE-007",
+    "CODE-MCP-001",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-008"
+   ],
+   "high_rules": [],
+   "seconds": 10.41,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-commands",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 17,
+   "rules": [
+    "CODE-002",
+    "CODE-007",
+    "CODE-MCP-001",
+    "OBFUSC-002"
+   ],
+   "high_rules": [
+    "CODE-002"
+   ],
+   "seconds": 3.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-filesystem",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 13,
+   "rules": [
+    "CODE-007",
+    "CODE-MCP-001",
+    "OBFUSC-002",
+    "OBFUSC-004"
+   ],
+   "high_rules": [],
+   "seconds": 3.82,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.bytedance__mcp-server-search",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 10,
+   "rules": [
+    "CRED-002",
+    "INFER-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.1,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.cloudinary__asset-management-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 551,
+   "rules": [
+    "CODE-003",
+    "CODE-012",
+    "CODE-MCP-001",
+    "CRED-002",
+    "CRED-007",
+    "HYGIENE-001",
+    "INFER-011",
+    "INSTALL-004",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-004",
+    "OBFUSC-006",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-012",
+    "OBFUSC-CHAIN-013",
+    "SUPPLY-007",
+    "SUPPLY-008",
+    "UNICODE-001",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CRED-007",
+    "OBFUSC-006",
+    "OBFUSC-CHAIN-006",
+    "SUPPLY-007",
+    "SUPPLY-008"
+   ],
+   "seconds": 6.71,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.comet-ml__opik-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "CRED-002"
+   ],
+   "high_rules": [],
+   "seconds": 2.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.configcat__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 1,
+   "rules": [
+    "INSTR-024"
+   ],
+   "high_rules": [],
+   "seconds": 2.38,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.containers__kubernetes-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "CODE-007",
+    "OBFUSC-CHAIN-006"
+   ],
+   "high_rules": [
+    "OBFUSC-CHAIN-006"
+   ],
+   "seconds": 1.02,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.couchbase__mcp-server-couchbase",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 61,
+   "rules": [
+    "CODE-013",
+    "CODE-MCP-001",
+    "CODE-MCP-002",
+    "CRED-001",
+    "CRED-008",
+    "CRED-ENV-001",
+    "HYGIENE-005",
+    "MANIP-008",
+    "NET-001",
+    "NET-002",
+    "NET-012",
+    "NET-MCP-002",
+    "OBFUSC-CHAIN-006",
+    "PROV-001"
+   ],
+   "high_rules": [
+    "CRED-008",
+    "OBFUSC-CHAIN-006"
+   ],
+   "seconds": 3.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.dynatrace-oss__Dynatrace-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 463,
+   "rules": [
+    "CODE-001",
+    "CODE-003",
+    "CODE-007",
+    "CODE-012",
+    "CODE-MCP-001",
+    "CRED-002",
+    "NET-012",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-008",
+    "OBFUSC-CHAIN-009",
+    "OBFUSC-CHAIN-012",
+    "PERSIST-001",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CODE-001",
+    "PERSIST-001"
+   ],
+   "seconds": 8.03,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.dynatrace-oss__dynatrace-managed-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 37,
+   "rules": [
+    "CODE-006",
+    "CODE-007",
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.87,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.firebase__firebase-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 93,
+   "rules": [
+    "CODE-003",
+    "CODE-007",
+    "CODE-012",
+    "CRED-002",
+    "CRED-008",
+    "CRED-018",
+    "CRED-ENV-001",
+    "INSTALL-MCP-002",
+    "NET-005",
+    "NET-012",
+    "NET-RCE-001",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "SKILL-015",
+    "SUPPLY-005",
+    "SUPPLY-007",
+    "TYPOSQUAT-001"
+   ],
+   "high_rules": [
+    "CRED-008",
+    "CRED-018",
+    "NET-RCE-001",
+    "SUPPLY-007",
+    "TYPOSQUAT-001"
+   ],
+   "seconds": 5.41,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.firecrawl__firecrawl-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 12,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.82,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.getsentry__sentry-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 55,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "NET-MCP-002",
+    "OBFUSC-002",
+    "OBFUSC-004",
+    "SUPPLY-010"
+   ],
+   "high_rules": [],
+   "seconds": 4.18,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.growthbook__growthbook-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 6,
+   "rules": [
+    "CRED-002",
+    "MANIP-006"
+   ],
+   "high_rules": [],
+   "seconds": 3.22,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.localstack__localstack-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 159,
+   "rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-003",
+    "CODE-007",
+    "CODE-012",
+    "CRED-002",
+    "CRED-ENV-001",
+    "INFER-002",
+    "INFER-004",
+    "INFER-005",
+    "INFER-010",
+    "INFER-011",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004"
+   ],
+   "high_rules": [
+    "CODE-001",
+    "CODE-002",
+    "INFER-004",
+    "INFER-005"
+   ],
+   "seconds": 4.75,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mapbox__mcp-devkit-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 434,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-003",
+    "INSTR-019",
+    "OBFUSC-003",
+    "OBFUSC-008",
+    "PROMPT-017",
+    "SKILL-006"
+   ],
+   "high_rules": [
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 4.13,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mapbox__mcp-docs-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 136,
+   "rules": [
+    "HYGIENE-001"
+   ],
+   "high_rules": [],
+   "seconds": 2.27,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mapbox__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 399,
+   "rules": [
+    "CODE-007",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-003",
+    "INSTALL-004",
+    "SKILL-006"
+   ],
+   "high_rules": [
+    "INSTALL-003",
+    "SKILL-006"
+   ],
+   "seconds": 3.33,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.microsoft__playwright-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "high_rules": [],
+   "seconds": 2.16,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mongodb-js__mongodb-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 671,
+   "rules": [
+    "CODE-002",
+    "CODE-003",
+    "CODE-007",
+    "CODE-012",
+    "HYGIENE-001",
+    "INFER-010",
+    "INFER-011",
+    "MANIP-008",
+    "NET-012",
+    "NET-MCP-001",
+    "OBFUSC-002",
+    "OBFUSC-004",
+    "OBFUSC-008",
+    "OBFUSC-CHAIN-009",
+    "OBFUSC-CHAIN-013"
+   ],
+   "high_rules": [
+    "CODE-002"
+   ],
+   "seconds": 8.29,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.motherduckdb__mcp-server-motherduck",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 47,
+   "rules": [
+    "CODE-013",
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-ENV-001",
+    "INSTALL-005",
+    "INSTALL-006",
+    "NET-009",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 3.36,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.mozilla__firefox-devtools-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 21,
+   "rules": [
+    "CODE-003",
+    "CODE-007",
+    "CODE-014",
+    "CRED-002",
+    "INSTALL-004",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004"
+   ],
+   "high_rules": [
+    "CODE-014"
+   ],
+   "seconds": 3.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__gds-agent",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 36,
+   "rules": [
+    "CODE-013",
+    "CODE-MCP-001",
+    "CODE-MCP-002",
+    "CRED-001",
+    "INSTALL-MCP-002",
+    "NET-012",
+    "NET-MCP-001",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.81,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-aura-manager",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 58,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "INSTALL-006",
+    "INSTR-019",
+    "NET-001",
+    "NET-012",
+    "NET-MCP-002"
+   ],
+   "high_rules": [
+    "CRED-007"
+   ],
+   "seconds": 2.28,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-cypher",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 31,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-008",
+    "CRED-ENV-001",
+    "INSTR-019",
+    "NET-012",
+    "NET-MCP-001",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [
+    "CRED-008"
+   ],
+   "seconds": 1.73,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-data-modeling",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 27,
+   "rules": [
+    "CODE-MCP-001",
+    "INSTALL-006",
+    "INSTR-019",
+    "NET-012",
+    "NET-MCP-001",
+    "NET-MCP-002",
+    "PROV-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.8,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-contrib__mcp-neo4j-memory",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 31,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-008",
+    "NET-012",
+    "NET-MCP-001",
+    "NET-MCP-002"
+   ],
+   "high_rules": [
+    "CRED-008"
+   ],
+   "seconds": 1.91,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.neo4j-labs__neo4j-mcp-canary",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "CODE-013",
+    "NET-012",
+    "PROV-002",
+    "PROV-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.34,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.paypal__paypal-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "CRED-002",
+    "NET-012"
+   ],
+   "high_rules": [],
+   "seconds": 1.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.perplexityai__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004",
+    "INSTALL-MCP-002"
+   ],
+   "high_rules": [],
+   "seconds": 1.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.questdb__mcp-server-questdb",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "CODE-007",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 1.74,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.redis__mcp-redis",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 4,
+   "rules": [
+    "CODE-011",
+    "CODE-MCP-001",
+    "CRED-001"
+   ],
+   "high_rules": [],
+   "seconds": 1.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.saucelabs__sauce-api-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 12,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "OBFUSC-001",
+    "SKILL-013"
+   ],
+   "high_rules": [],
+   "seconds": 1.5,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.snyk__saw-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-008",
+    "NET-001"
+   ],
+   "high_rules": [
+    "CRED-008"
+   ],
+   "seconds": 1.32,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.tavily-ai__tavily-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 0.71,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.team-telnyx__telnyx",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 1657,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "CRED-008",
+    "CRED-027",
+    "HYGIENE-001",
+    "INFER-002",
+    "NET-001",
+    "NET-004",
+    "NET-006",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "PROV-001"
+   ],
+   "high_rules": [
+    "CRED-008"
+   ],
+   "seconds": 2.56,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.timescale__pg-aiguide",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 18,
+   "rules": [
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 0.99,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.timescale__tiger-skills",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 14,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "OBFUSC-003"
+   ],
+   "high_rules": [],
+   "seconds": 0.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.upstash__context7",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 12,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "NET-MCP-002",
+    "OBFUSC-010"
+   ],
+   "high_rules": [],
+   "seconds": 0.77,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.upstash__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "LOW",
+   "findings": 6,
+   "rules": [
+    "CRED-002",
+    "HYGIENE-001",
+    "INFER-002",
+    "NET-012"
+   ],
+   "high_rules": [],
+   "seconds": 0.69,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.upstash__redis-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "CODE-002",
+    "CRED-002",
+    "HYGIENE-001"
+   ],
+   "high_rules": [
+    "CODE-002"
+   ],
+   "seconds": 0.58,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.github.vercel__next-devtools-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 33,
+   "rules": [
+    "AGENTSC-030",
+    "CODE-007",
+    "CRED-002",
+    "INSTR-014",
+    "NET-004",
+    "PERSIST-004"
+   ],
+   "high_rules": [
+    "INSTR-014"
+   ],
+   "seconds": 0.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.mailtrap__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "CRED-002",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 0.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.oxylabs__oxylabs-mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 23,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-001",
+    "CRED-007",
+    "CRED-008",
+    "INSTALL-006",
+    "NET-012",
+    "OBFUSC-001"
+   ],
+   "high_rules": [
+    "CRED-007",
+    "CRED-008"
+   ],
+   "seconds": 0.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.prospeo__prospeo-mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 35,
+   "rules": [
+    "CODE-MCP-001",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004"
+   ],
+   "high_rules": [],
+   "seconds": 0.73,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.qase__mcp-server",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 161,
+   "rules": [
+    "CODE-002",
+    "CRED-002",
+    "HYGIENE-001",
+    "INSTALL-004",
+    "MANIP-008",
+    "NET-012",
+    "NET-MCP-002",
+    "OBFUSC-003",
+    "PROMPT-014"
+   ],
+   "high_rules": [
+    "CODE-002",
+    "PROMPT-014"
+   ],
+   "seconds": 0.93,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.scorecard__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "MEDIUM",
+   "findings": 121,
+   "rules": [
+    "CODE-001",
+    "HYGIENE-001"
+   ],
+   "high_rules": [
+    "CODE-001"
+   ],
+   "seconds": 0.88,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.scrapfly.mcp__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 18,
+   "rules": [
+    "GHSA-5cv4-jp36-h3mw",
+    "GHSA-89xv-2j6f-qhc8",
+    "GHSA-q382-vc8q-7jhj",
+    "GHSA-wvj2-96wp-fq3f",
+    "GHSA-xw59-hvm2-8pj6",
+    "GO-2026-4569",
+    "GO-2026-4770",
+    "GO-2026-4773",
+    "GO-2026-4918",
+    "GO-2026-5025",
+    "GO-2026-5026",
+    "GO-2026-5027",
+    "GO-2026-5028",
+    "GO-2026-5029",
+    "GO-2026-5030",
+    "GO-2026-5771",
+    "GO-2026-5942",
+    "INSTALL-MCP-002"
+   ],
+   "high_rules": [
+    "GHSA-89xv-2j6f-qhc8",
+    "GHSA-q382-vc8q-7jhj",
+    "GHSA-wvj2-96wp-fq3f",
+    "GHSA-xw59-hvm2-8pj6",
+    "GO-2026-4569",
+    "GO-2026-4770",
+    "GO-2026-4773",
+    "GO-2026-4918",
+    "GO-2026-5025",
+    "GO-2026-5026",
+    "GO-2026-5027",
+    "GO-2026-5028",
+    "GO-2026-5029",
+    "GO-2026-5030",
+    "GO-2026-5771",
+    "GO-2026-5942"
+   ],
+   "seconds": 2.11,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.slingdata__sling-cli",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "HIGH",
+   "findings": 15,
+   "rules": [
+    "CODE-006",
+    "CODE-013",
+    "CODE-015",
+    "CRED-033",
+    "CRED-ENV-001",
+    "INSTALL-001",
+    "NET-002"
+   ],
+   "high_rules": [
+    "CRED-033",
+    "INSTALL-001"
+   ],
+   "seconds": 0.68,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/io.snyk__mcp",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 387,
+   "rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-003",
+    "CODE-007",
+    "CODE-008",
+    "CODE-009",
+    "CODE-012",
+    "CRED-002",
+    "CRED-008",
+    "CRED-ENV-001",
+    "HYGIENE-001",
+    "INFER-009",
+    "INSTALL-003",
+    "INSTR-021",
+    "NET-018",
+    "OBFUSC-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-006",
+    "OBFUSC-007",
+    "OBFUSC-008",
+    "OBFUSC-010",
+    "OBFUSC-012",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-CHAIN-009",
+    "OBFUSC-CHAIN-012",
+    "OBFUSC-CHAIN-013",
+    "PAD-003",
+    "PROMPT-004",
+    "PROV-001",
+    "PROV-002",
+    "PROV-004",
+    "PROV-INCOMPLETE-001",
+    "SKILL-006",
+    "SKILL-022",
+    "SUPPLY-001",
+    "SUPPLY-006",
+    "SUPPLY-007",
+    "SUPPLY-008",
+    "SUPPLY-009",
+    "SUPPLY-010",
+    "SUPPLY-011",
+    "SUPPLY-012",
+    "SUPPLY-014",
+    "UNICODE-001",
+    "UNICODE-002",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-008",
+    "CODE-009",
+    "CRED-008",
+    "INSTALL-003",
+    "NET-018",
+    "OBFUSC-006",
+    "OBFUSC-007",
+    "OBFUSC-012",
+    "OBFUSC-CHAIN-006",
+    "PROMPT-004",
+    "SKILL-006",
+    "SKILL-022",
+    "SUPPLY-001",
+    "SUPPLY-006",
+    "SUPPLY-007",
+    "SUPPLY-008",
+    "SUPPLY-009",
+    "SUPPLY-011",
+    "SUPPLY-012",
+    "SUPPLY-014"
+   ],
+   "seconds": 7.53,
+   "error": null
+  },
+  {
+   "sample": "corpora/mcp_clean/ly.img__codesign",
+   "label": "clean",
+   "corpus": "mcp_clean",
+   "tool": "sigil",
+   "level": "CRITICAL",
+   "findings": 389,
+   "rules": [
+    "ARTIFACT-007",
+    "CODE-007",
+    "CODE-012",
+    "CODE-RUNFILE-001",
+    "CRED-002",
+    "CRED-007",
+    "DEPSRC-006",
+    "HYGIENE-001",
+    "INFER-002",
+    "INFER-011",
+    "INSTALL-004",
+    "INSTR-019",
+    "INSTR-023",
+    "MANIP-007",
+    "NET-004",
+    "NET-012",
+    "NET-018",
+    "NET-MCP-002",
+    "OBFUSC-003",
+    "OBFUSC-004",
+    "OBFUSC-007",
+    "OBFUSC-CHAIN-006",
+    "OBFUSC-NUL-001",
+    "PROMPT-004",
+    "PROMPT-017",
+    "PROV-004",
+    "SKILL-018",
+    "SUPPLY-001",
+    "SUPPLY-007",
+    "UNICODE-003"
+   ],
+   "high_rules": [
+    "CRED-007",
+    "MANIP-007",
+    "NET-018",
+    "OBFUSC-007",
+    "OBFUSC-CHAIN-006",
+    "PROMPT-004",
+    "SKILL-018",
+    "SUPPLY-001",
+    "SUPPLY-007"
+   ],
+   "seconds": 9.16,
+   "error": null
+  }
+ ]
+}

@@ -45,6 +45,21 @@ def _should_bypass_during_pytest() -> bool:
     return "TestRateLimiting" not in current
 
 
+def _client_ip(request: Request) -> str:
+    """Resolve the real client IP behind Container Apps ingress.
+
+    The ingress proxy connects from loopback, so ``request.client.host`` is
+    the same for every caller and all traffic would share one rate-limit
+    bucket. The ingress appends the caller's IP to X-Forwarded-For; take the
+    last entry (the hop added by the trusted proxy — earlier entries are
+    client-supplied and spoofable).
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    if forwarded:
+        return forwarded.split(",")[-1].strip()
+    return request.client.host if request.client else "unknown"
+
+
 # ---------------------------------------------------------------------------
 # Per-endpoint rate limiter (FastAPI dependency)
 # ---------------------------------------------------------------------------
@@ -80,7 +95,7 @@ class RateLimiter:
         if _should_bypass_during_pytest():
             return
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         prefix = self.key_prefix or request.url.path
         key = f"ratelimit:{prefix}:{client_ip}"
 
@@ -130,11 +145,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if _should_bypass_during_pytest():
             return await call_next(request)
 
-        # Skip health checks and root except during explicit rate-limit tests
-        if request.url.path in ("/health", "/") and _should_bypass_during_pytest():
+        # Never throttle infra health probes or root: a 429 here fails the
+        # container's liveness probe and puts the app in a restart loop.
+        if request.url.path == "/" or request.url.path.startswith("/health"):
             return await call_next(request)
 
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _client_ip(request)
         key = f"ratelimit:global:{client_ip}"
 
         count = await cache.incr(key, ttl=self.window)

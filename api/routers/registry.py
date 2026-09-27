@@ -34,6 +34,13 @@ router = APIRouter(prefix="/registry", tags=["registry"])
 
 TABLE = "public_scans"
 
+# List views never need findings_json/metadata_json — both are NVARCHAR(MAX)
+# LOBs, and reading them per row dominates query cost.
+SUMMARY_COLUMNS = (
+    "id, ecosystem, package_name, package_version, risk_score, "
+    "verdict, findings_count, files_scanned, scanned_at, created_at"
+)
+
 
 # ---------------------------------------------------------------------------
 # Response models
@@ -217,7 +224,7 @@ async def search_registry(
         # This avoids an expensive COUNT(*) over the full table
         fetch_limit = per_page + 1
         data_sql = (
-            f"SELECT * FROM {TABLE} WHERE {where} "
+            f"SELECT {SUMMARY_COLUMNS} FROM {TABLE} WHERE {where} "
             f"ORDER BY scanned_at DESC "
             f"OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY"
         )
@@ -316,31 +323,56 @@ async def list_ecosystem(
     sort: str = Query("recent", description="Sort: recent, risk, name"),
 ) -> RegistrySearchResponse:
     """List all scanned packages in a given ecosystem (clawhub, npm, pip, etc.)."""
-    rows = await db.select(TABLE, {"ecosystem": ecosystem}, limit=10_000)
-
-    # Exclude failed scans — ERROR verdicts have no meaningful results
-    rows = [r for r in rows if r.get("verdict") != "ERROR"]
-
-    if sort == "risk":
-        rows.sort(key=lambda r: r.get("risk_score", 0), reverse=True)
-    elif sort == "name":
-        rows.sort(key=lambda r: r.get("package_name", ""))
-    else:
-        rows.sort(
-            key=lambda r: r.get("scanned_at", r.get("created_at", "")), reverse=True
+    if db._pool:
+        # No dedup needed: UQ_public_scans_ecosystem_package guarantees one
+        # row per (ecosystem, package_name, package_version), so the previous
+        # ROW_NUMBER window (and its exact COUNT) only forced full partition
+        # scans of the LOB-heavy table (2026-07-19 saturation incident).
+        # Plain paged query + one-extra-row total estimate, like /search.
+        sort_sql = {
+            "risk": "risk_score DESC",
+            "name": "package_name ASC",
+        }.get(sort, "scanned_at DESC")
+        offset = (page - 1) * per_page
+        fetch_limit = per_page + 1
+        page_rows = await db.execute_raw_sql(
+            f"SELECT {SUMMARY_COLUMNS} FROM {TABLE} "
+            "WHERE ecosystem = ? AND verdict != 'ERROR' "
+            f"ORDER BY {sort_sql} "
+            f"OFFSET {offset} ROWS FETCH NEXT {fetch_limit} ROWS ONLY",
+            (ecosystem,),
         )
+        has_more = len(page_rows) > per_page
+        if has_more:
+            page_rows = page_rows[:per_page]
+        total = offset + len(page_rows) + (1 if has_more else 0)
+    else:
+        rows = await db.select(TABLE, {"ecosystem": ecosystem}, limit=10_000)
 
-    # Deduplicate: keep latest scan per package
-    seen: dict[str, dict[str, Any]] = {}
-    for r in rows:
-        key = f"{r.get('package_name', '')}@{r.get('package_version', '')}"
-        if key not in seen:
-            seen[key] = r
+        # Exclude failed scans — ERROR verdicts have no meaningful results
+        rows = [r for r in rows if r.get("verdict") != "ERROR"]
 
-    deduped = list(seen.values())
-    total = len(deduped)
-    start = (page - 1) * per_page
-    page_rows = deduped[start : start + per_page]
+        if sort == "risk":
+            rows.sort(key=lambda r: r.get("risk_score", 0), reverse=True)
+        elif sort == "name":
+            rows.sort(key=lambda r: r.get("package_name", ""))
+        else:
+            rows.sort(
+                key=lambda r: r.get("scanned_at", r.get("created_at", "")),
+                reverse=True,
+            )
+
+        # Deduplicate: keep latest scan per package
+        seen: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            key = f"{r.get('package_name', '')}@{r.get('package_version', '')}"
+            if key not in seen:
+                seen[key] = r
+
+        deduped = list(seen.values())
+        total = len(deduped)
+        start = (page - 1) * per_page
+        page_rows = deduped[start : start + per_page]
 
     return RegistrySearchResponse(
         items=[_row_to_summary(r) for r in page_rows],

@@ -1,0 +1,135 @@
+# =============================================================================
+# Sigil — GitLab CI template
+#
+# Include it (pin the ref to a release tag):
+#
+#   include:
+#     - remote: "https://raw.githubusercontent.com/NOMARJ/sigil/v1.3.6/ci-templates/gitlab/sigil.gitlab-ci.yml"
+#
+# or copy this file into your repository and use `include: - local: ...`.
+#
+# It adds two jobs to the `test` stage:
+#
+#   sigil-scan            Whole-repository scan. Fails on a finding at or above
+#                         SIGIL_FAIL_ON. Publishes a GitLab Code Quality report
+#                         (merge-request widget, every tier) plus sigil.json and
+#                         sigil.sarif artifacts.
+#   sigil-agent-tooling   `sigil skills scan --no-user` over the agent tooling
+#                         committed with the project: .claude/ skills, agents
+#                         and hooks, .mcp.json, .cursor/, .vscode/mcp.json,
+#                         .gemini/, .codex/, opencode.json ...
+#
+# Override any variable in your .gitlab-ci.yml, or extend the hidden jobs
+# (.sigil-scan / .sigil-agent-tooling) to change stage, rules or image.
+#
+# The binary is downloaded from the GitHub release and verified against the
+# release's SHA256SUMS.txt before it runs. The release binaries link glibc
+# (>= 2.35), hence the Debian image; for a container-only setup use the
+# nomark/sigil image instead (see docs/cicd.md).
+# =============================================================================
+
+variables:
+  SIGIL_VERSION: "latest"   # release tag, e.g. v1.3.6, or "latest"
+  SIGIL_SCAN_PATH: "."
+  SIGIL_FAIL_ON: "high"     # low | medium | high | critical
+  SIGIL_SCAN_ARGS: ""       # extra `sigil scan` flags, e.g. "--phases prompt_injection,skill_security"
+
+.sigil-base:
+  image: debian:bookworm-slim
+  variables:
+    GIT_DEPTH: "20"
+  before_script:
+    - apt-get update -qq
+    - apt-get install -y -qq --no-install-recommends ca-certificates curl git jq > /dev/null
+    - |
+      set -eu
+      case "$(uname -m)" in
+        x86_64|amd64) SIGIL_ASSET=sigil-linux-x64 ;;
+        aarch64|arm64) SIGIL_ASSET=sigil-linux-arm64 ;;
+        *) echo "sigil: unsupported runner architecture $(uname -m)"; exit 2 ;;
+      esac
+      if [ "$SIGIL_VERSION" = "latest" ]; then
+        SIGIL_BASE="https://github.com/NOMARJ/sigil/releases/latest/download"
+      else
+        SIGIL_BASE="https://github.com/NOMARJ/sigil/releases/download/${SIGIL_VERSION}"
+      fi
+      mkdir -p /tmp/sigil-dl
+      curl -fsSL -o "/tmp/sigil-dl/${SIGIL_ASSET}.tar.gz" "${SIGIL_BASE}/${SIGIL_ASSET}.tar.gz"
+      curl -fsSL -o /tmp/sigil-dl/SHA256SUMS.txt "${SIGIL_BASE}/SHA256SUMS.txt"
+      (cd /tmp/sigil-dl && grep " ${SIGIL_ASSET}.tar.gz\$" SHA256SUMS.txt | sha256sum -c -)
+      tar -xzf "/tmp/sigil-dl/${SIGIL_ASSET}.tar.gz" -C /usr/local/bin sigil
+      sigil --version
+      set +eu
+
+.sigil-scan:
+  extends: .sigil-base
+  script:
+    - |
+      STATUS=0
+      # shellcheck disable=SC2086 # SIGIL_SCAN_ARGS is a flag list
+      sigil scan "$SIGIL_SCAN_PATH" --fail-on "$SIGIL_FAIL_ON" --format json $SIGIL_SCAN_ARGS > sigil.json || STATUS=$?
+      if [ "$STATUS" -ge 2 ]; then
+        echo "sigil: the scan did not complete (exit $STATUS)"
+        exit "$STATUS"
+      fi
+      # The same scan again from the result cache, as SARIF.
+      # shellcheck disable=SC2086
+      sigil scan "$SIGIL_SCAN_PATH" --fail-on "$SIGIL_FAIL_ON" --format sarif $SIGIL_SCAN_ARGS > sigil.sarif || true
+      jq -r '.summary | "sigil: \(.verdict) (grade \(.grade)) score \(.score), \(.findings_count) findings in \(.files_scanned) files"' sigil.json
+      jq -r '.findings[] | select(.severity == "High" or .severity == "Critical")
+             | "  \(.severity)\t\(.rule)\t\(.file):\(.line // 0)\t\(.title)"' sigil.json
+      jq -r '(.skills // [])[] | "  skill \(.path): \(.verdict) (\(.findings_count) findings)"' sigil.json
+      # GitLab Code Quality report.
+      jq '[.findings[] | {
+            description: "\(.rule): \(.title)",
+            check_name: .rule,
+            fingerprint: (if (.fingerprint // "") != "" then .fingerprint else "\(.rule):\(.file):\(.line // 0)" end),
+            severity: ({"Low": "minor", "Medium": "major", "High": "critical", "Critical": "blocker"}[.severity] // "info"),
+            location: {path: .file, lines: {begin: (.line // 1)}}
+          }]' sigil.json > gl-code-quality-report.json
+      exit "$STATUS"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - sigil.json
+      - sigil.sarif
+      - gl-code-quality-report.json
+    reports:
+      codequality: gl-code-quality-report.json
+
+.sigil-agent-tooling:
+  extends: .sigil-base
+  script:
+    - |
+      STATUS=0
+      sigil skills scan --no-user --project "$CI_PROJECT_DIR" --fail-on "$SIGIL_FAIL_ON" --format json > sigil-agent-tooling.json || STATUS=$?
+      if [ "$STATUS" -ge 2 ]; then
+        echo "sigil: the agent-tooling scan did not complete (exit $STATUS)"
+        exit "$STATUS"
+      fi
+      jq -r '.items[] | "  \(.verdict // "-")\t\(.tool)\t\(.kind)\t\(.name)\t\(.location)"' sigil-agent-tooling.json
+      jq -r '.items[] as $i | $i.findings[] | select(.severity != "Low")
+             | "    \(.severity)\t\(.rule)\t\($i.name): \(.snippet)"' sigil-agent-tooling.json
+      exit "$STATUS"
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - sigil-agent-tooling.json
+
+sigil-scan:
+  extends: .sigil-scan
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG
+
+sigil-agent-tooling:
+  extends: .sigil-agent-tooling
+  stage: test
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_TAG

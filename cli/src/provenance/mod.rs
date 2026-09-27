@@ -296,6 +296,9 @@ fn detect_drift(
             weight: 3,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+            evidence: Default::default(),
         });
     }
 
@@ -317,6 +320,9 @@ fn detect_drift(
                 weight: 10,
                 kev: false,
                 epss: 0.0,
+                fingerprint: String::new(),
+                locator: None,
+                evidence: Default::default(),
             });
         }
     }
@@ -342,6 +348,9 @@ fn detect_drift(
                 weight: 3,
                 kev: false,
                 epss: 0.0,
+                fingerprint: String::new(),
+                locator: None,
+                evidence: Default::default(),
             });
         }
     }

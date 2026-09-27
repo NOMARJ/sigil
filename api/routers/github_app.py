@@ -176,7 +176,7 @@ def _format_pr_comment(scan: PRScanComment) -> str:
                     phase = finding.get("phase", "unknown")
                     desc = finding.get("description", finding.get("rule", ""))
                     file_path = finding.get("file", "")
-                    line_no = finding.get("line", 0)
+                    line_no = finding.get("line") or 0
                     loc = f" `{file_path}:{line_no}`" if file_path else ""
                     lines.append(f"- **{sev}** [{phase}]{loc}: {desc}")
 

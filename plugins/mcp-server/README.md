@@ -4,60 +4,89 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that e
 
 ## Tools Provided
 
-| Tool | Description |
-|------|-------------|
-| `sigil_scan` | Scan a file or directory for security issues |
-| `sigil_scan_package` | Download and scan an npm/pip package in quarantine |
-| `sigil_clone` | Clone a git repo into quarantine and scan it |
-| `sigil_quarantine` | List all quarantined items |
-| `sigil_approve` | Approve a quarantined item |
-| `sigil_reject` | Reject and delete a quarantined item |
+| Tool | Description | Requires Sigil CLI |
+|------|-------------|--------------------|
+| `sigil_scan` | Scan a file or directory for security issues | Yes |
+| `sigil_grade` | Letter grade (A-F), recommendation, behaviour profile and key risks for a path | Yes |
+| `sigil_scan_package` | Download and scan an npm/pip package in quarantine | Yes |
+| `sigil_clone` | Clone a git repo into quarantine and scan it | Yes |
+| `sigil_quarantine` | List all quarantined items | Yes |
+| `sigil_approve` | Approve a quarantined item | Yes |
+| `sigil_reject` | Reject and delete a quarantined item | Yes |
+| `sigil_residue_scan` | Read-only scan of this machine for what installed agent tooling left behind (shell rc edits, cron/launchd/systemd persistence, git hooks, credential file permissions, leftover tool directories, /etc/hosts redirects, global agent packages) | Yes |
+| `sigil_residue_plan` | Show the reversible host-residue fixes Sigil would make, without applying them | Yes |
+| `sigil_check_package` | Look up a package's risk assessment in the Sigil public scan database | No (API) |
+| `sigil_search_database` | Search the Sigil public scan database by name or keyword | No (API) |
+| `sigil_report_threat` | Report a malicious file (by SHA256) to the threat intelligence database | Yes (+ `sigil login`) |
+
+If the Sigil CLI binary is not found, CLI-backed tools return install instructions instead of failing, and the server logs a warning to stderr at startup. Database-backed tools work without the CLI.
+
+`sigil residue apply` and `sigil residue rollback` are deliberately not exposed as tools: the residue tools only read and report, and a human applies or undoes fixes in a terminal.
 
 ## Resources
 
 | Resource | Description |
 |----------|-------------|
-| `sigil://docs/phases` | Documentation of Sigil's 6 scan phases |
+| `sigil://docs/phases` | Documentation of Sigil's 8 scan phases |
 
 ## Installation
+
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm. The `npx` path below is the target state and will work once the package is published. Until then, install from source and point your MCP client at `node .../dist/index.js`.
+
+### Via npx (once published)
+
+Once the package is published to npm, no install step will be needed — MCP clients can launch it directly:
+
+```bash
+npx -y @nomark/sigil-mcp-server
+```
+
+### From source (current working path)
 
 ```bash
 cd plugins/mcp-server
 npm install
 npm run build
+node dist/index.js
 ```
 
 ### Prerequisites
-The Sigil CLI must be installed and on your PATH.
+
+The Sigil CLI should be installed and on your PATH for scanning tools:
+
+```bash
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
+```
+
+Without it, the server still starts and the database-backed tools still work.
 
 ## Configuration
 
-### Claude Code
+> **Note**: The `npx`-based configurations below take effect once `@nomark/sigil-mcp-server` v1.3.0 is published to npm. Until then, build from source (see above) and use `"command": "node", "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]` instead of the `npx` command/args.
 
-Add to your `~/.claude/claude_desktop_config.json`:
+### Claude Code (via the Sigil plugin — automatic)
+
+The `sigil-security` Claude Code plugin registers this MCP server automatically through the `mcpServers` field in its `plugin.json` — the automatic registration takes effect once the package is published to npm:
+
+```bash
+claude plugin install sigil-security@sigil-marketplace
+```
+
+Once the package is published, no manual MCP configuration is needed when the plugin is installed.
+
+### Claude Code / any MCP client (manual)
+
+Add to your project's `.mcp.json` (or your client's MCP server settings):
 
 ```json
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"],
       "env": {
         "SIGIL_BINARY": "sigil"
       }
-    }
-  }
-}
-```
-
-Or in your project's `.mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "sigil": {
-      "command": "node",
-      "args": ["./plugins/mcp-server/dist/index.js"]
     }
   }
 }
@@ -70,8 +99,8 @@ Add to your Cursor MCP settings (Settings > MCP Servers):
 ```json
 {
   "sigil": {
-    "command": "node",
-    "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]
+    "command": "npx",
+    "args": ["-y", "@nomark/sigil-mcp-server"]
   }
 }
 ```
@@ -84,8 +113,8 @@ Add to your Windsurf MCP configuration:
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"]
     }
   }
 }
@@ -96,6 +125,7 @@ Add to your Windsurf MCP configuration:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SIGIL_BINARY` | `sigil` | Path to the sigil CLI binary |
+| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Base URL for the Sigil public scan database (used by `sigil_check_package` and `sigil_search_database`) |
 
 ## Example Usage
 
@@ -109,3 +139,85 @@ Once configured, AI agents can use Sigil tools naturally:
 
 > "Audit this GitHub repo before I clone it: https://github.com/example/repo"
 > → Agent calls `sigil_clone` with the URL
+
+> "Has anyone scanned the `requests` PyPI package?"
+> → Agent calls `sigil_check_package` with ecosystem="pypi", package_name="requests"
+
+## Publishing
+
+### npm (owner action)
+
+Publishing to npm is automated by `.github/workflows/publish-mcp.yml`: push a
+tag `mcp-vX.Y.Z` matching the version in `package.json` (or run the workflow
+manually with a version input), and it builds and runs `npm publish --access
+public` using the repository's `NPM_TOKEN` secret. The version-match check
+fails the run if the tag and `package.json` disagree.
+
+### MCP Registry (owner action)
+
+The server is described for the [official MCP Registry](https://registry.modelcontextprotocol.io)
+by `server.json` in this directory, written against the
+`2025-12-11` server schema. Its `name` is `io.github.nomarj/sigil`; the
+`io.github.*` namespace is granted to whoever authenticates with the matching
+GitHub account or organisation, so publishing needs the NOMARJ GitHub identity.
+
+**npm publication is a prerequisite.** The registry does not host packages; it
+validates that the npm package named in `server.json` exists and that its
+`package.json` carries an `mcpName` field equal to the `server.json` name
+(`"mcpName": "io.github.nomarj/sigil"` is already set). Until
+`@nomark/sigil-mcp-server@<version>` is on npm, `mcp-publisher publish` is
+rejected.
+
+Steps, once the npm release is live:
+
+```bash
+# 1. Install the publisher CLI (see the registry releases page for other install paths)
+brew install mcp-publisher
+
+# 2. Publish from the directory that holds server.json
+cd plugins/mcp-server
+
+# 3. Authenticate with the GitHub account that owns the io.github.nomarj namespace
+mcp-publisher login github
+
+# 4. Validate and publish server.json
+mcp-publisher publish
+
+# 5. Confirm the listing
+curl "https://registry.modelcontextprotocol.io/v0/servers?search=io.github.nomarj/sigil"
+```
+
+Keep the two `version` fields in `server.json` (top-level and the npm package
+entry) in lockstep with `package.json`: the registry rejects a re-publish of a
+version it already holds, and a package entry whose version is not on npm
+fails validation. Bump all three in the same commit as the release, and run
+`make check-versions` from the repo root — it prints all three and warns when
+they drift.
+
+#### Checking `server.json` against the current schema
+
+The registry publishes a versioned schema and moves it forward. Before a
+publish, confirm the `$schema` this file declares is still the one the registry
+serves, and validate against it:
+
+```bash
+# What schema do live entries currently declare?
+curl -s "https://registry.modelcontextprotocol.io/v0/servers?limit=3" \
+  | python3 -c 'import json,sys; print({s["server"]["$schema"] for s in json.load(sys.stdin)["servers"]})'
+
+# Validate this manifest against it (pip install jsonschema)
+python3 - <<'PY'
+import json, urllib.request, jsonschema
+doc = json.load(open("server.json"))
+with urllib.request.urlopen(doc["$schema"]) as response:
+    schema = json.load(response)
+jsonschema.Draft7Validator(schema).validate(doc)
+print("server.json is valid against", schema["$id"])
+PY
+```
+
+`mcp-publisher publish` performs its own validation, but it only runs at the
+point where a failure is most expensive.
+
+See [`docs/RELEASING.md`](../../docs/RELEASING.md) for how this step fits into
+the wider release.

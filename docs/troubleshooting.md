@@ -47,7 +47,7 @@ chmod +x ~/bin/sigil
 export PATH="$HOME/bin:$PATH"
 ```
 
-### Shell aliases not loading after `sigil aliases`
+### Shell aliases not loading after `sigil setup shell`
 
 Aliases are written to your shell config file but only take effect in new sessions.
 
@@ -171,7 +171,7 @@ Verify installation:
 sigil config    # Shows scanner status
 ```
 
-External scanners are optional. All six core scan phases run without them.
+External scanners are optional. All eight core scan phases run without them.
 
 ### Scan shows no findings but I expect some
 
@@ -363,7 +363,7 @@ No. Sigil never transmits source code. When authenticated, it sends only metadat
 
 ### Can I use Sigil without an internet connection?
 
-Yes. All six scan phases run locally with no network calls. The CLI is fully functional offline. Cloud features (threat intelligence, scan history, team management) require authentication and network access.
+Yes. All eight scan phases run locally with no network calls. The CLI is fully functional offline. Cloud features (threat intelligence, scan history, team management) require authentication and network access.
 
 ### Does Sigil replace Snyk or Dependabot?
 

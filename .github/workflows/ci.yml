@@ -28,6 +28,35 @@ jobs:
           scandir: bin/
           severity: warning
 
+  # ── GitHub workflows ────────────────────────────────────────────────────────
+  lint-workflows:
+    name: Lint Workflows (actionlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # GitHub rejects a workflow whose expressions do not parse, and nothing
+      # here noticed: publish-pypi.yml carried an empty expression in a shell
+      # comment, so every push recorded a failed run for it and the PyPI
+      # wrapper could not be published. actionlint parses each workflow the
+      # way GitHub does. Shell scripts are left to the ShellCheck job, so its
+      # shellcheck and pyflakes integrations are turned off.
+      - name: Install actionlint (pinned, checksum verified)
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL --retry 3 --retry-delay 2 -o "${RUNNER_TEMP}/actionlint.tar.gz" "$url"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/actionlint.tar.gz" -C "${RUNNER_TEMP}" actionlint
+          "${RUNNER_TEMP}/actionlint" -version
+
+      - name: Lint every workflow
+        run: |
+          "${RUNNER_TEMP}/actionlint" -shellcheck= -pyflakes=
+
   test-scan:
     name: Self-Scan
     runs-on: ubuntu-latest
@@ -73,7 +102,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install linters
-        run: pip install ruff flake8
+        # Pinned: an unpinned ruff upgrade (0.16) changed default rule
+        # selection and Markdown formatting, turning this job red repo-wide.
+        # Policy lives in ruff.toml; bump the pin deliberately.
+        run: pip install 'ruff==0.16.5' flake8
 
       - name: Run ruff check
         run: ruff check api/
@@ -104,6 +136,30 @@ jobs:
         env:
           SIGIL_JWT_SECRET: test-secret-for-ci
           SIGIL_DEBUG: "true"
+
+  # ── Ship-channel versions ───────────────────────────────────────────────────
+  check-versions:
+    name: Check versions agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      # The wrapper downloads the release binary that matches its own version,
+      # so a drift between cli/Cargo.toml and python/ ships a wrapper that
+      # fetches the wrong release. Checked here rather than only at publish
+      # time, where the fix costs a re-tag.
+      - name: Versions agree across ship channels
+        run: python3 scripts/check_versions.py
+
+      - name: Wrapper tests
+        run: |
+          pip install pytest
+          python3 -m pytest python/tests -q
 
   # ── Rust CLI ────────────────────────────────────────────────────────────────
   lint-rust:
@@ -166,6 +222,36 @@ jobs:
       - name: Run tests
         working-directory: cli
         run: cargo test --release
+
+  # ── Claude Code Plugin ──────────────────────────────────────────────────────
+  validate-marketplace:
+    name: Validate Plugin Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        # The validator itself is stdlib-only and needs no install. pytest-asyncio
+        # is installed because the root pytest.ini sets
+        # asyncio_default_fixture_loop_scope; without it pytest emits a
+        # PytestConfigWarning about an unknown config option.
+        run: pip install pytest pytest-asyncio
+
+      - name: Validate plugin and marketplace manifests
+        run: python3 scripts/validate_marketplace.py
+
+      - name: Run validator tests
+        # `python -m` runs pytest under the interpreter set up above rather than
+        # whichever `pytest` happens to be first on PATH. The tests themselves
+        # load the script by path via importlib, so they do not depend on
+        # sys.path and would also pass under a bare `pytest`.
+        run: python -m pytest tests/marketplace -v --tb=short
 
   # ── VS Code Extension ──────────────────────────────────────────────────────
   lint-vscode:

@@ -772,7 +772,7 @@ async def skillguard_feed(
                         "severity": f.get("severity", "UNKNOWN"),
                         "description": f.get("description", ""),
                         "file": f.get("file", ""),
-                        "line": f.get("line", 0),
+                        "line": f.get("line") or 0,
                         "snippet": f.get("snippet", "")[:200]
                         + ("..." if len(f.get("snippet", "")) > 200 else ""),
                     }

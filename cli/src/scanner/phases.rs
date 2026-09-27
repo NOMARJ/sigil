@@ -3,10 +3,12 @@
 //! declared in `packs/core/v1/*.json` and loaded via `corpus::loader`.
 
 use std::path::{Path, PathBuf};
+use std::process;
 
+use super::budget::FileBudget;
 use super::{Finding, Phase, Severity};
 use crate::corpus::{
-    engine::scan_file_with_packs,
+    compiled::corpus,
     loader::load_all_packs,
     schema::{ProvenanceKind, SignaturePack},
 };
@@ -16,15 +18,10 @@ use crate::corpus::{
 // ---------------------------------------------------------------------------
 
 fn all_packs() -> Vec<SignaturePack> {
-    load_all_packs()
-}
-
-fn phase_packs(packs: &[SignaturePack], phase: &str) -> Vec<SignaturePack> {
-    packs
-        .iter()
-        .filter(|p| p.rules.iter().any(|r| r.phase == phase))
-        .cloned()
-        .collect()
+    load_all_packs().unwrap_or_else(|e| {
+        eprintln!("[corpus] fatal: {e}");
+        process::exit(2);
+    })
 }
 
 fn make_finding(
@@ -46,6 +43,9 @@ fn make_finding(
         weight,
         kev: false,
         epss: 0.0,
+        fingerprint: String::new(),
+        locator: None,
+        evidence: Default::default(),
     }
 }
 
@@ -60,53 +60,43 @@ fn filename(file: &str) -> String {
 // Phase 1: Install Hooks (Critical, 10x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_install_hooks(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "install_hooks");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_install_hooks(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::InstallHooks, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 2: Code Patterns (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_code_patterns(file: &str, contents: &str) -> Vec<Finding> {
+pub fn scan_code_patterns(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
     if super::context::is_declaration_file(file) {
         return Vec::new();
     }
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "code_patterns");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+    corpus().scan_phase_within(Phase::CodePatterns, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 3: Network / Exfiltration (High, 3x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_network_exfil(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "network_exfil");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_network_exfil(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::NetworkExfil, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 4: Credentials (Medium, 2x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_credentials(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "credentials");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_credentials(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::Credentials, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
 // Phase 5: Obfuscation (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_obfuscation(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "obfuscation");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_obfuscation(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(Phase::Obfuscation, file, &filename(file), contents, budget)
 }
 
 // ---------------------------------------------------------------------------
@@ -152,11 +142,15 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
         .iter()
         .flat_map(|p| p.provenance_rules.iter())
         .filter_map(|rule| {
+            // A filename regex is required for FilenameRegex rules and
+            // optional for FileSizeBytes rules, where it narrows the size
+            // check to particular files (an oversized setup.py is a signal;
+            // an oversized model file is not).
             let pattern_re = if rule.kind == ProvenanceKind::FilenameRegex {
                 let re = rule.pattern.as_deref().and_then(|p| Regex::new(p).ok())?;
                 Some(re)
             } else {
-                None
+                rule.pattern.as_deref().and_then(|p| Regex::new(p).ok())
             };
             Some(CompiledProv {
                 id: &rule.id,
@@ -250,8 +244,12 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
                 }
 
                 ProvenanceKind::FileSizeBytes => {
+                    let name_matches = rule
+                        .pattern_re
+                        .as_ref()
+                        .is_none_or(|re| re.is_match(&fname));
                     if let Ok(meta) = std::fs::metadata(file_path) {
-                        if meta.len() > rule.size_threshold {
+                        if name_matches && meta.len() > rule.size_threshold {
                             findings.push(make_finding(
                                 Phase::Provenance,
                                 rule.id,
@@ -268,11 +266,22 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
         }
     }
 
-    // PROV-005: shallow clone (not expressible as a pack rule — requires
-    // checking a path outside the scanned file set).
+    // PROV-005 / PROV-006 are gated on how the scan target was obtained
+    // (not expressible as pack rules — they check paths outside the scanned
+    // file set):
+    //
+    // - PROV-005 (shallow clone) is suppressed inside sigil's own quarantine:
+    //   `sigil clone` performs the shallow clone itself (`--depth 1`), so
+    //   flagging it there would penalise sigil's own behavior. A shallow
+    //   clone the user made and scanned directly is still worth flagging.
+    // - PROV-006 (no .git) only fires inside quarantine, where the artifact
+    //   was fetched from a remote source and missing history is meaningful.
+    //   For a plain `sigil scan <dir>` of a local directory it tells the
+    //   user nothing.
+    let in_quarantine = is_quarantine_artifact(base_path);
     let git_dir = base_path.join(".git");
     if git_dir.exists() {
-        if git_dir.join("shallow").exists() {
+        if git_dir.join("shallow").exists() && !in_quarantine {
             findings.push(make_finding(
                 Phase::Provenance,
                 "PROV-005",
@@ -283,7 +292,9 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
                 1,
             ));
         }
-    } else if base_path.join("package.json").exists() || base_path.join("setup.py").exists() {
+    } else if in_quarantine
+        && (base_path.join("package.json").exists() || base_path.join("setup.py").exists())
+    {
         // PROV-006: no .git directory but project manifest present.
         findings.push(make_finding(
             Phase::Provenance,
@@ -299,34 +310,55 @@ pub fn scan_provenance(base_path: &Path, entries: &[PathBuf]) -> Vec<Finding> {
     findings
 }
 
+/// True when `path` lives under sigil's own quarantine directory — i.e. the
+/// artifact was fetched by `sigil clone` / `sigil pip` / `sigil npm`.
+fn is_quarantine_artifact(path: &Path) -> bool {
+    let root = crate::quarantine::quarantine_path();
+    let root = std::fs::canonicalize(&root).unwrap_or(root);
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    target.starts_with(&root)
+}
+
 // ---------------------------------------------------------------------------
 // Phase 7: Prompt Injection (Critical, 10x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_prompt_injection(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "prompt_injection");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_prompt_injection(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(
+        Phase::PromptInjection,
+        file,
+        &filename(file),
+        contents,
+        budget,
+    )
 }
 
 // ---------------------------------------------------------------------------
 // Phase 8: Skill Security (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_skill_security(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "skill_security");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_skill_security(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(
+        Phase::SkillSecurity,
+        file,
+        &filename(file),
+        contents,
+        budget,
+    )
 }
 
 // ---------------------------------------------------------------------------
 // Phase 10: Inference Security (High, 5x weight)
 // ---------------------------------------------------------------------------
 
-pub fn scan_inference_security(file: &str, contents: &str) -> Vec<Finding> {
-    let packs = all_packs();
-    let phase = phase_packs(&packs, "inference_security");
-    scan_file_with_packs(&phase, file, &filename(file), contents)
+pub fn scan_inference_security(file: &str, contents: &str, budget: &FileBudget) -> Vec<Finding> {
+    corpus().scan_phase_within(
+        Phase::InferenceSecurity,
+        file,
+        &filename(file),
+        contents,
+        budget,
+    )
 }
 
 #[cfg(test)]

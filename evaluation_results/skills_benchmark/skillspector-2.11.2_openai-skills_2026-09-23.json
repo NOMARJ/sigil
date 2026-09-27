@@ -1,0 +1,674 @@
+{
+ "summary": {
+  "skillspector": {
+   "errors": 0,
+   "malicious": {
+    "scanned": 0,
+    "block": 0,
+    "warn": 0,
+    "any": 0,
+    "seconds": 0
+   },
+   "clean": {
+    "scanned": 44,
+    "block": 13,
+    "warn": 29,
+    "any": 36,
+    "seconds": 337.1
+   }
+  }
+ },
+ "corpora": {
+  "clean:openai_skills": 44
+ },
+ "outcomes": [
+  {
+   "sample": "corpora/openai_skills/skills/.curated/aspnet-core",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 4.44,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/chatgpt-apps",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 5,
+   "rules": [
+    "AE1",
+    "LP3",
+    "P1"
+   ],
+   "seconds": 5.52,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/cli-creator",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "AS1",
+    "RA2"
+   ],
+   "seconds": 3.96,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/cloudflare-deploy",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 475,
+   "rules": [
+    "AE4",
+    "E1",
+    "E3",
+    "E4",
+    "EA2",
+    "EA4",
+    "P2",
+    "PE1",
+    "PE2",
+    "PE3",
+    "RA2",
+    "RP1",
+    "SC2",
+    "SSRF2",
+    "TM1"
+   ],
+   "seconds": 57.62,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/define-goal",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 3.55,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "AS1"
+   ],
+   "seconds": 3.41,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-code-connect-components",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 4.01,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-create-design-system-rules",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "MP3"
+   ],
+   "seconds": 3.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-create-new-file",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 3.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-generate-design",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 4.14,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-generate-library",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "AE1",
+    "P4"
+   ],
+   "seconds": 19.94,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-implement-design",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "E4"
+   ],
+   "seconds": 3.48,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/figma-use",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 22,
+   "rules": [
+    "AE1",
+    "AR3",
+    "E1",
+    "EA1",
+    "P3",
+    "P9",
+    "YR4"
+   ],
+   "seconds": 48.46,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/gh-address-comments",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 2,
+   "rules": [
+    "AST4",
+    "LP3"
+   ],
+   "seconds": 3.58,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/gh-fix-ci",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "AST4",
+    "LP3"
+   ],
+   "seconds": 3.95,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/hatch-pet",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "LP3"
+   ],
+   "seconds": 8.08,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/jupyter-notebook",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "AS3",
+    "LP3",
+    "RA1",
+    "RA2"
+   ],
+   "seconds": 4.07,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/linear",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 3.51,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/migrate-to-codex",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 14,
+   "rules": [
+    "AS1",
+    "AS2",
+    "AST7",
+    "EA2",
+    "LP3",
+    "RA1",
+    "RA2"
+   ],
+   "seconds": 7.24,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/netlify-deploy",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 89,
+   "rules": [
+    "E1",
+    "EA2",
+    "PE3",
+    "RP1"
+   ],
+   "seconds": 4.05,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/notion-knowledge-capture",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 8,
+   "rules": [
+    "E4",
+    "EA2",
+    "EA3",
+    "PE2"
+   ],
+   "seconds": 5.15,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/notion-meeting-intelligence",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "EA3",
+    "MP3"
+   ],
+   "seconds": 4.79,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/notion-research-documentation",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "EA3"
+   ],
+   "seconds": 5.44,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/notion-spec-to-implementation",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "EA3"
+   ],
+   "seconds": 5.56,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/openai-docs",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 5,
+   "rules": [
+    "AE1",
+    "LP3",
+    "P6"
+   ],
+   "seconds": 5.65,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/pdf",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "LOW",
+   "findings": 1,
+   "rules": [
+    "PE2"
+   ],
+   "seconds": 3.35,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/playwright",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 6,
+   "rules": [
+    "AS3",
+    "RP1"
+   ],
+   "seconds": 3.59,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/playwright-interactive",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 3,
+   "rules": [
+    "AS1",
+    "RP1"
+   ],
+   "seconds": 4.7,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/render-deploy",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 18,
+   "rules": [
+    "AS2",
+    "EA2",
+    "RP1",
+    "SC2"
+   ],
+   "seconds": 6.31,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/screenshot",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 7,
+   "rules": [
+    "AST4",
+    "LP3"
+   ],
+   "seconds": 4.66,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/security-best-practices",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 40,
+   "rules": [
+    "AR2",
+    "E1",
+    "EA1",
+    "EA2",
+    "EA4",
+    "OH1",
+    "OH3",
+    "P1",
+    "PE3",
+    "TM1",
+    "TM3",
+    "YR2"
+   ],
+   "seconds": 25.17,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/security-ownership-map",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 9,
+   "rules": [
+    "AST4",
+    "LP3",
+    "P6",
+    "TM3"
+   ],
+   "seconds": 6.51,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/security-threat-model",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 4.09,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/sentry",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "EA2",
+    "SC2"
+   ],
+   "seconds": 3.4,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/speech",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 6,
+   "rules": [
+    "AS1",
+    "AST7",
+    "EA2",
+    "LP3",
+    "P6",
+    "TM1"
+   ],
+   "seconds": 4.43,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/transcribe",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "AS3",
+    "EA2",
+    "LP3",
+    "RA2"
+   ],
+   "seconds": 3.85,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/vercel-deploy",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 2,
+   "rules": [
+    "LP3",
+    "PE3"
+   ],
+   "seconds": 3.45,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/winui-app",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 10,
+   "rules": [
+    "EA2",
+    "P1",
+    "P9",
+    "RA1"
+   ],
+   "seconds": 6.04,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.curated/yeet",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "NONE",
+   "findings": 0,
+   "rules": [],
+   "seconds": 4.58,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.system/imagegen",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "CRITICAL",
+   "findings": 8,
+   "rules": [
+    "AS1",
+    "AST7",
+    "EA2",
+    "LP3",
+    "P6",
+    "TM1"
+   ],
+   "seconds": 6.83,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.system/openai-docs",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 5,
+   "rules": [
+    "AE1",
+    "LP3",
+    "P6"
+   ],
+   "seconds": 5.84,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.system/plugin-creator",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "HIGH",
+   "findings": 5,
+   "rules": [
+    "AE1",
+    "LP3",
+    "RA1",
+    "RA2"
+   ],
+   "seconds": 4.33,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.system/skill-creator",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 5,
+   "rules": [
+    "E1",
+    "LP3",
+    "RA1"
+   ],
+   "seconds": 5.32,
+   "error": null
+  },
+  {
+   "sample": "corpora/openai_skills/skills/.system/skill-installer",
+   "label": "clean",
+   "corpus": "openai_skills",
+   "tool": "skillspector",
+   "level": "MEDIUM",
+   "findings": 4,
+   "rules": [
+    "AS3",
+    "AST4",
+    "E1",
+    "LP3"
+   ],
+   "seconds": 4.02,
+   "error": null
+  }
+ ]
+}

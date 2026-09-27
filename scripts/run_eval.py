@@ -205,10 +205,28 @@ def evaluate_set(binary: str, zips: list[Path], env: dict | None = None) -> list
     return results
 
 
+def control_packages(control_path: Path) -> list[Path]:
+    """The clean packages under control_path, one directory each.
+
+    When the directory holds the manifest.json written by
+    scripts/fetch_control_set.py, exactly the packages it records are used, so
+    a stale or surplus directory cannot silently change the control set; a
+    recorded package that is missing is an error. Without a manifest, every
+    immediate subdirectory is one package."""
+    manifest = control_path / "manifest.json"
+    if manifest.is_file():
+        recorded = json.loads(manifest.read_text()).get("packages", [])
+        pkgs = sorted(control_path / e["dir"] for e in recorded)
+        missing = [p.name for p in pkgs if not p.is_dir()]
+        if missing:
+            sys.exit(f"error: control manifest lists packages that are not on disk: {', '.join(missing)}")
+        return pkgs
+    return sorted(p for p in control_path.iterdir() if p.is_dir())
+
+
 def evaluate_control(binary: str, control_path: Path, env: dict | None = None) -> list[SampleResult]:
-    """Scan each immediate subdirectory of control_path as one clean package."""
-    pkgs = sorted(p for p in control_path.iterdir() if p.is_dir())
-    return [scan_dir(binary, p, env=env) for p in pkgs]
+    """Scan each control package (see control_packages) as one clean package."""
+    return [scan_dir(binary, p, env=env) for p in control_packages(control_path)]
 
 
 # ── Ledger-warm pass (F-010 US-H3) ──────────────────────────────────────────
@@ -226,7 +244,7 @@ def setup_warm_ledger(binary: str, control_path: Path) -> tuple[Path, dict, int]
     qdir = warm_home / ".sigil" / "quarantine"
     qdir.mkdir(parents=True)
 
-    pkgs = sorted(p for p in control_path.iterdir() if p.is_dir())
+    pkgs = control_packages(control_path)
     now = datetime.now(timezone.utc).isoformat()
     entries = []
     for i, pkg in enumerate(pkgs):

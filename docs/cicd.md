@@ -34,38 +34,83 @@ jobs:
 
 ### Inputs
 
-| Input              | Default  | Description                                                     |
-| ------------------ | -------- | --------------------------------------------------------------- |
-| `path`             | `.`      | Directory or file to scan                                       |
-| `threshold`        | `medium` | Minimum severity to report: `low`, `medium`, `high`, `critical` |
-| `fail-on-findings` | `true`   | Fail the workflow if findings meet the threshold                |
-| `format`           | `text`   | Output format: `text`, `json`, `sarif`                          |
-| `phases`           | (all)    | Comma-separated phase filter                                    |
-| `upload-sarif`     | `false`  | Upload SARIF results to GitHub Code Scanning                    |
-| `sigil-token`      | —        | Sigil API token for threat intelligence enrichment              |
+These match `action.yml` exactly.
+
+| Input              | Default               | Description                                                                                                                 |
+| ------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `path`             | `.`                   | Path to scan, relative to the repository root (a single directory or file)                                                  |
+| `threshold`        | `medium`              | Minimum verdict level that fails the action: `low`, `medium`, `high`, `critical`                                            |
+| `fail-on-findings` | `true`                | Whether to fail the action when the risk score meets the threshold                                                          |
+| `phases`           | `all`                 | Comma-separated phase filter: `install-hooks`, `code-patterns`, `network-exfil`, `credentials`, `obfuscation`, `provenance`, `prompt-injection`, `skill-security` |
+| `upload-sarif`     | `false`               | Run a second pass in SARIF format and upload it to GitHub Code Scanning (needs `security-events: write`, see below)         |
+| `sarif-file`       | `sigil-results.sarif` | Where the SARIF report is written when `upload-sarif` is `true` (relative to the workspace)                                 |
+| `api-key`          | —                     | Sigil cloud API key for threat intelligence enrichment (key issuance is not yet available — leave unset)                     |
+
+The action always runs the scan with `--format json` internally; there is no `format` input. Use `upload-sarif` for SARIF output.
 
 ### Outputs
 
-| Output           | Description                                                               |
-| ---------------- | ------------------------------------------------------------------------- |
-| `verdict`        | Scan verdict: `CLEAN`, `LOW_RISK`, `MEDIUM_RISK`, `HIGH_RISK`, `CRITICAL` |
-| `score`          | Numeric risk score                                                        |
-| `findings-count` | Number of findings                                                        |
-| `report-path`    | Path to the scan report file                                              |
+| Output           | Description                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `verdict`        | Scan verdict: `clean`, `low`, `medium`, `high`, `critical` (`error` if the scanner produced no parseable output)    |
+| `risk-score`     | Numeric risk score                                                                                                 |
+| `findings-count` | Number of findings                                                                                                 |
+| `grade`          | Letter grade `A`–`F` derived from the verdict (A no findings, B low-severity only, C medium, D high, F critical)    |
+| `badge`          | Ready-to-paste shields.io Markdown badge for the grade (empty when no grade was produced)                          |
+| `sarif-file`     | Path of the SARIF report (only set when `upload-sarif` is `true`)                                                  |
 
-### SARIF Upload
-
-Upload scan results to GitHub Code Scanning for inline annotations on pull requests:
+Example — use the grade in a later step:
 
 ```yaml
 - uses: NOMARJ/sigil@main
+  id: sigil
   with:
     path: .
-    format: sarif
-    upload-sarif: true
+
+- run: |
+    echo "Sigil grade: ${{ steps.sigil.outputs.grade }}"
+    echo "${{ steps.sigil.outputs.badge }}" >> "$GITHUB_STEP_SUMMARY"
 ```
 
-This adds Sigil findings as annotations directly on the files in your PR diff.
+### SARIF Upload
+
+Set `upload-sarif: true` to publish Sigil findings to GitHub Code Scanning, which annotates
+the affected lines directly in the pull request diff. The action runs a second `sigil scan
+--format sarif` pass, writes it to `sarif-file`, and uploads it with
+`github/codeql-action/upload-sarif` under the category `sigil`. The upload step is guarded
+with `always()`, so findings are published even when the threshold check fails the job.
+
+The calling job **must** grant `security-events: write` (Code Scanning rejects the upload
+otherwise). Private repositories also need `actions: read`:
+
+```yaml
+name: Sigil Security Scan
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read # private repositories only
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: NOMARJ/sigil@main
+        with:
+          path: .
+          threshold: medium
+          upload-sarif: true
+          sarif-file: sigil-results.sarif
+```
+
+The SARIF pass never fails the job on its own — only the JSON pass and the `threshold` /
+`fail-on-findings` inputs decide the exit status. If the SARIF pass cannot produce a valid
+document, an empty SARIF file is written so the upload step still succeeds.
 
 ### Scan Only Changed Files
 
@@ -102,13 +147,15 @@ Require Sigil scans to pass before merging. Add Sigil as a required status check
 
 ### Authenticated Scans in CI
 
-Add your Sigil API token as a repository secret to enable threat intelligence in CI:
+The action accepts an `api-key` input for cloud threat-intelligence enrichment. API key
+issuance is not yet available from the dashboard, so this currently stays unset — all
+scan phases run fully offline without it. Once keys ship, pass one as a repository secret:
 
 ```yaml
 - uses: NOMARJ/sigil@main
   with:
     path: .
-    sigil-token: ${{ secrets.SIGIL_TOKEN }}
+    api-key: ${{ secrets.SIGIL_API_KEY }}
 ```
 
 ---
@@ -140,7 +187,6 @@ sigil-scan:
 | `SIGIL_THRESHOLD`        | `medium` | Minimum severity to report        |
 | `SIGIL_FAIL_ON_FINDINGS` | `true`   | Fail the job on findings          |
 | `SIGIL_FORMAT`           | `text`   | Output format                     |
-| `SIGIL_TOKEN`            | —        | API token (set as CI/CD variable) |
 
 ### Artifacts
 
@@ -154,6 +200,94 @@ sigil-scan:
       - sigil-report.*
     when: always
 ```
+
+---
+
+## GitLab CI template (`ci-templates/gitlab`)
+
+`ci-templates/gitlab/sigil.gitlab-ci.yml` runs the Rust CLI directly and
+reads its JSON output. Pin the include to a release tag:
+
+```yaml
+include:
+  - remote: "https://raw.githubusercontent.com/NOMARJ/sigil/v1.3.6/ci-templates/gitlab/sigil.gitlab-ci.yml"
+
+variables:
+  SIGIL_VERSION: "v1.3.6"   # or "latest"
+  SIGIL_FAIL_ON: "high"     # low | medium | high | critical
+```
+
+It adds two jobs to the `test` stage, on merge-request pipelines, the default
+branch and tags:
+
+| Job | Runs | Artifacts |
+|-----|------|-----------|
+| `sigil-scan` | `sigil scan $SIGIL_SCAN_PATH --fail-on $SIGIL_FAIL_ON` | `sigil.json`, `sigil.sarif`, and a **Code Quality report** (`gl-code-quality-report.json`) that GitLab shows in the merge-request widget on every tier |
+| `sigil-agent-tooling` | `sigil skills scan --no-user --project $CI_PROJECT_DIR` — the skills, hooks and MCP server configs committed with the project | `sigil-agent-tooling.json` |
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SIGIL_VERSION` | `latest` | Release tag to install |
+| `SIGIL_SCAN_PATH` | `.` | Path to scan |
+| `SIGIL_FAIL_ON` | `high` | Fail the job on a finding at or above this severity |
+| `SIGIL_SCAN_ARGS` | | Extra `sigil scan` flags |
+
+The binary is downloaded from the GitHub release and checked against the
+release's `SHA256SUMS.txt` before it runs; the jobs use `debian:bookworm-slim`
+because the release binaries link glibc 2.35+. Exit code `2` (the scan did not
+complete) fails the job with a distinct message rather than being read as a
+verdict. To change stage, rules or image, extend the hidden jobs
+`.sigil-scan` / `.sigil-agent-tooling` instead of the visible ones.
+
+The older `.gitlab-ci-template.yml` at the repository root predates the Rust
+CLI; prefer this template.
+
+---
+
+## pre-commit
+
+The repository ships `.pre-commit-hooks.yaml` with two hooks. Both need
+`sigil` on `PATH` ([installation](installation.md)).
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/NOMARJ/sigil
+    rev: v1.3.6
+    hooks:
+      - id: sigil-scan          # whole repository, --fail-on high
+      - id: sigil-scan-skills   # agent tooling committed with the project
+```
+
+| Hook | Command | Runs when |
+|------|---------|-----------|
+| `sigil-scan` | `sigil scan . --fail-on high` | every commit |
+| `sigil-scan-skills` | `sigil skills scan --no-user --project . --fail-on high` | a file under `.claude/`, `.cursor/`, `.gemini/`, `.codex/`, `.agents/`, `.windsurf/`, `.opencode/`, `.roo/`, `.continue/`, `.kiro/`, `.amazonq/`, `.github/{skills,prompts,instructions}/`, or `.mcp.json`, `.vscode/mcp.json`, `opencode.json(c)`, `.clinerules` changes |
+
+`--no-user` makes `sigil-scan-skills` read only project-scoped locations, so
+the result is the same on every developer's machine. Override the threshold
+with `args: ["--fail-on", "medium"]`.
+
+---
+
+## Agent tooling on a fleet (`sigil skills`)
+
+`sigil skills scan` inventories and scans what is *already installed* on a
+machine — skills, plugins, hooks and MCP servers for Claude Code, Codex,
+Gemini CLI, Cursor, Windsurf, VS Code, Cline/Roo, Continue, Goose, OpenCode,
+Zed and OpenClaw. For fleet or golden-image checks:
+
+```bash
+# On each developer machine / in an MDM script: JSON for your SIEM, exit 1 on High+
+sigil skills scan --no-project --format json --fail-on high > sigil-skills.json
+
+# Against a mounted image or a home directory you are auditing
+sigil skills scan --root /mnt/image/home/dev --no-project --fail-on high
+```
+
+`--root` (or `SIGIL_HOME`) treats a directory as the home directory and skips
+system-wide managed settings. See [cli.md](cli.md#sigil-skills) for every
+option and [detection/ux.md](detection/ux.md) for the checks.
 
 ---
 

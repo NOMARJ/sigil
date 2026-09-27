@@ -1,0 +1,7 @@
+{
+  "name": "referenced-fixture",
+  "version": "1.0.0",
+  "scripts": {
+    "prepare": "node scripts/setup.js"
+  }
+}
