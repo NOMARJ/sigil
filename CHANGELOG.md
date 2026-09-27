@@ -12,9 +12,10 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   with a `vX.Y.Z` tag and the full SHA of a commit on `main`, it refuses a
   malformed tag, an off-`main` commit, an existing tag and versions that
   disagree with the tag. It then creates the tag through the API and dispatches
-  `release.yml` on it, because a tag made with the workflow token does not fire
-  the push trigger. `docs/RELEASING.md` step 4 documents it; pushing the tag from
-  git remains the normal path.
+  every workflow a pushed tag starts (`release.yml`, `docker.yml`, `sbom.yml`) on
+  it, because a tag made with the workflow token fires no push trigger.
+  `docs/RELEASING.md` step 4 documents it; pushing the tag from git remains the
+  normal path.
 
 ## [1.3.7] - 2026-09-27
 

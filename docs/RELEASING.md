@@ -164,11 +164,12 @@ credentials may push branches but not tags): Actions → **Tag Release** → Run
 workflow, with `tag: vX.Y.Z` and `sha:` the full SHA of the release commit on
 `main`. `tag-release.yml` refuses a malformed tag, a commit that is not on
 `main`, an existing tag, and versions that disagree with the tag
-(`check_versions.py --expect`). It then creates the tag and dispatches
-`release.yml` on it; a tag created with the workflow token does not fire the
-push trigger, so the dispatch is what starts the release. The run is the same
-as for a pushed tag, except that `docker.yml` (tag-push only) does not fire.
-This does not create a GitHub release. Still never create one from the web UI.
+(`check_versions.py --expect`). It then creates the tag and dispatches every
+workflow a pushed tag starts (`release.yml`, `docker.yml`, `sbom.yml`) on it: a
+tag created with the workflow token fires no push trigger, so the dispatches are
+what start them. Each reads the tag from its ref, so the runs are the same as
+for a pushed tag. This does not create a GitHub release. Still never create one
+from the web UI.
 
 ### 5. Publish the PyPI wrapper
 
