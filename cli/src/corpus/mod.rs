@@ -9,8 +9,29 @@
 //! - [`schema`] — `SignaturePack`, `PackRule`, `FileFilter`, `SuppressionPredicates`
 //! - [`loader`] — discovers and parses packs from embedded data and `~/.sigil/packs/`
 //! - [`engine`] — runs pack rules against file content, returning `Finding`s
+//! - [`compiled`] — the same rules compiled once into a cached, per-phase form
+//! - [`exempt`] — match-local suppression (`match_context`, `value_matches`)
+//! - [`custom`] — custom packs named for one run (`--rules`, policy `rule_packs`)
+//! - [`yara`] — YARA rule files (`.yar`, `.yara`) loaded as custom packs
 
+pub mod compiled;
+pub mod custom;
 pub mod engine;
+pub mod exempt;
 pub mod loader;
 pub mod schema;
 pub mod signing;
+pub mod yara;
+
+#[cfg(test)]
+mod agent_supply_chain_tests;
+#[cfg(test)]
+mod exempt_tests;
+#[cfg(test)]
+mod guardrail_tests;
+#[cfg(test)]
+mod insecure_transport_tests;
+#[cfg(test)]
+mod mcp_fp_tests;
+#[cfg(test)]
+mod multilingual_tests;

@@ -318,3 +318,202 @@ forge_classification ──┬── forge_capabilities (classification_id)
 
 public_scans ── forge_trust_score_history (scan_id)
 ```
+
+---
+
+## File formats used by the CLI
+
+The database schemas above belong to the Sigil service. The files below are
+read and written by the `sigil` binary itself; see
+[configuration.md](configuration.md#scan-policy-sigilyml) for how they are
+used and [enterprise.md](enterprise.md) for fleet roll-out.
+
+### Scan policy file
+
+`.sigil.yml` / `.sigil.yaml` / `sigil.yml`, `--config FILE`, or the file named
+by `SIGIL_POLICY_FILE`. YAML mapping; every key optional; unknown keys are
+errors. Largest file read: 1 MiB.
+
+| Key | Type | Notes |
+|---|---|---|
+| `version` | integer | `1` |
+| `fail_on` | string | `low` \| `medium` \| `high` \| `critical` |
+| `fail_on_verdict` | string | `LOW` \| `MEDIUM` \| `HIGH` \| `CRITICAL` (also `high_risk`, `HIGH RISK`) |
+| `min_severity` | string | severity |
+| `disable_rules` | list of strings | rule ids or globs (`*`, `?`), case-insensitive |
+| `severity_overrides` | map string → string | rule id or glob → severity |
+| `ignore_paths` | list of strings | `.sigilignore` (gitignore) syntax, relative to the scan root |
+| `rule_packs` | list of strings | paths relative to the policy file |
+| `trusted_domains` | list of strings | host names; at least two labels; a leading `*.` is accepted and means the same |
+| `baseline` | string | path relative to the policy file |
+| `llm_review` | bool | run the optional LLM review stage ([llm-review.md](llm-review.md)) |
+| `llm_may_downgrade` | bool | let a model's dismissal lower a finding by one level |
+| `llm_provider` | string | `anthropic` \| `openai-compatible` (also `openai`) |
+| `llm_model` | string | model id: letters, digits and `. - _ : / @`, at most 128 characters |
+| `llm_max_calls` | integer | 1 to 1000 |
+| `llm_max_tokens` | integer | 10,000 to 10,000,000 |
+| `locked` | list of strings | organisation file only: any of the keys above except `version`, or `all` |
+| `allow_project_policy` | bool | organisation file only |
+| `llm_endpoint` | string | organisation file only: an `https` URL, or `http` to a loopback address; no credentials in the URL; not combinable with `llm_provider: anthropic` |
+
+### Baseline file
+
+Written by `sigil baseline` as JSON (YAML when the output name ends in
+`.yaml`/`.yml`). Largest file read: 64 MiB.
+
+```json
+{
+  "kind": "sigil-baseline",
+  "version": 1,
+  "sigil_version": "1.3.6",
+  "created_at": "2026-09-24T00:00:00Z",
+  "target": ".",
+  "corpus_digest": "sha256:…",
+  "reason": "accepted at adoption (SEC-1234)",
+  "findings": [
+    {
+      "rule": "CRED-001",
+      "file": "src/client.py",
+      "line": 2,
+      "severity": "MEDIUM",
+      "fingerprint": "32 hex chars — the finding's content fingerprint",
+      "snippet_hash": "32 hex chars — hash of rule, file and matched text",
+      "reason": "optional, overrides the file-level reason"
+    }
+  ],
+  "rules": [
+    {
+      "rule": "NET-*",
+      "path": "scripts/install/",
+      "message": "*pinned release*",
+      "reason": "required",
+      "expires": "2027-01-31"
+    }
+  ]
+}
+```
+
+- `findings[]` match by `fingerprint`, then by `(rule, file, snippet_hash)`;
+  each entry accepts one finding; `line` is informational.
+- `rules[]` need a non-empty `reason` and at least one of `rule`, `path`,
+  `message`; all given globs must match. `rule` and `message` are
+  case-insensitive globs (`*` spans any text); `path` uses `.sigilignore`
+  syntax. After `expires` (a `YYYY-MM-DD` date) a rule stops suppressing and a
+  note says so.
+- `kind` may be omitted in a hand-written file; any other `kind` is refused.
+  A `sigil scan -f json` report is accepted in place of a baseline.
+
+### Custom rule pack (compact form)
+
+YAML or JSON; either a list of rules or a mapping with `rules` and an
+optional `pack` block (`id`, `name`, `version`, `author`, `description`; the
+id defaults to `custom.<file stem>`). Largest file read: 8 MiB.
+
+| Rule key | Required | Maps to (full schema) |
+|---|---|---|
+| `id` | yes | `id` — `PREFIX-NAME` |
+| `pattern` | yes | `pattern` — Rust regex |
+| `severity` | yes | `severity` |
+| `description` (or `title`) | yes | `description` |
+| `phase` | no (`code_patterns`) | `phase` |
+| `files` | no | `file_filter.filename_exact` |
+| `extensions` | no | `file_filter.extensions` (leading `.` optional) |
+| `suffixes` | no | `file_filter.filename_suffix` |
+| `exclude_paths` | no | `suppress.path_contains` |
+| `exclude_lines` | no | `suppress.line_contains` |
+| `remediation`, `references`, `tags`, `weight`, `evidence` | no | same names |
+
+The full schema is `SignaturePack` in `cli/src/corpus/schema.rs`. A signed
+pack carries `meta.signature`: base64 Ed25519 over the compact JSON
+serialisation of the pack without that field.
+
+### Match-local suppression (full schema)
+
+Besides the line-level predicates (`path_contains`, `filename_suffix`,
+`line_contains`, `nearby_contains`, `file_header_contains`, `safe_domains`),
+a full-schema rule's `suppress` block may exempt individual *matches*. A line
+is dropped only when every match of the rule on it is exempt, so an exempt
+match beside a real one never hides it.
+
+| Key | Meaning |
+|---|---|
+| `value_matches` | List of regexes. A match is exempt when the text of the rule's `(?P<value>...)` group matches one of them in full. Compiled on their own and case-sensitively, even when the rule's pattern is `(?i)`. The rule's pattern must define a `value` group. |
+| `match_context` | List of contexts; a match is exempt when any one fits. Each has `before` (regex for the up to 120 bytes that end where the rule's `(?P<anchor>...)` group starts, or the whole match when there is no anchor; matched as `(?:before)$`), `after` (regex for the up to 120 bytes that start where the anchor ends; matched as `^(?:after)`), optional `extensions` (the file extensions, without the dot, the context applies in) and optional `same` (pairs of named groups from `before` / `after` whose captured texts must be equal). At least one of `before` / `after` is required. |
+
+The search restarts one character after each exempt match, so an exempt match
+cannot swallow an overlapping real one, and a line with more than 64 matches
+of the rule keeps its finding. Windows are cut on UTF-8 character boundaries.
+A pack whose `value_matches` has no `value` group to read, whose `same` names
+a group its context does not define, or whose predicates do not compile is
+refused by `sigil rules validate`, by `--rules` and when loaded from
+`~/.sigil/packs/`. Example, from the built-in `CODE-002`:
+
+```json
+"pattern": "(?m)(^|[^.\\w$])(?P<anchor>exec\\s*\\()\\s*(?:[^\\s\\w)\\[]|(?:(?:await|new|yield)\\s+)?[\\w$]+\\s*[),.(\\[+\\\"'`]|[\\w$]+\\s*$|$)",
+"suppress": {
+  "match_context": [
+    {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"},
+    {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)",
+     "after": "[^()]*\\)\\s*\\{",
+     "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
+  ]
+}
+```
+
+`def exec(self, sql):` and a JavaScript method `async exec(fn) {` are
+definitions and are not reported; `exec(payload)` on the same line still is.
+
+Use `value_matches` for a value's *format*, not its wording. The built-in
+hardcoded-secret rules (`CRED-007`, `CRED-008`) carry none: a first version
+exempted values that look like field names (`db_password`, `local-static-key`)
+and so also silenced `password = "password"` and passphrases people choose.
+`CRED-011`'s one exemption is a `match_context` on the whole quoted value (a
+property path ending in a `*_token` field), so text after it in the string is
+still reported.
+
+### YARA rule file (`.yar`, `.yara`)
+
+UTF-8 YARA source: the subset described in
+[YARA rules](enterprise.md#yara-rules) for the built-in engine, or any YARA
+an installed engine compiles (see
+[Full YARA: external engines](enterprise.md#full-yara-external-engines));
+one file is one pack with id `yara.<file stem>`. Largest file read: 8 MiB.
+`include` and external variables are refused with any engine. How each rule
+maps to a Sigil rule:
+
+| YARA | Sigil rule |
+|---|---|
+| rule name | `id` — `YARA-` + the name upper-cased, `_` as `-` |
+| `meta: description` | `description` (default `YARA rule <name>`) |
+| `meta: severity` | `severity`: `critical`, `high`, `medium`, `low` (default `medium`) |
+| `meta: phase` | `phase`: any phase name (default `code_patterns`) |
+| `meta: remediation` | `remediation` (default: a generic note naming the rule file) |
+| `meta: reference` (repeatable) | `references` |
+| tags | `tags` |
+| `private` rule | evaluated and referable, never reported; listed with kind `yara-private` |
+| the file's engine | `engine` in `sigil rules list --json` / `show --json` and in `sigil rules validate --format json`, and `yara_engine` per pack in `sigil corpus --format json`: `built-in`, the external engine and its version (`YARA-X 1.20.0`, `YARA 4.5.0`), or `not evaluated (no external engine)` |
+
+Detached signature: `<file>.sig` beside the rule file, one line of base64
+holding the 64-byte Ed25519 signature over the bytes
+`sigil-yara-detached-signature-v1\n` followed by the rule file's exact
+bytes. `sigil rules sign <file> --key <key> -o <file>.sig` writes it.
+
+### Scan report additions (JSON)
+
+When a policy is active the scan document gains, after `findings`:
+
+| Key | Meaning |
+|---|---|
+| `policy.sources[]` | `{path, origin: organisation\|project, tighten_only, tighten_only_reason}` |
+| `policy.fail_on`, `policy.fail_on_verdict`, `policy.min_severity`, `policy.locked` | effective values |
+| `policy.refused[]`, `policy.warnings[]`, `policy.notes[]` | refused loosenings; configuration warnings (e.g. two policy files in one directory); baseline notes (stale entries, expired or unused glob rules) |
+| `policy.suppressed[]` | each finding taken out of the verdict, with `suppressed_by` and `suppression` (`disabled_rule`, `ignored_path`, `trusted_domain`, `baseline`, `config_file`) |
+| `policy.hidden_below_min_severity`, `policy.severity_overridden` | counts |
+| `summary.gate` | `pass` \| `fail` |
+| `summary.policy_suppressed_count`, `summary.baseline_suppressed_count` | counts |
+| `policy.llm` | present when any LLM key is set: `{review, may_downgrade, provider, model, endpoint, max_calls, max_tokens}` (`endpoint` without credentials or query) |
+| `llm_review` | present when the optional LLM review stage was requested: `status` (`complete` \| `incomplete` \| `not_run`), `mode`, `provider`, `endpoint`, `model`, `served_models`, call and token counts and caps, `eligible`/`reviewed`/`not_reviewed`/`confirmed`/`dismissed`/`escalated`/`downgraded`, `incomplete_reasons`, `manipulation_files`, `sent`, `reviews[]`; see [llm-review.md](llm-review.md#output) |
+| `findings[].llm_review` | the model's review of that finding: `verdict`, `rationale`, `action` (`none` \| `note` \| `downgraded` \| `not_applied`), `not_applied_reason`, `severity`, `original_severity`, `manipulation_suspected`, `model` |
+
+With no policy file, no policy flag and no `--llm-review`, the document is
+unchanged.

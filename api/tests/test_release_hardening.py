@@ -5,6 +5,7 @@ import shutil
 import stat
 import subprocess
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -51,7 +52,7 @@ def test_github_action_fails_closed_when_sigil_scan_produces_no_report(tmp_path)
     assert result.returncode == 127
     assert "verdict=error" in output.read_text()
     assert "verdict=clean" not in output.read_text()
-    assert "did not produce a report" in result.stdout + result.stderr
+    assert "did not produce parseable JSON" in result.stdout + result.stderr
 
 
 def test_github_action_fails_closed_on_unparseable_success_without_report(tmp_path):
@@ -108,11 +109,14 @@ def test_github_action_parses_json_scan_output_without_report(tmp_path):
         "#!/usr/bin/env bash\n"
         "cat <<'JSON'\n"
         "{\n"
-        '  "files_scanned": 1,\n'
-        '  "findings_count": 1,\n'
-        '  "score": 1,\n'
-        '  "verdict": "LOW RISK",\n'
-        '  "duration_ms": 1\n'
+        '  "summary": {\n'
+        '    "files_scanned": 1,\n'
+        '    "findings_count": 1,\n'
+        '    "score": 1,\n'
+        '    "verdict": "LOW RISK",\n'
+        '    "duration_ms": 1\n'
+        "  },\n"
+        '  "findings": []\n'
         "}\n"
         "JSON\n"
         "exit 0\n"
@@ -163,11 +167,14 @@ def test_github_action_uses_scan_subcommand_before_format_flag(tmp_path):
         'printf \'%s\\n\' "$@" > "$SIGIL_ARGS_FILE"\n'
         "cat <<'JSON'\n"
         "{\n"
-        '  "files_scanned": 1,\n'
-        '  "findings_count": 0,\n'
-        '  "score": 0,\n'
-        '  "verdict": "LOW RISK",\n'
-        '  "duration_ms": 1\n'
+        '  "summary": {\n'
+        '    "files_scanned": 1,\n'
+        '    "findings_count": 0,\n'
+        '    "score": 0,\n'
+        '    "verdict": "LOW RISK",\n'
+        '    "duration_ms": 1\n'
+        "  },\n"
+        '  "findings": []\n'
         "}\n"
         "JSON\n"
     )
@@ -345,17 +352,43 @@ def test_release_workflow_publishes_npm_after_public_release_assets_exist():
     ]:
         assert f"test -f {asset}" in workflow
 
-    assert "aarch64-unknown-linux-gnu" in workflow
-    assert "cross build --release --target ${{ matrix.target }}" in workflow
-    assert workflow.index("name: Publish to crates.io") < workflow.index(
-        "name: Create GitHub Release"
+    # linux-arm64 is built natively on GitHub's arm64 runner. cross cannot be
+    # used for it: its container mounts only cli/, so the corpus include_str!
+    # paths into the repo-root packs/ never resolve (release run 33239558719).
+    assert re.search(
+        r"target: aarch64-unknown-linux-gnu\s+os: ubuntu-22\.04-arm\s", workflow
     )
-    assert workflow.index("name: Create GitHub Release") < workflow.index(
+    assert "cargo build --release --target ${{ matrix.target }}" in workflow
+    assert "cross build" not in workflow
+    assert "use_cross" not in workflow
+
+    # The repo uses immutable releases: assets can only be attached before
+    # publication, so the workflow must create the release as a draft with
+    # every asset already attached, flip it to published, and only then run
+    # the registry publishes (a crates.io failure must never block assets —
+    # runs 33244784841 and 33247510578 are the incidents behind this order).
+    assert "draft: true" in workflow
+    assert "-F draft=false" in workflow
+    assert workflow.index(
+        "name: Create draft GitHub Release with assets"
+    ) < workflow.index("name: Publish GitHub Release")
+    assert workflow.index("name: Publish GitHub Release") < workflow.index(
+        "name: Publish to crates.io"
+    )
+    assert workflow.index("name: Publish to crates.io") < workflow.index(
         "name: Publish to npm"
     )
-    assert "draft: true" not in workflow
+    # crates.io publish must stay idempotent so a re-run of the release job
+    # (e.g. after an npm failure) does not die on "crate already exists".
+    assert "already on crates.io" in workflow
+
+    # A release created via the web UI is published (immutable, assetless)
+    # before the workflow can act — the preflight guard must fail fast on
+    # that, before the five platform builds run (v1.3.4, run 33269519976).
+    assert "A published release already exists" in workflow
+    assert workflow.index("preflight:") < workflow.index("build:")
+    assert "needs: preflight" in workflow
     assert "cargo install sigil-cli" in workflow
-    assert 'gh release edit "${{ github.ref_name }}" --draft=false' not in workflow
     assert "npm (macOS/Linux)" in workflow
     assert "npm publish --access public ||" not in workflow
 

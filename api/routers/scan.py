@@ -14,6 +14,7 @@ GET  /dashboard/stats — Aggregate dashboard statistics.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -87,6 +88,12 @@ router = APIRouter(prefix="/v1", tags=["scan"])
 dashboard_router = APIRouter(tags=["scan"])
 
 SCAN_TABLE = "scans"
+_MAX_THREAT_HASHES = 200
+_THREAT_LOOKUP_TIMEOUT_SECONDS = 3.0
+_USAGE_METER_TIMEOUT_SECONDS = 2.0
+_PUBLISHER_ENRICH_TIMEOUT_SECONDS = 2.0
+_ANALYTICS_TRACK_TIMEOUT_SECONDS = 2.0
+_ENHANCED_SCAN_LLM_TIMEOUT_SECONDS = 20.0
 
 
 # ---------------------------------------------------------------------------
@@ -106,17 +113,37 @@ def _findings_count(row: dict[str, Any]) -> int:
     """Derive findings_count from findings_json.
 
     findings_count is not a column on the `scans` table, so it is computed
-    from the stored findings rather than read back (it would always be 0).
+    from the stored findings when they are present on the row. Slim list
+    queries omit findings_json and instead compute a `findings_count` alias
+    in SQL (via OPENJSON) — for those rows, fall back to that value.
     """
+    if "findings_json" not in row:
+        return row.get("findings_count", 0) or 0
     findings = row.get("findings_json", [])
     if isinstance(findings, str):
         try:
             findings = json.loads(findings)
         except (json.JSONDecodeError, TypeError):
-            return row.get("findings_count", 0)
+            return row.get("findings_count", 0) or 0
     if isinstance(findings, list):
         return len(findings)
-    return row.get("findings_count", 0)
+    return row.get("findings_count", 0) or 0
+
+
+def _row_metadata(row: dict[str, Any]) -> dict[str, Any]:
+    """Return metadata_json as a dict.
+
+    MSSQL returns NVARCHAR(MAX) JSON columns as strings; memory mode stores
+    dicts. ScanListItem.metadata requires a dict, so parse defensively —
+    passing the raw string through fails response validation (HTTP 500).
+    """
+    metadata = row.get("metadata_json", {})
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+    return metadata if isinstance(metadata, dict) else {}
 
 
 def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
@@ -130,7 +157,7 @@ def _row_to_list_item(row: dict[str, Any]) -> ScanListItem:
         risk_score=row.get("risk_score", 0.0),
         verdict=row.get("verdict", "LOW_RISK"),
         threat_hits=row.get("threat_hits", 0),
-        metadata=row.get("metadata_json", {}),
+        metadata=_row_metadata(row),
         created_at=row.get("created_at", _utcnow()),
     )
 
@@ -240,11 +267,38 @@ async def _submit_scan_impl(
     # --- 2. Threat intelligence enrichment ----------------------------------
     hashes: list[str] = []
     if "hashes" in request.metadata:
-        hashes = request.metadata["hashes"]
+        raw_hashes = request.metadata["hashes"]
+        if isinstance(raw_hashes, list):
+            hashes = [h.strip() for h in raw_hashes if isinstance(h, str) and h.strip()]
     elif "hash" in request.metadata:
-        hashes = [request.metadata["hash"]]
+        raw_hash = request.metadata["hash"]
+        if isinstance(raw_hash, str) and raw_hash.strip():
+            hashes = [raw_hash.strip()]
 
-    threat_hits = await lookup_threats_for_hashes(hashes) if hashes else []
+    if len(hashes) > _MAX_THREAT_HASHES:
+        logger.warning(
+            "Truncating threat-intel lookup hashes for scan %s: %d -> %d",
+            scan_id,
+            len(hashes),
+            _MAX_THREAT_HASHES,
+        )
+        hashes = hashes[:_MAX_THREAT_HASHES]
+
+    threat_hits = []
+    if hashes:
+        try:
+            threat_hits = await asyncio.wait_for(
+                lookup_threats_for_hashes(hashes),
+                timeout=_THREAT_LOOKUP_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Threat-intel enrichment timed out for scan %s after %.1fs",
+                scan_id,
+                _THREAT_LOOKUP_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            logger.exception("Threat-intel enrichment failed for scan %s", scan_id)
 
     if threat_hits:
         threat_bonus = sum(10.0 for _ in threat_hits)
@@ -349,25 +403,43 @@ async def _submit_scan_impl(
     if user_id:
         try:
             year_month = datetime.now(timezone.utc).strftime("%Y-%m")
-            await db.increment_scan_usage(user_id, year_month)
+            await asyncio.wait_for(
+                db.increment_scan_usage(user_id, year_month),
+                timeout=_USAGE_METER_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Scan usage increment timed out for user %s after %.1fs",
+                user_id,
+                _USAGE_METER_TIMEOUT_SECONDS,
+            )
         except Exception:
             logger.exception("Failed to increment scan usage for user %s", user_id)
 
         # --- 4c. Track analytics event ----------------------------------------
         try:
-            await track_forge_event(
-                user_id=user_id,
-                event_type=ForgeEventType.SCAN_COMPLETED,
-                event_data={
-                    "scan_id": scan_id,
-                    "target": safe_target,
-                    "target_type": request.target_type,
-                    "risk_score": response.risk_score,
-                    "verdict": verdict.value,
-                    "findings_count": len(request.findings),
-                    "threat_hits": len(threat_hits),
-                    "files_scanned": request.files_scanned,
-                },
+            await asyncio.wait_for(
+                track_forge_event(
+                    user_id=user_id,
+                    event_type=ForgeEventType.SCAN_COMPLETED,
+                    event_data={
+                        "scan_id": scan_id,
+                        "target": safe_target,
+                        "target_type": request.target_type,
+                        "risk_score": response.risk_score,
+                        "verdict": verdict.value,
+                        "findings_count": len(request.findings),
+                        "threat_hits": len(threat_hits),
+                        "files_scanned": request.files_scanned,
+                    },
+                ),
+                timeout=_ANALYTICS_TRACK_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Scan analytics tracking timed out for user %s after %.1fs",
+                user_id,
+                _ANALYTICS_TRACK_TIMEOUT_SECONDS,
             )
         except Exception:
             logger.exception("Failed to track scan analytics for user %s", user_id)
@@ -388,7 +460,16 @@ async def _submit_scan_impl(
     if publisher_id:
         is_flagged = verdict.value in ("HIGH_RISK", "CRITICAL_RISK")
         try:
-            await update_publisher_from_scan(publisher_id, is_flagged=is_flagged)
+            await asyncio.wait_for(
+                update_publisher_from_scan(publisher_id, is_flagged=is_flagged),
+                timeout=_PUBLISHER_ENRICH_TIMEOUT_SECONDS,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Publisher enrichment timed out for publisher %s after %.1fs",
+                publisher_id,
+                _PUBLISHER_ENRICH_TIMEOUT_SECONDS,
+            )
         except Exception:
             logger.exception(
                 "Failed to update publisher reputation for %s", publisher_id
@@ -574,28 +655,34 @@ async def submit_enhanced_scan(
             )
 
             # Use scanner engine for comprehensive analysis
-            enhanced_findings = await scanner_engine.scan_with_pro_features(
-                content=None,  # No directory path
-                repository_context=request.metadata,
-                user_tier=current_tier.value,
+            enhanced_findings = await asyncio.wait_for(
+                scanner_engine.scan_with_pro_features(
+                    content=None,  # No directory path
+                    repository_context=request.metadata,
+                    user_tier=current_tier.value,
+                ),
+                timeout=_ENHANCED_SCAN_LLM_TIMEOUT_SECONDS,
             )
 
             # Track Pro feature usage
-            await subscription_service.track_pro_feature_usage(
-                user_id=current_user.id,
-                feature_type="llm_analysis",
-                usage_data={
-                    "scan_id": basic_response.scan_id,
-                    "files_analyzed": len(file_contents),
-                    "enhanced_findings": len(
-                        [
-                            f
-                            for f in enhanced_findings
-                            if f.phase.value == "llm_analysis"
-                        ]
-                    ),
-                    "total_findings": len(enhanced_findings),
-                },
+            await asyncio.wait_for(
+                subscription_service.track_pro_feature_usage(
+                    user_id=current_user.id,
+                    feature_type="llm_analysis",
+                    usage_data={
+                        "scan_id": basic_response.scan_id,
+                        "files_analyzed": len(file_contents),
+                        "enhanced_findings": len(
+                            [
+                                f
+                                for f in enhanced_findings
+                                if f.phase.value == "llm_analysis"
+                            ]
+                        ),
+                        "total_findings": len(enhanced_findings),
+                    },
+                ),
+                timeout=_USAGE_METER_TIMEOUT_SECONDS,
             )
 
             # Merge LLM findings with basic findings
@@ -824,13 +911,52 @@ async def list_scans(
     own_rows: list[dict[str, Any]] = []
     pub_rows: list[dict[str, Any]] = []
 
+    # Both branches fetch only the slim columns a list item needs. The
+    # NVARCHAR(MAX) LOB columns (findings_json / metadata_json) are what made
+    # the old SELECT * approach take tens of seconds: up to 1000 rows of
+    # multi-KB..MB JSON blobs were read and shipped per request only to be
+    # discarded. findings_count for own scans is computed server-side with
+    # OPENJSON instead of len(findings_json) client-side. (Memory-mode db
+    # ignores include_columns and returns full rows, which the row mappers
+    # also accept.)
     if resolved_scope in ("own", "all"):
-        own_rows = await db.select(SCAN_TABLE, {"user_id": current_user.id}, limit=500)
+        own_rows = await db.select(
+            SCAN_TABLE,
+            {"user_id": current_user.id},
+            limit=500,
+            order_by="created_at",
+            order_desc=True,
+            include_columns=[
+                "[id]",
+                "[target]",
+                "[target_type]",
+                "[files_scanned]",
+                "[risk_score]",
+                "[verdict]",
+                "[created_at]",
+                "(SELECT COUNT(*) FROM OPENJSON([findings_json])) AS [findings_count]",
+            ],
+        )
         own_rows = _apply_common_filters(own_rows, "target", "target_type")
 
     if resolved_scope in ("public", "community", "all"):
         pub_rows = await db.select(
-            "public_scans", None, limit=500, order_by="scanned_at", order_desc=True
+            "public_scans",
+            None,
+            limit=500,
+            order_by="scanned_at",
+            order_desc=True,
+            include_columns=[
+                "[id]",
+                "[package_name]",
+                "[ecosystem]",
+                "[files_scanned]",
+                "[findings_count]",
+                "[risk_score]",
+                "[verdict]",
+                "[scanned_at]",
+                "[created_at]",
+            ],
         )
         pub_rows = _apply_common_filters(pub_rows, "package_name", "ecosystem")
 

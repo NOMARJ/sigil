@@ -4,24 +4,28 @@ Automated security auditing for AI agent code directly in Claude Code.
 
 ## Features
 
+- **🚧 Enforcement Gate** - PreToolUse hook blocks unscanned installs and clones, routing them through quarantine
 - **🔍 Scan Repositories** - Audit entire repos for malicious patterns before cloning
 - **📦 Package Auditing** - Check npm and pip packages for supply-chain threats
 - **📄 File Analysis** - Scan individual files or code selections
 - **🛡️ Quarantine Workflow** - Review and approve/reject findings with risk scores
 - **🤖 Security Agents** - Specialized AI agents for threat analysis and quarantine management
+- **🔌 Bundled MCP Server** - Registers Sigil's MCP tools automatically on install
 
 ## What Gets Scanned?
 
-Sigil analyzes **6 threat categories** with severity weighting:
+Sigil analyzes **8 threat categories** with severity weighting:
 
-| Phase             | What It Detects                                                | Severity       |
-| ----------------- | -------------------------------------------------------------- | -------------- |
-| **Install Hooks** | `setup.py` cmdclass, npm `postinstall`, Makefile targets       | Critical (10x) |
-| **Code Patterns** | `eval()`, `exec()`, `pickle`, `child_process`, dynamic imports | High (5x)      |
-| **Network/Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunneling     | High (3x)      |
-| **Credentials**   | ENV var access, API keys, SSH keys, AWS credentials            | Medium (2x)    |
-| **Obfuscation**   | Base64 decode, charCode, hex encoding, minified payloads       | High (5x)      |
-| **Provenance**    | Shallow git history, binary files, hidden files, author count  | Low (1-3x)     |
+| Phase                | What It Detects                                                | Severity       |
+| -------------------- | -------------------------------------------------------------- | -------------- |
+| **Install Hooks**    | `setup.py` cmdclass, npm `postinstall`, Makefile targets       | Critical (10x) |
+| **Code Patterns**    | `eval()`, `exec()`, `pickle`, `child_process`, dynamic imports | High (5x)      |
+| **Network/Exfil**    | Outbound HTTP, webhooks, socket connections, DNS tunneling     | High (3x)      |
+| **Credentials**      | ENV var access, API keys, SSH keys, AWS credentials            | Medium (2x)    |
+| **Obfuscation**      | Base64 decode, charCode, hex encoding, minified payloads       | High (5x)      |
+| **Provenance**       | Shallow git history, binary files, hidden files, author count  | Low (1-3x)     |
+| **Prompt Injection** | AI agent instruction injection in code, docs, tool descriptions | Critical (10x) |
+| **Skill Security**   | MCP permission escalation, over-broad agent tool grants        | High (5x)      |
 
 ## Risk Scoring
 
@@ -62,10 +66,10 @@ curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 
 ```bash
 # Add Sigil marketplace
-claude plugin marketplace add https://github.com/NOMARJ/sigil.git
+claude plugin marketplace add NOMARJ/sigil
 
 # Install the plugin
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 ```
 
 **Option 2: Local Development**
@@ -138,7 +142,7 @@ Analyzes a specific file for security vulnerabilities.
 #### 4. Quarantine Review
 
 ```
-/sigil-security:quarantine-review
+/sigil-security:review-quarantine
 ```
 
 Reviews all quarantined items and helps decide whether to approve or reject.
@@ -209,14 +213,44 @@ Manages the quarantine workflow and guides approval/rejection decisions.
 @quarantine-manager review the latest quarantine
 ```
 
-### Automated Recommendations
+### Enforcement Gate (PreToolUse Hook)
 
-The plugin includes hooks that auto-suggest Sigil when you:
+The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A PreToolUse hook (`hooks/sigil-guard.sh`) inspects every Bash command Claude Code is about to run and applies this policy. When the Sigil CLI (v1.3.0+) is on PATH, the script delegates to the native `sigil hook pretooluse` implementation of the same policy; without it, the script's own dependency-free patterns apply.
 
-- Mention "clone", "install", "package", "security", "scan", or "malware"
-- Use commands like `git clone`, `pip install`, or `npm install`
+| Command pattern                                                        | Decision | Why                                                          |
+| ---------------------------------------------------------------------- | -------- | ------------------------------------------------------------ |
+| `git clone`, `gh repo clone`                                            | **deny** | Use `sigil clone <url>` — quarantine + scan first            |
+| `npm install <pkg>`, `npm add`, `yarn add`, `pnpm add`                  | **deny** | Use `sigil npm <pkg>`                                        |
+| `pip install <pkg>` (also beside `-r req.txt`), `uv add`                | **deny** | Use `sigil pip <pkg>`                                        |
+| `cargo install/add`, `gem install`, `go install/get`                    | **deny** | Quarantine + scan the source with `sigil clone` first        |
+| `curl \| sh`, `curl \| bash -s`, `curl \| tee f \| sh`, `curl \| tr -d '\r' \| bash`, `curl \| sudo -s`, `curl \| bash -c "$(cat)"`, `curl \| tee >(bash)`, `{ curl …; } \| sh`, `bash <(curl …)` | **deny** | Piping a download into an interpreter executes unscanned code |
+| `curl -o i.sh URL && bash i.sh` (download, then run it, a copy of it, or its text through `eval "$(cat i.sh)"`) | **deny** | Allowed as `curl -o i.sh URL && sigil scan i.sh && bash i.sh` (a real scan, the last stage of its pipeline, under no policy the command sets or writes, of a download that has finished, with nothing written to the file after it) |
+| `curl … > ~/.claude/skills/…`, `-o .mcp.json` (downloads into agent tooling) | **deny** | Use `sigil scan <url>` — quarantine + scan first       |
+| `pipx install`, `uv tool install`, `deno run npm:…` / `https://…`       | **deny** | Prefix `sigil pip <pkg> &&` / `sigil npm <pkg> &&`; download and `sigil scan` a URL module |
+| Bare lockfile restores (`npm install`, `npm ci`, `pip install -r req.txt` with no package beside it, `bundle install`) | **ask**  | Lockfile deps can still run install scripts — confirm trust  |
+| One-shot runners (`npx`, `bunx`, `dlx`, `uvx`, `pipx run`, `npm exec`, `bun x`, `uv tool run`) | **deny** | Downloads and executes in one step with no scan |
+| Everything else                                                         | allow    |                                                              |
 
-Claude Code will automatically recommend using Sigil's quarantine-first workflow.
+**Escape hatches:**
+
+- `SIGIL_BYPASS=1 <command>` — allow a single command through the gate
+- `SIGIL_GUARD_MODE=advise` — downgrade every deny to ask (advisory mode)
+- `SIGIL_GUARD_MODE=off` — disable the gate entirely
+- `SIGIL_GUARD_MODE=enforce` — the default
+
+### SessionStart Check
+
+A SessionStart hook verifies the `sigil` binary is available when a session begins. If it's missing, Claude Code is told how to install it instead of failing mid-task.
+
+### Advisory Prompts
+
+UserPromptSubmit hooks additionally suggest Sigil skills when you mention "clone", "install", "package", "security", "scan", or "malware" in a prompt.
+
+### Bundled MCP Server
+
+Installing the plugin also registers Sigil's built-in MCP server (`sigil mcp`), giving Claude Code `scan`, `scan_package` and `check_command` tools that return a verdict and a `safe_to_install` decision. It runs from the same `sigil` binary the hooks use, so there is nothing else to install. See [docs/mcp.md](../../docs/mcp.md) for the tool reference.
+
+> The nine-tool Node server in `plugins/mcp-server` (quarantine management and the public scan database) is not yet published to npm. To use it, build it from source (`cd plugins/mcp-server && npm install && npm run build`) and register `node /path/to/sigil/plugins/mcp-server/dist/index.js` alongside or instead of `sigil mcp`.
 
 ## Examples
 
@@ -304,7 +338,7 @@ User: What's in my quarantine right now?
 
 Claude: Let me check your quarantine status.
 
-/sigil-security:quarantine-review
+/sigil-security:review-quarantine
 
 @quarantine-manager
 
@@ -349,19 +383,16 @@ Would you like me to analyze any specific item in detail?
 
 ## Configuration
 
-### Default Agent
+### Enforcement Mode
 
-The plugin sets `security-auditor` as the default agent. To change this, create a `settings.json` in your Claude Code config:
+The PreToolUse gate is controlled with environment variables — no settings file required:
 
-```json
-{
-  "plugins": {
-    "sigil-security": {
-      "agent": "quarantine-manager"
-    }
-  }
-}
-````
+```bash
+SIGIL_GUARD_MODE=enforce   # default: deny risky installs/clones
+SIGIL_GUARD_MODE=advise    # every deny becomes an ask
+SIGIL_GUARD_MODE=off       # disable the gate
+SIGIL_BYPASS=1 <command>   # allow one specific command through
+```
 
 ### Auto-Approve Threshold
 
@@ -396,7 +427,7 @@ claude plugin list
 Should show:
 
 ```
-sigil-security@1.0.0 (enabled)
+sigil-security@1.1.0 (enabled)
 ```
 
 ### Hooks not triggering

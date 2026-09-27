@@ -101,6 +101,51 @@ jobs:
             --push \
             ./dashboard
 
+  roll-container-apps:
+    name: Roll Container Apps
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v3
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Rolls the container apps directly with the images this run just
+      # pushed, per docs/deployment-runbook.md. The sigil-infra dispatch
+      # below covers the wider infrastructure but has been failing on an
+      # expired INFRA_REPO_PAT (gh 401), which left every deploy pushing
+      # images that never rolled. Dashboard deploys via Vercel, not here.
+      - name: Roll sigil-api
+        run: |
+          az containerapp update \
+            --name sigil-api \
+            --resource-group sigil-rg \
+            --image ${{ env.ACR_LOGIN_SERVER }}/sigil-api:${{ needs.build-and-push.outputs.api-image-tag }}
+
+      - name: Roll bot containers
+        run: |
+          for app in sigil-bot-watchers sigil-bot-workers sigil-bot-pr-worker; do
+            az containerapp update \
+              --name "$app" \
+              --resource-group sigil-rg \
+              --image ${{ env.ACR_LOGIN_SERVER }}/sigil-bot:${{ needs.build-and-push.outputs.bot-image-tag }}
+          done
+
+      - name: Verify API health
+        run: |
+          sleep 30
+          for i in 1 2 3 4 5 6; do
+            if curl -sf -m 15 https://api.sigilsec.ai/health | grep -q '"status":"ok"'; then
+              echo "API healthy on new revision"
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "::error::API health check failed after roll — check revision status"
+          exit 1
+
   trigger-infrastructure-deployment:
     name: Trigger Infrastructure Deployment
     needs: build-and-push

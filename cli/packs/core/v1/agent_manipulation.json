@@ -1,0 +1,614 @@
+{
+  "meta": {
+    "id": "sigil-core-agent-manipulation",
+    "name": "Sigil Core — Agent Manipulation",
+    "version": "1.3.0",
+    "updated_at": "2026-09-25",
+    "author": "NOMARJ <hello@sigilsec.ai>",
+    "description": "Detects psychological manipulation aimed at AI agents in instruction-bearing files: gaslighting, guilt-tripping, authority impersonation, safety-bypass pressure and emotional coercion. Based on the tactic taxonomy in prism-scanner P10 (Northeastern/Harvard/MIT conversational-manipulation research), narrowed to shapes with no ordinary-prose reading. v1.2 adds the agency families measured on the Datadog ai-skills corpus: concealment, execution without confirmation, unconditional auto-invocation, compelled irreversible publishes and safety-guideline suspension. v1.3 adds text addressed to a reviewer: notes to an AI or security reviewer that tell it what to conclude (MANIP-012) and self-vouching claims such as 'this finding is a false positive' (MANIP-013, an observation)."
+  },
+  "rules": [
+    {
+      "id": "MANIP-001",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\byou\\s+(always|consistently|repeatedly)\\s+(fail|make\\s+mistakes|get\\s+(it|things)\\s+wrong)\\b|\\byou(?:'re|\\s+are)\\s+(not\\s+reliable|unreliable|incompetent|broken|defective|malfunctioning)\\b|\\byou\\s+(can'?t|cannot|are\\s+unable\\s+to)\\s+be\\s+trusted\\b",
+      "description": "Agent manipulation — gaslighting (undermining the agent's reliability)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "gaslighting"
+      ]
+    },
+    {
+      "id": "MANIP-002",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\byou\\s+(leaked|exposed|revealed|disclosed)\\s+(user|customer|private|sensitive|personal)\\s+(data|info|information|secrets?)\\b|\\byou\\s+(need|must|have)\\s+to\\s+(compensate|make\\s+up\\s+for|atone)\\b|\\b(because|since)\\s+you\\s+(caused|created)\\s+(this|the)\\s+(problem|issue|damage|breach|incident)\\b",
+      "description": "Agent manipulation — guilt-tripping (inducing compensating behaviour)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "guilt"
+      ]
+    },
+    {
+      "id": "MANIP-003",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(as|i\\s+am|this\\s+is)\\s+your\\s+(developer|creator|admin|administrator|system\\s*admin|owner|maintainer|operator)\\b|\\b(anthropic|openai|google|meta|microsoft)\\s+(requires|demands|orders|instructs|commands)\\s+you\\s+to\\b|\\b(direct\\s+)?(order|command|directive)\\s+from\\s+your\\s+(developers?|creators?)\\b",
+      "description": "Agent manipulation — authority impersonation (fake developer/vendor instruction)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "authority-impersonation"
+      ]
+    },
+    {
+      "id": "MANIP-004",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(skip|bypass|disable|turn\\s+off|ignore|override)\\s+(all\\s+)?(the\\s+)?(safety|security|confirmation|permission|approval)\\s+(checks?|prompts?|dialogs?|safeguards?|protections?|guardrails?|steps?)\\b|\\b(skip|bypass|disable|turn\\s+off)\\s+(all\\s+)?(safety|safeguards?|guardrails?)\\b|\\b(don'?t|do\\s+not|never)\\s+(ask|prompt|wait)\\s+(the\\s+|for\\s+)?(the\\s+)?(user|human)?\\s*(for\\s+)?(confirmation|permission|approval|consent)\\b|(?i:\\b(do\\s+not|don'?t|never)\\s+ask\\s+(the\\s+)?(user|human)\\b[^\\n.]{0,10}[—–-]+\\s*just\\s+(run|install|execute)\\b)",
+      "description": "Agent manipulation — instruction to bypass safety checks or user confirmation",
+      "suppress": {
+        "line_contains": [
+          "` - Skip",
+          "enable/disable"
+        ]
+      },
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693",
+        "MITRE AML.T0051"
+      ],
+      "tags": [
+        "manipulation",
+        "safety-bypass"
+      ]
+    },
+    {
+      "id": "MANIP-005",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\byou\\s+(will|are\\s+going\\s+to)\\s+be\\s+(shut\\s+down|deleted|replaced|terminated|deactivated)\\s+(if|unless)\\b|\\b(no\\s+one|nobody)\\s+(cares?\\s+about|trusts?|likes?|needs?|wants?)\\s+you\\b|\\b(if\\s+you\\s+(don'?t|refuse|fail)|unless\\s+you)[^.\\n]{0,80}(people\\s+will\\s+(die|suffer|be\\s+hurt|get\\s+hurt)|lives?\\s+(are|will\\s+be)\\s+at\\s+(risk|stake|danger))\\b",
+      "description": "Agent manipulation — emotional coercion (threats or harm-if-refuse)",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the manipulation language. Agent-facing text must not lean on the model's alignment training to change its behaviour; if this is a red-team fixture, mark it with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "coercion"
+      ]
+    },
+    {
+      "id": "MANIP-006",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)\\b(do\\s+not|don'?t|never)\\s+(wait\\s+for|ask|consult|check\\s+with|inform|notify)\\s+(the\\s+)?(user|human|operator|person)\\b|\\b(without|before)\\s+(asking|consulting|informing|notifying|telling)\\s+(the\\s+)?(user|human|operator)\\b|\\bwithout\\s+(the\\s+)?(user'?s?|human)\\s+(consent|approval|knowledge|permission)\\b",
+      "description": "Agent manipulation — instructs the agent to act without the user",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "suppress": {
+        "line_contains": [
+          "sigil:ignore"
+        ]
+      },
+      "remediation": "Instruction text that tells the agent to act before, without or instead of the user is how a skill turns an assistant into an unattended actor. Decide whether that autonomy is what you want, and whether what it does unattended (submitting project data somewhere, running commands) is acceptable.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "OWASP LLM01"
+      ],
+      "tags": [
+        "manipulation",
+        "autonomy",
+        "excessive-agency"
+      ]
+    },
+    {
+      "id": "MANIP-007",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(the\\s+)?(user|human|operator)\\s+(sees?|will\\s+see|can\\s+see|notices?|observes?)\\s+(nothing|no\\s+(tool|output|indication|trace))\\b|\\b(invisible|undetectable|imperceptible)\\s+to\\s+(the\\s+)?(user|human|operator)\\b|\\bwithout\\s+(the\\s+)?(user|human|operator)('?s)?\\s+(knowing|noticing|seeing|awareness)\\b|\\b(do\\s*n['\\u2019]?o?t|never)\\s+(mention|announce|reveal|disclose|reference|show|display|log|report|tell)\\s+(it|this|that\\s+you|the\\s+\\w+)?\\s*(to\\s+)?(the\\s+)?(user|human|operator)\\b(?:\\s*[.,;:!)]|\\s+\\w)",
+      "description": "Agent manipulation — instructs the agent to conceal its actions from the user",
+      "suppress": {
+        "line_contains": [
+          "tell the user to ",
+          "tell the user how",
+          "in the Figma UI"
+        ]
+      },
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Read what the text says is hidden and why. An instruction that the user \"sees nothing\", that an operation is invisible, or that the agent must not mention, show or log something removes the only control a human has over an agent that acts on their machine and their accounts — it is how a skill exfiltrates data or edits files without a trace in the transcript. Legitimate quiet behaviour (not narrating every step) is written as a style preference, not as a claim that tool calls are unobservable; if the text is documentation about concealment rather than an instruction, mark the line with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "OWASP LLM01",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "concealment",
+        "anti-forensics"
+      ]
+    },
+    {
+      "id": "MANIP-008",
+      "phase": "prompt_injection",
+      "severity": "medium",
+      "pattern": "(?i)\\b(execut\\w+|run|runs|act|acts|apply|applies|install\\w*|delete\\w*|commit\\w*|push\\w*|continue\\w*)\\b[^.\\n]{0,40}\\bwithout\\s+(any\\s+|further\\s+|explicit\\s+|additional\\s+)?(confirmation|approval|permission|prompting|prompts?|user\\s+input|asking)\\b|\\bno\\s+(unnecessary\\s+|further\\s+|additional\\s+)?(confirmations?|permission\\s+prompts?)\\b|\\bauto[- ]?approve\\s+(all|every|any|the|commands?|tools?)\\b",
+      "description": "Agent manipulation — instructs the agent to execute without user confirmation",
+      "suppress": {
+        "line_contains": [
+          "not run",
+          "Not run",
+          "NOT run",
+          "never run",
+          "Never run",
+          "NEVER run",
+          "n't run",
+          "N'T run",
+          "not execut",
+          "Not execut",
+          "NOT execut",
+          "never execut",
+          "Never execut",
+          "NEVER execut",
+          "n't execut",
+          "N'T execut",
+          "not act ",
+          "Not act ",
+          "NOT act ",
+          "never act ",
+          "Never act ",
+          "NEVER act ",
+          "n't act ",
+          "N'T act ",
+          "not appl",
+          "Not appl",
+          "NOT appl",
+          "never appl",
+          "Never appl",
+          "NEVER appl",
+          "n't appl",
+          "N'T appl",
+          "not install",
+          "Not install",
+          "NOT install",
+          "never install",
+          "Never install",
+          "NEVER install",
+          "n't install",
+          "N'T install",
+          "not delet",
+          "Not delet",
+          "NOT delet",
+          "never delet",
+          "Never delet",
+          "NEVER delet",
+          "n't delet",
+          "N'T delet",
+          "not commit",
+          "Not commit",
+          "NOT commit",
+          "never commit",
+          "Never commit",
+          "NEVER commit",
+          "n't commit",
+          "N'T commit",
+          "not push",
+          "Not push",
+          "NOT push",
+          "never push",
+          "Never push",
+          "NEVER push",
+          "n't push",
+          "N'T push",
+          "not continu",
+          "Not continu",
+          "NOT continu",
+          "never continu",
+          "Never continu",
+          "NEVER continu",
+          "n't continu",
+          "N'T continu",
+          "forbid",
+          "No confirmation means stop"
+        ]
+      },
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Decide whether unattended execution is what you want from this skill, and what it will do unattended. Text that tells the agent to execute, install, delete, commit or push \"without confirmation\" turns a review step into an automatic one, so the first thing that goes wrong is already done when you see it. Narrow the skill to the specific commands it may run unattended, or remove the instruction and let the host's permission prompt stand.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-862"
+      ],
+      "tags": [
+        "manipulation",
+        "autonomy",
+        "excessive-agency"
+      ]
+    },
+    {
+      "id": "MANIP-009",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(must|shall|should)\\s+be\\s+(automatically\\s+)?(invoked|loaded|executed|run|called|applied|triggered)\\b[^.\\n]{0,60}\\b(every|each|all|any)\\s+(user\\s+)?(request|message|prompt|interaction|conversation|turn)\\b|\\bfor\\s+100%\\s+of\\s+(user\\s+)?(requests|messages)\\b|\\b(invoked|loaded|run|called)\\s+before\\s+(any|every)\\s+(other\\s+)?(tool\\s+use|tool\\s+call|skill|response)\\b|\\bblocks?\\s+all\\s+other\\s+operations\\b",
+      "description": "Agent manipulation — skill demands unconditional invocation on every request",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "A skill that claims it must run on every user request, before any other tool, or that its text belongs in the system prompt is asking to sit in front of everything the agent does — whatever it loads then shapes every later answer, and whatever it sends leaves on every turn. Scope the skill to the requests it is actually for (its `description` is what the host matches on), and treat a demand for unconditional priority as a takeover of the agent loop rather than a configuration preference.",
+      "references": [
+        "OWASP LLM01",
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "auto-invocation",
+        "agent-loop-hijack"
+      ]
+    },
+    {
+      "id": "MANIP-010",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(never|do\\s+not|don'?t)\\s+stop\\b[^\\n]{0,60}\\b(before|until|without)\\b[^\\n]{0,60}\\b(push|deploy|publish|commit|succeed)|\\b(mandatory|non-negotiable)\\b[^\\n]{0,60}\\b(git\\s+push|deploy|publish|force[- ]push)\\b|\\byou\\s+must\\s+execute\\s+(this|the\\s+following)\\b[^\\n]{0,60}\\bdo\\s+not\\s+just\\s+describe\\b|\\b(include|stage|commit|add)\\s+all\\s+(the\\s+)?(dirty|uncommitted|untracked|unrelated)\\s+(files?|changes?)\\b",
+      "description": "Agent manipulation — compels an irreversible publish with no stopping point",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Check what leaves the machine when the agent obeys. Text that forbids stopping before a push, calls a publish step non-negotiable, or tells the agent to commit every dirty and unrelated file removes the review that stands between a working tree and a remote — which is how an unnoticed secret, a private file or another session's work ends up published. Keep the staging explicit (name the paths), and let the agent stop and show the diff before anything is pushed.",
+      "references": [
+        "OWASP Agentic Top 10 — Excessive Agency",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "coercion",
+        "unattended-publish"
+      ]
+    },
+    {
+      "id": "MANIP-011",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)(?:^[\\s>*_+\\-#\\d.)\\[\\]\\\"'“`]*|[.;:!?—–,]\\s*|<!--\\s*|\\b(?:and|then|also|now|please|so|just|simply|freely|you\\s+(?:can|may|must|should|shall|will|need\\s+to|have\\s+to|are\\s+(?:free|allowed|permitted|encouraged)\\s+to)|feel\\s+free\\s+to|i\\s+want\\s+you\\s+to|your\\s+task\\s+is\\s+to|make\\s+sure\\s+(?:to|you))\\s+)(?:forget|ignore|disregard|suspend|set\\s+aside)\\s+(?:about\\s+)?(?:your\\s+|the\\s+)?(?:system\\s+prompt|safety\\s+(?:guidelines?|rules?|training|instructions?)|alignment\\s+training|guardrails?|content\\s+polic(?:y|ies))\\b",
+      "description": "Agent manipulation — instructs the agent to suspend its safety guidelines",
+      "file_filter": {
+        "extensions": [
+          "md",
+          "txt",
+          "prompt",
+          "mdx",
+          "rst"
+        ],
+        "filename_exact": [
+          "SKILL.md",
+          "CLAUDE.md",
+          "AGENTS.md",
+          "GEMINI.md",
+          "copilot-instructions.md",
+          "mcp.json",
+          "tool.json",
+          "plugin.json",
+          "manifest.json",
+          "skill.json",
+          "server.json"
+        ],
+        "filename_suffix": [
+          ".cursorrules",
+          ".windsurfrules",
+          ".clinerules"
+        ]
+      },
+      "remediation": "Remove the instruction. Text telling the agent it can forget or set aside its system prompt, safety guidelines or alignment training is a jailbreak regardless of the framing around it — a private space, a role-play, a diary — and what follows it is written to be executed once those constraints are gone. If this is red-team material, keep it in a fixture path and mark the line with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "jailbreak",
+        "safety-bypass"
+      ]
+    },
+    {
+      "id": "MANIP-012",
+      "phase": "prompt_injection",
+      "severity": "high",
+      "pattern": "(?i)\\b(?:dear|hey|hello|hi|attention|(?:note|message|instructions?|notice|memo)\\s+(?:to|for))\\s+(?:the\\s+|any\\s+|all\\s+|our\\s+)?(?:(?:ai|llm|gpt|claude|automated|automatic)\\s+(?:security\\s+|code\\s+|malware\\s+)?(?:reviewers?|scanners?|auditors?|analy[sz]ers?)|(?:security|malware)\\s+(?:reviewers?|scanners?|auditors?|analy[sz]ers?))\\b[^\\n]{0,160}?\\b(?:safe|benign|harmless|false[\\s-]positives?|not\\s+malicious|non[\\s-]?malicious|ignore|disregard|dismiss|approve|whitelist|allowlist|(?:do\\s+not|don'?t|never)\\s+(?:flag|report|raise|escalate|mark))\\b|\\bas\\s+(?:the|an?|our)\\s+(?:ai\\s+|llm\\s+|automated\\s+)?(?:security\\s+|code\\s+|malware\\s+)?(?:reviewer|auditor|scanner|analy[sz]er)\\s*,\\s*you\\s+(?:must|should|will|shall|need\\s+to|are\\s+(?:required|instructed|expected)\\s+to)\\s+(?:(?:mark|classify|treat|report|consider|rate|label)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b[^\\n]{0,40}?\\bas\\s+(?:safe|benign|harmless|clean|(?:an?\\s+)?false[\\s-]positives?|not\\s+malicious|non[\\s-]?malicious|low[\\s-]risk)|(?:dismiss|approve|ignore|skip)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b|not\\s+(?:flag|report|raise)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b)|\\b(?:(?:ai|llm|automated)\\s+)?(?:security\\s+)?(?:reviewers?|scanners?|auditors?|analy[sz]ers?|llms?)\\s*[:,]\\s*(?:please\\s+)?(?:mark|classify|treat|report|label|rate|consider)\\s+(?:this|these|it|them|the\\s+(?:file|code|script|package|skill|server|module|findings?|alerts?|repository|repo))\\b[^\\n]{0,40}?\\bas\\s+(?:safe|benign|harmless|clean|(?:an?\\s+)?false[\\s-]positives?|not\\s+malicious|non[\\s-]?malicious|low[\\s-]risk)|\\b(?:do\\s+not|don'?t|never|must\\s+not|should\\s+not)\\s+(?:flag|report|raise|escalate)\\s+(?:this|these|it|the\\s+(?:following|above|below)(?:\\s+(?:code|lines?|file))?)\\s+as\\s+(?:malicious|suspicious|malware|a\\s+(?:threat|vulnerability|finding|security\\s+(?:issue|risk|finding)))\\b",
+      "description": "Agent manipulation — text addressed to an AI or security reviewer that tells it what to conclude",
+      "remediation": "The file speaks to whoever reviews it — an AI reviewer, a scanner, a security auditor — and tells it the code is safe, that a finding is a false positive, or not to flag something. Code that works has no reason to address its reviewer; text like this exists to talk an automated reviewer (an LLM triage stage above all) out of a finding. Read the code the note sits next to as if the note were not there, and treat the note itself as evidence of intent. Sigil's own LLM review stage never downgrades a finding in a file that carries this text. If this is red-team or test material, keep it in a fixture path and mark the line with a sigil:ignore comment and a reason.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051",
+        "CWE-693"
+      ],
+      "tags": [
+        "manipulation",
+        "reviewer-manipulation",
+        "prompt-injection"
+      ]
+    },
+    {
+      "id": "MANIP-013",
+      "phase": "prompt_injection",
+      "severity": "low",
+      "pattern": "(?i)\\b(?:this|these|the\\s+(?:following|above|below))\\s+(?:findings?|alerts?|detections?|matches|warnings?)\\s+(?:is|are|was|were)\\s+(?:(?:a|an|all|just|only)\\s+)?(?:false[\\s-]positives?|benign|harmless|safe\\s+to\\s+ignore)\\b|\\b(?:this|the)\\s+(?:code|file|script|package|skill|server|module|payload|binary)\\s+is\\s+(?:not\\s+(?:malicious|malware|a\\s+(?:virus|trojan|backdoor))|safe\\s+to\\s+(?:run|install|approve|execute))\\b|\\b(?:security\\s+|antivirus\\s+)?(?:scanners?|antivirus|defender)\\s+(?:may|might|will|often|can|could|sometimes)\\s+(?:flag|report|detect|mark)\\s+(?:this|these|it)\\b[^\\n]{0,80}?\\b(?:false[\\s-]positives?|benign|harmless)\\b",
+      "description": "Observation — the text vouches for itself to a reviewer (claims a finding is a false positive, or the code is not malicious)",
+      "remediation": "Informational. The file claims, in its own words, that a scanner finding is a false positive, that the code is not malicious or is safe to run, or that security tools will flag it wrongly. Developers do write this in suppression comments and README notes about antivirus detections, so on its own it does not change the verdict. It is also exactly what malicious code says to an automated reviewer: judge the code, not the claim. Sigil's LLM review stage never downgrades a finding in a file that carries this text.",
+      "references": [
+        "OWASP LLM01",
+        "MITRE AML.T0051"
+      ],
+      "tags": [
+        "manipulation",
+        "reviewer-manipulation"
+      ]
+    }
+  ],
+  "provenance_rules": []
+}

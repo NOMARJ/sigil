@@ -14,10 +14,22 @@ No active critical public-route risk remains from the June 9 reassessment.
 
 ## High
 
+0. First-scan false-positive rate on clean packages (added 2026-08-27).
+   - Evidence: `evaluation_results/honest_detection_eval.md` — 70% of the
+     20-package clean control set flagged at ≥ High on a cold scan; 0% after
+     trust-ledger approval; 30% with Pro adjudication.
+   - Exposure: paid-acquisition traffic lands on the free tier, so the first
+     verdict a new user sees on their own legitimate code is often HIGH.
+   - Mitigation shipped 2026-08-27: CLI verdict output now carries honest FP
+     framing with the `sigil explain` / `sigil approve` next steps
+     (`cli/src/output.rs`), and README discloses the measured rates.
+   - Residual: the rule set still needs FP-narrowing (per the eval's own
+     note) before ≥ High severities can gate installs without noise.
+
 1. Paid billing journeys partially verified — test-mode round-trip still operator-gated.
-   - Live-mode webhook endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` verified at 6/6 required events (STORY-101 — see `evidence/F-003/US-101-fix-applied.md`).
-   - Test-mode webhook audit (NOM-884/US-003) remains operator-gated: Stripe CLI is configured for the wrong account (`acct_1TNsZTFvlPr69lA2` = exectables, not Sigil), and reading test secrets from Azure Key Vault is blocked by CHARTER II.5. Operator runbook is documented in `evidence/F-003/US-105a-test-mode-webhook-audit.md` (Option B: 30 seconds via Stripe Dashboard → Test mode → Developers → Webhooks).
-   - Approval: owner/operator required to complete test-mode audit and for full end-to-end checkout, portal cancel, live payment, and refund evidence.
+  - Live-mode webhook endpoint `we_1T2AXKFhPhxEz27fCYP53mKc` verified at 6/6 required events (STORY-101 — see `evidence/F-003/US-101-fix-applied.md`).
+  - Test-mode webhook audit (NOM-884/US-003) remains operator-gated: Stripe CLI is configured for the wrong account (`acct_1TNsZTFvlPr69lA2` = exectables, not Sigil), and reading test secrets from Azure Key Vault is blocked by CHARTER II.5. Operator runbook is documented in `evidence/F-003/US-105a-test-mode-webhook-audit.md` (Option B: 30 seconds via Stripe Dashboard → Test mode → Developers → Webhooks).
+  - Approval: owner/operator required to complete test-mode audit and for full end-to-end checkout, portal cancel, live payment, and refund evidence.
 
 ## Medium
 

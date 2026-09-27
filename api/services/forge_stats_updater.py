@@ -90,13 +90,15 @@ class ForgeStatsUpdater:
                     # 1. Ecosystem scan counts from public_scans.
                     # forge_classification is not currently populated by the bot
                     # publisher, so derive ecosystem counts directly from scans.
-                    # Uses the same COUNT(*)/GROUP BY pattern as registry_stats_updater
-                    # (proven to complete inside the 30s cursor timeout on 10 DTU).
+                    # No verdict filter: verdict lives only in the clustered
+                    # index, so the filter forces a full scan of the LOB-heavy
+                    # table (33GB — 2026-07-19 saturation incident). Unfiltered
+                    # this runs off the narrow ecosystem index; counts include
+                    # ERROR scans (small overcount).
                     # Categories stay empty until the classifier is wired back.
                     await cursor.execute("""
                         SELECT ecosystem, COUNT(*) as cnt
                         FROM public_scans
-                        WHERE verdict != 'ERROR'
                         GROUP BY ecosystem
                     """)
                     ecosystem_counts: dict[str, int] = {}
@@ -112,7 +114,12 @@ class ForgeStatsUpdater:
                     row = await cursor.fetchone()
                     total_matches = row[0] if row else 0
 
-                    # 3. Trust score distribution
+                    # 3. Trust score distribution.
+                    # Unfiltered so it runs off the narrow risk_score index
+                    # (the verdict filter forces a 33GB clustered scan — see
+                    # note above). ERROR rows carry risk_score 0 and would
+                    # land in the "high" bucket, so subtract the ERROR count
+                    # (cheap on the verdict index) from that bucket instead.
                     await cursor.execute("""
                         SELECT
                             SUM(CASE WHEN COALESCE(risk_score, 0) <= 25 THEN 1 ELSE 0 END),
@@ -120,11 +127,15 @@ class ForgeStatsUpdater:
                             SUM(CASE WHEN COALESCE(risk_score, 0) > 60 AND COALESCE(risk_score, 0) <= 85 THEN 1 ELSE 0 END),
                             SUM(CASE WHEN COALESCE(risk_score, 0) > 85 THEN 1 ELSE 0 END)
                         FROM public_scans
-                        WHERE verdict != 'ERROR'
                     """)
                     trust_row = await cursor.fetchone()
+                    await cursor.execute(
+                        "SELECT COUNT(*) FROM public_scans WHERE verdict = 'ERROR'"
+                    )
+                    error_row = await cursor.fetchone()
+                    error_count = error_row[0] if error_row else 0
                     trust_distribution = {
-                        "high": trust_row[0] or 0,
+                        "high": max((trust_row[0] or 0) - error_count, 0),
                         "medium": trust_row[1] or 0,
                         "low": trust_row[2] or 0,
                         "very_low": trust_row[3] or 0,

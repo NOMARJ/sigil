@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Publication to PyPI is pending (owner action). The name "sigil-cli" is
+# already taken on PyPI by an unrelated project (checked 2026-09-02), so the
+# distribution is "sigilsec"; the import package stays `sigil_cli` and the
+# console script stays `sigil`.
+name = "sigilsec"
+dynamic = ["version"]
+description = "Automated security auditing for AI agent code - quarantine-first scanning for pip, npm, git repos, and MCP servers"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "NOMARK" }]
+keywords = [
+  "security",
+  "scanning",
+  "supply-chain",
+  "malware",
+  "ai-agent",
+  "mcp",
+  "claude",
+  "cursor",
+  "pip",
+  "npm",
+  "quarantine",
+  "threat-intelligence",
+]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: MacOS",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: Microsoft :: Windows",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Rust",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+]
+# Pure standard library on purpose: the wrapper must not add a supply-chain
+# surface of its own.
+dependencies = []
+
+[project.urls]
+Homepage = "https://sigilsec.ai"
+Repository = "https://github.com/NOMARJ/sigil"
+Issues = "https://github.com/NOMARJ/sigil/issues"
+Changelog = "https://github.com/NOMARJ/sigil/blob/main/CHANGELOG.md"
+
+[project.scripts]
+sigil = "sigil_cli.__main__:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "sigil_cli.__version__" }

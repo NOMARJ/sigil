@@ -190,14 +190,17 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 // Scans
 // ---------------------------------------------------------------------------
 
-export async function listScans(params?: {
-  page?: number;
-  per_page?: number;
-  verdict?: Verdict;
-  source?: string;
-  search?: string;
-  scope?: "own" | "public" | "community" | "all";
-}): Promise<PaginatedResponse<Scan>> {
+export async function listScans(
+  params?: {
+    page?: number;
+    per_page?: number;
+    verdict?: Verdict;
+    source?: string;
+    search?: string;
+    scope?: "own" | "public" | "community" | "all";
+  },
+  opts?: { signal?: AbortSignal },
+): Promise<PaginatedResponse<Scan>> {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
@@ -206,7 +209,9 @@ export async function listScans(params?: {
   if (params?.search) query.set("search", params.search);
   if (params?.scope) query.set("scope", params.scope);
   const qs = query.toString();
-  return request<PaginatedResponse<Scan>>(`/scans${qs ? `?${qs}` : ""}`);
+  return request<PaginatedResponse<Scan>>(`/scans${qs ? `?${qs}` : ""}`, {
+    signal: opts?.signal,
+  });
 }
 
 /** @deprecated Use listScans instead */

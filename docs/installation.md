@@ -31,9 +31,7 @@ sigil install
 
 ---
 
-## 🔮 Coming Soon
-
-The following installation methods are planned but not yet available:
+## Package Managers & Install Script
 
 ### Homebrew (macOS/Linux)
 
@@ -42,15 +40,11 @@ brew tap nomarj/tap
 brew install sigil
 ```
 
-_Status: Tap and formula in development_
-
 ### npm (macOS/Linux)
 
 ```bash
 npm install -g @nomarj/sigil
 ```
-
-_Status: Package preparation in progress_
 
 ### Cargo (Rust)
 
@@ -58,7 +52,29 @@ _Status: Package preparation in progress_
 cargo install sigil-cli
 ```
 
-_Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library._
+_Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library — the Rust CLI is published as `sigil-cli`._
+
+### pip (Python) — _pending first PyPI publication_
+
+> **Not yet on PyPI.** The package source lives in [`python/`](../python/) and
+> is ready, but the project has not been registered or published yet. The
+> commands below will work once the first release is pushed to PyPI.
+
+```bash
+pip install sigilsec         # the name sigil-cli is taken on PyPI by an unrelated project
+sigil scan .
+```
+
+The wrapper is pure standard library (Python 3.9+) and mirrors the npm
+package: on first run it downloads the prebuilt binary for your platform
+(macOS/Linux x64 and arm64, Windows x64) from GitHub Releases, verifies it
+against the release's `SHA256SUMS.txt`, caches it under
+`~/.sigil/bin/sigil-<version>`, and then forwards every invocation to it.
+
+- `SIGIL_VERSION=v1.3.6 sigil ...` — fetch a specific release (same as `install.sh`)
+- `SIGIL_BINARY=/path/to/sigil sigil ...` — use an existing binary, no download
+- Upgrade with `pip install --upgrade sigilsec`; remove with `pip uninstall sigilsec`
+  (the cached binaries in `~/.sigil/bin/` can be deleted by hand)
 
 ### Quick Install Script
 
@@ -66,8 +82,6 @@ _Status: Rust CLI rewrite in progress. Note: The `sigil` name on crates.io is oc
 curl -fsSLO https://www.sigilsec.ai/install.sh
 sh install.sh
 ```
-
-_Status: Install script development in progress_
 
 ---
 
@@ -94,14 +108,14 @@ npm install -g @nomarj/sigil
 # Apple Silicon (M1/M2/M3)
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-arm64.tar.gz
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
-sha256sum -c --ignore-missing SHA256SUMS.txt
+shasum -a 256 -c --ignore-missing SHA256SUMS.txt
 tar -xzf sigil-macos-arm64.tar.gz
 sudo mv sigil /usr/local/bin/
 
 # Intel (x64)
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/sigil-macos-x64.tar.gz
 curl -fsSLO https://github.com/NOMARJ/sigil/releases/latest/download/SHA256SUMS.txt
-sha256sum -c --ignore-missing SHA256SUMS.txt
+shasum -a 256 -c --ignore-missing SHA256SUMS.txt
 tar -xzf sigil-macos-x64.tar.gz
 sudo mv sigil /usr/local/bin/
 ```
@@ -185,7 +199,7 @@ winget install NOMARK.Sigil
 
 ## 🐳 Docker
 
-### CLI Only (Lightweight ~15MB)
+### CLI Only
 
 ```bash
 docker pull nomark/sigil:1.2.1
@@ -194,7 +208,7 @@ docker pull nomark/sigil:1.2.1
 docker run --rm -v $(pwd):/workspace nomark/sigil:1.2.1 scan .
 
 # Clone and scan a repo
-docker run --rm -v ~/.sigil:/root/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
+docker run --rm -v ~/.sigil:/home/sigil/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
 ```
 
 ### Full Stack (API + Dashboard + CLI)
@@ -223,13 +237,33 @@ services:
       - ./data:/home/sigil/.sigil
 ```
 
+### Build the CLI image yourself
+
+`Dockerfile.cli` builds a static (musl) binary with the Rust toolchain CI pins
+(1.90, `.github/workflows/rust-cli.yml`) and ships it on Alpine with `git` and
+CA certificates. Base images are pinned by digest.
+
+```bash
+# from the repository root
+docker build -f Dockerfile.cli -t sigil .
+docker build -f Dockerfile.cli --build-arg CARGO_BUILD_JOBS=2 -t sigil .   # bound build parallelism
+
+docker run --rm -v "$PWD:/workspace:ro" sigil scan /workspace
+docker run --rm sigil scan https://github.com/someone/mcp-tool
+```
+
+The container runs as the unprivileged user `sigil` (`HOME=/home/sigil`), so
+persist quarantine state with `-v ~/.sigil:/home/sigil/.sigil`. `sigil pip`
+and `sigil npm` also need `pip` / `npm` in the image (`apk add py3-pip npm` in
+a derived image).
+
 ---
 
 ## 🏗️ Build from Source
 
 ### Prerequisites
 
-- **Rust 1.75+** — [Install Rust](https://rustup.rs)
+- **Rust 1.85+** (CI pins 1.90; current dependencies need edition 2024) — [Install Rust](https://rustup.rs)
 - **Git**
 
 ### Build the CLI
@@ -321,6 +355,45 @@ Enables:
 
 See [Authentication Guide](./authentication-guide.md) for details.
 
+### 5. (Optional) Stop bad skills and MCP servers before they land
+
+```bash
+# Claude Code: gate installs, MCP-server / plugin acquisition and curl|sh
+sigil setup claude
+
+# See what agent tooling is already installed, and whether any of it is risky
+sigil skills
+
+# Commit-time checks for the repository and its committed agent config
+pip install pre-commit    # then add the hooks below to .pre-commit-config.yaml
+```
+
+```yaml
+repos:
+  - repo: https://github.com/NOMARJ/sigil
+    rev: v1.3.6
+    hooks:
+      - id: sigil-scan
+      - id: sigil-scan-skills
+```
+
+To have the Claude Code gate judge file edits too (an agent rewriting its own
+hooks or `.mcp.json`), register `sigil hook pretooluse` for the matcher
+`Bash|Write|Edit|MultiEdit` in `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {"matcher": "Bash|Write|Edit|MultiEdit",
+       "hooks": [{"type": "command", "command": "sigil hook pretooluse"}]}
+    ]
+  }
+}
+```
+
+CI templates (GitHub Actions, GitLab, pre-commit) are in [cicd.md](cicd.md).
+
 ---
 
 ## 🔄 Updating Sigil
@@ -390,9 +463,9 @@ rm -rf ~/.sigil
 Edit your `~/.bashrc` or `~/.zshrc` and remove the block between:
 
 ```bash
-# -- sigil aliases (auto-installed) --
+# >>> sigil aliases >>>
 ...
-# -- end sigil aliases --
+# <<< sigil aliases <<<
 ```
 
 ---

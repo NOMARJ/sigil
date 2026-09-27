@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-09-26T10:52:52.250940+00:00",
+  "binary": "sigil (ws/exfil-port 34eaa0b, release)",
+  "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
+  "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
+  "dataset_fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
+  "malicious_total": 844,
+  "malicious_extract_failures": 0,
+  "malicious_scan_errors": 0,
+  "recall": {
+    "any": {
+      "detected": 785,
+      "scanned": 844,
+      "rate": 0.9301
+    },
+    "Medium": {
+      "detected": 761,
+      "scanned": 844,
+      "rate": 0.9017
+    },
+    "High": {
+      "detected": 752,
+      "scanned": 844,
+      "rate": 0.891
+    },
+    "Critical": {
+      "detected": 560,
+      "scanned": 844,
+      "rate": 0.6635
+    }
+  },
+  "control_total": 0,
+  "control_flagged": {},
+  "precision": {},
+  "notes": [
+    "No --control-path supplied: precision / false-positive rate NOT measured. Recall is reported alone; do not infer precision."
+  ],
+  "ledger_warm": {}
+}

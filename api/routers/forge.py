@@ -77,7 +77,10 @@ class ClassifiedTool(BaseModel):
     ecosystem: str
     category: ToolCategory
     capabilities: list[ToolCapability]
-    trust_score: int
+    # float, not int: public_scans rows store fractional risk scores, so the
+    # derived trust score (100 - risk_score) is fractional too. Declaring int
+    # 500'd every /forge/search response (sibling of the #147 null-field bug).
+    trust_score: float
     verdict: str
     compatibility_signals: list[str]
     github_url: str | None = None
@@ -91,13 +94,17 @@ class ClassifiedTool(BaseModel):
 
 async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> ClassifiedTool:
     """Classify a tool based on its scan data and metadata."""
-    # Basic classification logic for tests
-    description = scan_data.get("metadata", {}).get("description", "")
-    risk_score = scan_data.get("risk_score", 0)
-    findings = scan_data.get("findings", [])
+    # Crawler-written rows carry JSON nulls ("description": null), which
+    # .get(key, "") passes through as None — that None reaching .lower() was
+    # the production 'NoneType' 500 on /forge/search, and one such row poisons
+    # the whole result page. Coerce every nullable field at this boundary.
+    metadata = scan_data.get("metadata") or {}
+    description = metadata.get("description") or ""
+    risk_score = scan_data.get("risk_score") or 0
+    findings = scan_data.get("findings") or []
 
     # Use stored category from metadata if available, otherwise derive from name/description
-    stored_category = scan_data.get("metadata", {}).get("category", "")
+    stored_category = metadata.get("category") or ""
     if stored_category:
         # Try to map stored category string to a ToolCategory enum value
         try:
@@ -120,7 +127,7 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
 
     # Build GitHub URL if available
     github_url = None
-    repo_url = scan_data.get("metadata", {}).get("repository", {}).get("url")
+    repo_url = (metadata.get("repository") or {}).get("url")
     if repo_url and "github.com" in repo_url:
         github_url = repo_url
 
@@ -146,7 +153,7 @@ async def classify_tool(ecosystem: str, name: str, scan_data: dict) -> Classifie
         category=category,
         capabilities=capabilities,
         trust_score=trust_score,
-        verdict=scan_data.get("verdict", "UNKNOWN"),
+        verdict=scan_data.get("verdict") or "UNKNOWN",
         compatibility_signals=compatibility_signals,
         github_url=github_url,
         install_command=install_command,
@@ -246,8 +253,10 @@ def _determine_capabilities(findings: list, description: str) -> list[ToolCapabi
 
     # Check findings for capability indicators
     for finding in findings:
-        snippet = finding.get("snippet", "").lower()
-        phase = finding.get("phase", "")
+        if not isinstance(finding, dict):
+            continue
+        snippet = (finding.get("snippet") or "").lower()
+        phase = finding.get("phase") or ""
 
         if phase == "credentials" or "env" in snippet or "password" in snippet:
             capabilities.append(ToolCapability.AUTHENTICATION)
@@ -285,8 +294,10 @@ def _extract_compatibility_signals(findings: list) -> list[str]:
     endpoints = 0
 
     for finding in findings:
-        snippet = finding.get("snippet", "")
-        phase = finding.get("phase", "")
+        if not isinstance(finding, dict):
+            continue
+        snippet = finding.get("snippet") or ""
+        phase = finding.get("phase") or ""
 
         if phase == "credentials":
             # Extract environment variable names
@@ -331,9 +342,12 @@ def _parse_jsonish(value: Any, default: Any):
         return value
     if isinstance(value, str):
         try:
-            return json.loads(value)
+            parsed = json.loads(value)
         except Exception:
             return default
+        # A stored literal "null" (or a scalar) must not masquerade as the
+        # dict/list shape callers expect.
+        return parsed if isinstance(parsed, type(default)) else default
     return default
 
 
@@ -665,12 +679,22 @@ async def search_tools(
         # Get both count and data in a single optimized query to prevent connection conflicts
         if hasattr(db, "execute_raw_sql"):
             # Use a single query with both count and data
+            # ORDER BY must use an indexed column: created_at has no index, so
+            # ordering by it forced a sort of all ~290k rows *including their
+            # NVARCHAR(MAX) LOBs* (~33GB) for every request — three of these
+            # stacked pinned the database at 100% read IO for hours on
+            # 2026-07-19. scanned_at is indexed (idx_public_scans_scanned_at)
+            # and the crawler writes both columns from the same timestamp.
+            # The total likewise comes from partition metadata instead of a
+            # full COUNT(*) scan.
             count_and_data_sql = f"""
                 SELECT
-                    (SELECT COUNT(*) FROM public_scans) as total_count,
+                    (SELECT SUM(p.rows) FROM sys.partitions p
+                      WHERE p.object_id = OBJECT_ID('public_scans')
+                        AND p.index_id IN (0, 1)) as total_count,
                     *
                 FROM public_scans
-                ORDER BY created_at DESC
+                ORDER BY scanned_at DESC
                 OFFSET {offset} ROWS FETCH NEXT {limit * 5} ROWS ONLY
             """
             rows = await db.execute_raw_sql(count_and_data_sql, ())

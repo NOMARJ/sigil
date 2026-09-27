@@ -42,6 +42,35 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sigil.api")
 
+# ---------------------------------------------------------------------------
+# Sentry error tracking (optional — enabled only when SIGIL_SENTRY_DSN is set)
+# ---------------------------------------------------------------------------
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.sentry_environment,
+            traces_sample_rate=settings.sentry_traces_sample_rate,
+            release=f"sigil-api@{settings.app_version}",
+            # Never attach request bodies or local variables: scan payloads
+            # can contain customer source code (see docs/data-handling.md).
+            send_default_pii=False,
+            max_request_body_size="never",
+            include_local_variables=False,
+        )
+        logger.info(
+            "Sentry error tracking enabled (environment=%s)",
+            settings.sentry_environment,
+        )
+    except ImportError:
+        logger.warning(
+            "SIGIL_SENTRY_DSN is set but sentry-sdk is not installed — "
+            "error tracking is DISABLED. Add sentry-sdk[fastapi] to the "
+            "environment to enable it."
+        )
+
 
 # ---------------------------------------------------------------------------
 # Lifespan — connect/disconnect external services
@@ -61,20 +90,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             'Generate one with: python -c "import secrets; print(secrets.token_hex(32))"'
         )
 
-    # Validate Stripe configuration consistency
+    # Validate Stripe configuration consistency. A Stripe key without price
+    # IDs means every paid checkout is rejected with a 400 — fail loudly here
+    # instead of letting the first paying customer discover it.
     if settings.stripe_configured:
-        placeholders = [
-            v
-            for v in [
-                settings.stripe_price_pro,
-                settings.stripe_price_team,
-            ]
-            if "placeholder" in v
-        ]
-        if placeholders:
-            logger.warning(
-                "Stripe is configured but price IDs contain placeholders. "
-                "Set SIGIL_STRIPE_PRICE_PRO and SIGIL_STRIPE_PRICE_TEAM."
+        missing_prices = settings.missing_stripe_price_ids
+        if missing_prices:
+            logger.critical(
+                "BILLING: Stripe is configured but subscription price IDs are "
+                "missing — paid-plan checkout WILL fail until these are set: %s",
+                ", ".join(missing_prices),
             )
 
     await db.connect()
@@ -116,9 +141,41 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(run_alert_evaluation_loop())
         logger.info("Monitoring and alerting started")
 
+    # Start the watched-URL change monitor. Started the same way as the alert
+    # evaluation loop above (asyncio.create_task behind a settings flag), but
+    # the flag defaults to FALSE rather than True: this loop issues outbound
+    # requests to third-party URLs that were supplied through the API, so it is
+    # opt-in per environment (SIGIL_CHANGE_MONITOR_ENABLED=true) instead of
+    # switching itself on in every process that starts the app.
+    change_monitor_worker = None
+    if settings.change_monitor_enabled:
+        logger.info("Starting change monitor worker")
+        from api.workers.change_monitor_worker import ChangeMonitorWorker
+
+        change_monitor_worker = ChangeMonitorWorker(
+            batch_size=settings.change_monitor_batch_size
+        )
+        asyncio.create_task(
+            change_monitor_worker.run_continuous(
+                check_interval=settings.change_monitor_interval_seconds
+            )
+        )
+        logger.info(
+            "Change monitor worker started (batch size: %d, interval: %ds)",
+            settings.change_monitor_batch_size,
+            settings.change_monitor_interval_seconds,
+        )
+    else:
+        logger.info(
+            "Change monitor worker disabled (set SIGIL_CHANGE_MONITOR_ENABLED=true "
+            "to enable outbound polling of watched URLs)"
+        )
+
     yield
 
     logger.info("Shutting down Sigil API")
+    if change_monitor_worker is not None:
+        change_monitor_worker.stop()
     await forge_stats_updater.stop_updater()
     await registry_stats_updater.stop_updater()
     await cache.disconnect()
@@ -169,6 +226,10 @@ app = FastAPI(
         {
             "name": "metrics",
             "description": "Scanner performance metrics and false positive tracking",
+        },
+        {
+            "name": "change-monitor",
+            "description": "Watched-URL change detection and the rescan queue",
         },
         {"name": "threat", "description": "Threat intelligence and management"},
         {"name": "auth", "description": "Authentication and user management"},
@@ -320,6 +381,7 @@ try:
         github_app,
         interactive,
         metrics,
+        monitor,
         permissions,
         policies,
         publisher,
@@ -364,6 +426,7 @@ app.include_router(
 app.include_router(
     metrics.router
 )  # /api/metrics/* — Scanner metrics and false positive tracking
+app.include_router(monitor.router)  # /api/monitor/* — Watched-URL change monitoring
 
 # --- Public distribution routes (no auth required) -------------------------
 app.include_router(forge.router)  # /forge/*    — Forge classification & matching
