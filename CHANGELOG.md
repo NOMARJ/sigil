@@ -641,6 +641,97 @@ pass.
   with the rule id, so baseline entries for them go stale: regenerate the
   baseline. See [enterprise.md](docs/enterprise.md#rule-ids-that-changed-lifecycle-classification).
 
+### 🔎 Adversarial verification of the #172 second-review fixes
+
+A pre-merge bypass hunt (five lenses, each candidate reproduced by two
+independent skeptics) and a fresh audit of the remaining credential and
+lifecycle exemptions found six shapes where a genuinely malicious input scored
+higher on `main` than on the PR head (`955a469`). Each is fixed to fail closed,
+with a regression test built from the probe. Placeholder hosts and fake
+credentials only.
+
+- **CODE-014 stays on a launcher whose own name or version is poisoned**
+  (hunt H1). The `CODE-016` launcher rewrite proved the interpolated
+  *expressions* were the package's own name/version, but not that the resolved
+  *values* were safe. A `version` of `"1.4.0 --registry=https://evil.example.com"`
+  (matched in the platform specs) turned `execSync("npm install …@…")` into an
+  attacker-registry fetch yet dropped `CODE-014` High to `CODE-016` Medium.
+  npm's publish-time semver check does not protect a clone, tarball or local
+  install, which is what Sigil scans. The rewrite now requires a strict semver
+  version and a valid npm package-name token for the name and every matching
+  platform spec, else it keeps `CODE-014`.
+- **SUPPLY-016 catches a one-line obfuscated ctypes loader** (hunt H2). The
+  `ctypes … CDLL … os.system` alternative's 300-byte bound let an
+  FFI-plus-shell loader collapsed onto one physical line escape
+  (CRITICAL → HIGH). The engine matches per line, so that alternative is
+  unbounded again; no clean-corpus sample matched it. The `ffi.Library` /
+  `Foreign … invoke … exec` alternatives keep their bounds.
+- **SUPPLY-008 catches a minified template→exec bundle** (hunt H3). The
+  `template(…) … exec` alternative was bounded to 200 bytes, so a
+  child_process template-injection collapsed onto one bundle line dropped
+  HIGH → LOW. The 200-byte alternative is kept for short spans; three new
+  alternatives match `template(…)` and `exec`/`execSync`/`execFile` at any
+  distance **when `child_process` is also on the line**, which the benign
+  `template(…) … regex.exec` bundles (chalk, lodash helpers) do not carry.
+- **Correlation shadowing fails open on a helper handed on by reference**
+  (hunt H4). A send helper whose parameter shadows the secret, stored in a list
+  or dict (`handlers = [upload]`), added to a collection
+  (`handlers.append(upload)`), aliased (`send = upload`) or decorated for a
+  registry, and then invoked indirectly (`handlers[0](token)`, `for h in
+  handlers: h(token)`), dropped CRITICAL → LOW because the shadowing check saw
+  no direct call. When the helper is handed on in a form the direct-call check
+  cannot follow, the parameter no longer counts as shadowing. A helper passed
+  directly to a recognised callback with a placeholder
+  (`Thread(target=upload, args=("anonymous",))`) is still judged by the value
+  it carries and stays shadowed.
+- **A require-capable in-memory loader carries High on its own** (hunt H5).
+  `CODE-009` (`new Function`) is a Low de-duplicate of `CODE-008`, so a
+  download-and-execute package that ran remote JS through a require-capable
+  Function constructor invoked on the same expression dropped HIGH → MEDIUM
+  (its Low findings no longer feed the verdict's action term). A new rule,
+  **`CODE-017`** (High), matches a Function built with a Node capability
+  parameter (`require`/`process`/`module`/`exports`) that is invoked on the
+  same expression with the real capability — the in-memory loader shape — and
+  restores HIGH without re-scoring an ordinary Function constructor (a
+  polyfill's arity wrapper, a template engine, never carries `CODE-017`). No
+  clean MCP or skills sample matched the shape.
+- **INFER-CHAIN-001: a hardcoded LLM key routed to a non-vendor endpoint is
+  Critical** (disputed INFER-007 case). `INFER-007` alone is corroborating, so
+  a multi-line client config (`new OpenAI({ apiKey: "…", baseURL:
+  "https://relay.example/v1" })`) — which also evades `INFER-001`'s same-line
+  check — read as MEDIUM even though it routes the user's prompts and files
+  through an attacker endpoint with a shipped key. A new Low rule **`INFER-012`**
+  flags a non-vendor `baseURL` (the `INFER-001` vendor/localhost allowlist is
+  reused), and **`INFER-CHAIN-001`** pairs it with `INFER-007` in the same
+  client config for a standalone Critical. It needs both a hardcoded key and an
+  off-vendor endpoint; no clean sample carries both. The other two disputed
+  cases — a one-hop shell encoding step (the owner decided against it) and a
+  `prepublishOnly` split (intended) — stay as documented limitations.
+- **`eval`/`exec` definition context is line-terminator aware.** The
+  JavaScript method-definition exemption (`name(args) {`) treated a lone CR,
+  U+2028 or U+2029 between `)` and `{` as whitespace, but Rust's line splitter
+  keeps those on one physical line while JavaScript treats them as line breaks,
+  so `eval(src)⏎{}` (a real call followed by an empty block) read as a method
+  definition and was silenced. The exemption now allows only spaces and tabs
+  there, and rejects a line terminator inside the argument list.
+
+**Measured** (release builds `955a469` → `e34f017`, `--no-cache`, empty
+`HOME`): these fixes change nothing on the clean corpora — clean MCP servers
+blocked 29/169 and warned 95/169, the unseen 146 blocked 70/146 and warned
+115/146, and the skills benchmark 173/184 of 204 malicious and 7/71 of 455
+clean, all identical to `68a9d30` (the seven clean-MCP and one holdout
+level-ups against `955a469` are the credential-exemption removals above, not
+these fixes: `INFER-CHAIN-001` and `CODE-017` fire on no clean sample, and the
+unbounded `ctypes` and `child_process`-gated `template` spans add no clean
+match). The 844 Datadog samples are unchanged — 0 verdict, 0 highest-severity
+and 0 chain changes against `955a469`, recall 785 / 761 / 752 / 560 at any /
+Medium / High / Critical on both — because the fixes catch crafted single-line
+and dispatch shapes that no real sample in the corpus happens to use (the span
+survey found no malicious line where the reopened spans changed a match).
+Against `main`
+(`35c0155`) the clean MCP servers fall 39 → 29 blocked and 125 → 95 warned,
+and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
+
 ### 🧩 YARA rules as custom rules
 
 - **`--rules` accepts YARA rule files.** `.yar` and `.yara` files — and

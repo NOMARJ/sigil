@@ -81,7 +81,11 @@ withdrawn after Codex's second review (see
 [mcp-server-calibration.md](../detection/mcp-server-calibration.md#fifth-change-codexs-second-review-exemptions-and-overrides)),
 it blocks 29 of the 169 (17.2%), warns on 95 (56.2%) and reports 15 CRITICAL; on
 the 156 it blocks 20, warns on 82 and reports 11 CRITICAL, and the two
-one-sided block counts stay 5 and 85.
+one-sided block counts stay 5 and 85. The adversarial verification of that
+review (`e34f017`; six fail-closed fixes, see
+[mcp-server-calibration.md](../detection/mcp-server-calibration.md#fifth-change-codexs-second-review-exemptions-and-overrides))
+leaves this unchanged at 29 / 95: its new rules (`CODE-017`, `INFER-012` /
+`INFER-CHAIN-001`) and reopened spans fire on no clean MCP server.
 
 This is Sigil's weakest false-positive result. MCP servers ship as complete
 packages, often with minified bundles, and most of Sigil's blocks come from
