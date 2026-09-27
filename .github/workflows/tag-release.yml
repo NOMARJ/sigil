@@ -97,7 +97,8 @@ jobs:
 
       # Every workflow a pushed vX.Y.Z tag starts: release.yml (binaries,
       # GitHub release, crates.io, npm, Homebrew), docker.yml (images) and
-      # sbom.yml (signed SBOMs attached to the release). Each reads the tag
+      # sbom.yml (signed SBOMs, attached only while the release is still a
+      # draft). Each reads the tag
       # from the ref it runs on (GITHUB_REF_NAME / GITHUB_REF_TYPE), so a
       # dispatch on the tag behaves as the push would. All three are tried
       # even if one dispatch fails, and the job fails if any did.

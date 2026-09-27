@@ -10,7 +10,7 @@ on:
 # Required permissions for SBOM generation, signing, and release publishing
 permissions:
   actions: read # Download build artifacts through gh CLI
-  contents: write # Upload SBOM files to releases
+  contents: write # Attach SBOM files to the draft release (see the attach step)
   id-token: write # Cosign keyless signing with OIDC
   packages: read # Access Docker images
 
@@ -47,13 +47,16 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Generating SBOMs for version: ${VERSION}"
 
-      # Generate CycloneDX SBOM in JSON format (OWASP standard)
+      # Generate CycloneDX SBOM in JSON format (OWASP standard). syft 1.x
+      # names the source with --source-name/--source-version: it rejects
+      # --name ("unknown flag: --name", the v1.3.7 failure), and --version
+      # is syft's own version flag.
       - name: Generate CycloneDX SBOM from source
         run: |
           syft dir:. \
             -o cyclonedx-json=sbom-source.cdx.json \
-            --name sigil \
-            --version ${{ steps.version.outputs.version }}
+            --source-name sigil \
+            --source-version ${{ steps.version.outputs.version }}
           echo "✅ CycloneDX SBOM generated"
 
       # Generate SPDX SBOM in JSON format (Linux Foundation standard)
@@ -61,8 +64,8 @@ jobs:
         run: |
           syft dir:. \
             -o spdx-json=sbom-source.spdx.json \
-            --name sigil \
-            --version ${{ steps.version.outputs.version }}
+            --source-name sigil \
+            --source-version ${{ steps.version.outputs.version }}
           echo "✅ SPDX SBOM generated"
 
       # Verify SBOM files were created
@@ -301,11 +304,31 @@ jobs:
           echo "✅ Checksums generated:"
           cat SBOM-SHA256SUMS.txt
 
-      # Upload all SBOMs and attestations to GitHub release
-      - name: Upload SBOMs to release
-        uses: softprops/action-gh-release@v3
+      # Keep the signed set with the run whatever happens below: a release
+      # that is already published can never receive these files.
+      - name: Upload signed SBOM set
+        uses: actions/upload-artifact@v6
         with:
-          files: |
+          name: signed-sboms
+          path: sboms/
+          if-no-files-found: error
+          retention-days: 90
+
+      # release.yml owns the release: it creates a draft, attaches the
+      # binaries and then publishes it, and the repo uses immutable releases,
+      # so a published release can never receive files. This step therefore
+      # only adds files to that draft. It never creates a release (one created
+      # here would be published before the binaries exist and could never
+      # receive them, which breaks the version for good), never touches the
+      # release notes, and leaves a published release alone.
+      - name: Attach SBOMs to the draft release
+        id: attach
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          FILES=(
             sboms/sbom-source.cdx.json
             sboms/sbom-source.cdx.json.att
             sboms/sbom-source.spdx.json
@@ -319,54 +342,75 @@ jobs:
             sboms/sbom-full-container.spdx.json
             sboms/sbom-full-container.spdx.json.att
             sboms/SBOM-SHA256SUMS.txt
-          body: |
-            ## Software Bill of Materials (SBOMs)
-
-            This release includes comprehensive SBOMs in both CycloneDX and SPDX formats:
-
-            ### Source SBOMs
-            - `sbom-source.cdx.json` - CycloneDX SBOM of source repository
-            - `sbom-source.spdx.json` - SPDX SBOM of source repository
-
-            ### Container SBOMs
-            - `sbom-cli-container.cdx.json` - CycloneDX SBOM of CLI Docker image
-            - `sbom-cli-container.spdx.json` - SPDX SBOM of CLI Docker image
-            - `sbom-full-container.cdx.json` - CycloneDX SBOM of full Docker image
-            - `sbom-full-container.spdx.json` - SPDX SBOM of full Docker image
-
-            ### Attestations
-            All SBOMs are cryptographically signed with Cosign keyless signing (`.att` files).
-
-            ### Verification
-            Verify checksums:
-            ```bash
-            sha256sum -c SBOM-SHA256SUMS.txt
-            ```
-
-            Verify Cosign attestations:
-            ```bash
-            cosign verify-blob-attestation \
-              --signature sbom-source.cdx.json.att \
-              --insecure-ignore-tlog \
-              sbom-source.cdx.json
-            ```
+          )
+          # gh finds a draft by its tag too; any lookup failure counts as
+          # "no release", which is the case that must never create one.
+          release_state() {
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft 2>/dev/null || echo absent
+          }
+          ARTIFACT_NOTE="The signed SBOMs are in this run's signed-sboms artifact."
+          STATE="$(release_state)"
+          case "$STATE" in
+            true)
+              # Each .att signs its own run's JSON and the checksums cover one
+              # run, so the draft must hold a single run's set. A complete set
+              # is never replaced (a failed re-upload would lose it); a partial
+              # one, left by an earlier failed upload, is replaced whole.
+              ATTACHED_NAMES="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+                --json assets --jq '.assets[].name')"
+              MISSING=0
+              for f in "${FILES[@]}"; do
+                grep -qxF -- "${f#sboms/}" <<<"$ATTACHED_NAMES" || MISSING=$((MISSING + 1))
+              done
+              if [ "$MISSING" -eq 0 ]; then
+                echo "attached=true" >> "$GITHUB_OUTPUT"
+                echo "The ${GITHUB_REF_NAME} draft already has the complete SBOM set; left as is"
+              elif gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber "${FILES[@]}"; then
+                echo "attached=true" >> "$GITHUB_OUTPUT"
+                echo "Attached the SBOMs to the ${GITHUB_REF_NAME} draft release"
+              elif [ "$(release_state)" = "false" ]; then
+                # release.yml published the draft while this upload ran. The
+                # check above cannot be atomic with its publish step, and an
+                # immutable release takes no more files, so it may now carry
+                # part of the set.
+                echo "::warning::${GITHUB_REF_NAME} was published while the SBOMs were uploading, so the release may carry only part of the set. ${ARTIFACT_NOTE}"
+                echo "attached=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "::error::Uploading the SBOMs to the ${GITHUB_REF_NAME} draft release failed"
+                exit 1
+              fi ;;
+            false)
+              echo "::warning::${GITHUB_REF_NAME} is already published, and an immutable release cannot receive files. ${ARTIFACT_NOTE}"
+              echo "attached=false" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "::warning::No release exists for ${GITHUB_REF_NAME}. This workflow never creates one (release.yml does). ${ARTIFACT_NOTE}"
+              echo "attached=false" >> "$GITHUB_OUTPUT" ;;
+          esac
 
       # Summary output
       - name: Summary
+        env:
+          ATTACHED: ${{ steps.attach.outputs.attached }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          echo "## SBOM Generation Complete! 🎉" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Generated and attested SBOMs for Sigil ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Formats Generated:" >> $GITHUB_STEP_SUMMARY
-          echo "- CycloneDX JSON (OWASP standard)" >> $GITHUB_STEP_SUMMARY
-          echo "- SPDX JSON (Linux Foundation standard)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
-          echo "- Source repository SBOMs (2 formats)" >> $GITHUB_STEP_SUMMARY
-          echo "- CLI container SBOMs (2 formats)" >> $GITHUB_STEP_SUMMARY
-          echo "- Full container SBOMs (2 formats)" >> $GITHUB_STEP_SUMMARY
-          echo "- Cosign attestations for all SBOMs" >> $GITHUB_STEP_SUMMARY
-          echo "- SHA256 checksums" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "All files published to [release](${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }})" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## SBOMs generated and attested for Sigil ${GITHUB_REF_NAME}"
+            echo ""
+            echo "### Formats Generated:"
+            echo "- CycloneDX JSON (OWASP standard)"
+            echo "- SPDX JSON (Linux Foundation standard)"
+            echo ""
+            echo "### Artifacts:"
+            echo "- Source repository SBOMs (2 formats)"
+            echo "- CLI container SBOMs (2 formats)"
+            echo "- Full container SBOMs (2 formats)"
+            echo "- Cosign attestations for all SBOMs"
+            echo "- SHA256 checksums"
+            echo ""
+            if [ "$ATTACHED" = "true" ]; then
+              echo "Attached to the draft release for ${GITHUB_REF_NAME}; they publish with it."
+            else
+              echo "Not attached to a release (see the warning above). Download the signed-sboms artifact from ${RUN_URL}."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

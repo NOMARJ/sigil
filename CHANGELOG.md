@@ -16,6 +16,61 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   it, because a tag made with the workflow token fires no push trigger.
   `docs/RELEASING.md` step 4 documents it; pushing the tag from git remains the
   normal path.
+- **`sbom.yml` can no longer publish a release.** Its upload used
+  `softprops/action-gh-release` with no `draft`, so a run that beat
+  `release.yml` would have created a published, immutable release with only
+  SBOMs on it, and no binaries could ever be attached. On an existing release it
+  also replaced the release notes. It now attaches the SBOMs with
+  `gh release upload` only while the release is a draft; it never creates one and
+  leaves a published one alone. A complete set already on the draft is never
+  deleted and re-uploaded, and a partial one is replaced whole, so a successful
+  attach leaves one run's signatures and checksums. If `release.yml` publishes
+  the draft during the upload, the step warns that the release may carry part of
+  the set instead of failing. The signed set is kept as the run's
+  `signed-sboms` artifact (90 days) whether or not it could be attached.
+- **`sbom.yml`'s source SBOMs can build.** It passed `--name`, which syft 1.x
+  rejects (`unknown flag: --name`, the v1.3.7 source job's failure), and
+  `--version`, which in syft 1.x is syft's own version flag. It now passes
+  `--source-name` and `--source-version`, checked with syft 1.42.3, the version
+  `download-syft@v0.24.0` installs. `sbom.yml` has not succeeded on any of its 17
+  runs (v1.1.0 to v1.3.7), so no release has ever had its SBOMs. Signing also
+  needs the container SBOMs, and `docker.yml` has not succeeded on any of its 22
+  runs (v1.0.1 to v1.3.7); on v1.3.7 both it and the container SBOM job failed at
+  the Docker Hub login. Nothing is signed or attached until those credentials
+  work.
+- **`publish-npm.yml` reads its `tag` input through the environment.** It used
+  to substitute the input straight into the shell script. It now refuses anything
+  but `vX.Y.Z` before checkout, and checks out `refs/tags/<tag>` so a branch with
+  the same name is never what gets published.
+- **CI fails if the `sigil-cli` crate would ship a hidden file.** The Build Rust
+  job lists the package and fails on any hidden path other than
+  `.cargo_vcs_info.json`.
+
+### 📦 Distribution
+
+The formula fixes below reach the tap the next time `update-homebrew.yml` runs:
+the next release, or a manual dispatch with `tag: v1.3.7`.
+
+- **The Homebrew formula's test checks the real version string.** It asserted
+  `SIGIL` in `sigil --version`, which prints `sigil X.Y.Z`, so `brew test` could
+  never pass. It now checks the formula's version. Both of the test's commands
+  succeed with the v1.3.7 binary; `brew test` itself was not run here.
+- **The Homebrew formula no longer runs `sigil install` after installing.**
+  Homebrew already links `sigil` into its prefix. `sigil install` copies the
+  binary to `/usr/local/bin`, which on an Intel Mac is the Homebrew symlink to
+  that same binary, and copying a file onto a symlink to itself truncates it to
+  0 bytes. On Linux the kernel refuses the write to a running binary; macOS was
+  not tested.
+- **Homebrew on Linux arm64 gets the arm64 binary.** The formula gave every
+  Linux machine the x64 build.
+- **`update-homebrew.yml` checks its inputs.** The tag reaches the shell through
+  the environment and must be `vX.Y.Z`. A release of another channel
+  (`vscode-v…`, `jetbrains-v…`) is skipped instead of rewriting the formula. The
+  checksums download fails on an HTTP error, each hash must be 64 hex
+  characters, and the formula must pass `ruby -c`. A re-run for a version the tap
+  already has succeeds without an empty commit.
+- **The crate no longer ships `cli/.nomark/graph.json`**, the maintainers'
+  traceability graph. `Cargo.toml` excludes `.nomark/`.
 
 ## [1.3.7] - 2026-09-27
 

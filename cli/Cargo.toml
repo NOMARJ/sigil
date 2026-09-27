@@ -9,6 +9,9 @@ homepage = "https://sigilsec.ai"
 keywords = ["security", "scanning", "supply-chain", "malware", "ai-agent"]
 categories = ["command-line-utilities", "development-tools"]
 readme = "../README.md"
+# cli/.nomark/ is the maintainers' traceability graph (commit hashes and
+# messages), not source; keep it out of the crate.
+exclude = [".nomark/"]
 authors = ["NOMARJ <hello@sigilsec.ai>"]
 
 [[bin]]
