@@ -398,7 +398,10 @@ weight; its rule id, severity and snippet change, and the snippet says why.
     other than yarn's own built-in compatibility patches. The Berry project's own
     `workspace:.` entry is accepted. A `bun.lock` / `bun.lockb` is not read and always
     counts. Lockfiles are read from disk whether or not the scan enumerated them, and
-    one over 64 MiB counts as unparseable.
+    one over 64 MiB, or one that is not a regular file (a directory, a FIFO, a link to
+    a device), counts as unparseable. The same holds for a parent `package.json`, a
+    `pnpm-workspace.yaml` and the `.npmrc` / `.yarnrc` / `.yarnrc.yml` read above: before
+    this change a `.npmrc` linked to `/dev/zero` would have blocked the scan.
 
   An empty `overrides: {}` / `resolutions: {}`, unrelated `pnpm` settings
   (`onlyBuiltDependencies`) and a `pnpm-workspace.yaml` that only lists `packages`

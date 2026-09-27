@@ -2241,6 +2241,59 @@ fn a_lockfile_entry_off_the_registry_keeps_install004() {
     );
 }
 
+/// Package-manager files are read straight from disk, so one that is not a
+/// regular file must neither block the scan nor pass: a lockfile, `.npmrc`
+/// or parent `package.json` that is a directory or a link to a device keeps
+/// the original finding, and the scan returns.
+#[test]
+fn an_unreadable_install_file_keeps_install004() {
+    for name in [
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        ".npmrc",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        write_tree(dir.path(), &[("package.json", &rimraf_prepare(""))]);
+        fs::create_dir_all(dir.path().join(name).join("x")).unwrap();
+        let r = run_scan(dir.path(), None, None);
+        let found = rules(&r);
+        assert!(
+            found.iter().any(|(id, _)| id == "INSTALL-004")
+                && !found.iter().any(|(id, _)| id == "INSTALL-012"),
+            "{name} as a directory: {found:?}"
+        );
+    }
+    #[cfg(unix)]
+    for name in ["package-lock.json", ".npmrc", "yarn.lock"] {
+        // A link to an endless device: reading it would never return.
+        let dir = tempfile::tempdir().unwrap();
+        write_tree(dir.path(), &[("app/package.json", &rimraf_prepare(""))]);
+        std::os::unix::fs::symlink("/dev/zero", dir.path().join(name)).unwrap();
+        let r = run_scan(dir.path(), None, None);
+        let found = rules(&r);
+        assert!(
+            found.iter().any(|(id, _)| id == "INSTALL-004")
+                && !found.iter().any(|(id, _)| id == "INSTALL-012"),
+            "{name} linked to /dev/zero: {found:?}"
+        );
+    }
+    #[cfg(unix)]
+    {
+        // A parent package.json that is a link to a device.
+        let dir = tempfile::tempdir().unwrap();
+        write_tree(dir.path(), &[("app/package.json", &rimraf_prepare(""))]);
+        std::os::unix::fs::symlink("/dev/zero", dir.path().join("package.json")).unwrap();
+        let r = run_scan(dir.path(), None, None);
+        assert!(
+            !rules(&r).iter().any(|(id, _)| id == "INSTALL-012"),
+            "parent package.json linked to /dev/zero: {:?}",
+            rules(&r)
+        );
+    }
+}
+
 /// Lockfiles whose every entry is a public-registry package under its own
 /// name leave the rewrite in place, in each format.
 #[test]

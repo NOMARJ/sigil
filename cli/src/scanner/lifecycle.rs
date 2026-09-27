@@ -114,8 +114,8 @@ const MAX_INERT_DEPTH: usize = 2;
 const MAX_RUN_DEPTH: usize = 3;
 /// Launcher scripts larger than this are not analysed.
 const MAX_LAUNCHER_BYTES: usize = 256 * 1024;
-/// A lockfile or `pnpm-workspace.yaml` larger than this is not read, and
-/// counts as one that cannot be parsed (the rewrite fails closed).
+/// A package-manager file ([`read_install_file`]) larger than this is not
+/// read, and counts as one that cannot be parsed (the rewrite fails closed).
 const MAX_RESOLUTION_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
 /// A pattern compiled once per process (see [`re!`]).
@@ -1005,20 +1005,24 @@ impl<'a> Tree<'a> {
     /// `.yarnrc` with only benign keys does not.
     fn install_config_side_channel(&self, dir: &str) -> bool {
         // npm/yarn/pnpm read these whether or not the scan enumerated them, so
-        // consult the filesystem directly rather than the scanned-file set.
-        let read = |rel: &str| std::fs::read_to_string(self.base.join(rel)).ok();
+        // consult the filesystem directly rather than the scanned-file set. A
+        // config file that exists but cannot be read as text counts against
+        // the rewrite.
+        let alters =
+            |rel: &str, test: fn(&str) -> bool| match read_install_file(&self.base.join(rel)) {
+                None => false,
+                Some(Err(())) => true,
+                Some(Ok(text)) => test(&text),
+            };
         let mut d = dir;
         loop {
             if self.base.join(join_rel(d, ".pnpmfile.cjs")).exists() {
                 return true;
             }
-            if read(&join_rel(d, ".npmrc")).is_some_and(|t| npmrc_alters_install(&t)) {
-                return true;
-            }
-            if read(&join_rel(d, ".yarnrc")).is_some_and(|t| yarnrc_alters_install(&t)) {
-                return true;
-            }
-            if read(&join_rel(d, ".yarnrc.yml")).is_some_and(|t| yarnrc_yml_alters_install(&t)) {
+            if alters(&join_rel(d, ".npmrc"), npmrc_alters_install)
+                || alters(&join_rel(d, ".yarnrc"), yarnrc_alters_install)
+                || alters(&join_rel(d, ".yarnrc.yml"), yarnrc_yml_alters_install)
+            {
                 return true;
             }
             if d.is_empty() {
@@ -1112,20 +1116,18 @@ impl<'a> Tree<'a> {
             // A manifest above the package that is not already in the scope
             // (a non-workspace parent project) can still hold the root
             // `overrides` of an install run from there.
-            let rel = join_rel(d, "package.json");
-            let path = self.base.join(&rel);
-            if path.exists() {
-                let parsed = std::fs::read_to_string(&path)
-                    .ok()
-                    .and_then(|t| serde_json::from_str::<Value>(&t).ok());
-                match parsed {
-                    Some(doc) if doc.is_object() => {
+            let path = self.base.join(join_rel(d, "package.json"));
+            match read_install_file(&path) {
+                None => {}
+                Some(Err(())) => return true,
+                Some(Ok(text)) => match serde_json::from_str::<Value>(&text) {
+                    Ok(doc) if doc.is_object() => {
                         if declares_resolution_changes(&doc) {
                             return true;
                         }
                     }
                     _ => return true,
-                }
+                },
             }
         }
         dirs.sort();
@@ -1140,19 +1142,13 @@ impl<'a> Tree<'a> {
     /// [`pnpm_lock_off_registry`]). A bun lockfile (`bun.lock`, the binary
     /// `bun.lockb`) is not read and always counts. Files are read from disk,
     /// not the scanned set: the package manager reads them whether or not
-    /// the scan did, and a file too large or not UTF-8 counts as unparseable.
+    /// the scan did, and one [`read_install_file`] cannot read counts as
+    /// unparseable.
     fn dir_alters_resolution(&self, dir: &str) -> bool {
         if let Some(hit) = self.resolution.borrow().get(dir) {
             return *hit;
         }
-        let read = |name: &str| -> Option<Result<String, ()>> {
-            let path = self.base.join(join_rel(dir, name));
-            let meta = std::fs::metadata(&path).ok()?;
-            if meta.len() > MAX_RESOLUTION_FILE_BYTES {
-                return Some(Err(()));
-            }
-            Some(std::fs::read_to_string(&path).map_err(|_| ()))
-        };
+        let read = |name: &str| read_install_file(&self.base.join(join_rel(dir, name)));
         type Check = fn(&str) -> bool;
         let checks: [(&str, Check); 5] = [
             ("pnpm-workspace.yaml", pnpm_workspace_alters_install),
@@ -1172,6 +1168,26 @@ impl<'a> Tree<'a> {
         self.resolution.borrow_mut().insert(dir.to_string(), hit);
         hit
     }
+}
+
+/// A package-manager file read straight from disk (a lockfile,
+/// `pnpm-workspace.yaml`, `.npmrc`, a parent `package.json`): `None` when
+/// nothing is at `path`; `Err` when something is there but is not a regular
+/// file (a FIFO or a link to a device would block the read), is larger than
+/// [`MAX_RESOLUTION_FILE_BYTES`] or is not UTF-8 — the callers count that
+/// against the rewrite.
+fn read_install_file(path: &Path) -> Option<Result<String, ()>> {
+    if std::fs::symlink_metadata(path).is_err() {
+        return None;
+    }
+    let Ok(meta) = std::fs::metadata(path) else {
+        // A dangling link: npm would fail to read it; count it.
+        return Some(Err(()));
+    };
+    if !meta.is_file() || meta.len() > MAX_RESOLUTION_FILE_BYTES {
+        return Some(Err(()));
+    }
+    Some(std::fs::read_to_string(path).map_err(|_| ()))
 }
 
 fn is_registry_tarball(url: &str) -> bool {
