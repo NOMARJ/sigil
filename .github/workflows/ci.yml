@@ -28,6 +28,35 @@ jobs:
           scandir: bin/
           severity: warning
 
+  # ── GitHub workflows ────────────────────────────────────────────────────────
+  lint-workflows:
+    name: Lint Workflows (actionlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # GitHub rejects a workflow whose expressions do not parse, and nothing
+      # here noticed: publish-pypi.yml carried an empty expression in a shell
+      # comment, so every push recorded a failed run for it and the PyPI
+      # wrapper could not be published. actionlint parses each workflow the
+      # way GitHub does. Shell scripts are left to the ShellCheck job, so its
+      # shellcheck and pyflakes integrations are turned off.
+      - name: Install actionlint (pinned, checksum verified)
+        env:
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+        run: |
+          set -euo pipefail
+          url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -sSfL --retry 3 --retry-delay 2 -o "${RUNNER_TEMP}/actionlint.tar.gz" "$url"
+          echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "${RUNNER_TEMP}/actionlint.tar.gz" -C "${RUNNER_TEMP}" actionlint
+          "${RUNNER_TEMP}/actionlint" -version
+
+      - name: Lint every workflow
+        run: |
+          "${RUNNER_TEMP}/actionlint" -shellcheck= -pyflakes=
+
   test-scan:
     name: Self-Scan
     runs-on: ubuntu-latest

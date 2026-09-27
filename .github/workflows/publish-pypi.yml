@@ -57,7 +57,10 @@ jobs:
           # "sigil-cli" was already taken on PyPI, so the name is load-bearing
           # and must stay in one place.
           # Validate the shape once, here, so every later step can use these
-          # two values through ${{ }} without re-examining where they came from.
+          # two values as step-output expressions without re-examining where
+          # they came from. (GitHub parses expressions before bash runs, even
+          # inside these shell comments, so never write the expression syntax
+          # here: an empty one made this whole workflow invalid.)
           case "${VERSION}" in
             *[!0-9.abrcpost-]*|"")
               echo "::error::tag ${TAG} does not yield a plain version (got '${VERSION}')" >&2
