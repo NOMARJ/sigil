@@ -258,11 +258,23 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_TOKEN }}
         working-directory: cli
+        # crates.io answers 403 to a request without an identifying
+        # User-Agent (its crawler policy), which made the old check never
+        # skip: a re-run died at `cargo publish` and never reached npm or
+        # Homebrew. 200 means already published; anything else falls
+        # through to `cargo publish`, which rejects a duplicate itself.
         run: |
+          set -euo pipefail
           VERSION="${GITHUB_REF_NAME#v}"
-          if curl -sf "https://crates.io/api/v1/crates/sigil-cli/${VERSION}" >/dev/null; then
+          CODE="$(curl -sS -o /dev/null -w '%{http_code}' --retry 3 --retry-delay 2 \
+            -A "sigil-release (https://github.com/${GITHUB_REPOSITORY})" \
+            "https://crates.io/api/v1/crates/sigil-cli/${VERSION}" || true)"
+          if [ "$CODE" = "200" ]; then
             echo "sigil-cli ${VERSION} already on crates.io — skipping publish"
           else
+            if [ "$CODE" != "404" ]; then
+              echo "::warning::crates.io returned HTTP ${CODE} for sigil-cli ${VERSION}; attempting cargo publish"
+            fi
             cargo publish --token "${CARGO_REGISTRY_TOKEN}"
           fi
 

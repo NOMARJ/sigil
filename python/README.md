@@ -1,10 +1,5 @@
 # sigilsec (PyPI wrapper)
 
-> **Status: not yet published to PyPI.** This directory is the source of the
-> package; the `pip install` commands below will work once the repository
-> owner has registered the project on PyPI and wired publishing into the
-> release workflow (see [Publishing](#publishing-owner-action)).
-
 [Sigil](https://github.com/NOMARJ/sigil) is an automated security auditing
 CLI for AI agent code: quarantine-first scanning for pip and npm packages,
 git repositories, MCP servers and agent skills.
@@ -82,19 +77,13 @@ python3 -m build python/
 Keep `sigil_cli.__version__` equal to the `version` in `cli/Cargo.toml` — the
 wrapper downloads exactly that release tag.
 
-## Publishing (owner action)
+## Publishing
 
-Publishing is intentionally **not** automated in this repository yet. To
-publish, the repository owner needs to:
-
-1. Register the `sigilsec` project on PyPI and
-   update `name` in `pyproject.toml` if the fallback is used.
-2. Configure PyPI trusted publishing for `NOMARJ/sigil` and the release
-   workflow.
-3. Add a publish step to `.github/workflows/release.yml` that builds
-   `python/` and uploads with `pypa/gh-action-pypi-publish` after the release
-   assets and `SHA256SUMS.txt` are attached (the wrapper downloads them at
-   first run, so the release must exist before the package is usable).
+Each release is published from its `vX.Y.Z` tag by
+`.github/workflows/publish-pypi.yml`, dispatched by hand once `release.yml` has
+published that tag's GitHub release with all five binaries and
+`SHA256SUMS.txt`. It uses PyPI trusted publishing, so no token is stored. Full
+steps: [`docs/RELEASING.md`](https://github.com/NOMARJ/sigil/blob/main/docs/RELEASING.md).
 
 ## License
 

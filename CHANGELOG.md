@@ -6,6 +6,8 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+## [1.3.7] - 2026-09-27
+
 ### 🥊 Head-to-head with NVIDIA SkillSpector
 
 Measured on the same real samples as SkillSpector 2.11.2 (static, `--no-llm`):
@@ -962,6 +964,15 @@ and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
   release build is unchanged. `api/tests/test_release_hardening.py` had pinned
   the dead `cross build` line; it now checks that linux-arm64 builds natively
   on the arm64 runner and that no step depends on cross.
+- **`release.yml`'s crates.io "already published" check works.** It sent no
+  User-Agent, which crates.io answers with 403, so it never skipped: a re-run of
+  a release died at `cargo publish` and never reached the npm and Homebrew
+  dispatches. It now identifies itself and skips on 200. Any other answer falls
+  through to `cargo publish`, as before, with a warning.
+- **The `sigilsec` PyPI page no longer says it is unpublished.**
+  `python/README.md`, which becomes the project description on PyPI, dropped its
+  "not yet published" banner and its "publishing is not automated" section for a
+  pointer to `docs/RELEASING.md`.
 
 Everything below came out of the prism-scanner review
 ([docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md)). Every
@@ -1484,7 +1495,8 @@ Based on client feedback reporting critical trust erosion from false positive sc
 
 ---
 
-[Unreleased]: https://github.com/NOMARJ/sigil/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/NOMARJ/sigil/compare/v1.3.7...HEAD
+[1.3.7]: https://github.com/NOMARJ/sigil/compare/v1.3.6...v1.3.7
 [1.1.1]: https://github.com/NOMARJ/sigil/compare/v0.9.0...v1.1.1
 [0.9.0]: https://github.com/NOMARJ/sigil/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/NOMARJ/sigil/compare/v0.7.0...v0.8.0
