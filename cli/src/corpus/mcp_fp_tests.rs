@@ -985,24 +985,55 @@ fn skill006_leaves_package_json_to_install003() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn credential_values_that_are_names_are_quiet() {
-    // com.tracklution: an auth *field name*, not a token.
+fn a_token_field_path_is_quiet() {
+    // com.tracklution: the path of the field that holds the token, as the
+    // whole quoted value.
     assert_quiet(
         "package/src/payload.js",
         "CRED-011",
-        &["    bearer: 'data.laravel_auth_token',"],
-    );
-    // ai.reka: a local-mode placeholder made of words.
-    assert_quiet(
-        "src/client.py",
-        "CRED-007",
         &[
-            "    \"api_key\": \"local-static-key\",",
-            "client = RekaClient(api_url=BASE_URL, api_key=\"local-static-key\")",
+            "    bearer: 'data.laravel_auth_token',",
+            "authorization: \"response.access_token\"",
+            "bearer = \"session.user.bearer_token\"",
         ],
     );
-    // com.apideck: an enum whose value is the field name.
-    assert_quiet(
+}
+
+/// Codex review of #172, finding A. The value exemptions this branch first
+/// added to CRED-007, CRED-008 and CRED-011 (any run of lowercase words
+/// joined by `-`, `_` or `.`; anything ending in `password` / `passwd`) and
+/// CRED-008's `.d.ts` exemption silenced real secrets. A value's shape does
+/// not tell a field name from a password or passphrase, so every line below
+/// is reported again — including the three that were measured false
+/// positives on the clean MCP corpus (ai.reka's `local-static-key`,
+/// com.apideck's `Password: "password"` enum and its `.d.ts`), which that
+/// exemption was written for and which this pass accepts back.
+#[test]
+fn name_shaped_credential_values_are_reported() {
+    assert_fires(
+        "src/config.py",
+        "CRED-008",
+        &[
+            // Codex's two examples, verbatim.
+            "password = \"password\"",
+            "password = \"backupdatabasepassword\"",
+            // The single word in every case, and a no-separator run.
+            "password = \"Password\"",
+            "PASSWORD = \"PASSWORD\"",
+            "pwd = \"mypasswd\"",
+            "db_password = \"databasepassword\"",
+            // Separators and case boundaries are a password too.
+            "password = \"db_password\"",
+            "password: \"new-password\"",
+            "password: \"user.password\"",
+            "password: \"userPassword\"",
+            "DB_PASSWORD: \"DB_PASSWORD\"",
+            "password: \"super-secret-password\"",
+            "password: \"admin_password\"",
+        ],
+    );
+    // The apideck lines (an as-const enum object) and its declaration file.
+    assert_fires(
         "src/models/connector.ts",
         "CRED-008",
         &[
@@ -1011,11 +1042,57 @@ fn credential_values_that_are_names_are_quiet() {
             "  dbPassword: \"db_password\",",
         ],
     );
-    // TypeScript declarations carry types, not values.
-    assert_quiet(
+    assert_fires(
         "esm/src/models/connector.d.ts",
         "CRED-008",
-        &["  readonly Password: \"hunter2hunter2\";"],
+        &[
+            "  readonly Password: \"hunter2hunter2\";",
+            "    readonly password: \"password\";",
+            // tsc writes an exported const's literal into the declaration:
+            // once the .js is minified this is the only readable copy.
+            "export declare const DB_PASSWORD = \"Pr0d-Db!2024\";",
+        ],
+    );
+    assert_fires(
+        "dist/index.d.mts",
+        "CRED-008",
+        &["declare const PASSWORD = \"hunter2hunter2\";"],
+    );
+    // CRED-007: Codex's example, a passphrase, and the measured ai.reka line.
+    assert_fires(
+        "src/app.py",
+        "CRED-007",
+        &[
+            "secret_key = \"my-super-secret-signing-key\"",
+            "SECRET_KEY = \"correct-horse-battery-staple\"",
+            "\"api_key\": \"local-static-key\",",
+            "client = RekaClient(api_url=BASE_URL, api_key=\"local-static-key\")",
+            "AUTOMATION_API_KEY: \"automation_api_key\",",
+            "apiKey: \"x-api-key-header-name\"",
+            "client_secret = \"super_secret_signing_value\"",
+        ],
+    );
+    // CRED-011: words, a dotted passphrase, and every near miss of the
+    // property-path shape (a suffix after the path, a capital, a digit, a
+    // last segment that is not *_token, no dot).
+    assert_fires(
+        "src/client.js",
+        "CRED-011",
+        &[
+            "bearer: \"my-static-bearer-token-value\"",
+            "authorization: \"correct-horse-battery-staple\"",
+            "authorization: \"correct.horse.battery.staple\"",
+            "bearer: 'data.laravel_auth_token:9f8e7d6c5b4a3f2e1d0c'",
+            "bearer: 'data.laravel_auth_token/9f8e7d6c5b4a3f2e1d0c'",
+            "bearer: 'data.laravel_auth_token 9f8e7d6c5b4a3f2e1d0c'",
+            "bearer: 'Data.Laravel_Auth_Token'",
+            "bearer: 'data.laravel_auth_token2'",
+            "bearer: 'data.laravel_auth_token_v2'",
+            "bearer: 'data.laravel_auth_secret'",
+            "bearer: 'datalaravel_auth_token_value'",
+            // An exempt path beside a real token on the same line.
+            "bearer: 'data.laravel_auth_token', authorization: 'live-token-8f3a9c2d1e7b'",
+        ],
     );
 }
 
@@ -1088,8 +1165,29 @@ fn calls_named_eval_exec_or_compile_still_fire() {
             "exec(cmd, x => {",
             // A definition and a real call on one line.
             "class A { exec(fn) { return exec(payload) } }",
+            // Codex-style audit of the method-definition context: a call
+            // that the braces around it make look like a definition.
+            "{exec(payload)}",
+            "if (x) { exec(payload) }",
+            "while (exec(payload)) {",
+            "exec(payload) || {}",
+            "exec(atob(p)) {",
+            "exec(payload); run(x) {",
         ],
     );
+    assert_fires(
+        "a.js",
+        "CODE-001",
+        &[
+            "`${eval(payload)}`",
+            "function f() { eval(payload) }",
+            "var g = function eval(s) { return s }; eval(atob(p))",
+            "switch (eval(payload)) {",
+        ],
+    );
+    // A Python definition beside a call on the same line.
+    assert_fires("a.py", "CODE-002", &["def run(self): exec(payload)"]);
+    assert_fires("a.py", "CODE-001", &["def eval(self, s): return eval(s)"]);
     // Outside JavaScript `name(args) {` is a call with a trailing lambda.
     assert_fires("build.gradle.kts", "CODE-002", &["exec(cmd) {"]);
     assert_fires("App.kt", "CODE-002", &["exec(cmd) {"]);
@@ -1101,13 +1199,27 @@ fn calls_named_eval_exec_or_compile_still_fire() {
     );
 }
 
-/// The function-arity wrapper bundled by several polyfills (reduced from the
-/// lighthouse bundle in io.github.ChromeDevTools/chrome-devtools-mcp).
-const ARITY_WRAPPER: &str = r#"for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") { return fn.apply(this, arguments); };")},t.exports=function(e,t){"#;
+/// The function-arity wrapper bundled by several polyfills, as it appears in
+/// the lighthouse bundle in io.github.ChromeDevTools/chrome-devtools-mcp
+/// (the whole helper, from its `function(e){` to the next export).
+const ARITY_WRAPPER: &str = r#"l=[],o=function(e){var t,n=0;if(l[e])return l[e];for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") { return fn.apply(this, arguments); };")},t.exports=function(e,t){"#;
+
+/// The loop and the call alone, as this exemption first accepted them. The
+/// line no longer proves `t` is a fresh local: `t` could already hold a
+/// string that the join splices into the generated source.
+const ARITY_LOOP_ONLY: &str = r#"for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") { return fn.apply(this, arguments); };")},t.exports=function(e,t){"#;
 
 #[test]
 fn the_function_arity_wrapper_is_exempt() {
     assert_quiet("dist/bundle.js", "OBFUSC-CHAIN-011", &[ARITY_WRAPPER]);
+    // Whitespace and the optional cache check do not matter.
+    assert_quiet(
+        "dist/bundle.js",
+        "OBFUSC-CHAIN-011",
+        &[
+            r#"var mk = function (len) { var args, i = 0; for (args = []; len--;) args.push("a" + (++i).toString(36)); return new Function("fn", "return function (" + args.join(", ") + ") { return fn.apply(this, arguments); };") };"#,
+        ],
+    );
 }
 
 #[test]
@@ -1115,16 +1227,40 @@ fn function_constructor_string_building_still_fires() {
     let other_array = ARITY_WRAPPER.replace("+t.join(", "+u.join(");
     let appended = format!("{ARITY_WRAPPER};new Function(p.join(''))()");
     let prefixed = format!("new Function(p.join(''))();{ARITY_WRAPPER}");
-    assert_fires(
-        "dist/bundle.js",
-        "OBFUSC-CHAIN-011",
-        &[
-            "new Function(parts.join(''))()",
-            &other_array,
-            &appended,
-            &prefixed,
-        ],
-    );
+    // Codex-style audit of the exemption: each is the wrapper with the array
+    // no longer provably fresh, so a value placed in it beforehand (`P`, a
+    // stand-in for a parameter default such as `x = <expression>`) would be
+    // spliced into the source `new Function` compiles.
+    let variants = [
+        // The array is seeded and never reset.
+        ARITY_WRAPPER
+            .replace("var t,n=0;", "var t=[P],n=0;")
+            .replace("for(t=[];", "for(;"),
+        // The array is not the function's own local (a global, or a
+        // closure another function fills).
+        ARITY_WRAPPER.replace("var t,n=0;", "var u,n=0;"),
+        // Something else is pushed after the generated names.
+        ARITY_WRAPPER.replace("toString(36));return", "toString(36));t.push(P);return"),
+        // The counter is not a local starting at 0.
+        ARITY_WRAPPER.replace("var t,n=0;", "var t,n=P;"),
+        ARITY_WRAPPER.replace("(++n)", "(++m)"),
+        // The loop does not count down the function's own parameter.
+        ARITY_WRAPPER.replace("e--;", "k--;"),
+        // Not reset in the loop head.
+        ARITY_WRAPPER.replace("for(t=[];", "for(t=P;"),
+    ];
+    let mut lines: Vec<&str> = vec![
+        "new Function(parts.join(''))()",
+        &other_array,
+        &appended,
+        &prefixed,
+        ARITY_LOOP_ONLY,
+    ];
+    lines.extend(variants.iter().map(String::as_str));
+    for v in &variants {
+        assert_ne!(v.as_str(), ARITY_WRAPPER, "variant must change the line");
+    }
+    assert_fires("dist/bundle.js", "OBFUSC-CHAIN-011", &lines);
 }
 
 // ---------------------------------------------------------------------------

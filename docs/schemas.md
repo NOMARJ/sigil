@@ -463,6 +463,14 @@ refused by `sigil rules validate`, by `--rules` and when loaded from
 `def exec(self, sql):` and a JavaScript method `async exec(fn) {` are
 definitions and are not reported; `exec(payload)` on the same line still is.
 
+Use `value_matches` for a value's *format*, not its wording. The built-in
+hardcoded-secret rules (`CRED-007`, `CRED-008`) carry none: a first version
+exempted values that look like field names (`db_password`, `local-static-key`)
+and so also silenced `password = "password"` and passphrases people choose.
+`CRED-011`'s one exemption is a `match_context` on the whole quoted value (a
+property path ending in a `*_token` field), so text after it in the string is
+still reported.
+
 ### YARA rule file (`.yar`, `.yara`)
 
 UTF-8 YARA source: the subset described in

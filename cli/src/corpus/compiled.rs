@@ -981,9 +981,10 @@ mod tests {
             // Function constructor.
             ("circuit.js", "build/circuit.js", "class B {\n  async exec(fn) {\n    return exec(payload)\n  }\n  exec(fn) { return exec(payload) }\n}\n"),
             ("tool.py", "lib/tool.py", "def exec(self, sql):\n    exec(code)\n    def compile(self, s): return compile(s, 'x', 'exec')\n"),
-            ("payload.js", "src/payload.js", "bearer: 'data.laravel_auth_token',\nAuthorization: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig'\napi_key: \"local-static-key\", api_key: \"sk_live_51H8abcdefGHIJ\"\n"),
-            ("connector.ts", "src/connector.ts", "Password: \"password\",\npassword: \"hunter2hunter2\",\n"),
-            ("wrapper.js", "dist/wrapper.js", "for(t=[];e--;)t.push(\"a\"+(++n).toString(36));return new Function(\"fn\",\"return function (\"+t.join(\", \")+\") { return fn.apply(this, arguments); };\")}\nfor(t=[];e--;)t.push(\"a\"+(++n).toString(36));return new Function(\"fn\",\"return function (\"+u.join(\", \")+\") { return fn.apply(this, arguments); };\")}\n"),
+            ("payload.js", "src/payload.js", "bearer: 'data.laravel_auth_token',\nAuthorization: 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.sig'\napi_key: \"local-static-key\", api_key: \"sk_live_51H8abcdefGHIJ\"\nbearer: 'data.laravel_auth_token:9f8e7d6c5b4a3f2e1d0c'\nbearer: 'data.laravel_auth_token', authorization: 'live-token-8f3a9c2d1e7b'\n"),
+            ("connector.ts", "src/connector.ts", "Password: \"password\",\npassword: \"hunter2hunter2\",\npassword = \"backupdatabasepassword\"\n"),
+            ("connector.d.ts", "esm/connector.d.ts", "readonly Password: \"password\";\nexport declare const DB_PASSWORD = \"Pr0d-Db!2024\";\n"),
+            ("wrapper.js", "dist/wrapper.js", "for(t=[];e--;)t.push(\"a\"+(++n).toString(36));return new Function(\"fn\",\"return function (\"+t.join(\", \")+\") { return fn.apply(this, arguments); };\")}\nfor(t=[];e--;)t.push(\"a\"+(++n).toString(36));return new Function(\"fn\",\"return function (\"+u.join(\", \")+\") { return fn.apply(this, arguments); };\")}\no=function(e){var t,n=0;if(l[e])return l[e];for(t=[];e--;)t.push(\"a\"+(++n).toString(36));return new Function(\"fn\",\"return function (\"+t.join(\", \")+\") { return fn.apply(this, arguments); };\")}\no=function(e){var u,n=0;for(t=[];e--;)t.push(\"a\"+(++n).toString(36));return new Function(\"fn\",\"return function (\"+t.join(\", \")+\") { return fn.apply(this, arguments); };\")}\n"),
         ];
 
         for (filename, path, contents) in cases {

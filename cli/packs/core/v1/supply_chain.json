@@ -154,7 +154,7 @@
       "id": "SUPPLY-008",
       "phase": "code_patterns",
       "severity": "high",
-      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*\\beval\\s*\\(|template\\s*\\([^)]*\\)[^\\n]{0,200}\\bexec\\b",
+      "pattern": "new Function\\([^)]*`|\\$\\{[^}]*\\beval\\s*\\(|template\\s*\\([^)]*\\)[^\\n]{0,200}\\bexec\\b|child_process[\\s\\S]*template\\s*\\([^)]*\\)[\\s\\S]*\\bexec(?:Sync|File|FileSync)?\\s*\\(|template\\s*\\([^)]*\\)[\\s\\S]*child_process[\\s\\S]*\\bexec(?:Sync|File|FileSync)?\\s*\\(|template\\s*\\([^)]*\\)[\\s\\S]*\\bexec(?:Sync|File|FileSync)?\\s*\\([\\s\\S]*child_process",
       "description": "Template literal code injection pattern",
       "suppress": {
         "path_contains": [
@@ -264,7 +264,7 @@
       "id": "SUPPLY-016",
       "phase": "code_patterns",
       "severity": "critical",
-      "pattern": "ffi\\.(Library|Function)[\\s\\S]{0,300}\\bsystem\\b|ffi\\s*=\\s*require\\(['\"]ffi['\"]\\)[\\s\\S]{0,300}Library[\\s\\S]{0,300}\\bsystem\\b|\\bForeign\\b[\\s\\S]{0,300}\\binvoke\\b[\\s\\S]{0,300}\\bexec\\b|ctypes[\\s\\S]{0,300}CDLL[\\s\\S]{0,300}os\\.system",
+      "pattern": "ffi\\.(Library|Function)[\\s\\S]{0,300}\\bsystem\\b|ffi\\s*=\\s*require\\(['\"]ffi['\"]\\)[\\s\\S]{0,300}Library[\\s\\S]{0,300}\\bsystem\\b|\\bForeign\\b[\\s\\S]{0,300}\\binvoke\\b[\\s\\S]{0,300}\\bexec\\b|ctypes[\\s\\S]*CDLL[\\s\\S]*os\\.system",
       "description": "FFI boundary violation with command execution",
       "remediation": "Calling system() or exec through an FFI layer (node-ffi Library, Python ctypes CDLL, a Foreign invoke) does what child_process or subprocess would do while avoiding the APIs scanners look for. Binding to a C library is fine; binding to libc's system is not, because there is no legitimate reason to run shell commands through FFI, so reject the package or have the author use the standard process API.",
       "references": ["MITRE T1106", "MITRE T1059"],

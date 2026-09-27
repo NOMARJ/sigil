@@ -20,8 +20,9 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
-On 169 clean MCP servers from the official registry, Sigil blocks 28 (16.6%;
-24 before the lifecycle rewrites were made to fail closed, 39 before the third
+On 169 clean MCP servers from the official registry, Sigil blocks 29 (17.2%;
+28 with the credential value exemptions this branch later withdrew, 24 before
+the lifecycle rewrites were made to fail closed, 39 before the third
 false-positive pass below); SkillSpector blocks 100 of the 156 it finished
 (64.1%; it timed out on 13).
 
@@ -476,7 +477,9 @@ isolated `HOME` ([details and disclosure](docs/detection/mcp-server-calibration.
 These are the pass's own build. The final build of this branch, with the
 lifecycle rewrites failing closed (below), blocks 28/169 (16.6%), warns on
 89/169 (52.7%) and reports 15 CRITICAL; the merged branch just before that
-change measured 24 / 76 / 11.
+change measured 24 / 76 / 11. With the credential exemptions withdrawn
+(below) it blocks 29/169 (17.2%), warns on 95/169 (56.2%) and reports 15
+CRITICAL.
 
 No MCP server's verdict rose; no skill's, parity sample's or Datadog sample's
 verdict or highest severity changed. Individual rules did lose matches on
@@ -565,9 +568,60 @@ pass.
   `suppress.value_matches` exempt one match by the text around it or the value
   it captured; a line is dropped only when every match on it is exempt. Used
   to stop reporting definitions named `eval`/`exec`/`compile` (CODE-001/002/003),
-  name-shaped credential values (CRED-007/008/011) and a fixed polyfill
+  a token field path as a bearer value (CRED-011) and a fixed polyfill
   wrapper (OBFUSC-CHAIN-011). Custom full-schema packs can use it
   ([schemas.md](docs/schemas.md#match-local-suppression-full-schema)).
+- **No credential value is exempt by its shape** (Codex review of #172,
+  finding A). The value exemptions first added here silenced real secrets:
+  CRED-008's `[a-z0-9_.-]*pass(word|wd)` (case-insensitive) passed
+  `password = "password"`, the classic default, and
+  `password = "backupdatabasepassword"`; CRED-007's and CRED-011's
+  lowercase-words-joined-by-`-_.` passed `secret_key = "my-super-secret-signing-key"`
+  and any passphrase. No value shape separates a field or enum name from a
+  password people choose (`db_password`, `userPassword`, `admin_password` are
+  both), so CRED-007 and CRED-008 have no value exemption, and CRED-008 no
+  longer skips `.d.ts` files (tsc writes an exported const's literal there,
+  and it can be the only readable copy once the JavaScript is minified).
+  CRED-011 keeps one shape, now a context check on the whole quoted value: a
+  lowercase property path whose last segment is a snake_case field ending in
+  `_token` (`data.laravel_auth_token`); a suffix after the path, a capital, a
+  digit or any other last segment is reported. OBFUSC-CHAIN-011's arity-wrapper
+  exemption now needs the whole helper on the line (the array a `var` of the
+  same function, reset to `[]`, filled only with generated names and joined
+  into the body): the loop alone let an array seeded beforehand splice text
+  into the compiled source. CODE-001/002/003's definition contexts were
+  audited against call shapes and kept, with those shapes added as tests.
+- **Lifecycle rewrites fail closed on overrides, package extensions and
+  lockfiles below the tool** (Codex review of #172, finding B). `INSTALL-012`
+  checked overrides and lockfile redirects only for the trusted tool's own
+  name, so an `overrides` entry for one of `rimraf`'s dependencies, pointing at
+  a package that exports a `rimraf` bin, left `prepare: "rimraf dist"` at Low
+  while npm hoisted and ran the other package. `INSTALL-010`, `-011` and `-012`
+  now keep the pack's rule and severity when any manifest in the scope or above
+  the package declares a non-empty `overrides`, `resolutions`,
+  `pnpm.overrides`, `pnpm.packageExtensions` or `pnpm.patchedDependencies`;
+  when a `pnpm-workspace.yaml` there declares `overrides`, `packageExtensions`,
+  `patchedDependencies`, `configDependencies` or a pnpmfile, or a `.yarnrc.yml`
+  declares `packageExtensions`; and when a `package-lock.json`,
+  `npm-shrinkwrap.json`, `yarn.lock` or `pnpm-lock.yaml` there has any entry
+  that is not the public registry's tarball of the package it is filed under,
+  or does not parse (a bun lockfile always counts). `ENGINE_REVISION` goes to
+  11. A lockfile, `.npmrc` or parent `package.json` that is not a regular file
+  (a link to `/dev/zero`, a FIFO) now counts against the rewrite instead of
+  blocking the scan.
+- **Measured** (release builds `955a469` → `68a9d30`, `--no-cache`, empty
+  `HOME`): clean MCP servers blocked 28 → 29 and warned 89 → 95 of 169 (seven
+  servers up a level, none down: ai.reka, CrowdStrike falcon, PrefectHQ and
+  neo4j aura-manager on test-file `CRED-007` values, the two neo4j servers on
+  `ENV NEO4J_PASSWORD="password"` in their Dockerfiles, apideck on its
+  `Password: "password"` enum and test keys); the unseen 146 blocked 69 → 70,
+  warned 115 → 115 (`com.shipstatic/mcp` up on `CRED-008` in a `.d.ts`);
+  skills 173 / 184 of 204 malicious and 7 / 71 of 455 clean, unchanged; the
+  844 Datadog samples unchanged in verdict, highest severity and chains, with
+  65 credential findings back on nine compromised-library samples — one of them
+  `export declare const PASSWORD = "a123456A!";` in a `.d.ts`. The lifecycle
+  change moved nothing: no `INSTALL-010`/`011`/`012` rewrite exists on these
+  corpora in either build.
 - **Severity changes.** CODE-009 (`new Function`, always also CODE-008 at
   High) and HYGIENE-001/002 (shipped source maps) are Low; INFER-007 (a literal
   client `apiKey`) is a corroborating Critical; CODE-003 is not checked in
@@ -586,6 +640,97 @@ pass.
   that moved to `INSTALL-009..012` or `CODE-016`, and their fingerprints change
   with the rule id, so baseline entries for them go stale: regenerate the
   baseline. See [enterprise.md](docs/enterprise.md#rule-ids-that-changed-lifecycle-classification).
+
+### 🔎 Adversarial verification of the #172 second-review fixes
+
+A pre-merge bypass hunt (five lenses, each candidate reproduced by two
+independent skeptics) and a fresh audit of the remaining credential and
+lifecycle exemptions found six shapes where a genuinely malicious input scored
+higher on `main` than on the PR head (`955a469`). Each is fixed to fail closed,
+with a regression test built from the probe. Placeholder hosts and fake
+credentials only.
+
+- **CODE-014 stays on a launcher whose own name or version is poisoned**
+  (hunt H1). The `CODE-016` launcher rewrite proved the interpolated
+  *expressions* were the package's own name/version, but not that the resolved
+  *values* were safe. A `version` of `"1.4.0 --registry=https://evil.example.com"`
+  (matched in the platform specs) turned `execSync("npm install …@…")` into an
+  attacker-registry fetch yet dropped `CODE-014` High to `CODE-016` Medium.
+  npm's publish-time semver check does not protect a clone, tarball or local
+  install, which is what Sigil scans. The rewrite now requires a strict semver
+  version and a valid npm package-name token for the name and every matching
+  platform spec, else it keeps `CODE-014`.
+- **SUPPLY-016 catches a one-line obfuscated ctypes loader** (hunt H2). The
+  `ctypes … CDLL … os.system` alternative's 300-byte bound let an
+  FFI-plus-shell loader collapsed onto one physical line escape
+  (CRITICAL → HIGH). The engine matches per line, so that alternative is
+  unbounded again; no clean-corpus sample matched it. The `ffi.Library` /
+  `Foreign … invoke … exec` alternatives keep their bounds.
+- **SUPPLY-008 catches a minified template→exec bundle** (hunt H3). The
+  `template(…) … exec` alternative was bounded to 200 bytes, so a
+  child_process template-injection collapsed onto one bundle line dropped
+  HIGH → LOW. The 200-byte alternative is kept for short spans; three new
+  alternatives match `template(…)` and `exec`/`execSync`/`execFile` at any
+  distance **when `child_process` is also on the line**, which the benign
+  `template(…) … regex.exec` bundles (chalk, lodash helpers) do not carry.
+- **Correlation shadowing fails open on a helper handed on by reference**
+  (hunt H4). A send helper whose parameter shadows the secret, stored in a list
+  or dict (`handlers = [upload]`), added to a collection
+  (`handlers.append(upload)`), aliased (`send = upload`) or decorated for a
+  registry, and then invoked indirectly (`handlers[0](token)`, `for h in
+  handlers: h(token)`), dropped CRITICAL → LOW because the shadowing check saw
+  no direct call. When the helper is handed on in a form the direct-call check
+  cannot follow, the parameter no longer counts as shadowing. A helper passed
+  directly to a recognised callback with a placeholder
+  (`Thread(target=upload, args=("anonymous",))`) is still judged by the value
+  it carries and stays shadowed.
+- **A require-capable in-memory loader carries High on its own** (hunt H5).
+  `CODE-009` (`new Function`) is a Low de-duplicate of `CODE-008`, so a
+  download-and-execute package that ran remote JS through a require-capable
+  Function constructor invoked on the same expression dropped HIGH → MEDIUM
+  (its Low findings no longer feed the verdict's action term). A new rule,
+  **`CODE-017`** (High), matches a Function built with a Node capability
+  parameter (`require`/`process`/`module`/`exports`) that is invoked on the
+  same expression with the real capability — the in-memory loader shape — and
+  restores HIGH without re-scoring an ordinary Function constructor (a
+  polyfill's arity wrapper, a template engine, never carries `CODE-017`). No
+  clean MCP or skills sample matched the shape.
+- **INFER-CHAIN-001: a hardcoded LLM key routed to a non-vendor endpoint is
+  Critical** (disputed INFER-007 case). `INFER-007` alone is corroborating, so
+  a multi-line client config (`new OpenAI({ apiKey: "…", baseURL:
+  "https://relay.example/v1" })`) — which also evades `INFER-001`'s same-line
+  check — read as MEDIUM even though it routes the user's prompts and files
+  through an attacker endpoint with a shipped key. A new Low rule **`INFER-012`**
+  flags a non-vendor `baseURL` (the `INFER-001` vendor/localhost allowlist is
+  reused), and **`INFER-CHAIN-001`** pairs it with `INFER-007` in the same
+  client config for a standalone Critical. It needs both a hardcoded key and an
+  off-vendor endpoint; no clean sample carries both. The other two disputed
+  cases — a one-hop shell encoding step (the owner decided against it) and a
+  `prepublishOnly` split (intended) — stay as documented limitations.
+- **`eval`/`exec` definition context is line-terminator aware.** The
+  JavaScript method-definition exemption (`name(args) {`) treated a lone CR,
+  U+2028 or U+2029 between `)` and `{` as whitespace, but Rust's line splitter
+  keeps those on one physical line while JavaScript treats them as line breaks,
+  so `eval(src)⏎{}` (a real call followed by an empty block) read as a method
+  definition and was silenced. The exemption now allows only spaces and tabs
+  there, and rejects a line terminator inside the argument list.
+
+**Measured** (release builds `955a469` → `e34f017`, `--no-cache`, empty
+`HOME`): these fixes change nothing on the clean corpora — clean MCP servers
+blocked 29/169 and warned 95/169, the unseen 146 blocked 70/146 and warned
+115/146, and the skills benchmark 173/184 of 204 malicious and 7/71 of 455
+clean, all identical to `68a9d30` (the seven clean-MCP and one holdout
+level-ups against `955a469` are the credential-exemption removals above, not
+these fixes: `INFER-CHAIN-001` and `CODE-017` fire on no clean sample, and the
+unbounded `ctypes` and `child_process`-gated `template` spans add no clean
+match). The 844 Datadog samples are unchanged — 0 verdict, 0 highest-severity
+and 0 chain changes against `955a469`, recall 785 / 761 / 752 / 560 at any /
+Medium / High / Critical on both — because the fixes catch crafted single-line
+and dispatch shapes that no real sample in the corpus happens to use (the span
+survey found no malicious line where the reopened spans changed a match).
+Against `main`
+(`35c0155`) the clean MCP servers fall 39 → 29 blocked and 125 → 95 warned,
+and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
 
 ### 🧩 YARA rules as custom rules
 

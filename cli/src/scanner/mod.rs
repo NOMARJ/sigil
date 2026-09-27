@@ -58,7 +58,13 @@ pub use crate::corpus::schema::Evidence;
 /// linked bins cannot be enumerated) and on an in-tree `.npmrc` / `.yarnrc` /
 /// `.yarnrc.yml` / `.pnpmfile.cjs` that redirects the script shell, `node`,
 /// the config file or the registry (`scanner::lifecycle`).
-pub const ENGINE_REVISION: u32 = 10;
+/// 11: and on anything that can swap or add a package below a trusted tool:
+/// a non-empty `overrides` / `resolutions` / `pnpm.overrides` /
+/// `pnpm.packageExtensions` / `pnpm.patchedDependencies` in a scope or parent
+/// manifest, a `pnpm-workspace.yaml` or `.yarnrc.yml` that declares one, and
+/// a lockfile with any entry off the public registry or that cannot be
+/// parsed (`scanner::lifecycle`).
+pub const ENGINE_REVISION: u32 = 11;
 
 /// The scan phases, each targeting a different threat category.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

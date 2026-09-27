@@ -592,6 +592,8 @@ HIGH) and to DD_O14 Datadog samples; it fired on no clean MCP server or skill.
 > and the final build, with the lifecycle rewrites failing closed, in
 > [Fourth change](#fourth-change-the-lifecycle-rewrites-fail-closed-final-build):
 > 28/169 blocked and 89/169 warned in-sample, 69/146 and 115/146 on the holdout.
+> Withdrawing the credential value exemptions ([Fifth change](#fifth-change-codexs-second-review-exemptions-and-overrides))
+> makes that 29/169 and 95/169, 70/146 and 115/146.
 
 The second pass left 39 of the 169 servers blocked. This pass removed the
 blocks that came from a rule unable to see what a line does, where the
@@ -673,7 +675,8 @@ Limitations: In-sample for the MCP corpus. The held-out MCP sample (146 unseen
 - `com.apideck/mcp`, `io.github.firebase/firebase-mcp`: HIGH → MEDIUM.
   CRED-008 no longer fires on `password: "password"` enum values or in `.d.ts`
   files; apideck's `prepublishOnly` is INSTALL-009 and its SUPPLY-008 match
-  was two tokens a bundle apart.
+  was two tokens a bundle apart. (The CRED-008 part is withdrawn by the fifth
+  change below: the same value exemption silenced real passwords.)
 - `com.audioeye/testing-sdk-mcp`: HIGH → MEDIUM. CODE-009 is a Low duplicate
   of the High CODE-008 on the same line, which halves that line's score.
 - `com.tracklution/server-side-tracking`: HIGH → LOW. CRED-011 no longer
@@ -721,10 +724,13 @@ one of these spans would now score lower.
 | Skill lifecycle keys | SKILL-006 no longer reads `package.json` | Duplicated INSTALL-003, which now reads the command. |
 | Match-local suppression | `suppress.match_context`, `suppress.value_matches` (`corpus/exempt.rs`) | A line is dropped only when every match on it is exempt; overlap-safe; fails closed past 64 matches. |
 | Definitions are not calls | CODE-001/002/003 | `def exec(`, `function eval(`, and in JS-family files a method `name(args) {`. |
-| Names are not secrets | CRED-007/011 (lowercase-word values), CRED-008 (password field names, `.d.ts`) | JWTs, `sk_live_…`, `ghp_…`, `hunter2hunter2` still fire. |
-| Arity wrapper | OBFUSC-CHAIN-011 | Exempt only when the joined array is the one the same line generated (`same: [gen, joined]`). |
-| Bounded spans | SUPPLY-007/008/011/013/016, OBFUSC-CHAIN-009, INFER-004/005 | Tokens must be within 60-300 bytes; SUPPLY-001 and PROMPT-004 keep their unbounded spans (bounding them cost Datadog recall in the replay). The gate relaxes `{0,N}` to `*` so the counting regex only runs on lines with both tokens. |
+| Names are not secrets (narrowed by the fifth change) | CRED-011 only: a whole quoted value that is a property path ending in a `*_token` field | CRED-007's and CRED-008's value exemptions and CRED-008's `.d.ts` exemption are removed: a word-made value can be a real secret. |
+| Arity wrapper (narrowed by the fifth change) | OBFUSC-CHAIN-011 | Exempt only when the same line shows the whole helper: the array a `var` of the same function, reset to `[]`, filled only with generated names and joined into the body. |
+| Bounded spans | SUPPLY-007/011/013, OBFUSC-CHAIN-009, INFER-004/005 | Tokens must be within 60-300 bytes; SUPPLY-001 and PROMPT-004 keep their unbounded spans (bounding them cost Datadog recall in the replay). The gate relaxes `{0,N}` to `*` so the counting regex only runs on lines with both tokens. |
+| Bounds reopened for one-liners (Codex second review, H2/H3) | SUPPLY-016 (`ctypes … CDLL … os.system`), SUPPLY-008 (`template(…) … exec`) | The `ctypes` alternative of SUPPLY-016 is unbounded again (per-line, no clean sample matched it), so a one-line obfuscated ctypes-plus-os.system loader stays Critical. SUPPLY-008 keeps its 200-byte alternative and adds `child_process`-gated ones that match `template(…)`→`exec`/`execSync` at any distance, so a minified template-injection bundle stays High; the benign `template(…) … regex.exec` bundles have no `child_process`. |
 | Source maps | HYGIENE-001/002 → Low | A shipped map exposes the publisher's source; it does not act on the installer. |
+| In-memory require loader (Codex second review, H5) | CODE-017 (High) | A `Function` built with `require`/`process`/`module`/`exports` and invoked on the same expression with the real capability restores High for a download-and-execute package after CODE-009 became a Low de-duplicate; an ordinary `new Function` never carries it. |
+| LLM key routed off-vendor (Codex second review, INFER-007) | INFER-012 (Low) + INFER-CHAIN-001 (Critical) | A hardcoded client `apiKey` (INFER-007) in the same client config as a non-vendor `baseURL` (INFER-012) is a standalone Critical chain; it needs both, so no clean server carrying only one moves. |
 
 Each change has tests for the benign shape and for the attack variants it
 could have dropped: `cli/src/scanner/lifecycle_tests.rs` (about ninety
@@ -940,6 +946,110 @@ covered by a probe and a test (`a_directories_bin_manifest_keeps_the_original_fi
 survives on either MCP corpus or any Datadog sample; `CODE-016` still applies
 to the three Microsoft launchers.
 
+### Fifth change: Codex's second review (exemptions and overrides)
+
+Codex reviewed `955a469` and raised two findings, both confirmed by reading
+the code.
+
+**A. Value exemptions that silenced real secrets.** Every `value_matches` /
+`match_context` exemption this branch added to a pack (`git diff
+35c0155..HEAD -- cli/packs`) was re-examined by writing a realistic secret or
+attack it would silence, then tightening or removing it until none did:
+
+| Rule | Exemption as added | A real value it silenced | Decision |
+|---|---|---|---|
+| CRED-008 | `value_matches` `(?i:[a-z0-9_.-]*pass(?:word\|wd))` | `password = "password"`, `password = "backupdatabasepassword"` (Codex); also `admin_password`, `super-secret-password`, `MyPassword` | **Removed.** Only names with a separator or case boundary (`db_password`, `userPassword`, `DB_PASSWORD`) could have stayed, and only with a justification; none has one: each is a password people use too, and none fixes an in-sample false positive that changes a level (the in-sample shapes were `nve-password` and `OAuth2Password`, both on servers blocked for other reasons). No `match_context` was kept for the apideck enum: its lines are object-literal members (`Password: "password",`), which look exactly like a real config object. |
+| CRED-008 | `filename_suffix` `.d.ts` / `.d.mts` / `.d.cts` | `export declare const DB_PASSWORD = "Pr0d-Db!2024";` — tsc copies an exported const's (or an `as const` object's) literal into the declaration, and once the `.js` is minified the declaration is the only readable copy | **Removed.** |
+| CRED-007 | `value_matches` `[a-z]+(?:[-_.][a-z]+)+` | `secret_key = "my-super-secret-signing-key"` (Codex); `SECRET_KEY = "correct-horse-battery-staple"` | **Removed.** No word shape tells a field or header name from a passphrase. |
+| CRED-011 | `value_matches` `[a-z]+(?:[-_.][a-z]+)+` | `bearer: "my-static-bearer-token-value"`; with the rule's open-ended value group, also the path part of `'svc.deploy_token:<secret>'` | **Tightened** to a `match_context` on the whole quoted value: `(?:[a-z]+\.)+[a-z]+(?:_[a-z]+)*_token` followed by the closing quote. It fixes the one measured case (`com.tracklution`, `bearer: 'data.laravel_auth_token'`); a bearer token is random, vendor-prefixed or a word run, not a dotted path to a `*_token` field, and any suffix, capital or digit is reported. |
+| OBFUSC-CHAIN-011 | `match_context` for the function-arity wrapper: `t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") {…}")` with `same: [gen, joined]` | The array was never proven fresh: `t` seeded beforehand with a parameter default (`x = <expression>`) is spliced into the source `new Function` compiles | **Tightened.** The same line must show the whole helper: `function(e){var t,n=0;[if(l[e])return l[e];]for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function(…t.join(", ")…)`, with `same` tying the `var` array, the reset, the push and the join, the `var` counter (starting at 0) and the increment, and the parameter and the loop count. Only changed built-ins (`Array.prototype.join`) elsewhere in the file could still feed it. |
+| CODE-001 / CODE-002 / CODE-003 | `match_context` `def ` / `function ` / `function* ` before the name | None found: in no language is `def eval(` or `function exec(` a call | **Kept.** |
+| CODE-001 / CODE-002 | `match_context` (JavaScript-family files) `name(args) {` after `^`, whitespace, `;{},` or `async` / `static` / `get` / `set` | None found: a call followed on the same line by `{` with no parentheses in its arguments is not valid JavaScript | **Kept**; `{exec(payload)}`, `` `${eval(p)}` ``, `while (exec(p)) {`, `exec(p) \|\| {}`, `exec(atob(p)) {` and a definition followed by a call on one line are tests that must fire. |
+| CODE-003 | `filename_suffix` for JavaScript-family files (a file filter, not a `value_matches` / `match_context`; listed for completeness) | `const { compileFunction: compile } = require('vm'); compile(src)` — and no pack rule reports Node's `vm` API on its own (only fed from a Base64 decode) | Not changed in this pass; recorded as a known gap below. |
+
+**B. Overrides and lockfiles below the trusted tool.** The lifecycle rewrites
+checked overrides (`overrides_in`) and lockfile redirects only for the tool's
+own name. An `overrides` entry for one of `rimraf`'s dependencies, pointing at
+a package that exports a `rimraf` bin, is hoisted by npm and runs for
+`prepare: "rimraf dist"` while the finding read `INSTALL-012` Low; a lockfile
+entry off the registry for any package is the same risk. The rewrites now fail
+closed on any non-empty `overrides`, `resolutions`, `pnpm.overrides`,
+`pnpm.packageExtensions` or `pnpm.patchedDependencies` in a scope or parent
+manifest, on a `pnpm-workspace.yaml` or `.yarnrc.yml` that declares them, and
+on any lockfile entry that is not the registry tarball of its own package, or
+a lockfile that does not parse (rule text:
+[structural-checks.md](structural-checks.md#lifecycle-scripts-and-platform-launchers-install-010--012-code-016)).
+`ENGINE_REVISION` goes to 11. The same change makes a lockfile, `.npmrc` or
+parent `package.json` that is not a regular file count against the rewrite:
+the classifier reads those files from disk, and a link to `/dev/zero` would
+otherwise have blocked the scan.
+
+```
+Data Source: Real samples: the 169 clean MCP servers (mcp_clean_manifest.json),
+             the 146-server holdout (mcp_holdout146_manifest.json), 204 + 455
+             skills and run_eval.py's 844-package Datadog selection (--limit 204,
+             fingerprint 63fcde5b...). Release builds of 955a469 (the PR head's
+             code) and 68a9d30 (this change), each scan --no-cache with an empty
+             HOME, run one corpus at a time on 2026-09-27.
+Sample Size: 169 + 146 servers; 659 skills; 844 Datadog packages; two builds each.
+             Returned credential findings: every directory holding a line an old
+             exemption matched, or a CRED-008 match in a .d.ts, or the arity
+             wrapper (113 directories), scanned once per build with full JSON output.
+Limitations: In-sample for the 169; the holdout was not used to choose anything.
+             "Clean" is not "audited". Static analysis only. No run reported
+             PROV-BUDGET-001 and none errored.
+```
+
+| | 955a469 | 68a9d30 | Level changes |
+|---|---:|---:|---|
+| MCP 169 blocked / warned / CRITICAL | 28 / 89 / 15 | 29 / 95 / 15 | 7 up, 0 down |
+| MCP 146 (holdout) blocked / warned / CRITICAL | 69 / 115 / 45 | 70 / 115 / 45 | 1 up, 0 down |
+| Malicious skills blocked / warned (of 204) | 173 / 184 | 173 / 184 | 0 |
+| Clean skills blocked / warned (of 455) | 7 / 71 | 7 / 71 | 0 |
+| Datadog verdict blocked / warned (of 844, six offline phases) | 705 / 761 | 705 / 761 | 0 verdict, 0 severity, 0 chain changes |
+| Datadog recall any / ≥ Medium / ≥ High / ≥ Critical | 785 / 761 / 752 / 560 | 785 / 761 / 752 / 560 | |
+
+Every level change is a credential finding the withdrawn exemptions had hidden;
+B moved nothing, because no `INSTALL-010`/`011`/`012` rewrite exists on any of
+these corpora in either build (`CODE-016` stays on the three Microsoft
+launchers):
+
+- In-sample, LOW → MEDIUM: `ai.reka/mcp` (`CRED-007` `"api_key": "local-static-key"`
+  in `tests/test_local_mode_regressions.py`, 2 lines), `io.github.CrowdStrike/falcon-mcp`
+  (`CRED-007`, 25 lines of `test-client-secret` / `env-client-secret` /
+  `direct-client-secret` in `tests/`), `io.github.PrefectHQ/prefect-mcp-server`
+  (`CRED-007` `"access_token": "mcp-access-token"` in a test),
+  `io.github.neo4j-contrib/mcp-neo4j-aura-manager` (`CRED-007`, 7 test lines and
+  `ENV NEO4J_AURA_CLIENT_SECRET="test-client-secret"` in its Dockerfile),
+  `io.github.neo4j-contrib/mcp-neo4j-cypher` and `mcp-neo4j-memory` (`CRED-008`
+  `ENV NEO4J_PASSWORD="password"` in the Dockerfile — the image's default password).
+- In-sample, MEDIUM → HIGH: `com.apideck/mcp` (`CRED-008` 16 lines: the
+  `Password: "password"` member of four as-const enum objects in `src/`, `esm/`
+  and their `.d.ts`; `CRED-007` `sk_live_prod_probe` and `sk_test_workflow` in tests).
+- Holdout, MEDIUM → HIGH: `com.shipstatic/mcp` (`CRED-008`, three `readonly password: "…"`
+  description strings in `dist/vocabulary.d.ts`).
+
+Returned findings without a level change: in-sample `CRED-007` on
+`ai.dimensions/analytics-mcp` (3, tests), `com.smartbear/smartbear-mcp`
+(`AUTOMATION_API_KEY: "automation_api_key"`), `io.github.ClickHouse/mcp-clickhouse`
+(1, test), `io.oxylabs/oxylabs-mcp` (2, tests); `CRED-008` on
+`io.github.NVIDIA/elements` (`password: "nve-password"`),
+`io.github.SAP/fiori-mcp-server` (1, the tail of an oversized bundle),
+`io.github.SAP-samples/hana-cli` (`HANA_PASSWORD: 'password'`),
+`io.github.couchbase/mcp-server-couchbase` (`CB_PASSWORD="password"` in a script),
+`io.github.firebase/firebase-mcp` (`exports.PROVIDER_PASSWORD = "password"`),
+`io.github.team-telnyx/telnyx` (2, a JSDoc example in `.d.ts` / `.d.mts`). In all,
+70 findings on 17 in-sample servers, 193 on 14 holdout servers (159 of them in
+`io.github.desplega-ai/agent-swarm`, 155 of those in test files), 1 in the clean skills
+(`SECRET_KEY="local-secret-key"` in an openai cloudflare-deploy reference page)
+and 65 on nine Datadog compromised-library samples (`CRED-011` `authorization_bearer`
+40 times in two telnyx versions' tests; `CRED-008` on `@draftauth/core`'s
+`Password` enum and `elementary-data`'s bundled report; and
+`export declare const PASSWORD = "a123456A!";` in `@actbase/node-server`'s
+`lib/contants/Example.d.ts`, a literal password the `.d.ts` exemption had
+hidden). No finding was lost: the `com.tracklution` bearer path and the
+chrome-devtools arity wrapper stay exempt under the narrowed contexts.
+
 ### Considered and not done
 
 - SUPPLY-001 as corroborating: in the planning replay it cost 28 blocked and
@@ -964,6 +1074,11 @@ to the three Microsoft launchers.
 - A path that is an entry point should never count as secondary.
 - `INSTALL-REF-001` would link a `chmod +x dist/x.js` argument as an executed
   file (not observed in these corpora).
+- CODE-003 is not checked in JavaScript-family files, so a `compile` bound to
+  `vm.compileFunction` and called on a built string is not reported, and no
+  pack rule reports Node's `vm` API (`compileFunction`, `runInThisContext`,
+  `Script`) unless its argument is a Base64 decode. A `vm` rule of its own
+  would close this without bringing back `compile(` in bundles.
 
 ## Reproducing
 

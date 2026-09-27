@@ -2248,9 +2248,32 @@ fn shadowed_from(
             } else {
                 continue;
             };
+            // The value handed to a recognised indirect call is the bound one
+            // (`Thread(target=f, args=(token,))`, `submit(f, token)`): keep the
+            // chain (existing behaviour, with its own placeholder and
+            // rebinding checks).
             if header
                 .name
                 .is_some_and(|f| called_with(code, f, bound, source_line, window, h))
+            {
+                continue;
+            }
+            // Hunt finding H4: the helper is handed on in a form `called_with`
+            // cannot follow — stored in a list or dict, added to a collection,
+            // aliased, or decorated for a registry — and then invoked
+            // indirectly (`handlers = [upload]` … `handlers[0](token)`;
+            // `@register` … `for h in HANDLERS: h(token)`). We cannot prove it
+            // is never handed the secret, so do not treat the parameter as
+            // shadowing: fail open and keep the chain. A helper only ever
+            // passed directly to a recognised callback with a placeholder is
+            // handled by `called_with` above and stays shadowed.
+            let decorated = code.lang == Lang::Python
+                && h > 1
+                && code.code(h - 1).trim_start().starts_with('@');
+            if decorated
+                || header
+                    .name
+                    .is_some_and(|f| used_as_reference(code, f, source_line, window))
             {
                 continue;
             }
@@ -2258,6 +2281,71 @@ fn shadowed_from(
         }
     }
     from
+}
+
+/// Is the helper `name` stored by reference in a way [`called_with`] cannot
+/// follow — put in a list or object literal (`handlers = [upload]`, `routes =
+/// {"go": upload}`), added to a collection (`handlers.append(upload)`), or
+/// aliased to a bare name (`send = upload`)? Those hand the function on to be
+/// invoked from an indexed, iterated or renamed call site, so the parameter
+/// cannot be trusted to shadow the bound value (hunt finding H4). A callback
+/// passed directly to a recognised call (`Thread(target=upload, args=...)`),
+/// an object *key* (`upload:`), and the helper's own `def`/`function` header
+/// or a direct call (`upload(`) are not this: `called_with` judges those by
+/// the value they carry. Strings and comments are already blanked in
+/// [`CodeLines::code`].
+fn used_as_reference(code: &CodeLines, name: &str, source_line: usize, window: usize) -> bool {
+    static ADD: OnceLock<Regex> = OnceLock::new();
+    let add = ADD.get_or_init(|| {
+        Regex::new(r"\.(?:append|push|unshift|add)\s*\($").expect("collection-add regex compiles")
+    });
+    let last = code
+        .lines
+        .len()
+        .min(source_line + window.max(MAX_CALL_SEARCH));
+    for n in source_line..=last {
+        let c = code.code(n);
+        if c.len() > MAX_HEADER_LINE || !contains_word(c, name) {
+            continue;
+        }
+        let bytes = c.as_bytes();
+        let mut open = OpenBrackets::default();
+        for at in occurrences(c, name) {
+            let end = at + name.len();
+            let after = c[end..].trim_start();
+            // A call `name(`, its own header, or an object key `name:` — not
+            // a by-reference storage.
+            if after.starts_with('(') || after.starts_with(':') {
+                continue;
+            }
+            match open.innermost(bytes, at) {
+                // Inside a list or object literal: stored in a collection.
+                Some(b'[') | Some(b'{') => return true,
+                // Inside a call: only a collection-add method (`x.append(f)`)
+                // stores it; an ordinary callback argument is left to
+                // `called_with`.
+                Some(b'(') => {
+                    if add.is_match(&c[..at]) {
+                        return true;
+                    }
+                }
+                // Top level: an alias, the whole right-hand side of `=`.
+                _ => {
+                    let before = c[..at].trim_end();
+                    if before.ends_with('=')
+                        && !before.ends_with("==")
+                        && !before.ends_with("!=")
+                        && !before.ends_with("<=")
+                        && !before.ends_with(">=")
+                        && !before.ends_with("=>")
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
 }
 
 fn launched_operand_re() -> &'static Regex {

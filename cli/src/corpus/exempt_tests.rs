@@ -230,11 +230,40 @@ fn the_embedded_packs_carry_valid_predicates() {
         "CODE-001",
         "CODE-002",
         "CODE-003",
-        "CRED-007",
-        "CRED-008",
         "CRED-011",
         "OBFUSC-CHAIN-011",
     ] {
         assert!(with.contains(&id), "{id} lost its match-local predicates");
     }
+    // Codex review of #172, finding A: a credential value's shape does not
+    // tell a name from a secret, so the hardcoded-key and password rules
+    // carry no value exemption, and CRED-008 does not skip `.d.ts` files.
+    // Neither may come back without the same review.
+    let rule = |id: &str| {
+        packs
+            .iter()
+            .flat_map(|p| p.rules.iter())
+            .find(|r| r.id == id)
+            .unwrap_or_else(|| panic!("{id} missing"))
+    };
+    for id in ["CRED-007", "CRED-008", "CRED-011"] {
+        assert!(
+            rule(id).suppress.value_matches.is_empty(),
+            "{id} must not exempt values by shape"
+        );
+    }
+    for id in ["CRED-007", "CRED-008"] {
+        assert!(
+            !with.contains(&id),
+            "{id} must carry no match-local exemption"
+        );
+    }
+    assert!(
+        !rule("CRED-008")
+            .suppress
+            .filename_suffix
+            .iter()
+            .any(|s| s.contains(".d.")),
+        "CRED-008 must scan TypeScript declaration files"
+    );
 }
