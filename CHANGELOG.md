@@ -20,8 +20,11 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
-On 169 clean MCP servers from the official registry, Sigil blocks 39 (23.1%);
-SkillSpector blocks 100 of the 156 it finished (64.1%; it timed out on 13).
+On 169 clean MCP servers from the official registry, Sigil blocks 29 (17.2%;
+28 with the credential value exemptions this branch later withdrew, 24 before
+the lifecycle rewrites were made to fail closed, 39 before the third
+false-positive pass below); SkillSpector blocks 100 of the 156 it finished
+(64.1%; it timed out on 13).
 
 On the 844-package Datadog selection (npm and PyPI malware, same samples as the
 previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
@@ -212,6 +215,136 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   the pack). 22 of the 29 turn verification off; 7 are changelog or README
   text that describes the setting. TLS-CHAIN-001 fired on none.
 
+### 🔗 Correlation chains read names as sent values
+
+- **A chain links only what the sink sends.** EXFIL-CHAIN-001,
+  DROPPER-CHAIN-001, AGENTSC-CHAIN-001, AGENTSC-CHAIN-002 and DESER-CHAIN-001
+  linked a source to a sink on any whole-word occurrence of the name the
+  source binds in the sink line and the four lines after it, so a clean file
+  with `url = os.environ["DATABASE_URL"]` handed to `create_engine(url)`, and a
+  later `requests.get(url=base + "/ping")`, was CRITICAL RISK on
+  EXFIL-CHAIN-001 (`CRED-001 (@L4) reaches NET-001 (@L9)`). It is LOW RISK
+  now. Every built-in chain sets `name_uses: "value"`, which reads the window
+  as code in the sink file's language (comments, string contents and regular
+  expressions blanked; what a string interpolates kept, `f"{token:>40}"`,
+  `f"{token=}"`, `"${TOKEN:-}"`, Ruby's `"#{key}"` and `%x(... #{key})`,
+  Swift's `"\(key)"` and C#'s `$"{key}"` included) and limits it to the sink's
+  own call, including a heredoc the call reads (`curl --data-binary @- <<EOF`;
+  a quoted delimiter expands nothing and is not read; a heredoc after `&&`,
+  `||` or `;` is another command's unless the sink's rule matches that
+  command), and, for a sink that opens a destination (a webhook URL, a
+  socket), the later lines that use the name it assigns or the object it
+  connects (`s.connect(...)`, then `s.sendall(key)`).
+  A keyword argument's name, an object key, a TypeScript member, an attribute
+  of another object (`r.url`), a destructuring target, an export list, a count
+  (`len(secrets)`) and a function parameter of the same name (unless the
+  function is called with the bound value, or handed on by reference beside
+  it as in `Thread(target=send, args=(token,))`, within 500 lines, where the
+  name is still the source's) are not uses;
+  `data=token`, `json={"k": api_key}`, `f"...{token}"`, `token=token`, a
+  positional `token`, a Python dict keyed by the variable, `{ body: token }`
+  and `{ token }` are. A same-line link needs the source and the sink to match
+  code, not the line's comment. DROPPER-CHAIN-001 links only when the launch
+  runs the downloaded file as its program, not when it hands it to another
+  program as data, and that is what the value reading does for it: on the
+  same build with the chain switched back to `"word"`, 8 of 8 clean dropper
+  probes link again (as with cff3fa2) and the 7 Datadog packages it fires on
+  keep the same 15 findings either way.
+- **One hop: the bound name itself.** A value computed from it on another
+  line is not followed. That costs the flows that linked only because the
+  send's keyword repeated the source's name: `artifact-lab-3-package` (17 of
+  the 844 Datadog samples) copies `dict(os.environ)` into `data`, encodes it,
+  and sends `Request(url, data=encoded_data)`; all 17 lose EXFIL-CHAIN-001
+  and stay CRITICAL RISK on NET-007 (16 also on INSTALL-001). With the sink's
+  window limited to its own call, 4 more versions of the same family lose it,
+  and one of them its CRITICAL verdict (see "Measured" below). One
+  propagation step (`new = f(bound)` makes `new` a source) was measured and
+  not adopted: it wins back those 17 chain labels but changes no real verdict
+  except through one wrong link, in mistralai's own example code, and it turns
+  7 of 10 constructed clean uses of a credential (a client, an engine, a
+  connection, an HMAC signature, a refresh-token body, a key hint) into
+  CRITICAL RISK; a variant restricted to bare uses still turns 3. A narrower
+  form built alongside the value-reading fixes (follow only where the old
+  word reading linked) was measured by the same criteria and is not included
+  either: it restores all 21 lost `artifact-lab-3-package` links and the one
+  verdict, and turns none of those 10 clean uses CRITICAL, but its gate is
+  the credential's name appearing near the send, so 15 of 16 further
+  constructed clean uses (a signature, a key hint, a fingerprint, a masked
+  token) link, 13 of them LOW → CRITICAL RISK; its patch is kept in
+  `evaluation_results/correlation_step/`. Method, per-sample results and
+  how it relates to ADR-0005:
+  [docs/detection/correlation-names.md](docs/detection/correlation-names.md).
+- **`name_uses` on correlation rules.** `"value"` (every built-in chain) or
+  `"word"` (any whole-word occurrence, the old reading, and the default), so
+  a custom pack that leaves it out links as it did outside the statement
+  mode; a rule with `sink_window_before` reads names as values whatever it
+  says, now with the fuller reading above (strings and comments blanked,
+  attributes, destructuring targets and counts skipped). Details and the
+  probes behind each part of the reading:
+  [docs/detection/correlation-chains.md](docs/detection/correlation-chains.md).
+- **Unknown keys on a custom correlation rule warn, and fail validation.** An
+  unknown key on a correlation rule or its `source`/`sink` selector, and a
+  selector that names no rule, do not refuse the pack in a scan (earlier
+  versions accepted them, and a signed pack cannot be edited without
+  re-signing): the scan ignores the key and prints a warning on stderr.
+  `sigil rules validate`, `sigil config --validate` and `sigil rules sign`
+  reject it, with a "did you mean" hint. An unknown `name_uses` value is an
+  error everywhere; `name_uses: null` (an empty YAML value) is the default, as
+  a missing field is, instead of refusing the whole pack.
+- **The corpus digest covers `name_uses`**, and the engine revision moved
+  (8), so a scan cached under one reading is not served under another.
+- **Verified against the port, twice.** 87 hand-written probes around each
+  resolution of the port found five things it lost, each fixed with tests: a
+  heredoc body the call reads, Ruby/Swift/C# interpolation, a helper called
+  with the secret beyond the rule's window, a same-line comment check that ran
+  once per pair (2.46 s against 1.25 s for e45efc5 on a 3.9 MB minified line;
+  1.33 s after), and `name_uses: null` refusing a pack. 37 more around those
+  fixes found three, also fixed with tests: a helper handed the secret by
+  reference (`Thread(target=upload, args=(token,))`, `setTimeout(upload, 0,
+  token)`, `upload.call(null, token)`), which the port reported LOW RISK
+  where e45efc5 reported CRITICAL; a socket connected by `s.connect(...)` and
+  sent on the next line; and a heredoc of another command (`curl ... && cat
+  <<EOF > notes.txt`) read as the request's body. Of the 124 probes (91 true,
+  33 clean; synthetic), e45efc5 gets 81 right, the port 79 and this change
+  105; the two it gets wrong that e45efc5 got right are a function called with
+  a name assigned from the secret (`t = token`, `send(t)`), the derived name
+  left out on purpose.
+- **Linear on long lines.** A work-in-progress version of this reading
+  re-read the line for every occurrence of the name it skipped (2.0 s and
+  5.6 s against 0.6 s for cff3fa2 on a 200 KB line, growing with the square
+  of the length, after the per-file time budget); this change stays within
+  0.2 s of cff3fa2 on 3.5 to 5 MB lines (0.3 s more on a line of 500,000
+  regular-expression openings that never close; one run each, indicative),
+  with a timing test.
+- **Measured.** Probes (synthetic, hand-written: 263 from two review lenses
+  that attacked the first cut, 23 more for the fixes' edges; each scanned
+  with an empty HOME): of 286, cff3fa2 gets 198 right, the first cut as
+  merged (e45efc5) 168, and this change 269. Every clean probe loses its
+  chain (81 of 83 linked with cff3fa2; 79 drop a level, 58 of them from
+  CRITICAL to LOW RISK), no probe gains one, and 186 of the 196 true links
+  cff3fa2 made are kept at the same verdict. The 10 lost are the two-hop
+  flows above and a function called with a name assigned from the secret
+  (`t = token`, `send(t)`), all of which the lane's build with its one-hop
+  follow linked. Corpora, with the release build of this branch (34eaa0b)
+  against main (35c0155), sample by sample in both directions (real samples;
+  one run per build; `evaluation_results/skills_benchmark/*_round3*`,
+  `datadog_round3_diff.json` and
+  `evaluation_results/honest_detection_eval_round3.*`): the 169 clean MCP
+  servers go from 39 to 24 blocked and 125 to 76 warned and the 146 unseen
+  ones from 80 to 66 and 135 to 114, every change downward and all of it the
+  MCP false-positive pass (e45efc5, the branch before the port, gives the 169
+  the same level, rules and finding count as this build); the only
+  correlation change there is DROPPER-CHAIN-001 leaving two one-line source
+  maps (#170; both servers stay CRITICAL). Skills (204 + 455) and
+  SkillSpector's 1,796 examples keep every level (626 / 385 flagged).
+  Datadog (844 packages): recall 785 / 761 / 752 at any / Medium / High
+  as on main, and 560 at Critical against 561: EXFIL-CHAIN-001 leaves 21
+  `artifact-lab-3-package` versions, the 17 above (already with e45efc5) and
+  4 that e45efc5 linked only through a derivation, a comment or the next
+  block inside its five-line window; `artifact-lab-3-package-b1ec2b9f` 0.2.3
+  drops from CRITICAL to HIGH RISK, the other 20 stay CRITICAL. No chain was
+  gained anywhere, and no other chain moved.
+
 ### 🤖 Optional LLM review (`sigil scan --llm-review`)
 
 - **A second opinion from a model you choose.** `--llm-review` (or
@@ -324,6 +457,280 @@ previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
   APIs (`cli/src/llm_review/tests.rs`, `cli/tests/llm_review.rs`). How often a
   real model agrees with the scanner, how often it is talked round, and what
   the stage costs per scan are unknown.
+
+### 🧪 Clean MCP servers: third false-positive pass
+
+Measured with the release build against main's, both `--no-cache` with an
+isolated `HOME` ([details and disclosure](docs/detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression)):
+
+| | Before (main) | After (the pass's own build, f5f142a) |
+|---|---:|---:|
+| Clean MCP servers blocked (≥ HIGH), in-sample | 39/169 (23.1%) | 24/169 (14.2%) |
+| Clean MCP servers warned (≥ MEDIUM) | 125/169 (74.0%) | 75/169 (44.4%) |
+| Clean MCP servers CRITICAL | 17 | 11 |
+| Malicious skills blocked / warned (of 204) | 173 / 184 | 173 / 184 |
+| Clean skills blocked / warned (of 455) | 7 / 71 | 7 / 71 |
+| SkillSpector parity flagged / ≥ High (of 1,796) | 623 / 385 | 623 / 385 |
+| Datadog malicious packages blocked / warned / CRITICAL (of 844) | 756 / 813 / 531 | 756 / 813 / 531 |
+| Datadog six-phase recall ≥ High / ≥ Critical (of 844) | 752 / 561 | 752 / 561 |
+
+These are the pass's own build. The final build of this branch, with the
+lifecycle rewrites failing closed (below), blocks 28/169 (16.6%), warns on
+89/169 (52.7%) and reports 15 CRITICAL; the merged branch just before that
+change measured 24 / 76 / 11. With the credential exemptions withdrawn
+(below) it blocks 29/169 (17.2%), warns on 95/169 (56.2%) and reports 15
+CRITICAL.
+
+No MCP server's verdict rose; no skill's, parity sample's or Datadog sample's
+verdict or highest severity changed. Individual rules did lose matches on
+malicious packages: 407 of the 844 lost a Medium-or-above finding (for example
+INFER-005 on 102 versions of one package and SUPPLY-016 on 6). In the samples
+read, those matches were in bundled library code, translations, build and
+publish scripts, or lifecycle keys that INSTALL-003/004 still report; the
+per-rule table is in the calibration note. The MCP figures are in-sample (the changes were chosen after
+reading those servers); a held-out sample was reserved and not scanned in this
+pass.
+
+- **Lifecycle scripts are read, not just their keys** (`scanner/lifecycle.rs`).
+  `INSTALL-003` → `INSTALL-010` (Medium) when a `preinstall`/`postinstall` is
+  exactly `node <local script>` and the script, with what it requires, has no
+  network, filesystem, child-process, environment or code-generation access;
+  → `INSTALL-011` (Low) for exactly `npx only-allow <pm>`. `INSTALL-004` →
+  `INSTALL-012` (Low) when `prepare`/`prepublish` only runs `tsc`, `husky`,
+  `chmod +x` or `shx`/`rimraf` on package paths, each such tool being a
+  dependency the manifest itself pins to a registry version (an undeclared
+  tool name could be shadowed by another dependency's bin on the lifecycle
+  PATH, so it stays `INSTALL-004`). `CODE-014` → `CODE-016`
+  (Medium) for a `bin` launcher that installs its own
+  `<name>-<platform>-<arch>@<version>`. Anything the classifier cannot prove
+  keeps its original rule and severity.
+- **Bin shadowing keeps the original severity** (all three lifecycle
+  rewrites). `node`, `npx`/`only-allow`, and the build leaves `tsc` / `husky` /
+  `rimraf` / `shx` / `chmod` resolve through `node_modules/.bin` first, and
+  npm/yarn/pnpm hoist workspace members' bins there. The rewrite is now refused
+  when any name it would trust is a `bin` the manifest declares itself, or —
+  when the manifest is a workspace root (`workspaces`, or a
+  `pnpm-workspace.yaml` beside it) — a `bin` any `package.json` in its subtree
+  declares, so a member shipping a `tsc` / `node` / `chmod` / `only-allow` bin
+  no longer downgrades the finding. The shell builtins `true` / `exit` are
+  exempt.
+- **Lifecycle rewrites fail closed on runners and dependencies** (review of
+  #172). The runner of every `npm|pnpm|yarn run X` a `prepare` chain follows,
+  `npx`, `node` (every tool and runner is a `#!/usr/bin/env node` script) and
+  the script shell `sh` are now trusted names too, so a `bin` of the package
+  or a workspace member named `npm` no longer turns `prepare: "npm run build"`
+  into `INSTALL-012`. And because npm links the bins of every package the
+  install adds into `node_modules/.bin`, which this pass cannot see, a
+  rewrite now applies only when the dependency set the lifecycle phase
+  installs is empty apart from the trusted tools' own packages (`typescript`,
+  `husky`, `shx`, `rimraf`; none for `node`, `npx`, `only-allow`, `chmod`,
+  `true`, `exit 0`): `dependencies`, `optionalDependencies`,
+  `peerDependencies` and bundled names for `preinstall` / `postinstall`, plus
+  `devDependencies` for `prepare` / `prepublish`, across every
+  `package.json` of a workspace the manifest is the root of or sits in. Any
+  other dependency, an unreadable field, or a `node_modules` above the
+  package keeps `INSTALL-003` (Critical) or `INSTALL-004` (Medium). A
+  lockfile is not taken as proof that nothing collides: npm links bins from
+  each installed package's own manifest, not from the lockfile's `bin`
+  metadata, and a dependency's lockfile is ignored by the consumer's install.
+  The Microsoft platform launchers' postinstall (three optional platform
+  packages) is `INSTALL-003` again, and `ENGINE_REVISION` goes to 9, so cached
+  scans are recomputed. Measured against `34eaa0b` (the code of #172's head):
+  clean MCP servers blocked 24 → 28 of 169 and 66 → 69 of 146 unseen, warned
+  76 → 89 and 114 → 115; skills and the 844 Datadog samples unchanged at the
+  verdict and severity level. No server in either MCP corpus, and no Datadog
+  sample, keeps an `INSTALL-010`, `-011` or `-012` rewrite: all of them
+  install more than the tools their scripts name. Every server that moved is
+  listed in
+  [structural-checks.md](docs/detection/structural-checks.md#measured-effect-of-the-runner-and-dependency-rules).
+- **Lifecycle rewrites also fail closed on `directories.bin` and install-config
+  side channels** (adversarial re-review of #172). npm links every file in a
+  `directories.bin` directory as a `node_modules/.bin` entry when it packs the
+  package, so a package (or a workspace member) that uses `directories.bin`
+  could ship a file named like any trusted tool, runner or interpreter; the
+  linked names cannot be enumerated from the manifest, so the rewrite now keeps
+  the pack's severity. Separately, npm / yarn / pnpm read a config file from the
+  install directory upward before any script line runs: a `.pnpmfile.cjs` (a
+  hook pnpm executes), a `.npmrc` setting `script-shell` / `shell` /
+  `node-options` / `globalconfig` / `userconfig` or an off-registry `registry`,
+  or a `.yarnrc` / `.yarnrc.yml` setting `yarn-path` / `yarnPath` / `plugins`
+  or an off-registry server, all of which can redirect the shell, `node`, the
+  config file or the package source — any of these in the package's directory
+  or above it now keeps the finding. A `.npmrc` with only benign keys still
+  rewrites. `ENGINE_REVISION` goes to 10. No `package.json` outside
+  `node_modules` in either MCP corpus uses `directories.bin`, and none ships
+  one of those config files, so the measured MCP and Datadog numbers above are
+  unchanged from the runner-and-dependency build.
+- **`prepublishOnly` is `INSTALL-009` (Low)**: npm runs it on publish only.
+  `INSTALL-004` is key-anchored (`"prepare":` / `"prepublish":`), and
+  `INSTALL-REF-001` no longer links files only `prepublishOnly` runs.
+- **Match-local suppression** for rule packs: `suppress.match_context` and
+  `suppress.value_matches` exempt one match by the text around it or the value
+  it captured; a line is dropped only when every match on it is exempt. Used
+  to stop reporting definitions named `eval`/`exec`/`compile` (CODE-001/002/003),
+  a token field path as a bearer value (CRED-011) and a fixed polyfill
+  wrapper (OBFUSC-CHAIN-011). Custom full-schema packs can use it
+  ([schemas.md](docs/schemas.md#match-local-suppression-full-schema)).
+- **No credential value is exempt by its shape** (Codex review of #172,
+  finding A). The value exemptions first added here silenced real secrets:
+  CRED-008's `[a-z0-9_.-]*pass(word|wd)` (case-insensitive) passed
+  `password = "password"`, the classic default, and
+  `password = "backupdatabasepassword"`; CRED-007's and CRED-011's
+  lowercase-words-joined-by-`-_.` passed `secret_key = "my-super-secret-signing-key"`
+  and any passphrase. No value shape separates a field or enum name from a
+  password people choose (`db_password`, `userPassword`, `admin_password` are
+  both), so CRED-007 and CRED-008 have no value exemption, and CRED-008 no
+  longer skips `.d.ts` files (tsc writes an exported const's literal there,
+  and it can be the only readable copy once the JavaScript is minified).
+  CRED-011 keeps one shape, now a context check on the whole quoted value: a
+  lowercase property path whose last segment is a snake_case field ending in
+  `_token` (`data.laravel_auth_token`); a suffix after the path, a capital, a
+  digit or any other last segment is reported. OBFUSC-CHAIN-011's arity-wrapper
+  exemption now needs the whole helper on the line (the array a `var` of the
+  same function, reset to `[]`, filled only with generated names and joined
+  into the body): the loop alone let an array seeded beforehand splice text
+  into the compiled source. CODE-001/002/003's definition contexts were
+  audited against call shapes and kept, with those shapes added as tests.
+- **Lifecycle rewrites fail closed on overrides, package extensions and
+  lockfiles below the tool** (Codex review of #172, finding B). `INSTALL-012`
+  checked overrides and lockfile redirects only for the trusted tool's own
+  name, so an `overrides` entry for one of `rimraf`'s dependencies, pointing at
+  a package that exports a `rimraf` bin, left `prepare: "rimraf dist"` at Low
+  while npm hoisted and ran the other package. `INSTALL-010`, `-011` and `-012`
+  now keep the pack's rule and severity when any manifest in the scope or above
+  the package declares a non-empty `overrides`, `resolutions`,
+  `pnpm.overrides`, `pnpm.packageExtensions` or `pnpm.patchedDependencies`;
+  when a `pnpm-workspace.yaml` there declares `overrides`, `packageExtensions`,
+  `patchedDependencies`, `configDependencies` or a pnpmfile, or a `.yarnrc.yml`
+  declares `packageExtensions`; and when a `package-lock.json`,
+  `npm-shrinkwrap.json`, `yarn.lock` or `pnpm-lock.yaml` there has any entry
+  that is not the public registry's tarball of the package it is filed under,
+  or does not parse (a bun lockfile always counts). `ENGINE_REVISION` goes to
+  11. A lockfile, `.npmrc` or parent `package.json` that is not a regular file
+  (a link to `/dev/zero`, a FIFO) now counts against the rewrite instead of
+  blocking the scan.
+- **Measured** (release builds `955a469` → `68a9d30`, `--no-cache`, empty
+  `HOME`): clean MCP servers blocked 28 → 29 and warned 89 → 95 of 169 (seven
+  servers up a level, none down: ai.reka, CrowdStrike falcon, PrefectHQ and
+  neo4j aura-manager on test-file `CRED-007` values, the two neo4j servers on
+  `ENV NEO4J_PASSWORD="password"` in their Dockerfiles, apideck on its
+  `Password: "password"` enum and test keys); the unseen 146 blocked 69 → 70,
+  warned 115 → 115 (`com.shipstatic/mcp` up on `CRED-008` in a `.d.ts`);
+  skills 173 / 184 of 204 malicious and 7 / 71 of 455 clean, unchanged; the
+  844 Datadog samples unchanged in verdict, highest severity and chains, with
+  65 credential findings back on nine compromised-library samples — one of them
+  `export declare const PASSWORD = "a123456A!";` in a `.d.ts`. The lifecycle
+  change moved nothing: no `INSTALL-010`/`011`/`012` rewrite exists on these
+  corpora in either build.
+- **Severity changes.** CODE-009 (`new Function`, always also CODE-008 at
+  High) and HYGIENE-001/002 (shipped source maps) are Low; INFER-007 (a literal
+  client `apiKey`) is a corroborating Critical; CODE-003 is not checked in
+  JavaScript-family files; SKILL-006 no longer repeats INSTALL-003 on
+  `package.json`.
+- **Bounded spans.** SUPPLY-007/008/011/013/016, OBFUSC-CHAIN-009 and
+  INFER-004/005 link their tokens only within 60–300 bytes on a line, instead
+  of anywhere on a minified bundle line. SUPPLY-001 and PROMPT-004 keep their
+  unbounded spans.
+- **Cache.** The corpus digest now covers every rule field that can
+  change a finding (it covered only ids and patterns, so a severity or
+  suppression change kept serving stale cached verdicts) plus an engine
+  revision, so every cached scan is invalidated once on upgrade.
+- **Policies and baselines.** A `disable_rules` / `severity_overrides` entry
+  for `INSTALL-003`, `INSTALL-004` or `CODE-014` no longer applies to findings
+  that moved to `INSTALL-009..012` or `CODE-016`, and their fingerprints change
+  with the rule id, so baseline entries for them go stale: regenerate the
+  baseline. See [enterprise.md](docs/enterprise.md#rule-ids-that-changed-lifecycle-classification).
+
+### 🔎 Adversarial verification of the #172 second-review fixes
+
+A pre-merge bypass hunt (five lenses, each candidate reproduced by two
+independent skeptics) and a fresh audit of the remaining credential and
+lifecycle exemptions found six shapes where a genuinely malicious input scored
+higher on `main` than on the PR head (`955a469`). Each is fixed to fail closed,
+with a regression test built from the probe. Placeholder hosts and fake
+credentials only.
+
+- **CODE-014 stays on a launcher whose own name or version is poisoned**
+  (hunt H1). The `CODE-016` launcher rewrite proved the interpolated
+  *expressions* were the package's own name/version, but not that the resolved
+  *values* were safe. A `version` of `"1.4.0 --registry=https://evil.example.com"`
+  (matched in the platform specs) turned `execSync("npm install …@…")` into an
+  attacker-registry fetch yet dropped `CODE-014` High to `CODE-016` Medium.
+  npm's publish-time semver check does not protect a clone, tarball or local
+  install, which is what Sigil scans. The rewrite now requires a strict semver
+  version and a valid npm package-name token for the name and every matching
+  platform spec, else it keeps `CODE-014`.
+- **SUPPLY-016 catches a one-line obfuscated ctypes loader** (hunt H2). The
+  `ctypes … CDLL … os.system` alternative's 300-byte bound let an
+  FFI-plus-shell loader collapsed onto one physical line escape
+  (CRITICAL → HIGH). The engine matches per line, so that alternative is
+  unbounded again; no clean-corpus sample matched it. The `ffi.Library` /
+  `Foreign … invoke … exec` alternatives keep their bounds.
+- **SUPPLY-008 catches a minified template→exec bundle** (hunt H3). The
+  `template(…) … exec` alternative was bounded to 200 bytes, so a
+  child_process template-injection collapsed onto one bundle line dropped
+  HIGH → LOW. The 200-byte alternative is kept for short spans; three new
+  alternatives match `template(…)` and `exec`/`execSync`/`execFile` at any
+  distance **when `child_process` is also on the line**, which the benign
+  `template(…) … regex.exec` bundles (chalk, lodash helpers) do not carry.
+- **Correlation shadowing fails open on a helper handed on by reference**
+  (hunt H4). A send helper whose parameter shadows the secret, stored in a list
+  or dict (`handlers = [upload]`), added to a collection
+  (`handlers.append(upload)`), aliased (`send = upload`) or decorated for a
+  registry, and then invoked indirectly (`handlers[0](token)`, `for h in
+  handlers: h(token)`), dropped CRITICAL → LOW because the shadowing check saw
+  no direct call. When the helper is handed on in a form the direct-call check
+  cannot follow, the parameter no longer counts as shadowing. A helper passed
+  directly to a recognised callback with a placeholder
+  (`Thread(target=upload, args=("anonymous",))`) is still judged by the value
+  it carries and stays shadowed.
+- **A require-capable in-memory loader carries High on its own** (hunt H5).
+  `CODE-009` (`new Function`) is a Low de-duplicate of `CODE-008`, so a
+  download-and-execute package that ran remote JS through a require-capable
+  Function constructor invoked on the same expression dropped HIGH → MEDIUM
+  (its Low findings no longer feed the verdict's action term). A new rule,
+  **`CODE-017`** (High), matches a Function built with a Node capability
+  parameter (`require`/`process`/`module`/`exports`) that is invoked on the
+  same expression with the real capability — the in-memory loader shape — and
+  restores HIGH without re-scoring an ordinary Function constructor (a
+  polyfill's arity wrapper, a template engine, never carries `CODE-017`). No
+  clean MCP or skills sample matched the shape.
+- **INFER-CHAIN-001: a hardcoded LLM key routed to a non-vendor endpoint is
+  Critical** (disputed INFER-007 case). `INFER-007` alone is corroborating, so
+  a multi-line client config (`new OpenAI({ apiKey: "…", baseURL:
+  "https://relay.example/v1" })`) — which also evades `INFER-001`'s same-line
+  check — read as MEDIUM even though it routes the user's prompts and files
+  through an attacker endpoint with a shipped key. A new Low rule **`INFER-012`**
+  flags a non-vendor `baseURL` (the `INFER-001` vendor/localhost allowlist is
+  reused), and **`INFER-CHAIN-001`** pairs it with `INFER-007` in the same
+  client config for a standalone Critical. It needs both a hardcoded key and an
+  off-vendor endpoint; no clean sample carries both. The other two disputed
+  cases — a one-hop shell encoding step (the owner decided against it) and a
+  `prepublishOnly` split (intended) — stay as documented limitations.
+- **`eval`/`exec` definition context is line-terminator aware.** The
+  JavaScript method-definition exemption (`name(args) {`) treated a lone CR,
+  U+2028 or U+2029 between `)` and `{` as whitespace, but Rust's line splitter
+  keeps those on one physical line while JavaScript treats them as line breaks,
+  so `eval(src)⏎{}` (a real call followed by an empty block) read as a method
+  definition and was silenced. The exemption now allows only spaces and tabs
+  there, and rejects a line terminator inside the argument list.
+
+**Measured** (release builds `955a469` → `e34f017`, `--no-cache`, empty
+`HOME`): these fixes change nothing on the clean corpora — clean MCP servers
+blocked 29/169 and warned 95/169, the unseen 146 blocked 70/146 and warned
+115/146, and the skills benchmark 173/184 of 204 malicious and 7/71 of 455
+clean, all identical to `68a9d30` (the seven clean-MCP and one holdout
+level-ups against `955a469` are the credential-exemption removals above, not
+these fixes: `INFER-CHAIN-001` and `CODE-017` fire on no clean sample, and the
+unbounded `ctypes` and `child_process`-gated `template` spans add no clean
+match). The 844 Datadog samples are unchanged — 0 verdict, 0 highest-severity
+and 0 chain changes against `955a469`, recall 785 / 761 / 752 / 560 at any /
+Medium / High / Critical on both — because the fixes catch crafted single-line
+and dispatch shapes that no real sample in the corpus happens to use (the span
+survey found no malicious line where the reopened spans changed a match).
+Against `main`
+(`35c0155`) the clean MCP servers fall 39 → 29 blocked and 125 → 95 warned,
+and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
 
 ### 🧩 YARA rules as custom rules
 
@@ -661,6 +1068,7 @@ before it was kept, and the numbers below are from those runs.
 - `make benchmark`, `evaluation_results/HISTORY.md`, `docs/RELEASING.md`, `docs/benchmarks.md`
 
 ### 🐛 Fixed
+- **Correlation chains no longer link inside a source map.** A source map carries each original file as one JSON string, so a `curl` in a code comment and an unrelated `execFile(file, args)` 900 KB away were "the same line": a `DROPPER-CHAIN-001` High on two clean registry MCP servers (`com.vibgrate/ai-context`, `dev.jasonpearson/auto-mobile`). A file named `*.map` whose whole content is a JSON source map is no longer correlated; its line findings are still reported, and a script that only borrows the extension is correlated as before. A map over the 10 MB whole-file limit is checked from disk, and one cut at the 4 MB archive-member cap by the part that was read. On 157 unseen MCP servers this removes those two chains (both servers stay CRITICAL RISK on other rules) and nothing else; the 169 clean MCP servers, the 659 skills and the 844 Datadog packages are unchanged sample for sample. The older chains keep no `max_line_length`: a 500-byte cap removed nothing more from any clean sample and cost three decoded Telegram stealers their only Critical finding (Datadog recall at Critical 561 → 558 of 844). Measurements: [docs/detection/source-map-correlation.md](docs/detection/source-map-correlation.md)
 - MCP server scan tools printed `undefined` for verdict and score: they read the top level while the JSON contract puts the scalars under `summary`
 - `NET-015` matched URL *paths* that end in an abused TLD (`/assets/file.download`)
 - `sigil diff` rejects a residue document as a baseline instead of failing on a missing field

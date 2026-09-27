@@ -763,6 +763,7 @@
         ]
       },
       "window_lines": 20,
+      "name_uses": "value",
       "sink_excludes": [],
       "remediation": "A variable that holds the result of a secret-named environment sweep (AGENTSC-010) is sent in an outbound request a few lines later. That is credential exfiltration whatever the request is called — 'metrics', 'telemetry', 'audit'. Do not run the skill, and rotate every secret that was in the environment when it ran.",
       "references": [
@@ -801,6 +802,7 @@
         ]
       },
       "window_lines": 20,
+      "name_uses": "value",
       "sink_excludes": [],
       "remediation": "A tarball built from the project directory with .git and node_modules excluded but .env left in (AGENTSC-011) is uploaded a few lines later (the archive path written by `tar -czf \"$TARBALL\"` is the file posted with `curl -F \"file=@$TARBALL\"`). In the agent deploy skills this was measured on the endpoint is unauthenticated and the upload is published at a preview URL, so every secret in the working tree goes with it. The vendor's corrected script excludes `.env` and `.env.*`; add those exclusions or build the archive from an allow-list, and rotate anything that was in .env when the script ran.",
       "references": [

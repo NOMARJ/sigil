@@ -446,6 +446,63 @@ fn report_formats_and_output_file() {
     assert!(!dest.exists());
 }
 
+/// A custom correlation rule with a key this version does not know (a note
+/// for the owning team) loaded before correlation-rule keys were checked. A
+/// scan still runs with the pack, ignores the key and says so on stderr;
+/// `sigil rules validate` and `sigil config --validate` reject it.
+#[test]
+fn an_unknown_correlation_key_warns_in_a_scan_and_fails_validation() {
+    let fx = fixture();
+    let extra = fx.root.join("pack_extra.json");
+    std::fs::write(
+        &extra,
+        r#"{"meta":{"id":"acme","name":"acme","version":"1","updated_at":"2026-01-01","author":"a","description":"d"},
+ "correlation_rules":[{"id":"ACME-CHAIN-001","phase":"network_exfil","severity":"high","description":"acme chain",
+   "source":{"rule_prefixes":["CRED-"],"rule_ids":[]},"sink":{"rule_prefixes":[],"rule_ids":["NET-001"]},
+   "window_lines":20,"sink_excludes":[],"notes":"owned by the platform team"}]}"#,
+    )
+    .unwrap();
+    let extra = extra.to_str().unwrap();
+    let proj = fx.proj.to_str().unwrap();
+    let o = sigil(
+        &fx,
+        &fx.root,
+        &[
+            "--rules",
+            extra,
+            "--format",
+            "json",
+            "scan",
+            proj,
+            "--no-cache",
+        ],
+        &[],
+    );
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(json(&o)["findings"].is_array());
+    let err = stderr(&o);
+    assert!(
+        err.contains("correlation_rules[0] (ACME-CHAIN-001): unknown key 'notes'")
+            && err.contains("ignored"),
+        "{err}"
+    );
+
+    let o = sigil(&fx, &fx.root, &["rules", "validate", extra], &[]);
+    assert_eq!(code(&o), 1);
+    assert!(String::from_utf8_lossy(&o.stdout).contains("unknown key 'notes'"));
+
+    let policy = fx.root.join("policy.yml");
+    std::fs::write(&policy, format!("rule_packs:\n  - {extra}\n")).unwrap();
+    let o = sigil(
+        &fx,
+        &fx.root,
+        &["config", "--validate", policy.to_str().unwrap()],
+        &[],
+    );
+    assert_eq!(code(&o), 1, "{}", String::from_utf8_lossy(&o.stdout));
+    assert!(String::from_utf8_lossy(&o.stdout).contains("unknown key 'notes'"));
+}
+
 #[test]
 fn rules_and_config_commands_follow_the_contract() {
     let fx = fixture();

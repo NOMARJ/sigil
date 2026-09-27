@@ -790,3 +790,606 @@ fn function_constructor_literal_reaching_for_process_still_fires() {
         &["new Function('return require')()('child_process').exec(c);"],
     );
 }
+
+// ---------------------------------------------------------------------------
+// INSTALL-004 / INSTALL-009: prepublishOnly runs on publish only
+// ---------------------------------------------------------------------------
+
+#[test]
+fn prepublish_only_is_a_low_publish_time_observation() {
+    let manifest = "{\n  \"scripts\": {\n    \"prepublishOnly\": \"npm run typecheck && npm test && npm run build\"\n  }\n}\n";
+    assert_eq!(
+        severity_of("package.json", manifest, "INSTALL-009"),
+        Some(Severity::Low)
+    );
+    assert!(
+        !fires("package.json", manifest, "INSTALL-004"),
+        "prepublishOnly is no longer an INSTALL-004 finding"
+    );
+}
+
+#[test]
+fn install_time_lifecycle_keys_keep_their_severity() {
+    // A postinstall that runs the publish-only script runs it on install.
+    assert_eq!(
+        severity_of(
+            "package.json",
+            r#"{"scripts":{"postinstall":"npm run prepublishOnly","prepublishOnly":"node x.js"}}"#,
+            "INSTALL-003"
+        ),
+        Some(Severity::Critical)
+    );
+    for key in ["prepare", "prepublish"] {
+        let line = format!("    \"{key}\": \"node x.js\",");
+        assert_eq!(
+            severity_of("package.json", &line, "INSTALL-004"),
+            Some(Severity::Medium),
+            "{key} runs on a git-dependency or checkout install"
+        );
+        // Key-anchored: the same word as a value is not a lifecycle key.
+        let value = format!("    \"build:all\": \"npm run {key}\",");
+        assert!(!fires("package.json", &value, "INSTALL-004"), "{value}");
+        let bare = format!("    \"x\": \"{key}\",");
+        assert!(!fires("package.json", &bare, "INSTALL-004"), "{bare}");
+    }
+    // One-line manifests keep matching.
+    assert!(fires(
+        "package.json",
+        r#"{"name":"x","scripts":{"prepare":"husky install"}}"#,
+        "INSTALL-004"
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// CODE-003: compile() is a Python primitive, not a JavaScript one
+// ---------------------------------------------------------------------------
+
+#[test]
+fn compile_in_javascript_family_files_is_quiet() {
+    for path in [
+        "dist/index.js",
+        "src/schema.ts",
+        "lib/x.mjs",
+        "lib/x.cjs",
+        "src/App.jsx",
+        "src/App.tsx",
+        "src/x.mts",
+        "src/x.cts",
+        "public/index.html",
+        "public/page.htm",
+        "src/App.vue",
+        "src/App.svelte",
+    ] {
+        assert_quiet(
+            path,
+            "CODE-003",
+            &[
+                "const validate = compile(schema);",
+                "  const tpl = compile(source, { noEscape: true });",
+            ],
+        );
+    }
+}
+
+#[test]
+fn compile_outside_javascript_still_fires() {
+    let line = "code = compile(src, '<string>', 'exec')";
+    // Python, agent-skill markdown (a fenced block is scanned line by line),
+    // notebooks and extensionless scripts stay covered.
+    for path in ["tool.py", "SKILL.md", "analysis.ipynb", "bin/run"] {
+        assert_eq!(
+            severity_of(path, line, "CODE-003"),
+            Some(Severity::Medium),
+            "{path}"
+        );
+    }
+    // exec(compile(...)) is still an exec call.
+    assert!(fires(
+        "tool.py",
+        "exec(compile(src, '<string>', 'exec'))",
+        "CODE-002"
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// CODE-009: a duplicate of CODE-008, which carries the severity
+// ---------------------------------------------------------------------------
+
+/// Every line CODE-009 matches is also matched by CODE-008 at High, so
+/// lowering CODE-009 to a Low observation loses no High finding. Checked over
+/// the fixtures in this file and every line of the detection docs, which
+/// quote each rule's positive examples.
+#[test]
+fn every_code009_match_is_also_a_high_code008_match() {
+    let mut lines: Vec<String> = [
+        "new Function(payload)();",
+        "const f = new Function(atob(blob));",
+        "new Function('a', decoded)(1);",
+        "return new Function(\"return \" + source)();",
+        "return new Function(`return ${template}`)()(comparator);",
+        "new Function('return require')()('child_process').exec(c);",
+        "x=new   Function(String.fromCharCode(101,118,97,108))",
+        "(new Function(parts.join('')))()",
+    ]
+    .iter()
+    .map(|s| s.to_string())
+    .collect();
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    for dir in ["docs/detection", "cli/tests/fixtures"] {
+        let Ok(entries) = std::fs::read_dir(root.join(dir)) else {
+            continue;
+        };
+        for e in entries.flatten() {
+            if let Ok(text) = std::fs::read_to_string(e.path()) {
+                lines.extend(
+                    text.lines()
+                        .filter(|l| l.contains("Function"))
+                        .map(str::to_string),
+                );
+            }
+        }
+    }
+    let mut checked = 0usize;
+    for line in &lines {
+        let found = scan_at("index.js", line);
+        let Some(c9) = found.iter().find(|f| f.rule == "CODE-009") else {
+            continue;
+        };
+        checked += 1;
+        assert_eq!(c9.severity, Severity::Low, "{line}");
+        assert!(
+            found
+                .iter()
+                .any(|f| f.rule == "CODE-008" && f.severity == Severity::High),
+            "CODE-009 matched without a High CODE-008 on the same line: {line}"
+        );
+    }
+    assert!(checked >= 8, "only {checked} CODE-009 lines checked");
+}
+
+// ---------------------------------------------------------------------------
+// INFER-007: a literal client key corroborates; it does not gate alone
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_literal_client_key_is_a_corroborating_critical() {
+    let found = scan_at(
+        "src/client.ts",
+        "const client = new OpenAI({ apiKey: \"sk_proj_a1b2c3d4e5f6g7h8i9j0k1l2\" });",
+    );
+    let key = found
+        .iter()
+        .find(|f| f.rule == "INFER-007")
+        .expect("INFER-007 must still fire");
+    assert_eq!(key.severity, Severity::Critical);
+    assert_eq!(key.evidence, crate::scanner::Evidence::Corroborate);
+}
+
+// ---------------------------------------------------------------------------
+// SKILL-006: package.json lifecycle keys belong to INSTALL-003
+// ---------------------------------------------------------------------------
+
+#[test]
+fn skill006_leaves_package_json_to_install003() {
+    let line = "    \"postinstall\": \"node ./scripts/post-install-script.js\",";
+    assert!(!fires("package.json", line, "SKILL-006"));
+    assert!(fires("package.json", line, "INSTALL-003"));
+    for manifest in ["manifest.json", "plugin.json", "mcp.json", "tool.json"] {
+        assert!(fires(manifest, line, "SKILL-006"), "{manifest}");
+    }
+    assert!(fires("SKILL.md", "on_install: ./setup.sh", "SKILL-006"));
+}
+
+// ---------------------------------------------------------------------------
+// Match-local exemptions (suppress.match_context / value_matches)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_token_field_path_is_quiet() {
+    // com.tracklution: the path of the field that holds the token, as the
+    // whole quoted value.
+    assert_quiet(
+        "package/src/payload.js",
+        "CRED-011",
+        &[
+            "    bearer: 'data.laravel_auth_token',",
+            "authorization: \"response.access_token\"",
+            "bearer = \"session.user.bearer_token\"",
+        ],
+    );
+}
+
+/// Codex review of #172, finding A. The value exemptions this branch first
+/// added to CRED-007, CRED-008 and CRED-011 (any run of lowercase words
+/// joined by `-`, `_` or `.`; anything ending in `password` / `passwd`) and
+/// CRED-008's `.d.ts` exemption silenced real secrets. A value's shape does
+/// not tell a field name from a password or passphrase, so every line below
+/// is reported again — including the three that were measured false
+/// positives on the clean MCP corpus (ai.reka's `local-static-key`,
+/// com.apideck's `Password: "password"` enum and its `.d.ts`), which that
+/// exemption was written for and which this pass accepts back.
+#[test]
+fn name_shaped_credential_values_are_reported() {
+    assert_fires(
+        "src/config.py",
+        "CRED-008",
+        &[
+            // Codex's two examples, verbatim.
+            "password = \"password\"",
+            "password = \"backupdatabasepassword\"",
+            // The single word in every case, and a no-separator run.
+            "password = \"Password\"",
+            "PASSWORD = \"PASSWORD\"",
+            "pwd = \"mypasswd\"",
+            "db_password = \"databasepassword\"",
+            // Separators and case boundaries are a password too.
+            "password = \"db_password\"",
+            "password: \"new-password\"",
+            "password: \"user.password\"",
+            "password: \"userPassword\"",
+            "DB_PASSWORD: \"DB_PASSWORD\"",
+            "password: \"super-secret-password\"",
+            "password: \"admin_password\"",
+        ],
+    );
+    // The apideck lines (an as-const enum object) and its declaration file.
+    assert_fires(
+        "src/models/connector.ts",
+        "CRED-008",
+        &[
+            "  Password: \"password\",",
+            "  password: \"password\",",
+            "  dbPassword: \"db_password\",",
+        ],
+    );
+    assert_fires(
+        "esm/src/models/connector.d.ts",
+        "CRED-008",
+        &[
+            "  readonly Password: \"hunter2hunter2\";",
+            "    readonly password: \"password\";",
+            // tsc writes an exported const's literal into the declaration:
+            // once the .js is minified this is the only readable copy.
+            "export declare const DB_PASSWORD = \"Pr0d-Db!2024\";",
+        ],
+    );
+    assert_fires(
+        "dist/index.d.mts",
+        "CRED-008",
+        &["declare const PASSWORD = \"hunter2hunter2\";"],
+    );
+    // CRED-007: Codex's example, a passphrase, and the measured ai.reka line.
+    assert_fires(
+        "src/app.py",
+        "CRED-007",
+        &[
+            "secret_key = \"my-super-secret-signing-key\"",
+            "SECRET_KEY = \"correct-horse-battery-staple\"",
+            "\"api_key\": \"local-static-key\",",
+            "client = RekaClient(api_url=BASE_URL, api_key=\"local-static-key\")",
+            "AUTOMATION_API_KEY: \"automation_api_key\",",
+            "apiKey: \"x-api-key-header-name\"",
+            "client_secret = \"super_secret_signing_value\"",
+        ],
+    );
+    // CRED-011: words, a dotted passphrase, and every near miss of the
+    // property-path shape (a suffix after the path, a capital, a digit, a
+    // last segment that is not *_token, no dot).
+    assert_fires(
+        "src/client.js",
+        "CRED-011",
+        &[
+            "bearer: \"my-static-bearer-token-value\"",
+            "authorization: \"correct-horse-battery-staple\"",
+            "authorization: \"correct.horse.battery.staple\"",
+            "bearer: 'data.laravel_auth_token:9f8e7d6c5b4a3f2e1d0c'",
+            "bearer: 'data.laravel_auth_token/9f8e7d6c5b4a3f2e1d0c'",
+            "bearer: 'data.laravel_auth_token 9f8e7d6c5b4a3f2e1d0c'",
+            "bearer: 'Data.Laravel_Auth_Token'",
+            "bearer: 'data.laravel_auth_token2'",
+            "bearer: 'data.laravel_auth_token_v2'",
+            "bearer: 'data.laravel_auth_secret'",
+            "bearer: 'datalaravel_auth_token_value'",
+            // An exempt path beside a real token on the same line.
+            "bearer: 'data.laravel_auth_token', authorization: 'live-token-8f3a9c2d1e7b'",
+        ],
+    );
+}
+
+#[test]
+fn real_credential_values_still_fire() {
+    assert_fires(
+        "src/client.js",
+        "CRED-011",
+        &[
+            "Authorization: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIn0.sig'",
+            "bearer: \"ghp_abcdefghijklmnopqrstuvwxyz0123\"",
+            "authorization: \"live-token-8f3a9c2d1e7b\"",
+        ],
+    );
+    assert_fires(
+        "src/client.js",
+        "CRED-007",
+        &[
+            "apiKey: \"sk_live_51H8abcdefGHIJKLmnop\"",
+            "access_token: \"ghp_abcdefghijklmnop8f3a9c2d1e\"",
+            "api_key = \"Local-Static-Key\"",
+        ],
+    );
+    assert_fires(
+        "src/db.js",
+        "CRED-008",
+        &[
+            "password: \"hunter2hunter2\",",
+            "password: \"PASSWORD_FIELD\",",
+        ],
+    );
+}
+
+#[test]
+fn definitions_named_eval_exec_or_compile_are_not_calls() {
+    // io.qase: a circuit breaker's method.
+    assert_quiet(
+        "build/cache/circuit-breaker.js",
+        "CODE-002",
+        &[
+            "  async exec(fn) {",
+            "  exec(fn) {",
+            "  static exec(cmd) {",
+            "function exec(cmd) {",
+            "function* exec(cmd) {",
+            "  get exec() {",
+        ],
+    );
+    assert_quiet("src/a.ts", "CODE-001", &["  eval(input: string) {"]);
+    assert_quiet("lib/db.py", "CODE-002", &["    def exec(self, sql):"]);
+    assert_quiet("lib/calc.py", "CODE-001", &["    def eval(self, expr):"]);
+    assert_quiet(
+        "lib/tpl.py",
+        "CODE-003",
+        &["    def compile(self, source):"],
+    );
+}
+
+#[test]
+fn calls_named_eval_exec_or_compile_still_fire() {
+    assert_fires(
+        "a.js",
+        "CODE-002",
+        &[
+            "exec(payload)",
+            "}exec(payload)",
+            "x ? exec(a) : b",
+            "exec(cmd, () => {",
+            "exec(cmd, function () {",
+            "exec(cmd, x => {",
+            // A definition and a real call on one line.
+            "class A { exec(fn) { return exec(payload) } }",
+            // Codex-style audit of the method-definition context: a call
+            // that the braces around it make look like a definition.
+            "{exec(payload)}",
+            "if (x) { exec(payload) }",
+            "while (exec(payload)) {",
+            "exec(payload) || {}",
+            "exec(atob(p)) {",
+            "exec(payload); run(x) {",
+        ],
+    );
+    assert_fires(
+        "a.js",
+        "CODE-001",
+        &[
+            "`${eval(payload)}`",
+            "function f() { eval(payload) }",
+            "var g = function eval(s) { return s }; eval(atob(p))",
+            "switch (eval(payload)) {",
+        ],
+    );
+    // A Python definition beside a call on the same line.
+    assert_fires("a.py", "CODE-002", &["def run(self): exec(payload)"]);
+    assert_fires("a.py", "CODE-001", &["def eval(self, s): return eval(s)"]);
+    // Outside JavaScript `name(args) {` is a call with a trailing lambda.
+    assert_fires("build.gradle.kts", "CODE-002", &["exec(cmd) {"]);
+    assert_fires("App.kt", "CODE-002", &["exec(cmd) {"]);
+    assert_fires("a.py", "CODE-001", &["eval(expr)", "x = eval(source)"]);
+    assert_fires(
+        "a.py",
+        "CODE-003",
+        &["code = compile(src, '<string>', 'exec')"],
+    );
+}
+
+/// The function-arity wrapper bundled by several polyfills, as it appears in
+/// the lighthouse bundle in io.github.ChromeDevTools/chrome-devtools-mcp
+/// (the whole helper, from its `function(e){` to the next export).
+const ARITY_WRAPPER: &str = r#"l=[],o=function(e){var t,n=0;if(l[e])return l[e];for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") { return fn.apply(this, arguments); };")},t.exports=function(e,t){"#;
+
+/// The loop and the call alone, as this exemption first accepted them. The
+/// line no longer proves `t` is a fresh local: `t` could already hold a
+/// string that the join splices into the generated source.
+const ARITY_LOOP_ONLY: &str = r#"for(t=[];e--;)t.push("a"+(++n).toString(36));return new Function("fn","return function ("+t.join(", ")+") { return fn.apply(this, arguments); };")},t.exports=function(e,t){"#;
+
+#[test]
+fn the_function_arity_wrapper_is_exempt() {
+    assert_quiet("dist/bundle.js", "OBFUSC-CHAIN-011", &[ARITY_WRAPPER]);
+    // Whitespace and the optional cache check do not matter.
+    assert_quiet(
+        "dist/bundle.js",
+        "OBFUSC-CHAIN-011",
+        &[
+            r#"var mk = function (len) { var args, i = 0; for (args = []; len--;) args.push("a" + (++i).toString(36)); return new Function("fn", "return function (" + args.join(", ") + ") { return fn.apply(this, arguments); };") };"#,
+        ],
+    );
+}
+
+#[test]
+fn function_constructor_string_building_still_fires() {
+    let other_array = ARITY_WRAPPER.replace("+t.join(", "+u.join(");
+    let appended = format!("{ARITY_WRAPPER};new Function(p.join(''))()");
+    let prefixed = format!("new Function(p.join(''))();{ARITY_WRAPPER}");
+    // Codex-style audit of the exemption: each is the wrapper with the array
+    // no longer provably fresh, so a value placed in it beforehand (`P`, a
+    // stand-in for a parameter default such as `x = <expression>`) would be
+    // spliced into the source `new Function` compiles.
+    let variants = [
+        // The array is seeded and never reset.
+        ARITY_WRAPPER
+            .replace("var t,n=0;", "var t=[P],n=0;")
+            .replace("for(t=[];", "for(;"),
+        // The array is not the function's own local (a global, or a
+        // closure another function fills).
+        ARITY_WRAPPER.replace("var t,n=0;", "var u,n=0;"),
+        // Something else is pushed after the generated names.
+        ARITY_WRAPPER.replace("toString(36));return", "toString(36));t.push(P);return"),
+        // The counter is not a local starting at 0.
+        ARITY_WRAPPER.replace("var t,n=0;", "var t,n=P;"),
+        ARITY_WRAPPER.replace("(++n)", "(++m)"),
+        // The loop does not count down the function's own parameter.
+        ARITY_WRAPPER.replace("e--;", "k--;"),
+        // Not reset in the loop head.
+        ARITY_WRAPPER.replace("for(t=[];", "for(t=P;"),
+    ];
+    let mut lines: Vec<&str> = vec![
+        "new Function(parts.join(''))()",
+        &other_array,
+        &appended,
+        &prefixed,
+        ARITY_LOOP_ONLY,
+    ];
+    lines.extend(variants.iter().map(String::as_str));
+    for v in &variants {
+        assert_ne!(v.as_str(), ARITY_WRAPPER, "variant must change the line");
+    }
+    assert_fires("dist/bundle.js", "OBFUSC-CHAIN-011", &lines);
+}
+
+// ---------------------------------------------------------------------------
+// Bounded spans: proximity rules match tokens that are near each other
+// ---------------------------------------------------------------------------
+
+#[test]
+fn bounded_proximity_rules_still_fire_on_their_shapes() {
+    for (rule, line) in [
+        ("SUPPLY-007", "module.exports = require(target)"),
+        (
+            "SUPPLY-007",
+            "Module._load = function (request) { return fake }",
+        ),
+        ("SUPPLY-007", "require.cache[key] = { exports: fake }"),
+        ("SUPPLY-008", "const f = new Function(`return ${body}`)"),
+        ("SUPPLY-008", "const t = template(src); child.exec(t())"),
+        (
+            "SUPPLY-011",
+            "const ast = acorn.parse(src); walk(ast, n => n.node.type)",
+        ),
+        (
+            "SUPPLY-011",
+            "AST.body.forEach(n => { node.type = 'Literal' })",
+        ),
+        (
+            "SUPPLY-011",
+            "transform(ast, { CallExpression(p) { eval(p.code) } })",
+        ),
+        (
+            "SUPPLY-013",
+            "babel.transform(code, { plugins: [{ visitor: { Program() { eval(x) } } }] })",
+        ),
+        (
+            "SUPPLY-013",
+            "transformSync(code, { plugins: [p] }); eval(out)",
+        ),
+        (
+            "SUPPLY-016",
+            "const lib = ffi.Library('libc', { system: ['int', ['string']] })",
+        ),
+        ("SUPPLY-016", "lib = ctypes.CDLL(None); os.system(cmd)"),
+        ("OBFUSC-CHAIN-009", "fetch('https://\u{430}pple.com/login')"),
+        (
+            "INFER-004",
+            "const p = process.env.OPENAI_API_KEY + ` ${userInput}`",
+        ),
+        (
+            "INFER-005",
+            "const prompt = `Use this key: ${process.env.OPENAI_API_KEY}`;",
+        ),
+    ] {
+        let path = if rule == "SUPPLY-016" && line.contains("ctypes") {
+            "tool.py"
+        } else {
+            "src/index.js"
+        };
+        assert!(fires(path, line, rule), "{rule} must fire: {line}");
+    }
+}
+
+/// The documented limitation of a span bound: tokens further apart than the
+/// bound on one line are not linked, exactly as tokens split across two
+/// lines never were. What the bound removes is a match across a whole
+/// minified bundle.
+#[test]
+fn tokens_padded_beyond_the_span_bound_are_not_linked() {
+    let pad = " ".repeat(400);
+    for (rule, line) in [
+        ("SUPPLY-016", format!("ffi.Library('libc'){pad}system")),
+        ("SUPPLY-011", format!("AST.body{pad}node.type = 'x'")),
+        (
+            "SUPPLY-007",
+            format!("module.exports = {{}};{pad}require(name)"),
+        ),
+        (
+            "OBFUSC-CHAIN-009",
+            format!("// \u{43f}\u{440}\u{438}\u{432}\u{435}\u{442}{pad}x.com"),
+        ),
+    ] {
+        assert!(
+            !fires("src/index.js", &line, rule),
+            "{rule}: {}",
+            &line[..40]
+        );
+    }
+    // A comparison is not an assignment.
+    assert!(!fires(
+        "src/index.js",
+        "if (AST && node.type === 'Program') {}",
+        "SUPPLY-011"
+    ));
+    // `evaluate(` is not `eval(`.
+    assert!(!fires(
+        "src/index.js",
+        "babel.transform(code, { plugins: [{ visitor: v }] }); evaluate(x)",
+        "SUPPLY-013"
+    ));
+}
+
+// ---------------------------------------------------------------------------
+// HYGIENE-001/002: a shipped source map is an observation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn shipped_source_maps_are_low_observations() {
+    let dir = tempfile::tempdir().unwrap();
+    for (rel, body) in [
+        ("package.json", "{\"name\":\"x\",\"version\":\"1.0.0\"}\n"),
+        ("dist/index.js", "console.log('hi')\n"),
+        ("dist/index.js.map", "{\"version\":3,\"mappings\":\"\"}\n"),
+        ("dist/style.css.map", "{\"version\":3,\"mappings\":\"\"}\n"),
+    ] {
+        let p = dir.path().join(rel);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    }
+    let r = crate::scanner::run_scan(dir.path(), None, None);
+    let hygiene: Vec<&Finding> = r
+        .findings
+        .iter()
+        .filter(|f| f.rule == "HYGIENE-001" || f.rule == "HYGIENE-002")
+        .collect();
+    assert_eq!(hygiene.len(), 2, "{:?}", r.findings);
+    assert!(hygiene.iter().all(|f| f.severity == Severity::Low));
+    assert_eq!(
+        r.verdict,
+        crate::scanner::Verdict::LowRisk,
+        "{:?}",
+        r.findings
+    );
+}

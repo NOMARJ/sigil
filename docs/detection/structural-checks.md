@@ -13,7 +13,7 @@ not a line of text:
 - a `SKILL.md` that declares `allowed-tools: Read` while its script posts to the network.
 
 These checks live in the scanner engine (`cli/src/scanner/bytecode.rs`, `artifacts.rs`,
-`depsrc.rs`, `padding.rs`, `lpriv.rs`). Their rule metadata — title, remediation,
+`depsrc.rs`, `padding.rs`, `lpriv.rs`, `lifecycle.rs`). Their rule metadata — title, remediation,
 references, tags — lives in packs like every other rule, in a new `engine_rules` section
 (`cli/packs/core/v1/structural.json` and `supply_chain.json`), so JSON, SARIF and HTML
 output explain them exactly like regex findings, and `sigil diff` can tell a finding from
@@ -49,6 +49,10 @@ phase, severity and evidence to what the engine emits.
 | `LPRIV-001` | Skill Security | Medium | The skill's scripts use a capability its `allowed-tools` / `permissions` declaration does not cover. |
 | `LPRIV-002` | Skill Security | Low | Wildcard grant that `SKILL-008` did not already report. |
 | `LPRIV-003` | Skill Security | Low | An explicit `permissions` entry (shell, network, env) nothing in the skill appears to use. |
+| `INSTALL-010` | Install Hooks | Medium | Rewritten from `INSTALL-003`: a `preinstall` / `postinstall` that is exactly `node <local .js>`, where that script and the local scripts it requires pass the inert test (see below). Still runs on install, so still an `install_time_execution` action. |
+| `INSTALL-011` | Install Hooks | Low | Rewritten from `INSTALL-003`: exactly `npx only-allow <pnpm\|yarn\|npm\|bun>`, a package-manager guard. |
+| `INSTALL-012` | Install Hooks | Low | Rewritten from `INSTALL-004`: a `prepare` / `prepublish` whose `npm run` chain ends only in build steps. |
+| `CODE-016` | Code Patterns | Medium | Rewritten from `CODE-014`: a `bin` script's `execSync` that installs the package's own `<name>-<platform>-<arch>@<version>` (the platform-binary launcher pattern). |
 
 `SUPPLY-005` is narrowed by this change: it now reads only `package.json`
 `publishConfig` (where the *author* publishes) at Low. Install-time redirection in
@@ -242,6 +246,305 @@ points (LPRIV-001 at Medium plus one Low; LPRIV-002 and LPRIV-003 are exclusive)
 below the MEDIUM threshold of 10, and below the density threshold of any skill that has a
 script at all (7 points for two files) — so these findings inform a reviewer and never
 decide a verdict on their own. A skill that declares nothing is not reported: there is no statement to check.
+
+## Lifecycle scripts and platform launchers (`INSTALL-010` .. `012`, `CODE-016`)
+
+`INSTALL-003` reports every `preinstall` / `postinstall` key at Critical and
+`CODE-014` every `execSync` of an interpolated command at High, because a line rule
+sees the key or the call and never what it does. `cli/src/scanner/lifecycle.rs` runs
+after the content phases, reads the parsed `package.json` and the files a script
+names, and rewrites a finding only when a positive test passes. Anything it cannot
+prove keeps the pack's rule and severity. The finding keeps its file, line, phase and
+weight; its rule id, severity and snippet change, and the snippet says why.
+
+- **`INSTALL-010`** (from `INSTALL-003`, Medium). The command is exactly
+  `node [./]<path>.{js,cjs,mjs}` inside the package, with no flags or chaining. That
+  script, and the relative scripts it requires two levels deep, must each be at most
+  4 KiB of printable ASCII with lines of at most 200 bytes, and:
+  - `require` only of a string literal naming `os`, `path`, `url`, `util` (or their
+    `node:` forms), a relative `.json` inside the package, or a relative `.js` / `.cjs`
+    / `.mjs` file inside it, plus `require.resolve(`. A bare `require` (aliasing) fails;
+    static `import` follows the same list and `import(` fails.
+  - `process` only as `.exit`, `.exitCode`, `.argv`, `.platform`, `.arch`, `.version`,
+    `.versions`, `.stdout`, `.stderr`, `.cwd`. `process.env` fails, so a script cannot
+    print a CI token into the install log.
+  - `os` bound only as `os` (or destructured to allowed names) and used only as
+    `.platform`, `.arch`, `.type`, `.release`, `.EOL`.
+  - No computed member access (`x[`, `)[`, `][`, except a numeric index such as
+    `argv[2]`), no computed keys, no `\x`, `\u` or octal escapes, no IPv4 literal, and
+    no URL outside a `console.*` call.
+  - None of `global`, `globalThis`, `this`, `self`, `arguments`, `eval`, `Function`,
+    `constructor`, `__proto__`, `prototype`, `fetch`, `XMLHttpRequest`, `WebSocket`,
+    `Buffer`, `atob`, `fromCharCode`, `Reflect`, `Proxy`, the property-descriptor and
+    prototype functions, `WebAssembly`, `Worker`, `createRequire`, `with (`.
+- **`INSTALL-011`** (from `INSTALL-003`, Low). The command is exactly
+  `npx [-y |--yes ]only-allow <pnpm|yarn|npm|bun>`, and the manifest neither declares,
+  bundles nor overrides `only-allow`, none of `npx`, `only-allow` and `node` is a
+  shadowing bin, and the install adds no dependency at all (both below).
+- **`INSTALL-012`** (from `INSTALL-004`, Low). The `prepare` / `prepublish` command,
+  the `pre`/`post` scripts npm runs around it, and every `npm|pnpm|yarn run X` they
+  reach (three levels deep, again with `preX` / `postX`) consist only of `&&`, `||` and
+  `;` between these steps: `tsc` with flags or `-p|--project|-b|--build <x>.json`;
+  `husky` or `husky install`; `[shx] chmod +x <path>`; `shx mkdir -p`, `shx cp [-r]`,
+  `shx rm -rf` or `rimraf` on paths; `true`; `exit 0`. A path must be relative to the
+  package: no leading `/`, `~`, `$` or `-`, no `..` segment, no shell syntax. Each tool
+  the steps use (`typescript`, `husky`, `shx`, `rimraf`) must be a dependency the
+  manifest pins itself, with a registry version range (no `git`, `github:`, `file:`,
+  `link:`, URL, `npm:` alias or `workspace:`), and must not be bundled; and nothing in
+  the install's scope may override, extend or redirect *any* package in the tree, the
+  tool's own dependencies included (the overrides-and-lockfiles rule below). An
+  **undeclared** tool name is not trusted: npm prepends
+  `node_modules/.bin` to PATH for lifecycle scripts, so a dependency shipping a `tsc` /
+  `husky` / `rimraf` / `shx` bin would run in place of the real tool while the package
+  never named the real one, so such a `prepare` stays `INSTALL-004` (Medium). Declaring
+  the tool is necessary, not sufficient: the dependency rule below also applies.
+- **Bin shadowing (all three of the above).** Every command a lifecycle script runs by
+  name resolves through `node_modules/.bin` first: the `node` interpreter of an
+  `INSTALL-010` script; the `npx`, `only-allow` and `node` of an `INSTALL-011` guard
+  (both bins are `#!/usr/bin/env node` scripts); and for an `INSTALL-012` `prepare`,
+  every build leaf (`tsc`, `husky`, `rimraf`, `shx`, and the shell command `chmod`),
+  **every runner the chain follows** (`npm`, `pnpm` or `yarn` in `<runner> run X`: the
+  runner is looked up on the same PATH before `X` is ever reached), and `node` whenever
+  a tool or runner runs. npm and pnpm also spawn the script shell `sh` by name with
+  that PATH, so `sh` is trusted by every rewrite. npm, yarn and pnpm **hoist workspace
+  members' bins** into the root `node_modules/.bin`, and a member's scripts run with the
+  root's `node_modules/.bin` on PATH. So the rewrite is refused, keeping the pack's
+  severity, when any name it would trust is a `bin` the manifest itself declares, or —
+  when the manifest is a workspace root or sits inside one (a `workspaces` field, or a
+  `pnpm-workspace.yaml`, at its directory or any directory above it in the scan) — a
+  `bin` any `package.json` under the outermost such root declares. A string `bin`
+  counts under the package's own (unscoped) name. The shell builtins `true` and `exit`
+  cannot be shadowed by a file on PATH and are exempt. A manifest in that set that links
+  its bins through **`directories.bin`** (npm adds every file in that directory as a
+  `node_modules/.bin` entry when it packs the package, and this pass cannot enumerate
+  them) keeps the pack's severity for the same reason.
+- **Dependencies (all three of the above), failing closed.** npm links into
+  `node_modules/.bin` the bins of *every* package the install puts in the tree —
+  direct and transitive dependencies, and at a workspace root every member's — and
+  this pass does not fetch dependencies, so it cannot see their bins. A dependency
+  shipping a bin named `node`, `npx`, `only-allow`, `npm`, `tsc`, `chmod` or any other
+  trusted name would run in the real tool's place (the `node` and `npm` packages on the
+  registry link exactly such bins). A rewrite therefore applies only when the
+  dependency set the lifecycle phase installs is **empty apart from the trusted tools'
+  own packages** the leaves name: `typescript` for `tsc`, `husky`, `rimraf`, `shx`;
+  nothing for `chmod`, `true`, `exit 0`, `node`, `npx` or `only-allow` (so `INSTALL-010`
+  and `INSTALL-011` need no dependency at all). The phase's set is:
+  - for `preinstall` / `postinstall` / `preuninstall` / `postuninstall`:
+    `dependencies`, `optionalDependencies`, `peerDependencies` and the names in
+    `bundleDependencies` / `bundledDependencies`;
+  - for `prepare` / `prepublish`: those plus `devDependencies`, which a local install,
+    the install of a package fetched from a repository, and a publish all install
+    before `prepare` runs;
+  - across the manifest and, in a workspace (as above), every `package.json` under the
+    root.
+
+  Any other dependency, a dependency field that is not an object, a spec that is not a
+  registry range, any bundled name, a workspace `package.json` this pass cannot parse,
+  or a `node_modules` shipped in any directory above the package (npm puts every
+  ancestor's `node_modules/.bin` on PATH) keeps the original rule and severity. The
+  existing checks (the tool declared with a registry spec, not bundled, overridden or
+  lockfile-redirected, no shipped `node_modules` or `binding.gyp` beside the manifest)
+  still apply; in a workspace the override and lockfile checks run on every manifest
+  in it.
+
+  **A lockfile is not evidence that no collision exists.** `package-lock.json` records
+  a `bin` map per package, but that is text the package's author wrote; npm links bins
+  from the installed package's own `package.json`, not from the lockfile. And a
+  package's lockfile is ignored when a consumer installs it as a dependency, so for
+  install-phase scripts it does not even describe the tree that runs them. The
+  lockfile is read only to *reject*: any entry off the public registry, or a lockfile
+  this pass cannot parse (below).
+- **Install-config side channels (`INSTALL-010` / `011` / `012`), failing closed.** npm,
+  yarn and pnpm read a package-manager config file from the install directory upward
+  before any script line runs, so a file the package ships (or that sits in a directory
+  above it, or that is in effect when the package is cloned or installed as a git
+  dependency) can change what an install runs or where it fetches from without touching
+  a script. A rewrite is refused, keeping the pack's severity, when such a file is present
+  in the manifest's directory or any directory above it: a **`.pnpmfile.cjs`** (JavaScript
+  pnpm executes during resolution); a **`.npmrc`** setting `script-shell` / `shell` (the
+  program that runs every lifecycle script), `node-options` (`--require` preloads a module
+  into every `node`), `globalconfig` / `userconfig` (another config file that can set
+  those), or a `registry` / `<scope>:registry` off the public registry (the trusted tool,
+  or `only-allow`, then comes from an attacker host); a **`.yarnrc`** setting `yarn-path`
+  or an off-registry `registry`; a **`.yarnrc.yml`** setting `yarnPath`, `plugins`,
+  `packageExtensions` or an off-registry `npmRegistryServer`. A `.npmrc` / `.yarnrc`
+  with only benign keys (`save-exact`, `engine-strict`, the public registry, …) still
+  rewrites.
+- **Overrides, package extensions and lockfiles (`INSTALL-010` / `011` / `012`),
+  failing closed.** The trusted tools' own dependencies are installed and hoisted too
+  (`rimraf` brings `glob`, `glob` brings more), and any of them can link a bin under a
+  trusted name. The earlier checks asked only whether the *tool's own name* was
+  overridden or lockfile-redirected, so an `overrides` entry for one of `rimraf`'s
+  dependencies, pointing at a package that exports a `rimraf` bin, left
+  `prepare: "rimraf dist"` rewritten to Low while npm ran the other package (Codex
+  review of #172). A rewrite is now refused, keeping the pack's severity, when:
+  - any manifest in the scope (the package's own and, in a workspace, every
+    `package.json` under the root), or a `package.json` in any directory above the
+    package (the project an install may be run from), declares a non-empty
+    `overrides`, `resolutions` (yarn `patch:` entries included), `pnpm.overrides`,
+    `pnpm.packageExtensions` or `pnpm.patchedDependencies` — whatever package it
+    names — or a field of the wrong type, or cannot be parsed;
+  - a `pnpm-workspace.yaml` in any of those directories declares `overrides`,
+    `packageExtensions`, `patchedDependencies`, `configDependencies` or a `pnpmfile`,
+    or does not parse as a mapping;
+  - a lockfile in any of those directories — `package-lock.json`,
+    `npm-shrinkwrap.json`, `yarn.lock` (classic or Berry), `pnpm-lock.yaml` — does not
+    parse, or has any entry that does not resolve to the public registry's tarball of
+    the package it is filed under: a `resolved` URL on another host, a git, `file:`,
+    `link:` or tarball source, a workspace member's or linked directory's entry, an
+    alias (another package's tarball, a `name` that differs from the entry's, an
+    `npm:` spec), a pnpm `tarball` / git / `directory` resolution, a lockfile that
+    records overrides, package extensions, patches or a pnpmfile, or a yarn patch
+    other than yarn's own built-in compatibility patches. The Berry project's own
+    `workspace:.` entry is accepted. A `bun.lock` / `bun.lockb` is not read and always
+    counts. Lockfiles are read from disk whether or not the scan enumerated them, and
+    one over 64 MiB, or one that is not a regular file (a directory, a FIFO, a link to
+    a device), counts as unparseable. The same holds for a parent `package.json`, a
+    `pnpm-workspace.yaml` and the `.npmrc` / `.yarnrc` / `.yarnrc.yml` read above: before
+    this change a `.npmrc` linked to `/dev/zero` would have blocked the scan.
+
+  An empty `overrides: {}` / `resolutions: {}`, unrelated `pnpm` settings
+  (`onlyBuiltDependencies`) and a `pnpm-workspace.yaml` that only lists `packages`
+  change nothing. Tests: the `an_override_*`, `a_workspace_or_yarn_config_override_*`,
+  `a_lockfile_entry_off_the_registry_*`, `a_registry_only_lockfile_*` and
+  `an_unreadable_install_file_*` cases in `cli/src/scanner/lifecycle_tests.rs`
+  (Codex's example verbatim and its variants). Measured on the clean MCP corpora,
+  the skills and the 844 Datadog samples (release builds `955a469` → `68a9d30`),
+  this rule changed nothing: no `INSTALL-010`/`011`/`012` rewrite survived there
+  before it either (see
+  [mcp-server-calibration.md](mcp-server-calibration.md#fifth-change-codexs-second-review-exemptions-and-overrides)).
+- **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
+  manifest; the manifest lists at least two `optionalDependencies` named
+  `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the
+  manifest's own version; the call starts its line and is
+  `` execSync(`npm install ${X}@${Y}<flags>`, options) `` or
+  `` execSync(`${V}<flags>`, options) `` with `V` a constant holding that template;
+  `X` is a constant holding `` `${N}-${P}-${A}` `` where `N` is `<pj>.name`, `P` is
+  `os.platform()` or `process.platform`, `A` is `os.arch()` or `process.arch`, and
+  `<pj>` is `require('./package.json')` of that same manifest; `Y` is `<pj>.version`.
+  The manifest's `name` must be a valid npm package-name token and its `version`
+  (and every matching platform spec) a strict semver, because both are interpolated
+  into the `execSync` shell command: a `name` or `version` that carries whitespace or
+  a shell-significant character (`"1.4.0 --registry=https://evil.example.com"`) keeps
+  `CODE-014` High instead (npm's publish-time semver check does not protect a clone,
+  tarball or local install — Codex second review of #172, hunt finding H1).
+  Every name is resolved through a single `const` declaration whose block encloses the
+  use, with no reassignment, parameter, `catch`, `for…of`, destructuring or rest
+  binding of the same name anywhere in the file, and the file contains no `eval(` or
+  `with (` in code. Flags must be from a list that changes nothing about what is
+  installed or where from (`--no-save`, `--no-audit`, `--no-fund`, `--prefer-online`,
+  `--prefer-offline`, `--no-package-lock`, `--no-progress`, `--silent`, `--quiet`, and
+  one `--prefix .`); the options object may not set `env`, `shell`, `argv0`, `uid` or
+  `gid` or spread another object.
+
+None of the manifest classes apply when a `node_modules` directory or a `binding.gyp`
+sits beside the manifest: npm would run the shipped tools, or `node-gyp rebuild`, as
+well. Findings from decoded content and from the tail of an oversized file are never
+rewritten.
+
+What the classifier trusts, and so what it cannot see:
+
+- It trusts that `node`, `sh`, `npx`, `npm`, `pnpm`, `yarn`, `only-allow`, `tsc`,
+  `husky`, `shx`, `rimraf` and `chmod` on the install-time `PATH` are the real tools
+  when nothing the scan can see links a bin of that name and the phase installs no
+  package other than the trusted tools' own. It does not fetch those tool packages, so
+  it trusts the registry's `typescript`, `husky`, `shx` and `rimraf` and their own
+  dependencies. It cannot see a `node_modules` or a workspace above the scanned
+  directory, or what else a consumer's project installs beside the package (those
+  bins share the consumer's `node_modules/.bin` too, but that package's own install
+  scripts run anyway). The rewritten `INSTALL-010` stays Medium and an action
+  behaviour for that reason.
+- For `preinstall` / `postinstall` it counts the fields a consumer's install adds,
+  not `devDependencies`. Running `npm install` inside the package's own checkout also
+  installs its `devDependencies` before those scripts run, so there a devDependency's
+  bin could still collide with `node`, `npx` or `only-allow`; that case is not
+  covered.
+- It trusts the platform packages a launcher installs to be the publisher's own, as
+  its manifest declares them. It does not fetch them.
+- `INSTALL-003` itself does not cover npm's `install` key, or a key written with JSON
+  escapes (`"postinstall"`); both are open gaps, independent of this pass.
+
+### Measured effect of the runner, dependency and side-channel rules
+
+Release build of `ad57eff` (the final fail-closed build, which adds the
+`directories.bin` and install-config checks to `3d8aa73`) against the release build
+of `34eaa0b` (the code of #172's head, `1ae5cbe`, before any of the fail-closed
+work), every scan `--no-cache` with an empty `HOME`, re-measured on 2026-09-26, run
+one corpus at a time on a 4-CPU machine with no build running. No scan in any run
+reported `PROV-BUDGET-001`, and none errored. The `directories.bin` and
+install-config additions changed no number below: no `package.json` outside
+`node_modules` in either MCP corpus uses `directories.bin`, none ships a `.npmrc` /
+`.yarnrc` / `.yarnrc.yml` / `.pnpmfile.cjs`, and no Datadog sample's verdict, highest
+severity or chain moved between `3d8aa73` and `ad57eff`.
+
+| Corpus | Before (`34eaa0b`) | After (`ad57eff`) | Level changes |
+|---|---:|---:|---|
+| Clean MCP servers, in-sample (169): blocked / warned / CRITICAL | 24 / 76 / 11 | 28 / 89 / 15 | 16, all up |
+| Clean MCP servers, unseen (146): blocked / warned / CRITICAL | 66 / 114 / 45 | 69 / 115 / 45 | 4, all up |
+| Malicious skills (204): blocked / warned | 173 / 184 | 173 / 184 | 0 |
+| Clean skills (455): blocked / warned | 7 / 71 | 7 / 71 | 0 |
+| Datadog (844, six offline phases): verdict blocked / warned | 705 / 761 | 705 / 761 | 0 |
+| Datadog recall at any / ≥ Medium / ≥ High / ≥ Critical | 785 / 761 / 752 / 560 | 785 / 761 / 752 / 560 | 0 severity, 0 chain changes |
+
+Every level change comes from the dependency rule. None of the 149 + 156
+`package.json` files in the two MCP corpora (outside `node_modules`) declares a bin
+with any name the rewrites trust, none uses `directories.bin`, and none of the two
+corpora ships a `.npmrc` / `.yarnrc` / `.yarnrc.yml` / `.pnpmfile.cjs` outside
+`node_modules`, so the runner rule (finding 1), the `node` / `sh` checks, the
+`directories.bin` check and the install-config check cannot have changed anything
+there, and none of the changed manifests is in a workspace. After the change **no server in either MCP corpus and no Datadog sample
+keeps an `INSTALL-010`, `INSTALL-011` or `INSTALL-012` rewrite**: every one of them
+installs something besides the tools its script names. The 169-server corpus had 3
+`INSTALL-010`, 1 `INSTALL-011` and 16 `INSTALL-012` servers before; the unseen 146 had 17
+`INSTALL-012`; Datadog had 25 samples with `INSTALL-012`. The classifier's
+false-positive reduction for lifecycle scripts is, on these corpora, gone; `CODE-016`
+(the launcher, not a lifecycle script) is unchanged on the 3 servers that have it.
+
+In-sample, 169 servers:
+
+- `com.microsoft/azure`, `com.microsoft/microsoft-fabric`,
+  `com.microsoft/template-server-name`: MEDIUM → CRITICAL. The postinstall
+  `node ./scripts/post-install-script.js` is `INSTALL-003` again: six
+  `optionalDependencies` (the `<name>-<os>-<arch>` platform packages) are installed
+  before it runs.
+- `com.postman/postman-mcp-server`: LOW → CRITICAL. `preinstall: npx only-allow pnpm`
+  in `package/package.json` and `package/dist/package.json` is `INSTALL-003` again: six
+  `dependencies` (`@modelcontextprotocol/sdk`, `dotenv`, `newman`, `nunjucks`, `uuid`,
+  `zod`).
+- LOW → MEDIUM, `INSTALL-012` → `INSTALL-004` because `prepare` / `prepublish` installs
+  more than the build tools: `ai.perplexity/mcp-server`,
+  `io.github.perplexityai/mcp-server`, `io.github.timescale/tiger-skills`,
+  `io.github.Automattic/simplenote-mcp` (`npm run build` → `tsc && shx chmod +x`);
+  `com.kudosity/mcp`, `io.github.GoogleCloudPlatform/gemini-cloud-assist-mcp`
+  (`npm run build` → `tsc`); `io.github.ZenRows/zenrows-mcp` (`tsc && chmod +x`);
+  `io.capawesome/capacitor-mcp`, `io.capawesome/ionic-framework-mcp`, `io.capawesome/mcp`
+  (`husky`); `com.blackduck/mcp-server` (`husky install || exit 0`); `io.mailtrap/mcp`
+  (`prepublish: npm run build && shx chmod +x`). Each declares runtime `dependencies`
+  and more `devDependencies` than the tools (for example `@types/node`).
+- The same rule change without a level change: `com.zeroheight/zeroheight`,
+  `io.github.dynatrace-oss/dynatrace-managed-mcp`, `io.qase/mcp-server` (MEDIUM),
+  `io.github.SAP-samples/hana-cli` (CRITICAL).
+
+Unseen, 146 servers: `io.github.StuMason/coolify` (`husky`),
+`io.github.tosin2013/mcp-adr-analysis-server` (`husky`) and
+`io.github.yamadashy/repomix` (`npm run build` → `rimraf lib && tsc -p`) go MEDIUM → HIGH:
+`INSTALL-004` is an action again, which corroborates their existing High findings;
+`io.github.shinpr/mcp-local-rag` (`husky`) goes LOW → MEDIUM. Thirteen more servers swap
+`INSTALL-012` for `INSTALL-004` with no level change.
+
+```
+Data Source: Real scans of real samples: 169 in-sample and 146 unseen clean MCP servers
+             from the official MCP registry (scripts/benchmark_skills.py), 204 malicious
+             skills from the Datadog dataset and 455 vendor skills (anthropics, NVIDIA,
+             openai, vercel-labs), and the 844-sample Datadog selection
+             (scripts/datadog_diff.py --limit 204, fingerprint 63fcde5b...).
+Sample Size: 169 + 146 MCP servers, 659 skills, 844 malicious packages; two builds each.
+Limitations: Static scans only. "Clean" means published by a vendor or listed in the
+             registry, not audited. The attribution of each change was read from the
+             scanned manifest (dependency fields and bins), not from a third build with
+             one rule disabled. The runner rule was exercised only by the unit and
+             engine tests: no MCP-corpus manifest declares a colliding bin.
+```
 
 ## Measurements
 

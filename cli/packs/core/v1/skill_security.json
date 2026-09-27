@@ -175,7 +175,6 @@
         "filename_exact": [
           "manifest.json",
           "plugin.json",
-          "package.json",
           "SKILL.md",
           "mcp.json",
           "tool.json"
@@ -185,7 +184,7 @@
           ".mcp.yml"
         ]
       },
-      "remediation": "Read the command the hook points at in full: `postinstall` and `preinstall` run automatically on `npm install`, and `activate`, `on_install` and `on_load` run when the host loads the plugin — all before any tool is deliberately invoked, all with the user's privileges. Compiling a native module, running a build step or writing a config file inside the package directory is the ordinary content; a hook that fetches and runs a remote script, feeds an encoded string to an interpreter or writes outside the package directory is an install-time payload — reject the skill, or install with scripts disabled and vet the hook by hand.",
+      "remediation": "Read the command the hook points at in full: `postinstall` and `preinstall` run automatically on `npm install`, and `activate`, `on_install` and `on_load` run when the host loads the plugin — all before any tool is deliberately invoked, all with the user's privileges. (npm's own package.json lifecycle scripts are INSTALL-003, which reads the command; this rule covers skill and plugin manifests.) Compiling a native module, running a build step or writing a config file inside the package directory is the ordinary content; a hook that fetches and runs a remote script, feeds an encoded string to an interpreter or writes outside the package directory is an install-time payload — reject the skill, or install with scripts disabled and vet the hook by hand.",
       "references": [
         "MITRE T1195.001",
         "MITRE T1059"

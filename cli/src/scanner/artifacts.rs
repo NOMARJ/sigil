@@ -1661,6 +1661,10 @@ mod tests {
             ("PROV-INCOMPLETE-001", "provenance", "low", E::Standalone),
             ("PROV-BUDGET-001", "provenance", "medium", E::Standalone),
             ("OBFUSC-NUL-001", "obfuscation", "medium", E::Standalone),
+            ("INSTALL-010", "install_hooks", "medium", E::Standalone),
+            ("INSTALL-011", "install_hooks", "low", E::Standalone),
+            ("INSTALL-012", "install_hooks", "low", E::Standalone),
+            ("CODE-016", "code_patterns", "medium", E::Standalone),
         ];
         let packs = crate::corpus::loader::load_all_packs().unwrap();
         let documented: Vec<&crate::corpus::schema::EngineRule> =

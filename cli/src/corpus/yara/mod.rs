@@ -761,6 +761,7 @@ pub fn parse_pack_with(
         form: PackForm::Yara,
         signature,
         warnings,
+        ignored: Vec::new(),
     })
 }
 

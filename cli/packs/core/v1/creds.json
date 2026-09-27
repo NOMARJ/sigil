@@ -157,7 +157,7 @@
       "severity": "high",
       "pattern": "(?i)[\"']?(api[_-]?key|api[_-]?secret|secret[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|private[_-]?key)[\"']?\\s*[:=]\\s*['\"][A-Za-z0-9+/=_\\-]{16,}['\"]",
       "description": "Hardcoded API key or secret",
-      "remediation": "Move the secret to the environment or a secrets manager and rotate it.",
+      "remediation": "Move the secret to the environment or a secrets manager and rotate it. A value made of words (my-super-secret-signing-key, a passphrase) is reported like any other: people choose secrets that way, and no word shape tells a field or header name from one.",
       "references": [
         "CWE-798"
       ],
@@ -223,7 +223,7 @@
           "xxxx"
         ]
       },
-      "remediation": "Move the password out of source and rotate it.",
+      "remediation": "Move the password out of source and rotate it. The value is not judged by its shape: password = \"password\" is the classic default, and a run of words with or without separators (backupdatabasepassword, db_password, userPassword) is a password people use, so a line whose value only names a field (an enum member Password: \"password\", a column name) is reported the same way and has to be read. TypeScript declaration files (.d.ts) are scanned too: they carry the literal of an exported const or an as-const object, which can be the only readable copy once the JavaScript is minified.",
       "references": [
         "CWE-259"
       ],
@@ -265,9 +265,9 @@
       "id": "CRED-011",
       "phase": "credentials",
       "severity": "high",
-      "pattern": "(?i)[\"']?(bearer|authorization)[\"']?\\s*[:=]\\s*['\"][a-zA-Z0-9._\\-]{20,}",
+      "pattern": "(?i)[\"']?(bearer|authorization)[\"']?\\s*[:=]\\s*(?P<anchor>['\"])[a-zA-Z0-9._\\-]{20,}",
       "description": "Authorization / bearer token",
-      "remediation": "Move the token out of source and rotate it.",
+      "remediation": "Move the token out of source and rotate it. One shape is not reported: a quoted value that is entirely a lowercase property path whose last segment is a snake_case field ending in _token (data.laravel_auth_token, response.access_token), which names where a token is kept rather than being one. Words without that path shape (my-static-bearer-token), a path with anything after it in the same string, and any capital letter or digit are still reported.",
       "references": [
         "CWE-798"
       ],
@@ -287,6 +287,9 @@
           "REPLACE",
           "insert_",
           "INSERT_"
+        ],
+        "match_context": [
+          {"after": "(?:[a-z]+\\.)+[a-z]+(?:_[a-z]+)*_token['\"]"}
         ]
       }
     },

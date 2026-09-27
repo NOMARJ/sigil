@@ -72,11 +72,11 @@
     },
     {
       "id": "HYGIENE-001",
-      "severity": "medium",
+      "severity": "low",
       "description": "Publish hygiene — JavaScript source map shipped in the package",
       "kind": "filename_regex",
       "pattern": "\\.(js|mjs|cjs|ts|tsx|jsx)\\.map$",
-      "remediation": "Source maps carry the original, unminified source. Exclude *.map from the published artifact (files allowlist in package.json, or .npmignore). This is how 512K lines of Claude Code internals leaked via npm in 2026.",
+      "remediation": "Source maps carry the original, unminified source. Exclude *.map from the published artifact (files allowlist in package.json, or .npmignore). This is how 512K lines of Claude Code internals leaked via npm in 2026. It is a Low observation: a shipped map exposes the publisher's source, it does not act on whoever installs the package (and findings inside a .map file are already secondary to the verdict).",
       "references": [
         "CWE-540"
       ],
@@ -87,11 +87,11 @@
     },
     {
       "id": "HYGIENE-002",
-      "severity": "medium",
+      "severity": "low",
       "description": "Publish hygiene — CSS source map shipped in the package",
       "kind": "filename_regex",
       "pattern": "\\.css\\.map$",
-      "remediation": "Exclude *.css.map from the published artifact.",
+      "remediation": "Exclude *.css.map from the published artifact. A Low observation, like HYGIENE-001: it exposes the publisher's source, not the installer's machine.",
       "references": [
         "CWE-540"
       ],

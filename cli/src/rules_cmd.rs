@@ -500,6 +500,16 @@ fn validate(path: &Path, as_json: bool) -> i32 {
         Ok(p) => (p, Vec::new()),
         Err(e) => (Vec::new(), problems(&e)),
     };
+    // What a scan only warns about (and ignores) is a problem here: a pack
+    // that validates carries nothing a scan drops.
+    for p in &packs {
+        errors.extend(p.ignored.iter().map(|e| {
+            format!(
+                "{}: {e} (a scan ignores this with a warning)",
+                p.path.display()
+            )
+        }));
+    }
     if errors.is_empty() {
         match loader::load_base_packs() {
             Ok(base) => errors.extend(custom::check_against(&base, &packs)),
@@ -599,6 +609,15 @@ fn test(pack: &Path, target: &Path) -> i32 {
             return 1;
         }
     };
+    for p in &packs {
+        for e in &p.ignored {
+            eprintln!(
+                "{} {}: {e} — ignored; `sigil rules validate` rejects it",
+                "warning:".bold().yellow(),
+                p.path.display()
+            );
+        }
+    }
     if !target.exists() {
         eprintln!(
             "{} {}: no such file or directory",

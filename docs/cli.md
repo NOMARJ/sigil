@@ -525,7 +525,15 @@ sigil rules sign ./acme.yar --key signing.pem -o acme.yar.sig   # Detached signa
 
 A pack can be JSON or YAML, in the full schema or the compact form, or a YARA
 rule file (`.yar`, `.yara`), whose rules become `YARA-<NAME>` and are matched
-against each file's raw bytes. When `SIGIL_PACK_PUBLIC_KEY` is set, every
+against each file's raw bytes. A full-schema rule can also exempt individual
+matches rather than whole lines: `suppress.value_matches` (regexes the rule's
+`(?P<value>...)` group must match in full) and `suppress.match_context` (regexes
+for the text just before and after the rule's `(?P<anchor>...)` group, optionally
+per file extension, with `same` to require two named groups to capture the same
+text). A line is dropped only when every match on it is exempt;
+`sigil rules validate` refuses a `value_matches` without a `value` group and a
+`same` naming a group that does not exist. Details in
+[schemas.md](schemas.md#match-local-suppression-full-schema). When `SIGIL_PACK_PUBLIC_KEY` is set, every
 custom pack must carry a valid signature from that key — for a YARA file, a
 detached `<file>.sig` beside it; an unsigned or badly signed pack stops the
 scan with exit 2 rather than being skipped. See
