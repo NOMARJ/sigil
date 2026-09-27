@@ -3817,8 +3817,18 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
         eprintln!("copying {} -> {}", current_exe.display(), target.display());
     }
 
-    match std::fs::copy(&current_exe, &target) {
-        Ok(_) => {
+    match install_binary(&current_exe, &target) {
+        Ok(InstallOutcome::AlreadyInstalled) => {
+            println!(
+                "{} {} already is this binary (sigil {} at {}); nothing to do",
+                "sigil:".bold().green(),
+                target.display(),
+                env!("CARGO_PKG_VERSION"),
+                current_exe.display()
+            );
+            0
+        }
+        Ok(InstallOutcome::Installed) => {
             println!(
                 "{} installed successfully to {}",
                 "sigil:".bold().green(),
@@ -3828,8 +3838,144 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
         }
         Err(err) => {
             eprintln!("{} installation failed: {}", "error:".bold().red(), err);
-            eprintln!("hint: you may need to run with sudo");
+            if err.kind() == std::io::ErrorKind::PermissionDenied {
+                // The full path, so sudo runs this build rather than
+                // whichever `sigil` root's PATH finds first.
+                eprintln!(
+                    "hint: installing needs write access to {}; re-run with sudo: sudo {} install --path {}",
+                    install_dir.display(),
+                    shell_quote(&current_exe.to_string_lossy()),
+                    shell_quote(&install_dir.to_string_lossy())
+                );
+            }
             1
+        }
+    }
+}
+
+/// `s` as one POSIX shell word, safe to paste: left bare when it holds only
+/// characters no shell treats specially, otherwise single-quoted with each
+/// `'` written as `'\''`. Inside single quotes nothing is special, so `$()`,
+/// backticks, `"` and `\` stay literal.
+fn shell_quote(s: &str) -> String {
+    let plain = !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "/._-+,:@%=".contains(c));
+    if plain {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+}
+
+/// What [`install_binary`] did.
+#[derive(Debug, PartialEq, Eq)]
+enum InstallOutcome {
+    /// The target already is the source (the same file, or a link to it),
+    /// so nothing was written.
+    AlreadyInstalled,
+    /// A copy of the source now sits at the target.
+    Installed,
+}
+
+/// Put a copy of `source` at `target` without ever writing through `target`.
+///
+/// `std::fs::copy` truncates its destination and follows symlinks, so a copy
+/// onto a path that resolves to the source empties the file before reading
+/// it: running `/usr/local/bin/sigil install`, or `sigil install` where
+/// `/usr/local/bin/sigil` is a package manager's link to the running binary.
+/// So a target that already is the source is left alone. Anything else gets
+/// a new file beside it, renamed into place:
+///
+/// - a symlink at the target is replaced, not written through;
+/// - a running binary there is replaced rather than rewritten, which Linux
+///   refuses (ETXTBSY). macOS also expects a signed binary to be replaced by
+///   a new file, not overwritten in place;
+/// - a failed copy leaves the old file intact.
+fn install_binary(source: &Path, target: &Path) -> std::io::Result<InstallOutcome> {
+    if is_same_file(source, target) {
+        return Ok(InstallOutcome::AlreadyInstalled);
+    }
+
+    let dir = match target.parent() {
+        Some(d) if !d.as_os_str().is_empty() => d,
+        _ => Path::new("."),
+    };
+    let name = target.file_name().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("{} does not name a file", target.display()),
+        )
+    })?;
+    let mut src = std::fs::File::open(source)?;
+    let permissions = src.metadata()?.permissions();
+    // A random name per attempt, not the pid: installers in different pid
+    // namespaces can share one directory. A name that already exists belongs
+    // to someone else (another run, or something planted) and is never
+    // removed; another name is tried instead.
+    let mut attempt = 0;
+    let (temp, mut out) = loop {
+        let temp = dir.join(format!(
+            ".{}.install-{}",
+            name.to_string_lossy(),
+            uuid::Uuid::new_v4().simple()
+        ));
+        match create_install_temp(&temp) {
+            Ok(file) => break (temp, file),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && attempt < 3 => {
+                attempt += 1;
+            }
+            Err(e) => return Err(e),
+        }
+    };
+
+    let written = std::io::copy(&mut src, &mut out)
+        .and_then(|_| out.set_permissions(permissions))
+        .and_then(|_| out.sync_all());
+    drop(out);
+    let result = written.and_then(|_| std::fs::rename(&temp, target));
+    if result.is_err() {
+        let _ = std::fs::remove_file(&temp);
+    }
+    result.map(|_| InstallOutcome::Installed)
+}
+
+/// Create the temporary file for [`install_binary`].
+///
+/// create_new (O_EXCL) never opens an existing file or follows a symlink, so
+/// anything already at the name, a planted link included, is refused rather
+/// than written to. On Unix it starts owner-only
+/// (0700 whatever the umask), so nobody else can open it for writing while
+/// the binary is copied in. `set_permissions` gives it the source's mode
+/// only once the copy is complete.
+fn create_install_temp(path: &Path) -> std::io::Result<std::fs::File> {
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o700);
+    }
+    options.open(path)
+}
+
+/// Whether `a` and `b` resolve to the same file. Following symlinks is the
+/// point here, and on Unix the device and inode also catch hard links. A path
+/// that does not exist is never the same file.
+fn is_same_file(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        match (std::fs::metadata(a), std::fs::metadata(b)) {
+            (Ok(a), Ok(b)) => a.dev() == b.dev() && a.ino() == b.ino(),
+            _ => false,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
         }
     }
 }
@@ -4411,6 +4557,291 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
                 1
             }
         },
+    }
+}
+
+#[cfg(test)]
+mod install_tests {
+    use super::{create_install_temp, install_binary, shell_quote, InstallOutcome};
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use tempfile::{tempdir, TempDir};
+
+    const BUILD: &[u8] = b"the running sigil build";
+
+    /// A temp dir holding `src/sigil` (the "running" binary) and an empty
+    /// `bin/` install directory.
+    fn setup() -> (TempDir, PathBuf, PathBuf) {
+        let root = tempdir().unwrap();
+        let src = root.path().join("src").join("sigil");
+        fs::create_dir_all(src.parent().unwrap()).unwrap();
+        fs::write(&src, BUILD).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        let bin = root.path().join("bin");
+        fs::create_dir(&bin).unwrap();
+        (root, src, bin)
+    }
+
+    fn leftovers(dir: &Path) -> Vec<String> {
+        fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .filter(|n| n.contains(".install-"))
+            .collect()
+    }
+
+    #[test]
+    fn installing_onto_the_source_path_itself_changes_nothing() {
+        let (_root, src, _bin) = setup();
+
+        let outcome = install_binary(&src, &src).unwrap();
+
+        assert_eq!(outcome, InstallOutcome::AlreadyInstalled);
+        assert_eq!(fs::read(&src).unwrap(), BUILD);
+    }
+
+    /// The Homebrew case: the install target is a link to the running binary.
+    /// `std::fs::copy` onto it truncated the binary to 0 bytes.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_to_the_source_is_already_installed_and_the_source_survives() {
+        let (_root, src, bin) = setup();
+        let target = bin.join("sigil");
+        std::os::unix::fs::symlink(&src, &target).unwrap();
+
+        let outcome = install_binary(&src, &target).unwrap();
+
+        assert_eq!(outcome, InstallOutcome::AlreadyInstalled);
+        assert_eq!(fs::read(&src).unwrap(), BUILD);
+        assert!(fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_hard_link_to_the_source_is_already_installed_and_the_source_survives() {
+        let (_root, src, bin) = setup();
+        let target = bin.join("sigil");
+        fs::hard_link(&src, &target).unwrap();
+
+        let outcome = install_binary(&src, &target).unwrap();
+
+        assert_eq!(outcome, InstallOutcome::AlreadyInstalled);
+        assert_eq!(fs::read(&src).unwrap(), BUILD);
+    }
+
+    #[test]
+    fn a_missing_target_gets_a_copy_with_the_source_permissions() {
+        let (_root, src, bin) = setup();
+        let target = bin.join("sigil");
+
+        let outcome = install_binary(&src, &target).unwrap();
+
+        assert_eq!(outcome, InstallOutcome::Installed);
+        assert_eq!(fs::read(&target).unwrap(), BUILD);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = fs::metadata(&target).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o755);
+        }
+        assert!(leftovers(&bin).is_empty());
+    }
+
+    #[test]
+    fn an_older_binary_at_the_target_is_replaced() {
+        let (_root, src, bin) = setup();
+        let target = bin.join("sigil");
+        fs::write(&target, b"an older sigil").unwrap();
+
+        let outcome = install_binary(&src, &target).unwrap();
+
+        assert_eq!(outcome, InstallOutcome::Installed);
+        assert_eq!(fs::read(&target).unwrap(), BUILD);
+        assert!(leftovers(&bin).is_empty());
+    }
+
+    /// A link to some other file (say, another package's copy) is replaced
+    /// by the new binary, and the file it pointed at is not overwritten.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_to_another_file_is_replaced_not_written_through() {
+        let (root, src, bin) = setup();
+        let other = root.path().join("other-sigil");
+        fs::write(&other, b"someone else's file").unwrap();
+        let target = bin.join("sigil");
+        std::os::unix::fs::symlink(&other, &target).unwrap();
+
+        let outcome = install_binary(&src, &target).unwrap();
+
+        assert_eq!(outcome, InstallOutcome::Installed);
+        assert!(!fs::symlink_metadata(&target)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read(&target).unwrap(), BUILD);
+        assert_eq!(fs::read(&other).unwrap(), b"someone else's file");
+    }
+
+    /// Anything already at a temporary name (a planted link, or another
+    /// installer's file) is refused, never followed, removed or reused.
+    #[cfg(unix)]
+    #[test]
+    fn an_existing_file_or_link_at_a_temporary_name_is_left_alone() {
+        let (root, _src, bin) = setup();
+        let victim = root.path().join("victim");
+        fs::write(&victim, b"must not change").unwrap();
+        let link = bin.join(".sigil.install-planted-link");
+        std::os::unix::fs::symlink(&victim, &link).unwrap();
+        let busy = bin.join(".sigil.install-another-run");
+        fs::write(&busy, b"another installer's half-written copy").unwrap();
+
+        for taken in [&link, &busy] {
+            let err = create_install_temp(taken).unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        }
+
+        assert_eq!(fs::read(&victim).unwrap(), b"must not change");
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            fs::read(&busy).unwrap(),
+            b"another installer's half-written copy"
+        );
+    }
+
+    /// Another installer's temporary file is never touched, even one named
+    /// after this process's pid, as a run with the same pid in another pid
+    /// namespace (another container sharing the directory) would name it.
+    #[test]
+    fn installs_leave_other_temporary_files_alone() {
+        let (_root, src, bin) = setup();
+        let other = bin.join(format!(".sigil.install-{}", std::process::id()));
+        fs::write(&other, b"another installer's half-written copy").unwrap();
+
+        install_binary(&src, &bin.join("sigil")).unwrap();
+
+        assert_eq!(fs::read(bin.join("sigil")).unwrap(), BUILD);
+        assert_eq!(
+            fs::read(&other).unwrap(),
+            b"another installer's half-written copy"
+        );
+    }
+
+    #[test]
+    fn shell_quote_leaves_plain_paths_bare_and_quotes_the_rest() {
+        assert_eq!(shell_quote("/usr/local/bin"), "/usr/local/bin");
+        assert_eq!(shell_quote("/opt/sigil-1.3.7/bin"), "/opt/sigil-1.3.7/bin");
+        assert_eq!(shell_quote("/tmp/my dir"), "'/tmp/my dir'");
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+        assert_eq!(shell_quote(""), "''");
+    }
+
+    /// The quoted word reaches a real shell as exactly the original string,
+    /// with nothing expanded or run.
+    #[cfg(unix)]
+    #[test]
+    fn shell_quoted_paths_survive_a_real_shell_unchanged() {
+        let dir = tempdir().unwrap();
+        let marker = dir.path().join("ran");
+        for s in [
+            "/tmp/a b",
+            "/tmp/$(touch ran)",
+            "/tmp/`touch ran`",
+            "/tmp/\"quoted\"",
+            "/tmp/back\\slash",
+            "/tmp/it's",
+            "/tmp/$HOME;touch ran",
+            "/tmp/new\nline",
+        ] {
+            let out = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("printf '%s' {}", shell_quote(s)))
+                .current_dir(dir.path())
+                .output()
+                .unwrap();
+            assert_eq!(String::from_utf8(out.stdout).unwrap(), s);
+        }
+        assert!(!marker.exists());
+    }
+
+    /// Nobody else can open the half-written file: it starts owner-only
+    /// under any umask (the default 0666 & ~umask would be 0644 under 022).
+    #[cfg(unix)]
+    #[test]
+    fn the_temporary_file_starts_owner_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let (_root, _src, bin) = setup();
+        let temp = bin.join(".sigil.install-test");
+
+        create_install_temp(&temp).unwrap();
+
+        let mode = fs::metadata(&temp).unwrap().permissions().mode();
+        assert_eq!(mode & 0o077, 0, "mode {mode:o}");
+    }
+
+    /// A copy that fails once the temporary file exists keeps the old binary
+    /// and removes the temporary file.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_failed_copy_keeps_the_old_binary_and_removes_the_temporary_file() {
+        let (root, _src, bin) = setup();
+        let target = bin.join("sigil");
+        fs::write(&target, b"an older sigil").unwrap();
+        // A directory opens for reading on Linux, then fails to read (EISDIR).
+        let unreadable = root.path().join("src");
+
+        assert!(install_binary(&unreadable, &target).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"an older sigil");
+        assert!(leftovers(&bin).is_empty(), "{:?}", leftovers(&bin));
+    }
+
+    #[test]
+    fn a_missing_install_directory_fails_and_leaves_the_source_alone() {
+        let (root, src, _bin) = setup();
+        let target = root.path().join("no-such-dir").join("sigil");
+
+        assert!(install_binary(&src, &target).is_err());
+        assert_eq!(fs::read(&src).unwrap(), BUILD);
+        assert!(!target.exists());
+    }
+
+    /// Replacing a binary that is running: rewriting it in place fails with
+    /// ETXTBSY on Linux, a rename does not.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_running_binary_at_the_target_is_replaced() {
+        let (_root, src, bin) = setup();
+        let target = bin.join("sigil");
+        fs::copy("/bin/sleep", &target).unwrap();
+        // Retry the rare `Text file busy` of executing a file that another
+        // test's fork may still hold open for writing.
+        let mut running = (0..20)
+            .find_map(
+                |_| match std::process::Command::new(&target).arg("30").spawn() {
+                    Err(e) if e.raw_os_error() == Some(26) => {
+                        std::thread::sleep(std::time::Duration::from_millis(50));
+                        None
+                    }
+                    other => Some(other.unwrap()),
+                },
+            )
+            .expect("spawned without Text file busy");
+
+        let result = install_binary(&src, &target);
+        let _ = running.kill();
+        let _ = running.wait();
+
+        assert_eq!(result.unwrap(), InstallOutcome::Installed);
+        assert_eq!(fs::read(&target).unwrap(), BUILD);
     }
 }
 

@@ -6,6 +6,37 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+### 🐛 Fixed
+
+- **`sigil install` can no longer empty its own binary.** It copied the running
+  binary with `std::fs::copy`, which truncates its destination and follows
+  symlinks. Installing onto a path that already was that binary would empty
+  it: running `/usr/local/bin/sigil install`, or installing where
+  `/usr/local/bin/sigil` is a package manager's link to it. The truncation was
+  reproduced on Linux with a file that was not running. On Linux a running
+  binary fails with `Text file busy` instead; where the OS lets a running binary
+  be written (expected on macOS, not tested), it would be emptied.
+  - A target that is the same file (the path itself, or a symlink to it; on
+    macOS and Linux also a hard link) is now reported as already installed and
+    left alone.
+  - Any other target gets a new, owner-only file in the install directory. It has
+    a random name and is created exclusively, so a file already there (another
+    installer's, even one with the same pid in another container) is never
+    reused or removed. It is given the binary's mode once the copy is complete,
+    then renamed into place.
+  - So a symlink there is replaced rather than written through, a running copy
+    is replaced instead of failing with `Text file busy` (tested on Linux), and a
+    failed install leaves the old binary intact.
+  - Because the file is replaced, installing needs write access to the install
+    directory (sudo for `/usr/local/bin`) even when the existing binary is yours,
+    and the new file is owned by whoever ran the install. The permission hint
+    now prints `sudo <path to this sigil> install --path <dir>` with both paths
+    shell-quoted, so sudo runs the same build and the command is safe to paste
+    whatever the paths contain.
+- **The unknown-phase warning for cloud signatures no longer suggests
+  `sigil install --update`**, a flag that does not exist. It now says to update
+  sigil to the latest release.
+
 ### 🔧 CI
 
 - **`tag-release.yml` tags a release when git cannot push the tag.** Dispatched

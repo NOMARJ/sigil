@@ -37,8 +37,8 @@ eval "$(brew shellenv)"
 **Fix:**
 
 ```bash
-# Option 1: Use sudo
-sudo sigil install
+# Option 1: Use sudo, naming this sigil by its full path so root runs the same build
+sudo "$(command -v sigil)" install
 
 # Option 2: Install to a user-writable directory
 mkdir -p ~/bin
