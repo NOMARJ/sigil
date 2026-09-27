@@ -17,7 +17,7 @@
       "suppress": {
         "match_context": [
           {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"},
-          {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)", "after": "[^()]*\\)\\s*\\{", "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
+          {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)", "after": "[^()\\r\\n\\u2028\\u2029]*\\)[ \\t\\f]*\\{", "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
         ]
       },
       "remediation": "eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. A template engine, REPL or calculator evaluating input the package documents is a known shape; a string that is decoded (Base64, charCode), concatenated from fragments or fetched over the network was written so the executed code never appears as reviewable source, and that package should be rejected. Defining a function or method named eval (def eval(, function eval(, or a JavaScript class or object method `eval(x) {`) is not a call and is not reported; a call on the same line still is.",
@@ -33,7 +33,7 @@
       "suppress": {
         "match_context": [
           {"before": "\\b(?:def\\s+|function\\s*\\*?\\s*)"},
-          {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)", "after": "[^()]*\\)\\s*\\{", "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
+          {"before": "(?:^|[\\s;{},]|\\basync\\s+|\\bstatic\\s+|\\bget\\s+|\\bset\\s+)", "after": "[^()\\r\\n\\u2028\\u2029]*\\)[ \\t\\f]*\\{", "extensions": ["js", "mjs", "cjs", "jsx", "ts", "tsx", "mts", "cts", "html", "htm", "vue", "svelte"]}
         ]
       },
       "remediation": "A bare exec( means different things by language: Python's exec runs a string as code, while exec destructured from Node's child_process, PHP's exec and Ruby's exec run a shell command. In every case find the string: a code generator compiling source it just wrote, or a build script running a fixed command, is normal; a string that is decoded, concatenated or downloaded, or a call that runs at import or install time, is the shape to reject. Defining a function or method named exec (def exec(, function exec(, or a JavaScript class or object method `async exec(fn) {`) is not a call and is not reported; a call on the same line still is.",
@@ -156,6 +156,16 @@
       "remediation": "new Function(args, body) is the JavaScript compiler exposed at runtime, and the usual way a downloaded or decoded payload is run. This rule is a Low observation because every line it matches is also matched by CODE-008 (the Function constructor, with or without new) at High, which carries the severity; counting both scored the same call twice. Template engines (lodash.template, doT), schema compilers such as ajv and serializer generators build code from data shipped in the package and are recognisable by name; for anything else read the body string and reject if it is Base64- or charCode-decoded, joined from fragments or fetched over the network.",
       "references": ["CWE-95", "MITRE T1059.007"],
       "tags": ["execution", "function-constructor", "javascript", "dynamic-code"]
+    },
+    {
+      "id": "CODE-017",
+      "phase": "code_patterns",
+      "severity": "high",
+      "pattern": "(?:new\\s+)?Function\\s*\\(\\s*(?:[\"'](?:require|process|module|exports|globalThis|global|__dirname|__filename)[\"']\\s*,\\s*)+[^)]*\\)\\s*\\(\\s*(?:require|process|module|exports|globalThis|global)\\b",
+      "description": "Function constructor built with Node capabilities and immediately invoked — in-memory loader",
+      "remediation": "A Function is constructed with 'require', 'process', 'module' or 'exports' as a named parameter and invoked on the same expression with the real require/process/module handed in — `new Function('require', src)(require)`. That compiles a string and runs it with Node's module and process access, which is how a fetched or decoded payload is loaded and executed in memory (no file is written, so the download-and-run rules do not see it). A CommonJS module wrapper does the same shape with a bundled body, so read the body: if it is fetched over the network, decoded (Base64, charCode) or joined from fragments, reject the package. Unlike CODE-009, this is a distinct call shape (immediate invocation with real capabilities), not the same match at another severity, so it carries High on its own. It is reported alongside CODE-008.",
+      "references": ["CWE-95", "MITRE T1059.007", "MITRE T1105"],
+      "tags": ["execution", "function-constructor", "javascript", "dynamic-code", "dropper"]
     },
     {
       "id": "CODE-010",

