@@ -33,8 +33,9 @@ Both are read at four thresholds: any severity / ≥ Medium / ≥ High / ≥ Cri
 | 2026-09-03 | [`c7771d2`](https://github.com/NOMARJ/sigil/commit/c7771d2) | not recorded | `unknown` (recorded literally as `unknown`) | `587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b` | 844 malicious (204/bucket, incl. the AI-skills bucket), 20 clean | 750/844 88.86% · 744/844 88.15% · 672/844 79.62% · 540/844 63.98% | 18/20 90.00% · 17/20 85.00% · 15/20 75.00% · 5/20 25.00% | Extract failures 0, scan errors 0. **No ledger-warm pass** — `ledger_warm` is `{}` in the JSON. |
 | 2026-09-03 | [`da316a5`](https://github.com/NOMARJ/sigil/commit/da316a5) | not recorded | `unknown` | `587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b` | 844 malicious (204/bucket, incl. the AI-skills bucket), 20 clean | 772/844 91.47% · 764/844 90.52% · 718/844 85.07% · 553/844 65.52% | 17/20 85.00% · 17/20 85.00% · 13/20 65.00% · 5/20 25.00% | Extract failures 0, scan errors 0. No ledger-warm pass. Same dataset fingerprint as the row above, so the two are directly comparable. The clean-set columns count a package containing a finding at that severity; by *verdict* this run returns CRITICAL RISK on 0 of 20 and HIGH RISK or worse on 16 of 20, against 6 and 18 for the row above. |
 | 2026-09-24 | [`7826ea1`](https://github.com/NOMARJ/sigil/commit/7826ea1) | release build of `7826ea1` | `1dbcfc517277f3e3d32434f8f6a82e6e9fb75580` | `63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade` (with the commit recorded as `unknown` it is `587e09d2…`: the same 844 samples as rows 2 and 3) | 844 malicious (204/bucket, incl. the AI-skills bucket), no clean control | 785/844 93.01% · 761/844 90.17% · 752/844 89.10% · 561/844 66.47% | not measured (no control set in this run) | Extract failures 0, scan errors 0. [`honest_detection_eval_7826ea1.md`](honest_detection_eval_7826ea1.md). Against row 3: +13 any, −3 ≥ Medium, +34 ≥ High, +8 ≥ Critical. |
+| 2026-09-27 | [`0b5a121`](https://github.com/NOMARJ/sigil/commit/0b5a121) (v1.3.7) | release build of v1.3.7 (`cli/` identical to `0b5a121`) | `1dbcfc517277f3e3d32434f8f6a82e6e9fb75580` | `63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade` | 844 malicious (204/bucket, incl. the AI-skills bucket), 20 clean | 785/844 93.01% · 761/844 90.17% · 752/844 89.10% · 560/844 66.35% | 17/20 85.00% · 15/20 75.00% · 11/20 55.00% · 6/20 30.00% | Extract failures 0, scan errors 0. No ledger-warm pass. [`honest_detection_eval.md`](honest_detection_eval.md). By verdict (same scan command, per package, in [`honest_detection_eval_control_verdicts.json`](honest_detection_eval_control_verdicts.json)): CRITICAL RISK on 2 of 20 (`vite`, `boto3`), HIGH RISK or worse on 7 of 20. Against row 4 (same samples and fingerprint): equal at any, ≥ Medium and ≥ High, −1 at ≥ Critical. Control set re-fetched on 2026-09-27 with `scripts/fetch_control_set.py --npm 10 --pypi 10`; its 20 packages are the ones its manifest records. |
 
-All three runs used the same offline, deterministic phase set:
+Every run used the same offline, deterministic phase set:
 `install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection`.
 OSV and provenance network feeds are excluded from the measurement so a re-run on
 the same dataset revision reproduces the same numbers.
@@ -71,6 +72,20 @@ control set, so it says nothing about precision on packages; the skill and
 MCP-server false-positive measurements for the same build are in
 [`skills_benchmark/`](skills_benchmark/).
 
+**Rows 4 and 5 compare on recall.** Same 844 samples, same dataset commit and
+fingerprint, same phases. Row 5 is the v1.3.7 release build; row 4 measured the
+branch before the #172 changes. The one-sample drop at ≥ Critical is `b1ec2b9f`
+0.2.3 of `artifact-lab-3-package`, which lost its `EXFIL-CHAIN-001` link when
+correlation chains stopped linking through a keyword argument's name (#172); it
+is still detected at High.
+
+**Row 5's clean columns do not compare with rows 1–3.** The control set was
+fetched again from the live registries for the release, so package versions
+(and possibly some names) differ from the set the earlier rows used, which was
+never recorded. Two measurements, not a trend. Row 5 is the first to publish
+its control manifest (names, versions, archive hashes) alongside each package's
+verdict.
+
 ### Fields the reports do not record
 
 - **Scanner version.** The JSON reports store the path to the binary that was
@@ -90,6 +105,7 @@ publication of the runs above, not a separate measurement. Its history:
 |---|---|---|---|---|---|---|
 | 2026-08-28 | [`61306ae`](https://github.com/NOMARJ/sigil/commit/61306ae) | 351 malicious; 20 clean | 96.87% · 90.31% · (not shown) | 70% | 0% | 30% |
 | 2026-09-03 | [`c7771d2`](https://github.com/NOMARJ/sigil/commit/c7771d2) | 844 malicious (204/bucket); 20 clean | 88.86% · 79.62% · 63.98% | **75%** (15 of 20) | 0% | 30% |
+| 2026-09-27 | v1.3.7 release PR | 844 malicious (204/bucket); 20 clean | 93.01% · 89.10% · 66.35% | 55% (11 of 20) | not re-measured | not re-measured |
 
 Two rows in that table come from outside `evaluation_results/`, and a reader
 should know which:

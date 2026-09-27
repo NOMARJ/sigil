@@ -1,0 +1,250 @@
+{
+ "description": "Per-package verdicts for the v1.3.7 release benchmark clean control set (honest_detection_eval.json). Scanner: release build of v1.3.7 (cli/ identical to 0b5a121). Command per package, as scripts/run_eval.py runs it: sigil scan <pkg> --no-cache --phases install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection --format json, with an empty HOME.",
+ "control_set": "scripts/fetch_control_set.py --npm 10 --pypi 10, fetched 2026-09-27T08:10:58Z from the live npm and PyPI registries; the 20 packages recorded in its manifest",
+ "packages": [
+  {
+   "package": "npm:chalk",
+   "version": "6.0.1",
+   "archive_sha256": "22a5b05d62a304c950f24dedb466ea07fb4b458e58bb37b2fe2c69ed2c9ba6c3",
+   "verdict": "LOW RISK",
+   "score": 0,
+   "highest_severity": null,
+   "findings": 0,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "npm:commander",
+   "version": "15.0.0",
+   "archive_sha256": "632c1e039b31e98fa79c4fae5b10a5ffbbf9df0f21c9ffb3d74e95734b30696f",
+   "verdict": "LOW RISK",
+   "score": 5,
+   "highest_severity": "Low",
+   "findings": 1,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "npm:debug",
+   "version": "4.4.3",
+   "archive_sha256": "89c1ac9c946ee8905a875837114528e97eeae35e03be3190584b2216af43e4a7",
+   "verdict": "LOW RISK",
+   "score": 2,
+   "highest_severity": "Low",
+   "findings": 1,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "npm:dotenv",
+   "version": "18.0.4",
+   "archive_sha256": "346f61b7a147ca5b06b732137e4fe06f3dc3fb0d4574be0bd836abcb80f32a66",
+   "verdict": "HIGH RISK",
+   "score": 37,
+   "highest_severity": "High",
+   "findings": 7,
+   "high_or_critical_rules": [
+    "CRED-007",
+    "NET-RCE-001"
+   ]
+  },
+  {
+   "package": "npm:lodash",
+   "version": "4.18.1",
+   "archive_sha256": "696942c2a488c9d7428e9ca5f12ccf03b52de01dcdbfe4d4751d392f0491ae16",
+   "verdict": "HIGH RISK",
+   "score": 50,
+   "highest_severity": "High",
+   "findings": 4,
+   "high_or_critical_rules": [
+    "CODE-008"
+   ]
+  },
+  {
+   "package": "npm:react",
+   "version": "19.3.0",
+   "archive_sha256": "5a4024110c49476e1538a70fd65b9e59d038fcc280b78eb933c24e10453afbf9",
+   "verdict": "LOW RISK",
+   "score": 0,
+   "highest_severity": null,
+   "findings": 0,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "npm:typescript",
+   "version": "7.0.2",
+   "archive_sha256": "da2513f4b95176d6dde8b51aab7afe8a927656c9d277369793f77f7e59371c08",
+   "verdict": "MEDIUM RISK",
+   "score": 80,
+   "highest_severity": "Medium",
+   "findings": 18,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "npm:uuid",
+   "version": "14.0.2",
+   "archive_sha256": "30e122d0715991b19b98043ea8eb275e9083315c8b9cb9e9ba66c249ef936c6b",
+   "verdict": "MEDIUM RISK",
+   "score": 30,
+   "highest_severity": "Medium",
+   "findings": 2,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "npm:vite",
+   "version": "8.3.1",
+   "archive_sha256": "d1e2250c6eb956e84df6b5d4f8127d420efa9142f393652c77a06906e79d69c3",
+   "verdict": "CRITICAL RISK",
+   "score": 388,
+   "highest_severity": "Critical",
+   "findings": 50,
+   "high_or_critical_rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-008",
+    "CODE-014",
+    "OBFUSC-012",
+    "SUPPLY-001",
+    "SUPPLY-008",
+    "SUPPLY-014"
+   ]
+  },
+  {
+   "package": "npm:yargs",
+   "version": "18.2.0",
+   "archive_sha256": "44ddd9d39e41a7d73dd794b6d229f2b92fd655d394ef59e2ca34d31df6181d13",
+   "verdict": "MEDIUM RISK",
+   "score": 45,
+   "highest_severity": "Medium",
+   "findings": 7,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "pypi:boto3",
+   "version": "1.43.103",
+   "archive_sha256": "524821052527f6446d249bf710847b032d9b12135e346c9751777a0a2811cf04",
+   "verdict": "CRITICAL RISK",
+   "score": 55,
+   "highest_severity": "Critical",
+   "findings": 4,
+   "high_or_critical_rules": [
+    "CRED-004",
+    "SUPPLY-003"
+   ]
+  },
+  {
+   "package": "pypi:certifi",
+   "version": "2026.7.22",
+   "archive_sha256": "741e2c3b351ddf169a738da9f2c048608ff7f2c5cc02f1ebc6b118bb090d5d55",
+   "verdict": "LOW RISK",
+   "score": 0,
+   "highest_severity": null,
+   "findings": 0,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "pypi:charset-normalizer",
+   "version": "3.5.1",
+   "archive_sha256": "6117b84ea48435e5356dc737f5121485c30920ba43375fa7b434fd753df0eac3",
+   "verdict": "MEDIUM RISK",
+   "score": 73,
+   "highest_severity": "Medium",
+   "findings": 12,
+   "high_or_critical_rules": []
+  },
+  {
+   "package": "pypi:cryptography",
+   "version": "50.0.1",
+   "archive_sha256": "5dd9bda1c12b4162f6ff568eeb5e0ff956c28d14406e875cfe8a63a2d414ff20",
+   "verdict": "HIGH RISK",
+   "score": 1476,
+   "highest_severity": "Critical",
+   "findings": 392,
+   "high_or_critical_rules": [
+    "CODE-002",
+    "CODE-008",
+    "CRED-006",
+    "CRED-008",
+    "OBFUSC-006",
+    "OBFUSC-007"
+   ]
+  },
+  {
+   "package": "pypi:idna",
+   "version": "3.20",
+   "archive_sha256": "a7db850025b95ded1eae8a46181a1a6c56c92c96f0e2b005d9ff8dc0210cab44",
+   "verdict": "MEDIUM RISK",
+   "score": 153,
+   "highest_severity": "High",
+   "findings": 393,
+   "high_or_critical_rules": [
+    "OBFUSC-CHAIN-006"
+   ]
+  },
+  {
+   "package": "pypi:packaging",
+   "version": "26.3",
+   "archive_sha256": "94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79",
+   "verdict": "MEDIUM RISK",
+   "score": 220,
+   "highest_severity": "High",
+   "findings": 43,
+   "high_or_critical_rules": [
+    "CODE-002"
+   ]
+  },
+  {
+   "package": "pypi:requests",
+   "version": "2.34.2",
+   "archive_sha256": "f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed",
+   "verdict": "MEDIUM RISK",
+   "score": 165,
+   "highest_severity": "Critical",
+   "findings": 145,
+   "high_or_critical_rules": [
+    "CRED-006"
+   ]
+  },
+  {
+   "package": "pypi:setuptools",
+   "version": "84.0.0",
+   "archive_sha256": "f4695c21257f0d9b537ec2692c941d02ee143b7cc1276941349a546573b2ef73",
+   "verdict": "HIGH RISK",
+   "score": 773,
+   "highest_severity": "Critical",
+   "findings": 127,
+   "high_or_critical_rules": [
+    "CODE-001",
+    "CODE-002",
+    "CODE-005",
+    "CODE-014",
+    "INSTALL-001",
+    "OBFUSC-CHAIN-017"
+   ]
+  },
+  {
+   "package": "pypi:typing-extensions",
+   "version": "4.16.0",
+   "archive_sha256": "dc983d19a509c94dba722ee6abd33940f7c05a89e243c47e907eb4db6f1a43e5",
+   "verdict": "HIGH RISK",
+   "score": 140,
+   "highest_severity": "High",
+   "findings": 47,
+   "high_or_critical_rules": [
+    "CODE-001",
+    "CODE-002"
+   ]
+  },
+  {
+   "package": "pypi:urllib3",
+   "version": "2.8.0",
+   "archive_sha256": "63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63",
+   "verdict": "MEDIUM RISK",
+   "score": 525,
+   "highest_severity": "Critical",
+   "findings": 121,
+   "high_or_critical_rules": [
+    "CRED-006",
+    "NET-008",
+    "SUPPLY-017"
+   ]
+  }
+ ]
+}

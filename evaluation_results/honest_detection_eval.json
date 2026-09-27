@@ -1,32 +1,32 @@
 {
-  "generated_at": "2026-09-03T16:07:08.321581+00:00",
-  "binary": "release build of this branch (see notes)",
+  "generated_at": "2026-09-27T08:40:07.793813+00:00",
+  "binary": "release build of v1.3.7 (cli/ identical to 0b5a121)",
   "detection_phases": "install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection",
-  "dataset_commit": "unknown",
-  "dataset_fingerprint": "587e09d2a8bb6ab0bba65f086fb1b5f342dd24357725cdd22104c4fe60aebd0b",
+  "dataset_commit": "1dbcfc517277f3e3d32434f8f6a82e6e9fb75580",
+  "dataset_fingerprint": "63fcde5babebf27dfb47833749a0a987c24e2bffd0228a412dd4910ebda73ade",
   "malicious_total": 844,
   "malicious_extract_failures": 0,
   "malicious_scan_errors": 0,
   "recall": {
     "any": {
-      "detected": 772,
+      "detected": 785,
       "scanned": 844,
-      "rate": 0.9147
+      "rate": 0.9301
     },
     "Medium": {
-      "detected": 764,
+      "detected": 761,
       "scanned": 844,
-      "rate": 0.9052
+      "rate": 0.9017
     },
     "High": {
-      "detected": 718,
+      "detected": 752,
       "scanned": 844,
-      "rate": 0.8507
+      "rate": 0.891
     },
     "Critical": {
-      "detected": 553,
+      "detected": 560,
       "scanned": 844,
-      "rate": 0.6552
+      "rate": 0.6635
     }
   },
   "control_total": 20,
@@ -37,32 +37,30 @@
       "fp_rate": 0.85
     },
     "Medium": {
-      "flagged": 17,
+      "flagged": 15,
       "total": 20,
-      "fp_rate": 0.85
+      "fp_rate": 0.75
     },
     "High": {
-      "flagged": 13,
+      "flagged": 11,
       "total": 20,
-      "fp_rate": 0.65
+      "fp_rate": 0.55
     },
     "Critical": {
-      "flagged": 5,
+      "flagged": 6,
       "total": 20,
-      "fp_rate": 0.25
+      "fp_rate": 0.3
     }
   },
   "precision": {
-    "any": 0.9785,
-    "Medium": 0.9782,
-    "High": 0.9822,
-    "Critical": 0.991
+    "any": 0.9788,
+    "Medium": 0.9807,
+    "High": 0.9856,
+    "Critical": 0.9894
   },
   "notes": [
     "PRECISION IS IMBALANCE-DISTORTED: it was computed on 844 malicious vs 20 clean samples. With far more malicious than clean inputs, precision looks high even when most clean packages are flagged. Read the FP-rate column, not precision, as the real-world false-positive signal.",
-    "HIGH FALSE-POSITIVE RATE: 85% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise.",
-    "BINARY: built from this branch's HEAD at measurement time; the scratch path it was run from is not recorded here because it is not reproducible for a reader.",
-    "CLEAN-SET 'Critical' COUNTS FINDINGS, NOT VERDICTS: 5 of 20 control packages still contain a Critical-severity finding, but 0 of 20 return a CRITICAL RISK verdict \u2014 CRED-006, CRED-030 and INSTALL-001 are marked as corroborating evidence, so one of them alone no longer gates the verdict. Measured separately with `sigil scan <pkg> --no-cache` on the same 20 packages."
+    "HIGH FALSE-POSITIVE RATE: 75% of clean control packages (popular, legitimate npm/PyPI) are flagged at Medium/High. The static phases over-trigger on benign idioms (network calls, base64, env reads, minified code). Recall is strong but the rule set needs FP-narrowing before these severities can gate real-world installs without noise."
   ],
   "ledger_warm": {}
 }

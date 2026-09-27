@@ -8,6 +8,14 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [1.3.7] - 2026-09-27
 
+**Release measurement:** [`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md)
+(the v1.3.7 release build on 844 Datadog samples at dataset commit `1dbcfc5`,
+and a 20-package clean control set fetched for this release), with each clean
+package's verdict in
+[`honest_detection_eval_control_verdicts.json`](evaluation_results/honest_detection_eval_control_verdicts.json)
+and the comparison with earlier runs in
+[`evaluation_results/HISTORY.md`](evaluation_results/HISTORY.md) (row 5).
+
 ### 🥊 Head-to-head with NVIDIA SkillSpector
 
 Measured on the same real samples as SkillSpector 2.11.2 (static, `--no-llm`):
