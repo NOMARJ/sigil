@@ -161,7 +161,8 @@ formula update. `docker.yml` and `sbom.yml` fire on the same tag. `sbom.yml`
 attaches its signed SBOMs only while the release is still a draft, and never
 creates or publishes a release itself. `release.yml` publishes as soon as the
 binaries are attached, so the SBOMs normally arrive too late for the immutable
-release and stay in that run's `signed-sboms` artifact (kept 90 days).
+release and stay in that run's `signed-sboms` artifact (kept 90 days). Signing
+needs the container SBOMs, so it only runs once the Docker Hub credentials work.
 
 **When a tag cannot be pushed from git** (for example from an environment whose
 credentials may push branches but not tags): Actions → **Tag Release** → Run

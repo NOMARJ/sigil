@@ -652,28 +652,66 @@ def _run_step(
     return result, outputs
 
 
+_SBOM_SET = [
+    f"sbom-{kind}.{fmt}.json{att}"
+    for kind in ("source", "cli-container", "full-container")
+    for fmt in ("cdx", "spdx")
+    for att in ("", ".att")
+] + ["SBOM-SHA256SUMS.txt"]
+
+
 def _fake_gh(tmp_path: Path) -> Path:
+    """A gh that logs its calls and plays one release's state.
+
+    FAKE_STATE_FILE holds "true" (draft), "false" (published) or "absent";
+    FAKE_ASSETS lists the assets already attached; FAKE_UPLOAD makes an
+    upload succeed ("ok"), fail ("fail") or fail because the release was
+    published meanwhile ("publish").
+    """
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     gh = fake_bin / "gh"
     gh.write_text(
         "#!/usr/bin/env bash\n"
         'echo "$*" >> "$FAKE_GH_LOG"\n'
-        'if [ "$1 $2" = "release view" ]; then\n'
-        '  [ "$FAKE_RELEASE" = "absent" ] && { echo "release not found" >&2; exit 1; }\n'
-        '  echo "$FAKE_RELEASE"\n'
-        "fi\n"
+        'state="$(cat "$FAKE_STATE_FILE")"\n'
+        'case "$1 $2" in\n'
+        '  "release view")\n'
+        '    [ "$state" = "absent" ] && { echo "release not found" >&2; exit 1; }\n'
+        '    case "$*" in\n'
+        '      *"--json assets"*) printf "%s\\n" $FAKE_ASSETS ;;\n'
+        '      *) echo "$state" ;;\n'
+        "    esac ;;\n"
+        '  "release upload")\n'
+        '    [ "$FAKE_UPLOAD" = "ok" ] && exit 0\n'
+        '    [ "$FAKE_UPLOAD" = "publish" ] && echo false > "$FAKE_STATE_FILE"\n'
+        '    echo "upload failed" >&2; exit 1 ;;\n'
+        "esac\n"
     )
     gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
     return fake_bin
 
 
 @pytest.mark.parametrize(
-    ("release", "uploads", "attached"),
-    [("true", True, "true"), ("false", False, "false"), ("absent", False, "false")],
+    ("release", "assets", "upload", "code", "uploaded", "attached"),
+    [
+        # A draft with nothing attached gets the whole set.
+        ("true", [], "ok", 0, True, "true"),
+        # A complete set is never deleted and re-uploaded.
+        ("true", _SBOM_SET, "ok", 0, False, "true"),
+        # A partial set from a failed earlier upload is replaced whole.
+        ("true", _SBOM_SET[:3], "ok", 0, True, "true"),
+        # release.yml published the draft mid-upload: a warning, not a failure.
+        ("true", [], "publish", 0, True, "false"),
+        # The draft is still a draft and the upload failed: a real failure.
+        ("true", [], "fail", 1, True, None),
+        # Published or missing releases are never touched or created.
+        ("false", [], "ok", 0, False, "false"),
+        ("absent", [], "ok", 0, False, "false"),
+    ],
 )
 def test_sbom_workflow_attaches_only_to_a_draft_release(
-    tmp_path, release, uploads, attached
+    tmp_path, release, assets, upload, code, uploaded, attached
 ):
     workflow = _workflow("sbom.yml")
     # softprops/action-gh-release creates (and so publishes) a release when the
@@ -684,23 +722,34 @@ def test_sbom_workflow_attaches_only_to_a_draft_release(
 
     fake_bin = _fake_gh(tmp_path)
     log = tmp_path / "gh.log"
+    state = tmp_path / "release-state"
+    state.write_text(release)
     result, outputs = _run_step(
         _step_script(workflow, "Attach SBOMs to the draft release"),
         tmp_path,
         {
             "PATH": f"{fake_bin}:{os.environ['PATH']}",
             "FAKE_GH_LOG": str(log),
-            "FAKE_RELEASE": release,
+            "FAKE_STATE_FILE": str(state),
+            "FAKE_ASSETS": " ".join(assets),
+            "FAKE_UPLOAD": upload,
             "GITHUB_REF_NAME": "v9.9.9",
             "GITHUB_REPOSITORY": "NOMARJ/sigil",
         },
     )
 
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == code, result.stderr
     calls = log.read_text().splitlines()
     assert calls[0].startswith("release view v9.9.9 ")
-    assert any(call.startswith("release upload v9.9.9 ") for call in calls) is uploads
-    assert outputs["attached"] == attached
+    uploads = [call for call in calls if call.startswith("release upload v9.9.9 ")]
+    assert bool(uploads) is uploaded
+    for call in uploads:
+        # Always the complete set from this run, never a subset, so a
+        # partial set left by an earlier upload is replaced whole.
+        args = call.split()
+        assert args[3:6] == ["--repo", "NOMARJ/sigil", "--clobber"]
+        assert args[6:] == [f"sboms/{name}" for name in _SBOM_SET]
+    assert outputs.get("attached") == attached
     assert all(
         call.split()[:2] in (["release", "view"], ["release", "upload"])
         for call in calls

@@ -47,13 +47,16 @@ jobs:
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Generating SBOMs for version: ${VERSION}"
 
-      # Generate CycloneDX SBOM in JSON format (OWASP standard)
+      # Generate CycloneDX SBOM in JSON format (OWASP standard). syft 1.x
+      # names the source with --source-name/--source-version; the old
+      # --name/--version flags are gone ("unknown flag: --name", which
+      # failed this job on every tag through v1.3.7).
       - name: Generate CycloneDX SBOM from source
         run: |
           syft dir:. \
             -o cyclonedx-json=sbom-source.cdx.json \
-            --name sigil \
-            --version ${{ steps.version.outputs.version }}
+            --source-name sigil \
+            --source-version ${{ steps.version.outputs.version }}
           echo "✅ CycloneDX SBOM generated"
 
       # Generate SPDX SBOM in JSON format (Linux Foundation standard)
@@ -61,8 +64,8 @@ jobs:
         run: |
           syft dir:. \
             -o spdx-json=sbom-source.spdx.json \
-            --name sigil \
-            --version ${{ steps.version.outputs.version }}
+            --source-name sigil \
+            --source-version ${{ steps.version.outputs.version }}
           echo "✅ SPDX SBOM generated"
 
       # Verify SBOM files were created
@@ -325,33 +328,63 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          FILES=(
+            sboms/sbom-source.cdx.json
+            sboms/sbom-source.cdx.json.att
+            sboms/sbom-source.spdx.json
+            sboms/sbom-source.spdx.json.att
+            sboms/sbom-cli-container.cdx.json
+            sboms/sbom-cli-container.cdx.json.att
+            sboms/sbom-cli-container.spdx.json
+            sboms/sbom-cli-container.spdx.json.att
+            sboms/sbom-full-container.cdx.json
+            sboms/sbom-full-container.cdx.json.att
+            sboms/sbom-full-container.spdx.json
+            sboms/sbom-full-container.spdx.json.att
+            sboms/SBOM-SHA256SUMS.txt
+          )
           # gh finds a draft by its tag too; any lookup failure counts as
           # "no release", which is the case that must never create one.
-          STATE="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
-            --json isDraft --jq .isDraft 2>/dev/null || echo absent)"
+          release_state() {
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+              --json isDraft --jq .isDraft 2>/dev/null || echo absent
+          }
+          ARTIFACT_NOTE="The signed SBOMs are in this run's signed-sboms artifact."
+          STATE="$(release_state)"
           case "$STATE" in
             true)
-              gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber \
-                sboms/sbom-source.cdx.json \
-                sboms/sbom-source.cdx.json.att \
-                sboms/sbom-source.spdx.json \
-                sboms/sbom-source.spdx.json.att \
-                sboms/sbom-cli-container.cdx.json \
-                sboms/sbom-cli-container.cdx.json.att \
-                sboms/sbom-cli-container.spdx.json \
-                sboms/sbom-cli-container.spdx.json.att \
-                sboms/sbom-full-container.cdx.json \
-                sboms/sbom-full-container.cdx.json.att \
-                sboms/sbom-full-container.spdx.json \
-                sboms/sbom-full-container.spdx.json.att \
-                sboms/SBOM-SHA256SUMS.txt
-              echo "attached=true" >> "$GITHUB_OUTPUT"
-              echo "Attached the SBOMs to the ${GITHUB_REF_NAME} draft release" ;;
+              # Each .att signs its own run's JSON and the checksums cover one
+              # run, so the draft must hold a single run's set. A complete set
+              # is never replaced (a failed re-upload would lose it); a partial
+              # one, left by an earlier failed upload, is replaced whole.
+              ATTACHED_NAMES="$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+                --json assets --jq '.assets[].name')"
+              MISSING=0
+              for f in "${FILES[@]}"; do
+                grep -qxF -- "${f#sboms/}" <<<"$ATTACHED_NAMES" || MISSING=$((MISSING + 1))
+              done
+              if [ "$MISSING" -eq 0 ]; then
+                echo "attached=true" >> "$GITHUB_OUTPUT"
+                echo "The ${GITHUB_REF_NAME} draft already has the complete SBOM set; left as is"
+              elif gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber "${FILES[@]}"; then
+                echo "attached=true" >> "$GITHUB_OUTPUT"
+                echo "Attached the SBOMs to the ${GITHUB_REF_NAME} draft release"
+              elif [ "$(release_state)" = "false" ]; then
+                # release.yml published the draft while this upload ran. The
+                # check above cannot be atomic with its publish step, and an
+                # immutable release takes no more files, so it may now carry
+                # part of the set.
+                echo "::warning::${GITHUB_REF_NAME} was published while the SBOMs were uploading, so the release may carry only part of the set. ${ARTIFACT_NOTE}"
+                echo "attached=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "::error::Uploading the SBOMs to the ${GITHUB_REF_NAME} draft release failed"
+                exit 1
+              fi ;;
             false)
-              echo "::warning::${GITHUB_REF_NAME} is already published, and an immutable release cannot receive files. The signed SBOMs are in this run's signed-sboms artifact."
+              echo "::warning::${GITHUB_REF_NAME} is already published, and an immutable release cannot receive files. ${ARTIFACT_NOTE}"
               echo "attached=false" >> "$GITHUB_OUTPUT" ;;
             *)
-              echo "::warning::No release exists for ${GITHUB_REF_NAME}. This workflow never creates one (release.yml does). The signed SBOMs are in this run's signed-sboms artifact."
+              echo "::warning::No release exists for ${GITHUB_REF_NAME}. This workflow never creates one (release.yml does). ${ARTIFACT_NOTE}"
               echo "attached=false" >> "$GITHUB_OUTPUT" ;;
           esac
 

@@ -22,8 +22,19 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   SBOMs on it, and no binaries could ever be attached. On an existing release it
   also replaced the release notes. It now attaches the SBOMs with
   `gh release upload` only while the release is a draft; it never creates one and
-  leaves a published one alone. The signed set is always kept as the run's
-  `signed-sboms` artifact (90 days).
+  leaves a published one alone. A complete set already on the draft is never
+  deleted and re-uploaded, and a partial one is replaced whole, so the attached
+  signatures and checksums always come from one run. If `release.yml` publishes
+  the draft during the upload, the step warns that the release may carry part of
+  the set instead of failing. The signed set is kept as the run's
+  `signed-sboms` artifact (90 days) whether or not it could be attached.
+- **`sbom.yml`'s source SBOMs build again.** syft 1.x dropped `--name` and
+  `--version` (`unknown flag: --name`), which failed the source job on every tag
+  through v1.3.7. They are now `--source-name` and `--source-version`, checked
+  with syft 1.42.3, the version `download-syft@v0.24.0` installs. Signing still
+  needs the container SBOMs too, and those need the Docker Hub login that has
+  failed since v1.3.4, so no SBOMs are signed or attached until those
+  credentials are replaced.
 - **`publish-npm.yml` reads its `tag` input through the environment.** It used
   to substitute the input straight into the shell script. It now refuses anything
   but `vX.Y.Z` before checkout, and checks out `refs/tags/<tag>` so a branch with
