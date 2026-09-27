@@ -76,7 +76,12 @@ the release build blocks 28 of the 169 (16.6%), warns on 89 (52.7%) and reports
 15 CRITICAL, against 24 / 76 / 11 for the build before it in the same run; on the
 156 SkillSpector finished it blocks 20 (12.8%), warns on 76 (48.7%) and reports 11
 CRITICAL (16 / 63 / 7 before), blocking 5 servers SkillSpector does not while
-SkillSpector blocks 85 it does not.
+SkillSpector blocks 85 it does not. With the credential value exemptions
+withdrawn after Codex's second review (see
+[mcp-server-calibration.md](../detection/mcp-server-calibration.md#fifth-change-codexs-second-review-exemptions-and-overrides)),
+it blocks 29 of the 169 (17.2%), warns on 95 (56.2%) and reports 15 CRITICAL; on
+the 156 it blocks 20, warns on 82 and reports 11 CRITICAL, and the two
+one-sided block counts stay 5 and 85.
 
 This is Sigil's weakest false-positive result. MCP servers ship as complete
 packages, often with minified bundles, and most of Sigil's blocks come from

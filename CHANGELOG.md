@@ -20,8 +20,9 @@ cases Sigil loses, and the disclosure block:
 | Sigil now | 173/204 (84.8%) | 7/455 (1.5%) | 71/455 (15.6%) |
 | SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
 
-On 169 clean MCP servers from the official registry, Sigil blocks 28 (16.6%;
-24 before the lifecycle rewrites were made to fail closed, 39 before the third
+On 169 clean MCP servers from the official registry, Sigil blocks 29 (17.2%;
+28 with the credential value exemptions this branch later withdrew, 24 before
+the lifecycle rewrites were made to fail closed, 39 before the third
 false-positive pass below); SkillSpector blocks 100 of the 156 it finished
 (64.1%; it timed out on 13).
 
@@ -476,7 +477,9 @@ isolated `HOME` ([details and disclosure](docs/detection/mcp-server-calibration.
 These are the pass's own build. The final build of this branch, with the
 lifecycle rewrites failing closed (below), blocks 28/169 (16.6%), warns on
 89/169 (52.7%) and reports 15 CRITICAL; the merged branch just before that
-change measured 24 / 76 / 11.
+change measured 24 / 76 / 11. With the credential exemptions withdrawn
+(below) it blocks 29/169 (17.2%), warns on 95/169 (56.2%) and reports 15
+CRITICAL.
 
 No MCP server's verdict rose; no skill's, parity sample's or Datadog sample's
 verdict or highest severity changed. Individual rules did lose matches on
@@ -603,7 +606,22 @@ pass.
   `npm-shrinkwrap.json`, `yarn.lock` or `pnpm-lock.yaml` there has any entry
   that is not the public registry's tarball of the package it is filed under,
   or does not parse (a bun lockfile always counts). `ENGINE_REVISION` goes to
-  11.
+  11. A lockfile, `.npmrc` or parent `package.json` that is not a regular file
+  (a link to `/dev/zero`, a FIFO) now counts against the rewrite instead of
+  blocking the scan.
+- **Measured** (release builds `955a469` → `68a9d30`, `--no-cache`, empty
+  `HOME`): clean MCP servers blocked 28 → 29 and warned 89 → 95 of 169 (seven
+  servers up a level, none down: ai.reka, CrowdStrike falcon, PrefectHQ and
+  neo4j aura-manager on test-file `CRED-007` values, the two neo4j servers on
+  `ENV NEO4J_PASSWORD="password"` in their Dockerfiles, apideck on its
+  `Password: "password"` enum and test keys); the unseen 146 blocked 69 → 70,
+  warned 115 → 115 (`com.shipstatic/mcp` up on `CRED-008` in a `.d.ts`);
+  skills 173 / 184 of 204 malicious and 7 / 71 of 455 clean, unchanged; the
+  844 Datadog samples unchanged in verdict, highest severity and chains, with
+  65 credential findings back on nine compromised-library samples — one of them
+  `export declare const PASSWORD = "a123456A!";` in a `.d.ts`. The lifecycle
+  change moved nothing: no `INSTALL-010`/`011`/`012` rewrite exists on these
+  corpora in either build.
 - **Severity changes.** CODE-009 (`new Function`, always also CODE-008 at
   High) and HYGIENE-001/002 (shipped source maps) are Low; INFER-007 (a literal
   client `apiKey`) is a corroborating Critical; CODE-003 is not checked in

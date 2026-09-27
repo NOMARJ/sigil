@@ -592,6 +592,8 @@ HIGH) and to DD_O14 Datadog samples; it fired on no clean MCP server or skill.
 > and the final build, with the lifecycle rewrites failing closed, in
 > [Fourth change](#fourth-change-the-lifecycle-rewrites-fail-closed-final-build):
 > 28/169 blocked and 89/169 warned in-sample, 69/146 and 115/146 on the holdout.
+> Withdrawing the credential value exemptions ([Fifth change](#fifth-change-codexs-second-review-exemptions-and-overrides))
+> makes that 29/169 and 95/169, 70/146 and 115/146.
 
 The second pass left 39 of the 169 servers blocked. This pass removed the
 blocks that came from a rule unable to see what a line does, where the
@@ -974,10 +976,76 @@ manifest, on a `pnpm-workspace.yaml` or `.yarnrc.yml` that declares them, and
 on any lockfile entry that is not the registry tarball of its own package, or
 a lockfile that does not parse (rule text:
 [structural-checks.md](structural-checks.md#lifecycle-scripts-and-platform-launchers-install-010--012-code-016)).
-`ENGINE_REVISION` goes to 11. The fail-closed build already left no
-`INSTALL-010`/`011`/`012` rewrite on any measured corpus, so B is not expected
-to move a level there; A returns the false positives the removed exemptions
-had hidden.
+`ENGINE_REVISION` goes to 11. The same change makes a lockfile, `.npmrc` or
+parent `package.json` that is not a regular file count against the rewrite:
+the classifier reads those files from disk, and a link to `/dev/zero` would
+otherwise have blocked the scan.
+
+```
+Data Source: Real samples: the 169 clean MCP servers (mcp_clean_manifest.json),
+             the 146-server holdout (mcp_holdout146_manifest.json), 204 + 455
+             skills and run_eval.py's 844-package Datadog selection (--limit 204,
+             fingerprint 63fcde5b...). Release builds of 955a469 (the PR head's
+             code) and 68a9d30 (this change), each scan --no-cache with an empty
+             HOME, run one corpus at a time on 2026-09-27.
+Sample Size: 169 + 146 servers; 659 skills; 844 Datadog packages; two builds each.
+             Returned credential findings: every directory holding a line an old
+             exemption matched, or a CRED-008 match in a .d.ts, or the arity
+             wrapper (113 directories), scanned once per build with full JSON output.
+Limitations: In-sample for the 169; the holdout was not used to choose anything.
+             "Clean" is not "audited". Static analysis only. No run reported
+             PROV-BUDGET-001 and none errored.
+```
+
+| | 955a469 | 68a9d30 | Level changes |
+|---|---:|---:|---|
+| MCP 169 blocked / warned / CRITICAL | 28 / 89 / 15 | 29 / 95 / 15 | 7 up, 0 down |
+| MCP 146 (holdout) blocked / warned / CRITICAL | 69 / 115 / 45 | 70 / 115 / 45 | 1 up, 0 down |
+| Malicious skills blocked / warned (of 204) | 173 / 184 | 173 / 184 | 0 |
+| Clean skills blocked / warned (of 455) | 7 / 71 | 7 / 71 | 0 |
+| Datadog verdict blocked / warned (of 844, six offline phases) | 705 / 761 | 705 / 761 | 0 verdict, 0 severity, 0 chain changes |
+| Datadog recall any / ≥ Medium / ≥ High / ≥ Critical | 785 / 761 / 752 / 560 | 785 / 761 / 752 / 560 | |
+
+Every level change is a credential finding the withdrawn exemptions had hidden;
+B moved nothing, because no `INSTALL-010`/`011`/`012` rewrite exists on any of
+these corpora in either build (`CODE-016` stays on the three Microsoft
+launchers):
+
+- In-sample, LOW → MEDIUM: `ai.reka/mcp` (`CRED-007` `"api_key": "local-static-key"`
+  in `tests/test_local_mode_regressions.py`, 2 lines), `io.github.CrowdStrike/falcon-mcp`
+  (`CRED-007`, 25 lines of `test-client-secret` / `env-client-secret` /
+  `direct-client-secret` in `tests/`), `io.github.PrefectHQ/prefect-mcp-server`
+  (`CRED-007` `"access_token": "mcp-access-token"` in a test),
+  `io.github.neo4j-contrib/mcp-neo4j-aura-manager` (`CRED-007`, 7 test lines and
+  `ENV NEO4J_AURA_CLIENT_SECRET="test-client-secret"` in its Dockerfile),
+  `io.github.neo4j-contrib/mcp-neo4j-cypher` and `mcp-neo4j-memory` (`CRED-008`
+  `ENV NEO4J_PASSWORD="password"` in the Dockerfile — the image's default password).
+- In-sample, MEDIUM → HIGH: `com.apideck/mcp` (`CRED-008` 16 lines: the
+  `Password: "password"` member of four as-const enum objects in `src/`, `esm/`
+  and their `.d.ts`; `CRED-007` `sk_live_prod_probe` and `sk_test_workflow` in tests).
+- Holdout, MEDIUM → HIGH: `com.shipstatic/mcp` (`CRED-008`, three `readonly password: "…"`
+  description strings in `dist/vocabulary.d.ts`).
+
+Returned findings without a level change: in-sample `CRED-007` on
+`ai.dimensions/analytics-mcp` (3, tests), `com.smartbear/smartbear-mcp`
+(`AUTOMATION_API_KEY: "automation_api_key"`), `io.github.ClickHouse/mcp-clickhouse`
+(1, test), `io.oxylabs/oxylabs-mcp` (2, tests); `CRED-008` on
+`io.github.NVIDIA/elements` (`password: "nve-password"`),
+`io.github.SAP/fiori-mcp-server` (1, the tail of an oversized bundle),
+`io.github.SAP-samples/hana-cli` (`HANA_PASSWORD: 'password'`),
+`io.github.couchbase/mcp-server-couchbase` (`CB_PASSWORD="password"` in a script),
+`io.github.firebase/firebase-mcp` (`exports.PROVIDER_PASSWORD = "password"`),
+`io.github.team-telnyx/telnyx` (2, a JSDoc example in `.d.ts` / `.d.mts`). In all,
+70 findings on 17 in-sample servers, 193 on 14 holdout servers (159 of them in
+`io.github.desplega-ai/agent-swarm`, 155 of those in test files), 1 in the clean skills
+(`SECRET_KEY="local-secret-key"` in an openai cloudflare-deploy reference page)
+and 65 on nine Datadog compromised-library samples (`CRED-011` `authorization_bearer`
+40 times in two telnyx versions' tests; `CRED-008` on `@draftauth/core`'s
+`Password` enum and `elementary-data`'s bundled report; and
+`export declare const PASSWORD = "a123456A!";` in `@actbase/node-server`'s
+`lib/contants/Example.d.ts`, a literal password the `.d.ts` exemption had
+hidden). No finding was lost: the `com.tracklution` bearer path and the
+chrome-devtools arity wrapper stay exempt under the narrowed contexts.
 
 ### Considered and not done
 

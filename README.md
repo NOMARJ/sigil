@@ -282,11 +282,12 @@ Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not m
 
 | Clean MCP servers | Blocked | Warned |
 |---|---:|---:|
-| **Sigil** | **28/169 (16.6%)** | **89/169 (52.7%)** |
+| **Sigil** | **29/169 (17.2%)** | **95/169 (56.2%)** |
 | SkillSpector 2.11.2 | 100/156 (64.1%), 13 timed out | 127/156 (81.4%) |
 
-Sigil's MCP row is from the build whose npm lifecycle-script rewrites fail closed
-when the install adds any other dependency (24 and 76 on the build before it;
+Sigil's MCP row is from the build that reports credential values whatever their
+shape and whose npm lifecycle-script rewrites fail closed (28 and 89 with the
+withdrawn credential exemptions; 24 and 76 before the rewrites failed closed;
 39 and 125 before the third false-positive pass); SkillSpector was not re-run for it. See
 [docs/detection/mcp-server-calibration.md](docs/detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression).
 

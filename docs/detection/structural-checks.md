@@ -406,8 +406,13 @@ weight; its rule id, severity and snippet change, and the snippet says why.
   An empty `overrides: {}` / `resolutions: {}`, unrelated `pnpm` settings
   (`onlyBuiltDependencies`) and a `pnpm-workspace.yaml` that only lists `packages`
   change nothing. Tests: the `an_override_*`, `a_workspace_or_yarn_config_override_*`,
-  `a_lockfile_entry_off_the_registry_*` and `a_registry_only_lockfile_*` cases in
-  `cli/src/scanner/lifecycle_tests.rs` (Codex's example verbatim and its variants).
+  `a_lockfile_entry_off_the_registry_*`, `a_registry_only_lockfile_*` and
+  `an_unreadable_install_file_*` cases in `cli/src/scanner/lifecycle_tests.rs`
+  (Codex's example verbatim and its variants). Measured on the clean MCP corpora,
+  the skills and the 844 Datadog samples (release builds `955a469` → `68a9d30`),
+  this rule changed nothing: no `INSTALL-010`/`011`/`012` rewrite survived there
+  before it either (see
+  [mcp-server-calibration.md](mcp-server-calibration.md#fifth-change-codexs-second-review-exemptions-and-overrides)).
 - **`CODE-016`** (from `CODE-014`, Medium). The file is a `bin` target of its nearest
   manifest; the manifest lists at least two `optionalDependencies` named
   `<name>-<linux|darwin|win32|freebsd>-<x64|arm64|ia32|arm>`, every one at the
