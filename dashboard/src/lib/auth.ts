@@ -7,6 +7,10 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   isAuthenticated: boolean;
+  /** True when there is an Auth0 session whose email address is not verified yet. */
+  emailUnverified: boolean;
+  /** Email address awaiting verification (when known). */
+  unverifiedEmail: string | null;
   loginWithOAuth: (connection?: string) => void;
   logout: () => Promise<void>;
 };
@@ -24,6 +28,8 @@ export function useAuth() {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [emailUnverified, setEmailUnverified] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
 
   // Restore session on mount
   useEffect(() => {
@@ -49,6 +55,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               last_login: new Date().toISOString(),
             };
             setUser(user);
+            setEmailUnverified(false);
+            setUnverifiedEmail(null);
+            setLoading(false);
+            return;
+          }
+        } else if (res.status === 403) {
+          // Authenticated session, but the email address is not verified yet.
+          const data = await res.json().catch(() => null);
+          if (!cancelled && data?.error === "email_unverified") {
+            setUser(null);
+            setEmailUnverified(true);
+            setUnverifiedEmail(
+              typeof data.email === "string" ? data.email : null,
+            );
             setLoading(false);
             return;
           }
@@ -59,6 +79,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!cancelled) {
         setUser(null);
+        setEmailUnverified(false);
+        setUnverifiedEmail(null);
         setLoading(false);
       }
     }
@@ -93,6 +115,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         loading,
         isAuthenticated,
+        emailUnverified,
+        unverifiedEmail,
         loginWithOAuth,
         logout,
       },

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.nomarj/sigil",
+  "title": "Sigil",
+  "description": "Security scanning tools for AI agent code, packages, and repositories, backed by the Sigil CLI.",
+  "repository": {
+    "url": "https://github.com/NOMARJ/sigil",
+    "source": "github",
+    "subfolder": "plugins/mcp-server"
+  },
+  "websiteUrl": "https://www.sigilsec.ai",
+  "version": "1.3.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@nomark/sigil-mcp-server",
+      "version": "1.3.0",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "SIGIL_BINARY",
+          "description": "Path to the Sigil CLI binary used by the scan, clone, quarantine and report tools. Defaults to `sigil` on PATH. Without the CLI the server still starts and the database-backed tools keep working.",
+          "isRequired": false,
+          "default": "sigil"
+        },
+        {
+          "name": "SIGIL_API_URL",
+          "description": "Base URL of the Sigil public scan database used by sigil_check_package and sigil_search_database.",
+          "isRequired": false,
+          "default": "https://api.sigilsec.ai"
+        }
+      ]
+    }
+  ]
+}

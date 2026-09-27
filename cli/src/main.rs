@@ -1,18 +1,36 @@
 mod api;
+mod baseline;
 mod cache;
+mod cmdline;
 mod corpus;
 mod diff;
+mod enforcement;
 mod explain;
 mod feeds;
+mod hook;
+mod html_report;
+mod ingest;
+mod inventory;
+mod knowngood;
 mod ledger;
+mod llm_review;
+mod mcp;
+mod mcp_registry;
 mod output;
 mod policy;
+mod project_config;
 mod provenance;
 mod provider;
 mod quarantine;
+mod report;
+mod residue;
+mod rules_cmd;
 mod sandbox;
 mod sbom;
 mod scanner;
+mod setup;
+mod skillmap;
+mod transitive;
 
 use clap::{Parser, Subcommand};
 use colored::Colorize;
@@ -30,9 +48,37 @@ struct Cli {
     #[arg(short, long, global = true)]
     verbose: bool,
 
-    /// Output format (text, json)
+    /// Output format (text, json, sarif, html, markdown, junit)
     #[arg(short, long, global = true, default_value = "text")]
     format: String,
+
+    /// Write the report to this file instead of stdout
+    #[arg(short = 'o', long, global = true, value_name = "FILE")]
+    output: Option<PathBuf>,
+
+    /// Add a custom rule pack (JSON or YAML, a YARA .yar/.yara file, or a
+    /// directory of them). Repeatable. Custom packs add rules; they can never
+    /// replace built-ins
+    #[arg(long = "rules", global = true, value_name = "PATH")]
+    rules: Vec<PathBuf>,
+
+    /// What evaluates YARA rule files: auto (the built-in engine, and an
+    /// installed YARA-X `yr` or YARA `yara` for rules it cannot evaluate; a
+    /// file that needs an engine none is installed for is refused),
+    /// best-effort (as auto, but such a file loads unevaluated and every
+    /// scan reports incomplete coverage), builtin, yara-x or yara. Policy
+    /// key: yara_engine
+    #[arg(
+        long = "yara-engine",
+        global = true,
+        value_name = "ENGINE",
+        value_parser = ["auto", "best-effort", "builtin", "yara-x", "yara"]
+    )]
+    yara_engine: Option<String>,
+
+    /// Scan policy file to use instead of discovering .sigil.yml
+    #[arg(long, global = true, value_name = "FILE")]
+    config: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,
@@ -84,7 +130,9 @@ enum Commands {
 
     /// Scan an existing directory or file
     Scan {
-        /// Path to scan
+        /// Path to scan, a git URL, an archive or file URL, a GitHub /tree/
+        /// link, or mcp:<server-name>[@version] from the MCP registry
+        /// (fetched into quarantine first)
         path: PathBuf,
 
         /// Phases to run (comma-separated, or "all")
@@ -112,14 +160,94 @@ enum Commands {
         enhanced: bool,
 
         /// Exit 1 when a finding at or above this severity is present
-        /// (low, medium, high, critical). Default: high.
-        #[arg(long, default_value = "high")]
-        fail_on: String,
+        /// (low, medium, high, critical). Default: high, or the policy's fail_on.
+        #[arg(long)]
+        fail_on: Option<String>,
+
+        /// Also exit 1 when the verdict is at or above this level
+        /// (low, medium, high, critical)
+        #[arg(long, value_name = "VERDICT")]
+        fail_on_verdict: Option<String>,
+
+        /// Also exit 1 when part of the target could not be fully inspected:
+        /// an unreadable file or directory, an oversized file scanned only at
+        /// its ends, a file that ran out of scan time, an archive that could
+        /// not be opened fully, or a reference --follow-refs could not fetch.
+        /// Also SIGIL_FAIL_ON_INCOMPLETE=1, or fail_on_incomplete in a policy
+        #[arg(long)]
+        fail_on_incomplete: bool,
+
+        /// Accept the findings recorded in this baseline (see `sigil baseline`):
+        /// they are reported as suppressed and do not fail the scan
+        #[arg(long, value_name = "FILE")]
+        baseline: Option<PathBuf>,
+
+        /// Do not look for .sigil.yml in the scan root or current directory
+        /// (also SIGIL_NO_PROJECT_CONFIG=1). The organisation policy still applies
+        #[arg(long)]
+        no_project_config: bool,
 
         /// Disable trust-ledger allowlisting (report findings even when the
         /// content digest-matches an approved ledger pin)
         #[arg(long)]
         ignore_ledger: bool,
+
+        /// Download what the scanned files tell you to fetch, install or run
+        /// (install scripts, installers, raw pastes, release assets) into
+        /// quarantine and scan it too, two hops deep. Never executes it.
+        /// Also enabled by SIGIL_FOLLOW_REFS=1.
+        #[arg(long)]
+        follow_refs: bool,
+
+        /// Send each Medium-or-above finding (rule, title, path, masked
+        /// matched line and surrounding lines) to a language model for a
+        /// second opinion. Off by default; advisory unless the scan policy
+        /// sets llm_may_downgrade. Anthropic by default (ANTHROPIC_API_KEY),
+        /// or an OpenAI-compatible endpoint (SIGIL_LLM_ENDPOINT,
+        /// SIGIL_LLM_API_KEY). See docs/llm-review.md
+        #[arg(long, conflicts_with = "no_llm_review")]
+        llm_review: bool,
+
+        /// Do not run the LLM review stage, even if a policy turns it on
+        /// (refused when the organisation policy locks llm_review)
+        #[arg(long)]
+        no_llm_review: bool,
+
+        /// Model for --llm-review (also SIGIL_LLM_MODEL). Default for
+        /// Anthropic: claude-opus-5; required for an OpenAI-compatible endpoint
+        #[arg(long, value_name = "MODEL")]
+        llm_model: Option<String>,
+    },
+
+    /// Record the current findings as accepted, so later scans fail only on
+    /// new ones (writes .sigil-baseline.json in the scanned directory, or -o)
+    Baseline {
+        /// Directory or file to scan
+        path: PathBuf,
+
+        /// Why these findings are accepted (recorded in the baseline)
+        #[arg(long)]
+        reason: Option<String>,
+
+        /// Do not look for .sigil.yml in the scan root or current directory
+        #[arg(long)]
+        no_project_config: bool,
+    },
+
+    /// List, inspect, validate, test and sign detection rules
+    Rules {
+        #[command(subcommand)]
+        action: rules_cmd::RulesAction,
+    },
+
+    /// Show the active detection corpus: which packs are loaded, from where
+    Corpus,
+
+    /// Known-good corpus (ADR-0011): recognise published code instead of
+    /// re-judging it
+    KnownGood {
+        #[command(subcommand)]
+        action: KnownGoodAction,
     },
 
     /// Clear all cached scan results
@@ -230,6 +358,21 @@ enum Commands {
         /// List all configuration values
         #[arg(short, long)]
         list: bool,
+
+        /// Show the effective scan policy for the current directory: which
+        /// policy files apply, merged values, locked keys, refused loosenings
+        #[arg(long)]
+        policy: bool,
+
+        /// Validate a scan policy file (.sigil.yml, or an organisation policy
+        /// with --org). Exit 0 valid, 1 invalid, 2 unreadable
+        #[arg(long, value_name = "FILE")]
+        validate: Option<PathBuf>,
+
+        /// With --validate: check the file as an organisation policy
+        /// (allows `locked` and `allow_project_policy`)
+        #[arg(long, requires = "validate")]
+        org: bool,
     },
 
     /// Manage credential providers for sandboxed execution
@@ -304,6 +447,110 @@ enum Commands {
         /// Command to run (after --)
         #[arg(last = true, required = true)]
         command: Vec<String>,
+    },
+
+    /// Respond to a Claude Code hook event (reads the hook JSON from stdin)
+    Hook {
+        /// Hook event to handle (currently: pretooluse)
+        event: String,
+    },
+
+    /// Find, and reversibly clean up, what installed agent tooling left on
+    /// this machine: shell rc lines, cron/launchd/systemd entries, git
+    /// hooks, loose credential files, leftover tool directories
+    Residue {
+        #[command(subcommand)]
+        action: ResidueAction,
+    },
+
+    /// Run the built-in MCP server on stdio (for Claude Code, Cursor, Codex
+    /// and any MCP client): `claude mcp add sigil -- sigil mcp`
+    Mcp,
+
+    /// Wire Sigil into AI agent and developer workflows
+    Setup {
+        /// What to set up: claude, shell, git, or all
+        target: String,
+    },
+
+    /// Inventory and posture-scan the agent skills, plugins, hooks and MCP
+    /// servers installed for Claude Code, Codex, Gemini CLI, Cursor,
+    /// Windsurf, VS Code, Cline/Roo, Continue, Goose, OpenCode, Zed and
+    /// OpenClaw — on this machine and in the current project
+    Skills {
+        /// scan (default): scan every item and inspect every config entry;
+        /// list: discovery only
+        #[arg(default_value = "scan", value_parser = ["scan", "list"])]
+        action: String,
+        /// Treat this directory as the home directory (fixtures, fleet
+        /// images); system-wide managed settings are then not read
+        #[arg(long)]
+        root: Option<PathBuf>,
+        /// Project directory to inspect (default: current directory)
+        #[arg(long)]
+        project: Option<PathBuf>,
+        /// Skip project-scoped locations
+        #[arg(long)]
+        no_project: bool,
+        /// Skip user-level and system locations: inspect the project only
+        /// (deterministic across machines, for pre-commit and CI)
+        #[arg(long)]
+        no_user: bool,
+        /// Exit 1 when any finding is at or above this severity
+        /// (low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
+        /// Only these tools (comma-separated ids, e.g. claude-code,codex)
+        #[arg(long)]
+        tool: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ResidueAction {
+    /// Read-only scan of this machine for agent-tooling residue
+    Scan {
+        /// Repository whose git hooks to inspect (default: the current
+        /// directory when it is a git repository)
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Exit 1 when an item at or above this level is present
+        /// (info, low, medium, high, critical). Default: high.
+        #[arg(long, default_value = "high")]
+        fail_on: String,
+    },
+    /// Show the reversible fixes a scan would make, without making them
+    Plan {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Write the plan document here instead of stdout
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Apply the plan, backing every target up under ~/.sigil/backups/<id>/
+    Apply {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        /// Apply a previously written plan document instead of re-scanning
+        #[arg(long)]
+        plan: Option<PathBuf>,
+        /// Skip the per-action confirmation (required when stdin is not a terminal)
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Restore a backup made by `apply`
+    Rollback {
+        /// Backup id (see --list)
+        id: Option<String>,
+        /// Restore the most recent backup
+        #[arg(long)]
+        last: bool,
+        /// List backups
+        #[arg(long)]
+        list: bool,
+        /// Overwrite targets that changed since apply
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -406,6 +653,21 @@ async fn main() {
         eprintln!("{} verbose mode enabled", "sigil:".bold().cyan());
     }
 
+    report::set_output_path(cli.output.clone());
+    // For the commands that load YARA files without resolving a scan policy
+    // (`rules validate`, `rules test`, `rules sign`); a resolved policy sets
+    // it again, with the flag merged into it.
+    if let Some(mode) = cli
+        .yara_engine
+        .as_deref()
+        .and_then(corpus::yara::external::EngineMode::parse)
+    {
+        corpus::yara::external::configure(mode, "--yara-engine");
+    }
+    if let Some(code) = prepare_command(&cli) {
+        process::exit(code);
+    }
+
     let exit_code = match cli.command {
         Commands::Clone {
             url,
@@ -461,24 +723,149 @@ async fn main() {
             enrich,
             enhanced,
             fail_on,
+            fail_on_verdict,
+            fail_on_incomplete,
+            baseline,
+            no_project_config,
             ignore_ledger,
+            follow_refs,
+            llm_review,
+            no_llm_review,
+            llm_model,
         } => {
-            cmd_scan(
-                &path,
-                &phases,
-                &severity,
-                submit,
-                no_cache,
-                enrich,
-                enhanced,
-                &fail_on,
-                ignore_ledger,
-                &cli.format,
-                cli.verbose,
-            )
-            .await
+            // `sigil scan <git url>` is the clone workflow: quarantine, then
+            // scan. Routing it here means the obvious command does the right
+            // thing instead of failing with "path does not exist".
+            let target = path.to_string_lossy().to_string();
+            let follow_refs =
+                follow_refs || std::env::var("SIGIL_FOLLOW_REFS").as_deref() == Ok("1");
+            let fail_on_incomplete = fail_on_incomplete
+                || std::env::var("SIGIL_FAIL_ON_INCOMPLETE").as_deref() == Ok("1");
+            let llm_review_flag = if llm_review {
+                Some(true)
+            } else if no_llm_review {
+                Some(false)
+            } else {
+                None
+            };
+            let llm_model = llm_model.or_else(|| {
+                std::env::var("SIGIL_LLM_MODEL")
+                    .ok()
+                    .filter(|v| !v.trim().is_empty())
+            });
+            let policy_args = ScanPolicyArgs {
+                fail_on,
+                fail_on_verdict,
+                fail_on_incomplete,
+                baseline,
+                no_project_config,
+                config: cli.config.clone(),
+                rules: cli.rules.clone(),
+                llm_review: llm_review_flag,
+                llm_model,
+                yara_engine: cli.yara_engine.clone(),
+                scans_root: true,
+            };
+            // Archives (.zip/.skill/.tar.gz/...), file and archive URLs, and
+            // GitHub /tree/ links are unpacked into quarantine first (see
+            // ingest.rs); a directory, a plain file or a git URL is not
+            // touched here and keeps its existing handling.
+            let prepared = ingest::prepare(&target, &cli.format, cli.verbose).await;
+            if let Err(e) = &prepared {
+                eprintln!("{} {e}", "error:".bold().red());
+                EXIT_ERROR
+            } else if let Ok(Some(p)) = prepared {
+                cmd_scan(
+                    &p.root,
+                    &phases,
+                    &severity,
+                    submit,
+                    true,
+                    enrich,
+                    enhanced,
+                    // A policy file inside the unpacked archive sits in the
+                    // scanned tree, not the working directory, so the policy
+                    // guard applies it tighten-only.
+                    policy_args,
+                    ignore_ledger,
+                    follow_refs,
+                    &cli.format,
+                    cli.verbose,
+                )
+                .await
+            } else if looks_like_git_url(&target) {
+                if llm_review {
+                    eprintln!(
+                        "{} --llm-review applies to `sigil scan <path>`; the clone workflow runs without it",
+                        "warning:".bold().yellow()
+                    );
+                }
+                cmd_clone(&target, None, false, &cli.format, cli.verbose).await
+            } else {
+                cmd_scan(
+                    &path,
+                    &phases,
+                    &severity,
+                    submit,
+                    no_cache,
+                    enrich,
+                    enhanced,
+                    policy_args,
+                    ignore_ledger,
+                    follow_refs,
+                    &cli.format,
+                    cli.verbose,
+                )
+                .await
+            }
         }
 
+        Commands::Baseline {
+            path,
+            reason,
+            no_project_config,
+        } => {
+            let policy_args = ScanPolicyArgs {
+                no_project_config,
+                config: cli.config.clone(),
+                rules: cli.rules.clone(),
+                yara_engine: cli.yara_engine.clone(),
+                scans_root: true,
+                ..Default::default()
+            };
+            cmd_baseline(&path, reason, policy_args, &cli.format, cli.verbose).await
+        }
+
+        Commands::Rules { action } => {
+            let policy = match &action {
+                rules_cmd::RulesAction::List { .. } | rules_cmd::RulesAction::Show { .. } => {
+                    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+                    let args = ScanPolicyArgs {
+                        config: cli.config.clone(),
+                        rules: cli.rules.clone(),
+                        yara_engine: cli.yara_engine.clone(),
+                        ..Default::default()
+                    };
+                    match load_policy(&cwd, &args, None, cli.verbose) {
+                        Ok(p) => p,
+                        Err(e) => {
+                            eprintln!("{} {e}", "error:".bold().red());
+                            process::exit(EXIT_ERROR);
+                        }
+                    }
+                }
+                _ => {
+                    // validate, test and sign load YARA files for the
+                    // engine a scan here would use.
+                    configure_yara_engine_from_policy(cli.config.clone(), cli.yara_engine.clone());
+                    project_config::EffectivePolicy::default()
+                }
+            };
+            rules_cmd::cmd_rules(action, &cli.format, &policy)
+        }
+
+        Commands::Corpus => cmd_corpus(&cli.format),
+        Commands::KnownGood { action } => cmd_known_good(action, &cli.format),
         Commands::ClearCache => cmd_clear_cache().await,
 
         Commands::Fetch { force } => cmd_fetch(force, cli.verbose).await,
@@ -513,8 +900,27 @@ async fn main() {
             cmd_diff(&baseline, &path, &cli.format, cli.verbose).await
         }
 
-        Commands::Config { key, value, list } => {
-            cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
+        Commands::Config {
+            key,
+            value,
+            list,
+            policy,
+            validate,
+            org,
+        } => {
+            if let Some(file) = validate {
+                cmd_config_validate(&file, org, &cli.format)
+            } else if policy {
+                let args = ScanPolicyArgs {
+                    config: cli.config.clone(),
+                    rules: cli.rules.clone(),
+                    yara_engine: cli.yara_engine.clone(),
+                    ..Default::default()
+                };
+                cmd_config_policy(&args, &cli.format, cli.verbose)
+            } else {
+                cmd_config(key.as_deref(), value.as_deref(), list, cli.verbose).await
+            }
         }
 
         Commands::Run {
@@ -569,6 +975,33 @@ async fn main() {
                 }
             }
         }
+
+        Commands::Hook { event } => hook::cmd_hook(&event),
+
+        Commands::Residue { action } => cmd_residue(action, &cli.format),
+
+        Commands::Setup { target } => setup::cmd_setup(&target),
+
+        Commands::Mcp => mcp::cmd_mcp(),
+        Commands::Skills {
+            action,
+            root,
+            project,
+            no_project,
+            no_user,
+            fail_on,
+            tool,
+        } => inventory::cmd_skills(
+            &action,
+            root,
+            project,
+            no_project,
+            no_user,
+            &fail_on,
+            tool.as_deref(),
+            &cli.format,
+            cli.verbose,
+        ),
     };
 
     process::exit(exit_code);
@@ -578,12 +1011,68 @@ async fn main() {
 // Archive extraction helper
 // ---------------------------------------------------------------------------
 
+/// Maximum total bytes written while unpacking one quarantined artifact.
+///
+/// Path escape is already handled by the archive crates — `zip`'s `extract`
+/// resolves every entry through `enclosed_name()` and errors on escape, and
+/// `tar`'s `unpack_in` validates entries against the destination. What
+/// neither bounds is *volume*: a small archive that expands to tens of
+/// gigabytes fills the disk during what the user believes is a read-only
+/// scan. 2 GiB is far above any real package and far below a bomb.
+const MAX_EXTRACTED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+
+/// Maximum number of entries unpacked from one artifact. Guards inode
+/// exhaustion from an archive of very many tiny files.
+const MAX_EXTRACTED_ENTRIES: usize = 200_000;
+
+/// What unpacking an artifact produced, including any cap that was hit.
+#[derive(Debug, Default, Clone)]
+pub struct ExtractionReport {
+    pub bytes: u64,
+    pub entries: usize,
+    /// Set when a cap stopped extraction. Carries a human-readable reason.
+    pub capped: Option<String>,
+}
+
+impl ExtractionReport {
+    /// A cap hit is itself a signal, not merely an error: an archive that
+    /// expands past any plausible package size is the shape of a
+    /// decompression bomb, so it is reported as a finding rather than
+    /// silently aborting the unpack.
+    fn finding(&self, artifact: &str) -> Option<scanner::Finding> {
+        let reason = self.capped.as_ref()?;
+        Some(scanner::Finding {
+            phase: scanner::Phase::Provenance,
+            rule: "ARCHIVE-BOMB-001".to_string(),
+            severity: scanner::Severity::High,
+            file: artifact.to_string(),
+            line: None,
+            snippet: format!("Archive expansion cap exceeded: {reason}"),
+            weight: 5,
+            kev: false,
+            epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+            evidence: Default::default(),
+        })
+    }
+}
+
 /// Extract .whl/.zip and .tar.gz/.tgz archives in a directory so the scanner
 /// can inspect the actual source files inside packages.
-fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+///
+/// Extraction is bounded by [`MAX_EXTRACTED_BYTES`] and
+/// [`MAX_EXTRACTED_ENTRIES`] across all archives in the directory. Hitting
+/// either stops extraction and is reported in the returned
+/// [`ExtractionReport`]; whatever was already written is still scanned.
+fn extract_archives(dir: &Path) -> Result<ExtractionReport, Box<dyn std::error::Error>> {
     let entries: Vec<_> = std::fs::read_dir(dir)?.filter_map(|e| e.ok()).collect();
+    let mut report = ExtractionReport::default();
 
     for entry in entries {
+        if report.capped.is_some() {
+            break;
+        }
         let path = entry.path();
         let name = path
             .file_name()
@@ -597,7 +1086,7 @@ fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             let mut archive = zip::ZipArchive::new(file)?;
             let extract_dir = dir.join(name.trim_end_matches(".whl").trim_end_matches(".zip"));
             std::fs::create_dir_all(&extract_dir)?;
-            archive.extract(&extract_dir)?;
+            extract_zip_bounded(&mut archive, &extract_dir, &mut report)?;
             std::fs::remove_file(&path)?;
         } else if name.ends_with(".tar.gz") || name.ends_with(".tgz") {
             // Extract gzipped tar archives
@@ -606,11 +1095,535 @@ fn extract_archives(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
             let mut archive = tar::Archive::new(gz);
             let extract_dir = dir.join(name.trim_end_matches(".tar.gz").trim_end_matches(".tgz"));
             std::fs::create_dir_all(&extract_dir)?;
-            archive.unpack(&extract_dir)?;
+            extract_tar_bounded(&mut archive, &extract_dir, &mut report)?;
             std::fs::remove_file(&path)?;
         }
     }
 
+    Ok(report)
+}
+
+#[derive(Subcommand, Debug)]
+enum KnownGoodAction {
+    /// Show the installed known-good corpus
+    Status,
+    /// Build an index by hashing a directory of published files
+    Build {
+        /// Directory to hash (the archive root: the parent of `package/` for
+        /// an npm tarball, of `<name>-<version>/` for a PyPI sdist)
+        path: String,
+        /// Ecosystem, e.g. npm or pypi
+        #[arg(long, default_value = "npm")]
+        ecosystem: String,
+        /// Package name
+        #[arg(long)]
+        name: String,
+        /// Package version
+        #[arg(long)]
+        version: String,
+        /// Registry URL the archive was downloaded from (recorded so the
+        /// provenance of every hash is auditable)
+        #[arg(long)]
+        source_url: Option<String>,
+        /// SHA-256 of that archive, as the registry published it
+        #[arg(long)]
+        archive_sha256: Option<String>,
+        /// Write the index here (default: stdout)
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Merge per-release indexes into one index file
+    Merge {
+        /// Index files to merge
+        #[arg(required = true)]
+        inputs: Vec<String>,
+        /// Name of the merged corpus, e.g. top-packages-2026-09
+        #[arg(long)]
+        name: Option<String>,
+        /// Build date recorded in the index (supplied, not read from the
+        /// clock, so the same inputs always produce the same bytes)
+        #[arg(long)]
+        generated: Option<String>,
+        /// Write the merged index here (default: stdout)
+        #[arg(long)]
+        out: Option<String>,
+    },
+    /// Install an index into ~/.sigil/known-good/
+    Install {
+        /// Index file to install
+        path: String,
+    },
+    /// Remove an installed index by file name
+    Remove {
+        /// File name inside ~/.sigil/known-good/, e.g. top-packages-2026-09.json
+        name: String,
+    },
+}
+
+/// Known-good corpus commands.
+fn cmd_known_good(action: KnownGoodAction, format: &str) -> i32 {
+    match action {
+        KnownGoodAction::Status => {
+            let kg = match knowngood::load_installed() {
+                Ok(kg) => kg,
+                Err(e) => {
+                    eprintln!("{} {}", "error:".bold().red(), e);
+                    return EXIT_ERROR;
+                }
+            };
+            let dir = knowngood::known_good_dir()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "~/.sigil/known-good/".to_string());
+
+            let installed = knowngood::list_installed();
+
+            if format == "json" {
+                let indexes: Vec<serde_json::Value> = installed
+                    .iter()
+                    .map(|i| {
+                        serde_json::json!({
+                            "file": i.path.file_name().map(|n| n.to_string_lossy().to_string()),
+                            "bytes": i.bytes,
+                            "name": i.name,
+                            "generated": i.generated,
+                            "releases": i.stats.as_ref().map(|s| s.releases).ok(),
+                            "files": i.stats.as_ref().map(|s| s.files).ok(),
+                            "error": i.stats.as_ref().err(),
+                        })
+                    })
+                    .collect();
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "directory": dir,
+                        "releases": kg.release_count(),
+                        "files": kg.file_count(),
+                        "indexes": indexes,
+                    }))
+                    .unwrap_or_default()
+                );
+                return EXIT_CLEAN;
+            }
+
+            println!();
+            println!("  {} known-good corpus", "sigil".bold().cyan());
+            println!("  directory: {dir}");
+            println!(
+                "  {} release(s), {} file(s) indexed",
+                kg.release_count(),
+                kg.file_count()
+            );
+            for i in &installed {
+                let file = i.path.file_name().unwrap_or_default().to_string_lossy();
+                match &i.stats {
+                    Ok(stats) => println!(
+                        "    {} — {} release(s), {} file(s), {} [{}]{}",
+                        file,
+                        stats.releases,
+                        stats.files,
+                        human_bytes(i.bytes),
+                        stats.ecosystems.join(", "),
+                        i.generated
+                            .as_ref()
+                            .map(|g| format!(" built {g}"))
+                            .unwrap_or_default(),
+                    ),
+                    Err(e) => println!("    {} — {} {}", file, "unusable:".bold().red(), e),
+                }
+            }
+            if kg.is_empty() {
+                println!();
+                println!("  No index installed. Files are scanned and reported normally —");
+                println!("  an absent corpus never creates false confidence (ADR-0011).");
+                println!(
+                    "  Build one with: sigil known-good build <dir> --name <pkg> --version <v>"
+                );
+            }
+            println!();
+            EXIT_CLEAN
+        }
+
+        KnownGoodAction::Build {
+            path,
+            ecosystem,
+            name,
+            version,
+            source_url,
+            archive_sha256,
+            out,
+        } => {
+            let source = knowngood::ReleaseSource {
+                url: source_url,
+                archive_sha256,
+            };
+            let index = match knowngood::build_index(
+                Path::new(&path),
+                &ecosystem,
+                &name,
+                &version,
+                &source,
+            ) {
+                Ok(i) => i,
+                Err(e) => {
+                    eprintln!("{} {}", "error:".bold().red(), e);
+                    return EXIT_ERROR;
+                }
+            };
+            let json = serde_json::to_string_pretty(&index).unwrap_or_default();
+            match out {
+                Some(dest) => {
+                    if let Err(e) = std::fs::write(&dest, &json) {
+                        eprintln!("{} failed to write {dest}: {e}", "error:".bold().red());
+                        return EXIT_ERROR;
+                    }
+                    let files = index.releases.first().map(|r| r.files.len()).unwrap_or(0);
+                    eprintln!(
+                        "{} indexed {} file(s) for {}:{}@{} -> {}",
+                        "sigil:".bold().green(),
+                        files,
+                        ecosystem,
+                        name,
+                        version,
+                        dest
+                    );
+                }
+                None => println!("{json}"),
+            }
+            EXIT_CLEAN
+        }
+
+        KnownGoodAction::Merge {
+            inputs,
+            name,
+            generated,
+            out,
+        } => {
+            let mut indexes = Vec::with_capacity(inputs.len());
+            for input in &inputs {
+                let raw = match std::fs::read_to_string(input) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        eprintln!("{} {input}: {e}", "error:".bold().red());
+                        return EXIT_ERROR;
+                    }
+                };
+                match serde_json::from_str::<knowngood::KnownGoodIndex>(&raw) {
+                    Ok(i) => indexes.push(i),
+                    Err(e) => {
+                        eprintln!(
+                            "{} {input}: not a known-good index: {e}",
+                            "error:".bold().red()
+                        );
+                        return EXIT_ERROR;
+                    }
+                }
+            }
+
+            let merged = match knowngood::merge_indexes(indexes, name, generated) {
+                Ok(m) => m,
+                Err(e) => {
+                    eprintln!("{} {}", "error:".bold().red(), e);
+                    return EXIT_ERROR;
+                }
+            };
+            let stats = match merged.validate() {
+                Ok(s) => s,
+                Err(e) => {
+                    eprintln!("{} merged index is invalid: {e}", "error:".bold().red());
+                    return EXIT_ERROR;
+                }
+            };
+
+            // Compact, not pretty: an index of this size is data, not prose,
+            // and the pretty form is roughly three times the bytes.
+            let json = serde_json::to_string(&merged).unwrap_or_default();
+            match out {
+                Some(dest) => {
+                    if let Err(e) = std::fs::write(&dest, &json) {
+                        eprintln!("{} failed to write {dest}: {e}", "error:".bold().red());
+                        return EXIT_ERROR;
+                    }
+                    eprintln!(
+                        "{} merged {} index file(s) -> {} release(s), {} file(s), {} -> {}",
+                        "sigil:".bold().green(),
+                        inputs.len(),
+                        stats.releases,
+                        stats.files,
+                        human_bytes(json.len() as u64),
+                        dest
+                    );
+                }
+                None => println!("{json}"),
+            }
+            EXIT_CLEAN
+        }
+
+        KnownGoodAction::Install { path } => match knowngood::install_index(Path::new(&path)) {
+            Ok((dest, stats)) => {
+                println!();
+                println!("  {} installed known-good index", "sigil".bold().cyan());
+                println!("  {}", dest.display());
+                println!(
+                    "  {} release(s), {} file(s) [{}]",
+                    stats.releases,
+                    stats.files,
+                    stats.ecosystems.join(", ")
+                );
+                println!();
+                println!("  Matching files are moved to suppressed_findings with attribution,");
+                println!("  never dropped; a modified sibling raises KNOWNGOOD-DRIFT-001.");
+                println!();
+                EXIT_CLEAN
+            }
+            Err(e) => {
+                eprintln!("{} {}", "error:".bold().red(), e);
+                EXIT_ERROR
+            }
+        },
+
+        KnownGoodAction::Remove { name } => match knowngood::remove_index(&name) {
+            Ok(path) => {
+                eprintln!("{} removed {}", "sigil:".bold().green(), path.display());
+                EXIT_CLEAN
+            }
+            Err(e) => {
+                eprintln!("{} {}", "error:".bold().red(), e);
+                EXIT_ERROR
+            }
+        },
+    }
+}
+
+/// Bytes as a short human-readable size.
+fn human_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 4] = ["B", "KB", "MB", "GB"];
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.1} {}", UNITS[unit])
+    }
+}
+
+/// Show the active detection corpus.
+///
+/// Makes the data plane inspectable: which packs are live, what version, and
+/// whether each came from the binary, the released corpus, or a user pack.
+/// Without this there is no way to answer "which rules did that scan actually
+/// run" short of reading a scan report.
+fn cmd_corpus(format: &str) -> i32 {
+    let packs = match corpus::loader::load_all_packs_with_origin() {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {}", "error:".bold().red(), e);
+            return EXIT_ERROR;
+        }
+    };
+    let compiled = corpus::compiled::corpus();
+
+    if format == "json" {
+        let doc = serde_json::json!({
+            "corpus_digest": compiled.digest(),
+            "rule_count": compiled.rule_count(),
+            "packs": packs.iter().map(|(p, origin)| serde_json::json!({
+                "id": p.meta.id,
+                "name": p.meta.name,
+                "version": p.meta.version,
+                "updated_at": p.meta.updated_at,
+                "origin": origin.to_string(),
+                "rules": p.rules.len(),
+                "provenance_rules": p.provenance_rules.len(),
+                "yara_rules": p.yara.as_ref().map_or(0, |y| y.rules.len()),
+                "yara_engine": p.yara.as_ref().map(|y| y.engine.label()),
+            })).collect::<Vec<_>>(),
+        });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return EXIT_CLEAN;
+    }
+
+    println!();
+    println!("  {} detection corpus", "sigil".bold().cyan());
+    println!("  digest: {}", compiled.digest());
+    println!(
+        "  {} content rules across {} packs",
+        compiled.rule_count(),
+        packs.len()
+    );
+    println!();
+    println!(
+        "  {:<34} {:<9} {:<10} {:>6}",
+        "PACK".bold(),
+        "VERSION".bold(),
+        "ORIGIN".bold(),
+        "RULES".bold()
+    );
+    for (pack, origin) in &packs {
+        let origin_label = match origin {
+            corpus::loader::PackOrigin::Embedded => origin.to_string().dimmed().to_string(),
+            corpus::loader::PackOrigin::Released => origin.to_string().green().to_string(),
+            corpus::loader::PackOrigin::User => origin.to_string().yellow().to_string(),
+            corpus::loader::PackOrigin::Custom => origin.to_string().cyan().to_string(),
+        };
+        println!(
+            "  {:<34} {:<9} {:<19} {:>6}",
+            pack.meta.id,
+            pack.meta.version,
+            origin_label,
+            pack.rules.len()
+                + pack.provenance_rules.len()
+                + pack.yara.as_ref().map_or(0, |y| y.rules.len())
+        );
+    }
+    println!();
+    println!(
+        "  Released packs load from {}",
+        corpus::loader::released_corpus_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~/.sigil/corpus/".to_string())
+    );
+    println!(
+        "  User packs load from     {}",
+        corpus::loader::user_packs_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|| "~/.sigil/packs/".to_string())
+    );
+    println!("  A pack supersedes an embedded pack with the same id.");
+    println!("  Custom packs (--rules, policy rule_packs) only add rules.");
+    println!();
+
+    EXIT_CLEAN
+}
+
+/// Stamp findings with a composable locator naming the artifact they came
+/// from.
+///
+/// Modelled on Ghidra's FSRL: segments compose with `|`, so a finding inside
+/// an unpacked package reads
+/// `npm://left-pad-1.3.0|file://package/dist/index.js` rather than a path
+/// into a temporary extraction directory that says nothing about which
+/// artifact produced it.
+fn apply_container_locator(result: &mut scanner::ScanResult, ecosystem: &str, artifact: &str) {
+    for f in result
+        .findings
+        .iter_mut()
+        .chain(result.suppressed_findings.iter_mut())
+    {
+        f.locator = Some(format!("{ecosystem}://{artifact}|file://{}", f.file));
+    }
+}
+
+/// Fold an extraction cap hit into the scan result.
+///
+/// The finding is added before scoring so the verdict reflects it — an
+/// artifact that tried to expand past the cap should not come back
+/// `LOW RISK` just because the scanner refused to unpack the rest of it.
+fn apply_extraction_report(
+    result: &mut scanner::ScanResult,
+    report: &ExtractionReport,
+    artifact: &str,
+) {
+    let Some(finding) = report.finding(artifact) else {
+        return;
+    };
+    eprintln!(
+        "{} {}",
+        "warning:".bold().yellow(),
+        finding.snippet.as_str()
+    );
+    result.findings.push(finding);
+    result.score = scanner::scoring::calculate_score(&result.findings);
+    result.verdict = scanner::scoring::determine_verdict_with_size(
+        &result.findings,
+        result.score,
+        result.files_scanned,
+    );
+}
+
+/// Record one entry against the caps. Returns `false` once a cap is hit.
+fn admit_entry(report: &mut ExtractionReport, declared: u64) -> bool {
+    if report.capped.is_some() {
+        return false;
+    }
+    if report.entries + 1 > MAX_EXTRACTED_ENTRIES {
+        report.capped = Some(format!("more than {MAX_EXTRACTED_ENTRIES} entries"));
+        return false;
+    }
+    if report.bytes.saturating_add(declared) > MAX_EXTRACTED_BYTES {
+        report.capped = Some(format!(
+            "expanded past {} MiB",
+            MAX_EXTRACTED_BYTES / (1024 * 1024)
+        ));
+        return false;
+    }
+    report.entries += 1;
+    report.bytes = report.bytes.saturating_add(declared);
+    true
+}
+
+/// Unpack a zip under the extraction caps.
+///
+/// Entry paths go through `enclosed_name()`, the same sanitisation
+/// `ZipArchive::extract` applies, so an entry that escapes the destination is
+/// skipped rather than written.
+fn extract_zip_bounded(
+    archive: &mut zip::ZipArchive<std::fs::File>,
+    dest: &Path,
+    report: &mut ExtractionReport,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        let Some(rel) = file.enclosed_name() else {
+            continue; // path escapes the destination — skip it
+        };
+        if !admit_entry(report, file.size()) {
+            break;
+        }
+        let out = dest.join(rel);
+        if file.name().ends_with('/') {
+            std::fs::create_dir_all(&out)?;
+            continue;
+        }
+        if let Some(parent) = out.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let mut sink = std::fs::File::create(&out)?;
+        // Bound the copy itself: the declared size in the header is
+        // attacker-controlled, so a lying header must not be able to write
+        // past the cap.
+        let budget = MAX_EXTRACTED_BYTES.saturating_sub(report.bytes) + file.size();
+        let mut bounded = std::io::Read::take(&mut file, budget);
+        let written = std::io::copy(&mut bounded, &mut sink)?;
+        if written > file.size() {
+            report.bytes = report.bytes.saturating_add(written - file.size());
+        }
+    }
+    Ok(())
+}
+
+/// Unpack a gzipped tar under the extraction caps.
+///
+/// `tar`'s own `unpack_in` validation is retained per entry, so path escape
+/// and symlink handling behave exactly as before.
+fn extract_tar_bounded<R: std::io::Read>(
+    archive: &mut tar::Archive<R>,
+    dest: &Path,
+    report: &mut ExtractionReport,
+) -> Result<(), Box<dyn std::error::Error>> {
+    for entry in archive.entries()? {
+        let mut entry = entry?;
+        let declared = entry.header().size().unwrap_or(0);
+        if !admit_entry(report, declared) {
+            break;
+        }
+        // unpack_in performs the destination-containment check and returns
+        // false when it refuses the entry.
+        entry.unpack_in(dest)?;
+    }
     Ok(())
 }
 
@@ -625,10 +1638,13 @@ async fn cmd_clone(
     format: &str,
     verbose: bool,
 ) -> i32 {
-    println!(
-        "{} cloning {} into quarantine...",
-        "sigil:".bold().cyan(),
-        url.bold()
+    print_progress(
+        format,
+        format!(
+            "{} cloning {} into quarantine...",
+            "sigil:".bold().cyan(),
+            url.bold()
+        ),
     );
 
     // 1. Create quarantine entry
@@ -640,7 +1656,7 @@ async fn cmd_clone(
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -662,15 +1678,16 @@ async fn cmd_clone(
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} git clone failed", "error:".bold().red());
-            return 1;
+            return EXIT_ERROR;
         }
     }
 
     // 3. Scan the cloned repo
-    let result = scanner::run_scan(&entry.path, None, None);
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    let mut result = scanner::run_scan(&entry.path, None, None);
+    apply_container_locator(&mut result, "git", url);
+    if !print_scan_output(&result, &entry.path, format) {
+        return EXIT_ERROR;
+    }
 
     // 4. Auto-approve if requested and scan is low risk
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
@@ -681,15 +1698,14 @@ async fn cmd_clone(
                 err
             );
         } else {
-            println!("{} auto-approved (low risk)", "sigil:".bold().green());
+            print_progress(
+                format,
+                format!("{} auto-approved (low risk)", "sigil:".bold().green()),
+            );
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        scanner::Verdict::MediumRisk => 1,
-        _ => 2,
-    }
+    acquisition_exit_code(result.verdict)
 }
 
 async fn cmd_pip(
@@ -704,10 +1720,13 @@ async fn cmd_pip(
         None => package.to_string(),
     };
 
-    println!(
-        "{} downloading pip package {} into quarantine...",
-        "sigil:".bold().cyan(),
-        pkg_spec.bold()
+    print_progress(
+        format,
+        format!(
+            "{} downloading pip package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            pkg_spec.bold()
+        ),
     );
 
     let entry = match quarantine::add(&pkg_spec, "pip") {
@@ -718,7 +1737,7 @@ async fn cmd_pip(
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -739,23 +1758,29 @@ async fn cmd_pip(
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} pip download failed", "error:".bold().red());
-            return 1;
+            return EXIT_ERROR;
         }
     }
 
     // Extract .whl (zip) and .tar.gz files so the scanner sees actual source
-    if let Err(err) = extract_archives(&entry.path) {
-        eprintln!(
-            "{} failed to extract archives: {} (scanning raw archives instead)",
-            "warning:".bold().yellow(),
-            err
-        );
-    }
+    let extraction = match extract_archives(&entry.path) {
+        Ok(report) => report,
+        Err(err) => {
+            eprintln!(
+                "{} failed to extract archives: {} (scanning raw archives instead)",
+                "warning:".bold().yellow(),
+                err
+            );
+            ExtractionReport::default()
+        }
+    };
 
-    let result = scanner::run_scan(&entry.path, None, None);
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    let mut result = scanner::run_scan(&entry.path, None, None);
+    apply_extraction_report(&mut result, &extraction, &pkg_spec);
+    apply_container_locator(&mut result, "pip", &pkg_spec);
+    if !print_scan_output(&result, &entry.path, format) {
+        return EXIT_ERROR;
+    }
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
         if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
@@ -765,15 +1790,14 @@ async fn cmd_pip(
                 err
             );
         } else {
-            println!("{} auto-approved (low risk)", "sigil:".bold().green());
+            print_progress(
+                format,
+                format!("{} auto-approved (low risk)", "sigil:".bold().green()),
+            );
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        scanner::Verdict::MediumRisk => 1,
-        _ => 2,
-    }
+    acquisition_exit_code(result.verdict)
 }
 
 async fn cmd_npm(
@@ -788,10 +1812,13 @@ async fn cmd_npm(
         None => package.to_string(),
     };
 
-    println!(
-        "{} downloading npm package {} into quarantine...",
-        "sigil:".bold().cyan(),
-        pkg_spec.bold()
+    print_progress(
+        format,
+        format!(
+            "{} downloading npm package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            pkg_spec.bold()
+        ),
     );
 
     let entry = match quarantine::add(&pkg_spec, "npm") {
@@ -802,7 +1829,7 @@ async fn cmd_npm(
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -821,23 +1848,29 @@ async fn cmd_npm(
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} npm pack failed", "error:".bold().red());
-            return 1;
+            return EXIT_ERROR;
         }
     }
 
     // Extract .tgz files so the scanner sees actual source
-    if let Err(err) = extract_archives(&entry.path) {
-        eprintln!(
-            "{} failed to extract archives: {} (scanning raw archives instead)",
-            "warning:".bold().yellow(),
-            err
-        );
-    }
+    let extraction = match extract_archives(&entry.path) {
+        Ok(report) => report,
+        Err(err) => {
+            eprintln!(
+                "{} failed to extract archives: {} (scanning raw archives instead)",
+                "warning:".bold().yellow(),
+                err
+            );
+            ExtractionReport::default()
+        }
+    };
 
-    let result = scanner::run_scan(&entry.path, None, None);
-    output::print_scan_summary(&result, format);
-    output::print_findings(&result.findings, format);
-    output::print_verdict(&result.verdict, format);
+    let mut result = scanner::run_scan(&entry.path, None, None);
+    apply_extraction_report(&mut result, &extraction, &pkg_spec);
+    apply_container_locator(&mut result, "npm", &pkg_spec);
+    if !print_scan_output(&result, &entry.path, format) {
+        return EXIT_ERROR;
+    }
 
     if auto_approve && result.verdict == scanner::Verdict::LowRisk {
         if let Err(err) = approve_with_ledger(&entry.id, Some("auto-approved: low risk scan")) {
@@ -847,153 +1880,538 @@ async fn cmd_npm(
                 err
             );
         } else {
-            println!("{} auto-approved (low risk)", "sigil:".bold().green());
+            print_progress(
+                format,
+                format!("{} auto-approved (low risk)", "sigil:".bold().green()),
+            );
         }
     }
 
-    match result.verdict {
-        scanner::Verdict::LowRisk => 0,
-        scanner::Verdict::MediumRisk => 1,
-        _ => 2,
-    }
+    acquisition_exit_code(result.verdict)
 }
+
+/// Exit codes, per ADR-0010. These are the CI interface and a compatibility
+/// promise: `2` means *the scan did not produce a usable verdict*, never
+/// "the verdict was bad".
+pub const EXIT_CLEAN: i32 = 0;
+pub const EXIT_FINDINGS: i32 = 1;
+pub const EXIT_ERROR: i32 = 2;
 
 #[allow(clippy::too_many_arguments)]
 /// Exit-code contract (ADR-0010): 1 if any finding is at or above the fail
 /// threshold, else 0. Scan errors (handled by the caller) are 2.
 fn exit_code_for(findings: &[scanner::Finding], fail_threshold: scanner::Severity) -> i32 {
     if findings.iter().any(|f| f.severity >= fail_threshold) {
-        1
+        EXIT_FINDINGS
     } else {
-        0
+        EXIT_CLEAN
+    }
+}
+
+/// `sigil residue` — host-side residue scan, plan, apply, rollback.
+///
+/// Exit codes follow ADR-0010: scan 0/1 (an item at or above --fail-on)/2;
+/// apply 0 when everything ran, 1 when something was skipped or failed, 2
+/// when it refused.
+fn cmd_residue(action: ResidueAction, format: &str) -> i32 {
+    if format != "text" && format != "json" {
+        eprintln!(
+            "{} --format {} is not supported for residue (use text or json)",
+            "error:".bold().red(),
+            format
+        );
+        return 2;
+    }
+    let json = format == "json";
+    match action {
+        ResidueAction::Scan { repo, fail_on } => {
+            let Some(threshold) = residue::Level::parse(&fail_on) else {
+                eprintln!(
+                    "{} invalid --fail-on '{}' (use info, low, medium, high, critical)",
+                    "error:".bold().red(),
+                    fail_on
+                );
+                return 2;
+            };
+            let ctx = residue::Context::detect(repo.as_deref());
+            let report = residue::scan(&ctx);
+            if json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&report).unwrap_or_default()
+                );
+            } else {
+                print!("{}", residue::render_text(&report));
+            }
+            if report.items.iter().any(|i| i.severity >= threshold) {
+                EXIT_FINDINGS
+            } else {
+                EXIT_CLEAN
+            }
+        }
+        ResidueAction::Plan { repo, out } => {
+            let ctx = residue::Context::detect(repo.as_deref());
+            let plan = residue::plan::build(&residue::scan(&ctx));
+            let doc = serde_json::to_string_pretty(&plan).unwrap_or_default();
+            if let Some(path) = out {
+                if let Err(e) = std::fs::write(&path, &doc) {
+                    eprintln!(
+                        "{} cannot write {}: {e}",
+                        "error:".bold().red(),
+                        path.display()
+                    );
+                    return 2;
+                }
+                if !json {
+                    print!("{}", residue::plan::render_plan(&plan));
+                    println!("  Plan written to {}", path.display());
+                }
+            } else if json {
+                println!("{doc}");
+            } else {
+                print!("{}", residue::plan::render_plan(&plan));
+            }
+            EXIT_CLEAN
+        }
+        ResidueAction::Apply { repo, plan, yes } => {
+            let ctx = residue::Context::detect(repo.as_deref());
+            let plan = match plan {
+                Some(path) => match std::fs::read_to_string(&path)
+                    .map_err(|e| e.to_string())
+                    .and_then(|t| {
+                        serde_json::from_str::<residue::plan::Plan>(&t).map_err(|e| e.to_string())
+                    }) {
+                    Ok(p) if p.kind == "residue-plan" => p,
+                    Ok(_) => {
+                        eprintln!(
+                            "{} {} is not a residue plan",
+                            "error:".bold().red(),
+                            path.display()
+                        );
+                        return 2;
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "{} cannot read plan {}: {e}",
+                            "error:".bold().red(),
+                            path.display()
+                        );
+                        return 2;
+                    }
+                },
+                None => residue::plan::build(&residue::scan(&ctx)),
+            };
+            if !json {
+                print!("{}", residue::plan::render_plan(&plan));
+            }
+            match residue::plan::apply(&ctx, &plan, yes) {
+                Ok(report) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&report).unwrap_or_default()
+                        );
+                    } else if plan.actions.is_empty() {
+                        // render_plan already said there is nothing to do
+                    } else {
+                        println!(
+                            "\n  {} applied {}, skipped {}, failed {} — backup {} at {}",
+                            "sigil:".bold().cyan(),
+                            report.applied,
+                            report.skipped.len(),
+                            report.failed.len(),
+                            report.backup_id,
+                            report.backup_dir
+                        );
+                        for s in report.skipped.iter().chain(report.failed.iter()) {
+                            println!("       {}", s.dimmed());
+                        }
+                        println!("  Undo with: sigil residue rollback {}", report.backup_id);
+                    }
+                    if report.failed.is_empty() && report.skipped.is_empty() {
+                        EXIT_CLEAN
+                    } else {
+                        EXIT_FINDINGS
+                    }
+                }
+                Err(reason) => {
+                    eprintln!("{} {reason}", "error:".bold().red());
+                    2
+                }
+            }
+        }
+        ResidueAction::Rollback {
+            id,
+            last,
+            list,
+            force,
+        } => {
+            let ctx = residue::Context::detect(None);
+            let backups = residue::plan::list_backups(&ctx);
+            if list || (id.is_none() && !last) {
+                if json {
+                    let rows: Vec<serde_json::Value> = backups
+                        .iter()
+                        .map(|(id, created, n)| serde_json::json!({"id": id, "created": created, "actions": n}))
+                        .collect();
+                    println!(
+                        "{}",
+                        serde_json::to_string_pretty(&rows).unwrap_or_default()
+                    );
+                } else if backups.is_empty() {
+                    println!(
+                        "  No backups under {}",
+                        residue::plan::backups_dir(&ctx).display()
+                    );
+                } else {
+                    for (id, created, n) in &backups {
+                        println!("  {id}  {created}  {n} action(s)");
+                    }
+                }
+                return EXIT_CLEAN;
+            }
+            let target = match id.or_else(|| backups.first().map(|b| b.0.clone())) {
+                Some(t) => t,
+                None => {
+                    eprintln!("{} no backups to roll back", "error:".bold().red());
+                    return 2;
+                }
+            };
+            match residue::plan::rollback(&ctx, &target, force) {
+                Ok(report) => {
+                    if json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&report).unwrap_or_default()
+                        );
+                    } else {
+                        println!(
+                            "  {} restored {} from backup {}",
+                            "sigil:".bold().cyan(),
+                            report.restored,
+                            report.backup_id
+                        );
+                        for s in &report.skipped {
+                            println!("       skipped {}", s.dimmed());
+                        }
+                    }
+                    if report.skipped.is_empty() {
+                        EXIT_CLEAN
+                    } else {
+                        EXIT_FINDINGS
+                    }
+                }
+                Err(reason) => {
+                    eprintln!("{} {reason}", "error:".bold().red());
+                    2
+                }
+            }
+        }
+    }
+}
+
+/// Is this scan target a git URL rather than a local path?
+fn looks_like_git_url(target: &str) -> bool {
+    let t = target.trim();
+    t.starts_with("http://")
+        || t.starts_with("https://")
+        || t.starts_with("git@")
+        || t.starts_with("ssh://")
+        || t.starts_with("git://")
+}
+
+/// Exit-code contract for the acquisition commands (`clone`, `pip`, `npm`).
+///
+/// These previously returned `2` for a High-or-Critical verdict, colliding
+/// with the code ADR-0010 reserves for "the scan itself failed". A CI job
+/// that treats `2` as an infrastructure failure and retries would have
+/// silently passed a malicious package. Anything the caller should act on is
+/// now `1`; `2` is reserved for the command failing.
+fn acquisition_exit_code(verdict: scanner::Verdict) -> i32 {
+    match verdict {
+        scanner::Verdict::LowRisk => EXIT_CLEAN,
+        _ => EXIT_FINDINGS,
+    }
+}
+
+/// Print a progress/log line: stdout in text mode, stderr for machine-readable
+/// formats (json, sarif) so stdout stays a single parseable document.
+fn print_progress(format: &str, msg: String) {
+    if format == "text" {
+        println!("{}", msg);
+    } else {
+        eprintln!("{}", msg);
     }
 }
 
 /// Shared scan output: summary, findings, verdict, plus the ledger-suppression
-/// attribution when active. In JSON mode the suppression object is emitted
-/// AFTER the findings array, so consumers that parse the first array in the
-/// stream (e.g. scripts/run_eval.py) see only active findings.
-fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) {
-    if format == "sarif" {
-        output::print_scan_sarif(result, &path.to_string_lossy());
-        return;
-    }
-    output::print_scan_summary(result, format);
-    output::print_findings(&result.findings, format);
-    if let Some(by) = &result.suppressed_by {
-        if format == "json" {
-            let obj = serde_json::json!({
-                "suppressed_by": by,
-                "suppressed_findings": result.suppressed_findings,
-            });
-            println!("{}", serde_json::to_string_pretty(&obj).unwrap_or_default());
-        } else {
-            println!(
-                "  {} {} finding{} suppressed by ledger approval ({})",
-                "[*]".green(),
-                result.suppressed_findings.len(),
-                if result.suppressed_findings.len() == 1 {
-                    ""
-                } else {
-                    "s"
-                },
-                by
-            );
+/// attribution when active. In JSON mode everything is emitted as exactly one
+/// JSON document (see `output::print_scan_result_json`). Goes to stdout, or
+/// to the global `--output` file. Returns false when the report could not be
+/// written, which the caller turns into exit 2.
+fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) -> bool {
+    match report::emit(result, &path.to_string_lossy(), format, None) {
+        Ok(()) => true,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            false
         }
     }
-    output::print_verdict(&result.verdict, format);
 }
 
-#[allow(clippy::too_many_arguments)]
-async fn cmd_scan(
-    path: &Path,
-    phases: &str,
-    severity: &str,
-    submit: bool,
-    no_cache: bool,
-    enrich: bool,
-    enhanced: bool,
-    fail_on: &str,
-    ignore_ledger: bool,
-    format: &str,
+/// Scan-policy inputs from the command line.
+#[derive(Default)]
+struct ScanPolicyArgs {
+    fail_on: Option<String>,
+    fail_on_verdict: Option<String>,
+    fail_on_incomplete: bool,
+    baseline: Option<PathBuf>,
+    no_project_config: bool,
+    config: Option<PathBuf>,
+    rules: Vec<PathBuf>,
+    llm_review: Option<bool>,
+    llm_model: Option<String>,
+    yara_engine: Option<String>,
+    /// `scan_root` is the tree about to be scanned (not just where policy
+    /// discovery starts): no YARA engine is looked for inside it.
+    scans_root: bool,
+}
+
+/// Resolve the scan policy (organisation file, project file, flags) and
+/// register its rule packs. Must run before anything builds the detection
+/// corpus. `scan_root` is where `.sigil.yml` discovery starts; discovery is
+/// skipped with `--no-project-config` or `SIGIL_NO_PROJECT_CONFIG=1`.
+fn load_policy(
+    scan_root: &Path,
+    args: &ScanPolicyArgs,
+    min_severity: Option<String>,
     verbose: bool,
-) -> i32 {
-    // Exit-code contract (ADR-0010): 2 = scan error.
-    if !path.exists() {
-        eprintln!(
-            "{} path does not exist: {}",
-            "error:".bold().red(),
-            path.display()
-        );
-        return 2;
+) -> Result<project_config::EffectivePolicy, String> {
+    let env_off = std::env::var(project_config::NO_PROJECT_POLICY_ENV)
+        .is_ok_and(|v| !v.is_empty() && v != "0");
+    let opts = project_config::ResolveOptions {
+        scan_root: Some(scan_root.to_path_buf()),
+        cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        explicit_config: args.config.clone(),
+        discover: !args.no_project_config && !env_off,
+        cli: project_config::CliPolicy {
+            fail_on: args.fail_on.clone(),
+            fail_on_verdict: args.fail_on_verdict.clone(),
+            fail_on_incomplete: args.fail_on_incomplete,
+            min_severity,
+            baseline: args.baseline.clone(),
+            rules: args.rules.clone(),
+            llm_review: args.llm_review,
+            llm_model: args.llm_model.clone(),
+            yara_engine: args.yara_engine.clone(),
+        },
+    };
+    let policy = project_config::resolve(&opts)?;
+    // A YARA engine is never looked for in the tree about to be scanned.
+    if args.scans_root {
+        corpus::yara::external::exclude_from_search(scan_root);
     }
+    let packs = policy.activate_rule_packs()?;
+    report_policy(&policy, &packs, verbose);
+    report_yara_engines(&packs);
+    Ok(policy)
+}
 
-    // Threshold at/above which a finding makes the scan fail (exit 1).
-    let fail_threshold = match fail_on.to_lowercase().as_str() {
-        "low" => scanner::Severity::Low,
-        "medium" => scanner::Severity::Medium,
-        "high" => scanner::Severity::High,
-        "critical" => scanner::Severity::Critical,
-        other => {
+/// For `rules validate`, `rules test` and `rules sign`, which load YARA
+/// files without scanning: select the YARA engine a scan run here would use
+/// — the organisation policy, the project file and `--yara-engine`, locks
+/// included — without loading the policy's rule packs. A policy that does
+/// not resolve leaves the flag's choice (default `auto`), with a warning.
+fn configure_yara_engine_from_policy(config: Option<PathBuf>, yara_engine: Option<String>) {
+    let env_off = std::env::var(project_config::NO_PROJECT_POLICY_ENV)
+        .is_ok_and(|v| !v.is_empty() && v != "0");
+    let opts = project_config::ResolveOptions {
+        scan_root: None,
+        cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        explicit_config: config,
+        discover: !env_off,
+        cli: project_config::CliPolicy {
+            yara_engine,
+            ..Default::default()
+        },
+    };
+    match project_config::resolve(&opts) {
+        Ok(policy) => {
+            for r in policy
+                .refused
+                .iter()
+                .filter(|r| r.starts_with("yara_engine"))
+            {
+                eprintln!("{} policy: {r}", "warning:".bold().yellow());
+            }
+            // As `activate_rule_packs` does for a scan: a flag the policy
+            // refused (a locked key) must not stay in effect.
+            let (mode, source) = match &policy.yara_engine {
+                Some(s) => (s.value, format!("yara_engine from {}", s.source)),
+                None => (
+                    corpus::yara::external::EngineMode::Auto,
+                    "default".to_string(),
+                ),
+            };
+            corpus::yara::external::configure(mode, source);
+        }
+        Err(e) => eprintln!(
+            "{} the scan policy could not be read, so its yara_engine does not apply here: {e}",
+            "warning:".bold().yellow()
+        ),
+    }
+}
+
+/// Say, on stderr, which YARA files no engine here can evaluate (always:
+/// the scan will report them as not fully inspected) and, with `--verbose`
+/// in `report_policy`, which engine each file uses.
+fn report_yara_engines(packs: &[corpus::custom::CustomPack]) {
+    for p in packs {
+        let Some(file) = &p.pack.yara else {
+            continue;
+        };
+        if let corpus::yara::FileEngine::Unevaluated {
+            reasons,
+            unavailable,
+        } = &file.engine
+        {
             eprintln!(
-                "{} invalid --fail-on '{}' (use low, medium, high, critical)",
-                "error:".bold().red(),
-                other
+                "{} {}: these YARA rules need an external engine and none can be used here \
+                 ({unavailable}), so they will not be evaluated ({}); the scan reports this as \
+                 incomplete coverage",
+                "warning:".bold().yellow(),
+                file.path.display(),
+                reasons.first().map(String::as_str).unwrap_or("")
             );
-            return 2;
-        }
-    };
-    let exit_for =
-        |findings: &[scanner::Finding]| -> i32 { exit_code_for(findings, fail_threshold) };
-
-    println!(
-        "{} scanning {}...",
-        "sigil:".bold().cyan(),
-        path.display().to_string().bold()
-    );
-
-    // --- Cache: only use when running a full unfiltered scan ---
-    let use_cache = !no_cache && phases == "all" && severity == "low";
-
-    // Try loading from cache
-    if use_cache {
-        if let Some(mut cached) = cache::load_cached(path) {
-            println!("{} using cached result", "sigil:".bold().green(),);
-            // Re-evaluate ledger suppression against the CURRENT ledger: a pin
-            // approved or revoked since the cache was written must take effect.
-            ledger::apply_suppression(&mut cached, path, ignore_ledger);
-            print_scan_output(&cached, path, format);
-            return exit_for(&cached.findings);
-        } else if verbose {
-            eprintln!("no cache entry found, scanning fresh");
         }
     }
+}
 
-    // Parse phase filter
-    let phase_filter: Option<Vec<String>> = if phases == "all" {
-        None
-    } else {
-        Some(phases.split(',').map(|s| s.trim().to_string()).collect())
-    };
+/// What a resolved policy did, on stderr so a JSON or SARIF stdout stays one
+/// document. Refusals are always shown; the rest with `--verbose`.
+fn report_policy(
+    policy: &project_config::EffectivePolicy,
+    packs: &[corpus::custom::CustomPack],
+    verbose: bool,
+) {
+    for r in &policy.refused {
+        eprintln!("{} policy: {r}", "warning:".bold().yellow());
+    }
+    // Always shown: the scan runs without what these name.
+    for p in packs {
+        for e in &p.ignored {
+            eprintln!(
+                "{} rule pack {}: {e} — ignored; `sigil rules validate` rejects it",
+                "warning:".bold().yellow(),
+                p.path.display()
+            );
+        }
+    }
+    if !verbose {
+        return;
+    }
+    if policy.sources.is_empty() {
+        eprintln!("policy: no policy file applied (built-in defaults)");
+    }
+    for s in &policy.sources {
+        eprintln!(
+            "policy: applied {} policy {}{}",
+            match s.origin {
+                project_config::Origin::Org => "organisation",
+                project_config::Origin::Project => "project",
+            },
+            s.path,
+            s.restricted
+                .as_ref()
+                .map(|why| format!(" (tighten-only: {why})"))
+                .unwrap_or_default()
+        );
+    }
+    for p in packs {
+        eprintln!(
+            "policy: rule pack '{}' from {} — {} rule(s), signature {}{}",
+            p.pack.meta.id,
+            p.path.display(),
+            p.pack.rule_count(),
+            p.signature,
+            p.pack
+                .yara
+                .as_ref()
+                .map(|y| format!(", evaluated by {}", y.engine.label()))
+                .unwrap_or_default()
+        );
+    }
+    let mut known: Vec<String> = corpus::compiled::corpus().rule_ids();
+    if let Ok(packs) = corpus::loader::load_all_packs() {
+        known.extend(
+            packs
+                .iter()
+                .flat_map(|p| p.provenance_rules.iter().map(|r| r.id.clone())),
+        );
+    }
+    let mut checked = policy.clone();
+    checked.check_rule_references(&known);
+    for w in &checked.warnings {
+        eprintln!("policy: note: {w}");
+    }
+}
 
-    // Parse severity filter
-    let min_severity: Option<&str> = if severity == "low" {
-        None // "low" is the default minimum, meaning show everything
-    } else {
-        Some(severity)
-    };
+/// Transitive references (`--follow-refs`): fetch what the tree tells someone
+/// to download or run into quarantine and scan it (never executed), then
+/// rescore. Blocking HTTP, so off the async worker like the feeds.
+fn apply_follow_refs(result: &mut scanner::ScanResult, path: &Path, format: &str, verbose: bool) {
+    let work_dir = transitive::default_work_dir();
+    let policy = transitive::Policy::default();
+    let outcome =
+        tokio::task::block_in_place(|| transitive::follow_references(path, &work_dir, &policy));
+    print_progress(
+        format,
+        format!(
+            "{} followed {} reference(s), {} unreachable, {} over the limit (quarantined under {})",
+            "sigil:".bold().cyan(),
+            outcome.fetched.len(),
+            outcome.failed.len(),
+            outcome.skipped,
+            work_dir.display()
+        ),
+    );
+    if verbose {
+        for (url, reason) in &outcome.failed {
+            eprintln!("  not scanned: {url} ({reason})");
+        }
+    }
+    if !outcome.findings.is_empty() {
+        result.findings.extend(outcome.findings);
+        scanner::assign_fingerprints(&mut result.findings);
+        result.score = scanner::scoring::calculate_score(&result.findings);
+        result.verdict = scanner::scoring::determine_verdict_with_size(
+            &result.findings,
+            result.score,
+            result.files_scanned,
+        );
+    }
+}
 
-    let mut result = scanner::run_scan(path, phase_filter.as_deref(), min_severity);
+/// Run every phase and feed over `path`: the scan both `sigil scan` and
+/// `sigil baseline` record, so a baseline matches exactly what a later scan
+/// produces.
+fn fresh_scan(path: &Path, phase_filter: Option<&[String]>, verbose: bool) -> scanner::ScanResult {
+    let mut result = scanner::run_scan(path, phase_filter, None);
 
     // OSV advisory feed (US-E1): append CVE/MAL- findings from lockfiles.
     // Runs whenever a full-phase scan is requested (phases == "all").
     // Network failures are handled inside scan_for_osv_findings — never fatal.
-    if phases == "all" {
+    if phase_filter.is_none() {
         // The three feeds make network round-trips (OSV detail fetches, npm/PyPI
         // registry lookups). --verbose reports each feed's wall-clock so a slow
         // scan can be attributed to a specific feed rather than guessed at.
+        // The feeds use reqwest::blocking, which spins up its own tokio
+        // runtime; calling that directly inside this async fn panics with
+        // "Cannot drop a runtime in a context where blocking is not allowed"
+        // as soon as a lockfile triggers an HTTP call. block_in_place moves
+        // the call off the async worker so the nested runtime is legal.
         let t = std::time::Instant::now();
-        let osv_findings = feeds::osv::scan_for_osv_findings(path);
+        let osv_findings = tokio::task::block_in_place(|| feeds::osv::scan_for_osv_findings(path));
         if verbose {
             eprintln!(
                 "feed osv: {:?} ({} findings)",
@@ -1008,7 +2426,9 @@ async fn cmd_scan(
         // KEV/EPSS overlay (US-E2): enrich CVE findings with exploitation metadata.
         // Best-effort — network/parse failures leave findings unchanged.
         let t = std::time::Instant::now();
-        feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None);
+        tokio::task::block_in_place(|| {
+            feeds::enrichment::enrich_findings_with_kev_epss(&mut result.findings, None, None)
+        });
         if verbose {
             eprintln!("feed kev_epss: {:?}", t.elapsed());
         }
@@ -1018,8 +2438,9 @@ async fn cmd_scan(
         // ADR-0007: absence of provenance is never a finding. Network failures are
         // handled gracefully — never fatal.
         let t = std::time::Instant::now();
-        let prov_findings =
-            provenance::scan_for_provenance_drift(path, &provenance::ScanOptions::default());
+        let prov_findings = tokio::task::block_in_place(|| {
+            provenance::scan_for_provenance_drift(path, &provenance::ScanOptions::default())
+        });
         if verbose {
             eprintln!(
                 "feed provenance: {:?} ({} findings)",
@@ -1042,34 +2463,195 @@ async fn cmd_scan(
         // Recompute score and verdict with the enriched finding set.
         if !result.findings.is_empty() {
             result.score = scanner::scoring::calculate_score(&result.findings);
-            result.verdict = scanner::scoring::determine_verdict(&result.findings, result.score);
+            result.verdict = scanner::scoring::determine_verdict_with_size(
+                &result.findings,
+                result.score,
+                result.files_scanned,
+            );
         }
     }
+    result
+}
 
-    // Trust-ledger allowlisting (F-010 US-H2): content that digest-matches an
-    // approved pin has its findings suppressed — moved out of score, verdict,
-    // and exit code, but kept visible in the output. Runs after every phase
-    // and feed so a RUGPULL-001 drift signal can veto suppression.
-    let suppressed = ledger::apply_suppression(&mut result, path, ignore_ledger);
-    if verbose && suppressed {
+#[allow(clippy::too_many_arguments)]
+async fn cmd_scan(
+    path: &Path,
+    phases: &str,
+    severity: &str,
+    submit: bool,
+    no_cache: bool,
+    enrich: bool,
+    enhanced: bool,
+    policy_args: ScanPolicyArgs,
+    ignore_ledger: bool,
+    follow_refs: bool,
+    format: &str,
+    verbose: bool,
+) -> i32 {
+    // Exit-code contract (ADR-0010): 2 = scan error.
+    if !path.exists() {
         eprintln!(
-            "ledger: {} finding(s) suppressed ({})",
-            result.suppressed_findings.len(),
-            result.suppressed_by.as_deref().unwrap_or("")
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
+        );
+        return 2;
+    }
+
+    // Scan policy: organisation file, .sigil.yml, then flags. Resolved before
+    // anything touches the corpus, because it can add rule packs (and the
+    // cache key includes the corpus digest). `--severity` is the policy's
+    // min_severity on the command line; `low` is the default and means "all".
+    let min_severity = (severity != "low").then(|| severity.to_string());
+    let policy = match load_policy(path, &policy_args, min_severity, verbose) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+    let baselines = match policy.load_baselines() {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+
+    print_progress(
+        format,
+        format!(
+            "{} scanning {}...",
+            "sigil:".bold().cyan(),
+            path.display().to_string().bold()
+        ),
+    );
+
+    // --- Cache: only for a full scan. The policy is applied after the cache,
+    // so a cached result is always the unfiltered one and a policy change
+    // never serves a stale verdict.
+    // Referenced remote content can change between runs, so a result that
+    // includes it is never served from or written to the cache.
+    let use_cache = !no_cache && phases == "all" && !follow_refs;
+    let cached = if use_cache {
+        let hit = cache::load_cached(path);
+        if hit.is_none() && verbose {
+            eprintln!("no cache entry found, scanning fresh");
+        }
+        hit
+    } else {
+        None
+    };
+    let from_cache = cached.is_some();
+
+    let mut result = match cached {
+        Some(mut cached) => {
+            print_progress(
+                format,
+                format!("{} using cached result", "sigil:".bold().green()),
+            );
+            // Re-evaluate ledger suppression against the CURRENT ledger: a pin
+            // approved or revoked since the cache was written must take effect.
+            ledger::apply_suppression(&mut cached, path, ignore_ledger);
+            cached
+        }
+        None => {
+            // Parse phase filter
+            let phase_filter: Option<Vec<String>> = if phases == "all" {
+                None
+            } else {
+                Some(phases.split(',').map(|s| s.trim().to_string()).collect())
+            };
+            let mut result = fresh_scan(path, phase_filter.as_deref(), verbose);
+            if follow_refs {
+                apply_follow_refs(&mut result, path, format, verbose);
+            }
+
+            // Trust-ledger allowlisting (F-010 US-H2): content that digest-matches an
+            // approved pin has its findings suppressed — moved out of score, verdict,
+            // and exit code, but kept visible in the output. Runs after every phase
+            // and feed so a RUGPULL-001 drift signal can veto suppression.
+            let suppressed = ledger::apply_suppression(&mut result, path, ignore_ledger);
+            if verbose && suppressed {
+                eprintln!(
+                    "ledger: {} finding(s) suppressed ({})",
+                    result.suppressed_findings.len(),
+                    result.suppressed_by.as_deref().unwrap_or("")
+                );
+            }
+
+            // Save to cache
+            if use_cache {
+                if let Err(err) = cache::save_to_cache(path, &result) {
+                    if verbose {
+                        eprintln!("cache save failed: {}", err);
+                    }
+                } else if verbose {
+                    eprintln!("result cached successfully");
+                }
+            }
+            result
+        }
+    };
+
+    // Files that address a reviewer, noted before the policy can move their
+    // findings out of the result: the LLM stage never acts on a dismissal
+    // in one of them.
+    let reviewer_files = if policy.llm.review == Some(true) {
+        llm_review::reviewer_files(&result)
+    } else {
+        Default::default()
+    };
+    // Policy: severity overrides, min_severity, disabled rules, ignored
+    // paths, trusted domains, baselines. Suppressed findings stay in the
+    // report, attributed; they leave score, verdict and exit code.
+    let outcome = policy.apply(&mut result, &baselines);
+    if verbose && !outcome.suppressed.is_empty() {
+        eprintln!(
+            "policy: {} finding(s) suppressed ({} by baseline)",
+            outcome.suppressed.len(),
+            outcome.count(project_config::SuppressionKind::Baseline)
         );
     }
-
-    print_scan_output(&result, path, format);
-
-    // Save to cache
-    if use_cache {
-        if let Err(err) = cache::save_to_cache(path, &result) {
-            if verbose {
-                eprintln!("cache save failed: {}", err);
-            }
-        } else if verbose {
-            eprintln!("result cached successfully");
+    // --- Optional LLM review (off unless --llm-review or a policy asks) ----
+    // Runs on the policy-applied result so suppressed findings are never
+    // sent, and after the cache so its advisory output is never cached.
+    let env = |k: &str| std::env::var(k).ok();
+    let llm = match llm_review::resolve(&policy.llm, &env) {
+        llm_review::Resolution::Off => None,
+        llm_review::Resolution::Misconfigured(r) => {
+            eprintln!("{} {}", "warning:".bold().yellow(), r.summary_line());
+            Some(*r)
         }
+        llm_review::Resolution::Ready(settings) => {
+            print_progress(
+                format,
+                format!(
+                    "{} LLM review: sending findings to {} ({})...",
+                    "sigil:".bold().cyan(),
+                    llm_review::provider::display_url(&settings.url),
+                    settings.model
+                ),
+            );
+            let r = llm_review::run_with(&mut result, path, &settings, &reviewer_files).await;
+            if r.status != "complete" {
+                eprintln!("{} {}", "warning:".bold().yellow(), r.summary_line());
+            }
+            Some(r)
+        }
+    };
+
+    let view = report::PolicyView {
+        policy: &policy,
+        outcome: &outcome,
+        llm: llm.as_ref(),
+    };
+    if let Err(e) = report::emit(&result, &path.to_string_lossy(), format, Some(view)) {
+        eprintln!("{} {e}", "error:".bold().red());
+        return EXIT_ERROR;
+    }
+    if from_cache {
+        return scan_exit_code(&policy, &result);
     }
 
     // --- Cloud threat enrichment -------------------------------------------
@@ -1118,7 +2700,9 @@ async fn cmd_scan(
                 "{} Enhanced scanning requires authentication. Run: sigil login",
                 "error:".bold().red()
             );
-            return 1;
+            // ADR-0010: the requested analysis did not run — an error (2),
+            // not a finding (1), so CI never reads it as "code is risky".
+            return EXIT_ERROR;
         }
 
         if verbose {
@@ -1184,7 +2768,543 @@ async fn cmd_scan(
         }
     }
 
-    exit_for(&result.findings)
+    scan_exit_code(&policy, &result)
+}
+
+/// Exit code for `sigil scan` under ADR-0010: 1 when an active finding is at
+/// or above `fail_on`, the verdict is at or above `fail_on_verdict`, or
+/// `fail_on_incomplete` is set and part of the target was not fully inspected.
+fn scan_exit_code(policy: &project_config::EffectivePolicy, result: &scanner::ScanResult) -> i32 {
+    match exit_code_for(&result.findings, policy.fail_on) {
+        EXIT_CLEAN if policy.fails_on_verdict(result) => EXIT_FINDINGS,
+        EXIT_CLEAN if policy.fails_on_incomplete(result) => EXIT_FINDINGS,
+        code => code,
+    }
+}
+
+/// Checks and setup that must happen before a command runs.
+///
+/// Commands that render a scan report refuse an unknown `--format` up front.
+/// Commands that build the detection corpus without discovering a project
+/// policy of their own — the acquisitions, `diff`, `corpus` — load the
+/// organisation policy, `--config` and `--rules` here, so custom packs are
+/// registered before the corpus is compiled. An acquisition never reads a
+/// policy from the content it quarantines, and only a policy's `rule_packs`
+/// affect it: suppression keys never weaken the quarantine gate.
+///
+/// Returns an exit code when the command must not run.
+fn prepare_command(cli: &Cli) -> Option<i32> {
+    // The global `-o/--output` is honoured by the report-writing commands
+    // (and `sbom`/`policy generate` keep their own `-o`). Anywhere else it
+    // would be silently ignored and a CI step would go on to read a file
+    // that was never written, so it is refused.
+    let honours_output = matches!(
+        &cli.command,
+        Commands::Scan { .. }
+            | Commands::Clone { .. }
+            | Commands::Pip { .. }
+            | Commands::Npm { .. }
+            | Commands::Baseline { .. }
+            | Commands::Skills { .. }
+            | Commands::Sbom { .. }
+            | Commands::Policy {
+                action: PolicyAction::Generate { .. }
+            }
+            | Commands::Rules {
+                action: rules_cmd::RulesAction::List { .. }
+                    | rules_cmd::RulesAction::Show { .. }
+                    | rules_cmd::RulesAction::Sign { .. }
+            }
+    );
+    if cli.output.is_some() && !honours_output {
+        eprintln!(
+            "{} --output is not supported by this command; redirect its stdout instead",
+            "error:".bold().red()
+        );
+        return Some(EXIT_ERROR);
+    }
+    let scan_like = match &cli.command {
+        Commands::Scan { path, .. } => Some(looks_like_git_url(&path.to_string_lossy())),
+        // `sigil skills` scans installed tooling: the organisation's packs and
+        // --rules apply, but no project file is discovered from the cwd.
+        Commands::Clone { .. }
+        | Commands::Pip { .. }
+        | Commands::Npm { .. }
+        | Commands::Skills { .. } => Some(true),
+        Commands::Diff { .. } | Commands::Corpus => Some(false),
+        _ => None,
+    };
+    if matches!(
+        cli.command,
+        Commands::Scan { .. }
+            | Commands::Clone { .. }
+            | Commands::Pip { .. }
+            | Commands::Npm { .. }
+    ) {
+        if let Err(e) = report::validate_format(&cli.format) {
+            eprintln!("{} {e}", "error:".bold().red());
+            return Some(EXIT_ERROR);
+        }
+    }
+    let acquisition = scan_like?;
+    if matches!(cli.command, Commands::Scan { .. }) && !acquisition {
+        // A local scan resolves its policy itself, with discovery.
+        return None;
+    }
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let args = ScanPolicyArgs {
+        no_project_config: true,
+        config: cli.config.clone(),
+        rules: cli.rules.clone(),
+        yara_engine: cli.yara_engine.clone(),
+        ..Default::default()
+    };
+    match load_policy(&cwd, &args, None, cli.verbose) {
+        Ok(_) => None,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            Some(EXIT_ERROR)
+        }
+    }
+}
+
+/// `sigil baseline <path>`: record the findings a scan would fail on today.
+async fn cmd_baseline(
+    path: &Path,
+    reason: Option<String>,
+    policy_args: ScanPolicyArgs,
+    format: &str,
+    verbose: bool,
+) -> i32 {
+    if !path.exists() {
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            path.display()
+        );
+        return EXIT_ERROR;
+    }
+    let mut policy = match load_policy(path, &policy_args, None, verbose) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+    let dest = report::output_path()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| {
+            let dir = if path.is_dir() {
+                path
+            } else {
+                path.parent().unwrap_or(Path::new("."))
+            };
+            dir.join(baseline::DEFAULT_BASELINE_FILE)
+        });
+    // The file being written is configuration, not a finding: regenerating a
+    // baseline must not record the previous one.
+    policy.add_config_file(&dest);
+    eprintln!(
+        "{} scanning {} to record a baseline...",
+        "sigil:".bold().cyan(),
+        path.display().to_string().bold()
+    );
+    let mut result = fresh_scan(path, None, verbose);
+    ledger::apply_suppression(&mut result, path, false);
+    // Record what the gate would see: the policy's suppressions apply, its
+    // existing baselines do not — a new baseline replaces them.
+    let outcome = policy.apply(&mut result, &[]);
+    let file = baseline::BaselineFile::from_result(&result, &path.display().to_string(), reason);
+    let yaml = matches!(
+        dest.extension().and_then(|e| e.to_str()),
+        Some("yaml") | Some("yml")
+    );
+    let text = if yaml {
+        serde_yaml::to_string(&file).map_err(|e| e.to_string())
+    } else {
+        serde_json::to_string_pretty(&file)
+            .map(|s| s + "\n")
+            .map_err(|e| e.to_string())
+    };
+    let written = text.and_then(|t| std::fs::write(&dest, t).map_err(|e| e.to_string()));
+    if let Err(e) = written {
+        eprintln!(
+            "{} cannot write baseline {}: {e}",
+            "error:".bold().red(),
+            dest.display()
+        );
+        return EXIT_ERROR;
+    }
+
+    if format == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "baseline": dest.display().to_string(),
+                "findings": file.findings.len(),
+                "policy_suppressed": outcome.suppressed.len(),
+                "verdict_before_baseline": result.verdict.to_string(),
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        println!(
+            "{} baseline written to {} — {} finding(s) accepted{}",
+            "sigil:".bold().green(),
+            dest.display(),
+            file.findings.len(),
+            if outcome.suppressed.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    " ({} more already suppressed by policy)",
+                    outcome.suppressed.len()
+                )
+            }
+        );
+        println!(
+            "  Fail only on new findings: sigil scan {} --baseline {}",
+            path.display(),
+            dest.display()
+        );
+        println!(
+            "  or add `baseline: {}` to .sigil.yml. Review the file before committing it.",
+            dest.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default()
+        );
+    }
+    EXIT_CLEAN
+}
+
+/// `sigil config --validate FILE`: check a scan policy without scanning.
+fn cmd_config_validate(file: &Path, org: bool, format: &str) -> i32 {
+    if !file.is_file() {
+        eprintln!("{} {}: no such file", "error:".bold().red(), file.display());
+        return EXIT_ERROR;
+    }
+    let origin = if org {
+        project_config::Origin::Org
+    } else {
+        project_config::Origin::Project
+    };
+    let mut errors: Vec<String> = Vec::new();
+    let mut notes: Vec<String> = Vec::new();
+    match project_config::load_policy_file(file, origin) {
+        Ok(doc) => {
+            notes.extend(project_config::lock_gaps(&doc));
+            if let Some(mode) = doc.yara_engine {
+                corpus::yara::external::configure(
+                    mode,
+                    format!("yara_engine in {}", file.display()),
+                );
+            }
+            for p in &doc.rule_packs {
+                match corpus::custom::load_path(p) {
+                    Ok(packs) => {
+                        notes.push(format!(
+                            "rule_packs: {} loads ({} pack(s))",
+                            p.display(),
+                            packs.len()
+                        ));
+                        // A scan would warn and ignore these; validation
+                        // rejects them, as `sigil rules validate` does.
+                        for c in &packs {
+                            errors.extend(c.ignored.iter().map(|e| {
+                                format!(
+                                    "rule_packs: {}: {e} (a scan ignores this with a warning)",
+                                    c.path.display()
+                                )
+                            }));
+                        }
+                    }
+                    Err(e) => errors.push(format!("rule_packs: {e}")),
+                }
+            }
+            if let Some(b) = &doc.baseline {
+                match baseline::Baseline::load(b) {
+                    Ok(bl) => notes.push(format!(
+                        "baseline: {} loads ({} entr{}, {} glob rule(s))",
+                        b.display(),
+                        bl.entry_count(),
+                        if bl.entry_count() == 1 { "y" } else { "ies" },
+                        bl.rule_count()
+                    )),
+                    Err(e) => errors.push(format!("baseline: {e}")),
+                }
+            }
+        }
+        Err(e) => errors.extend(e.lines().map(str::to_string)),
+    }
+    let ok = errors.is_empty();
+    if format == "json" {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "file": file.display().to_string(),
+                "valid": ok,
+                "errors": errors,
+                "notes": notes,
+            }))
+            .unwrap_or_default()
+        );
+    } else {
+        for n in &notes {
+            println!("  {} {n}", "·".dimmed());
+        }
+        for e in &errors {
+            println!("  {} {e}", "✗".red());
+        }
+        if ok {
+            println!(
+                "  {} {} is a valid {} policy",
+                "sigil:".bold().green(),
+                file.display(),
+                if org { "organisation" } else { "project" }
+            );
+        }
+    }
+    if ok {
+        EXIT_CLEAN
+    } else {
+        EXIT_FINDINGS
+    }
+}
+
+/// `sigil config --policy`: the effective scan policy for the current
+/// directory, with every source and every refused loosening.
+fn cmd_config_policy(args: &ScanPolicyArgs, format: &str, verbose: bool) -> i32 {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut policy = match load_policy(&cwd, args, None, verbose) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("{} {e}", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+    };
+    let mut known = corpus::compiled::corpus().rule_ids();
+    if let Ok(packs) = corpus::loader::load_all_packs() {
+        known.extend(
+            packs
+                .iter()
+                .flat_map(|p| p.provenance_rules.iter().map(|r| r.id.clone())),
+        );
+    }
+    policy.check_rule_references(&known);
+    let outcome = project_config::PolicyOutcome::default();
+    if format == "json" {
+        let mut doc = policy.to_json(&outcome);
+        if let Some(obj) = doc.as_object_mut() {
+            for k in [
+                "notes",
+                "suppressed",
+                "hidden_below_min_severity",
+                "severity_overridden",
+            ] {
+                obj.remove(k);
+            }
+            obj.insert(
+                "disable_rules".into(),
+                serde_json::json!(policy
+                    .disable_rules
+                    .iter()
+                    .map(|d| serde_json::json!({"rule": d.value, "source": d.source}))
+                    .collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "severity_overrides".into(),
+                serde_json::json!(policy.severity_overrides.iter().map(|o| serde_json::json!({"rule": o.pattern, "severity": o.severity.to_string(), "raise_only": o.raise_only, "source": o.source})).collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "ignore_paths".into(),
+                serde_json::json!(policy
+                    .ignore_paths
+                    .iter()
+                    .map(|d| serde_json::json!({"glob": d.value, "source": d.source}))
+                    .collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "trusted_domains".into(),
+                serde_json::json!(policy
+                    .trusted_domains
+                    .iter()
+                    .map(|d| serde_json::json!({"domain": d.value, "source": d.source}))
+                    .collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "baselines".into(),
+                serde_json::json!(policy.baselines.iter().map(|d| serde_json::json!({"path": d.value.display().to_string(), "source": d.source})).collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "rule_packs".into(),
+                serde_json::json!(policy.rule_packs.iter().map(|d| serde_json::json!({"path": d.value.display().to_string(), "source": d.source})).collect::<Vec<_>>()),
+            );
+            obj.insert(
+                "yara_engine".into(),
+                match &policy.yara_engine {
+                    Some(s) => serde_json::json!({"engine": s.value.name(), "source": s.source}),
+                    None => serde_json::json!({"engine": "auto", "source": "default"}),
+                },
+            );
+        }
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+        return EXIT_CLEAN;
+    }
+
+    println!();
+    println!("  {} effective scan policy", "sigil".bold().cyan());
+    if policy.sources.is_empty() {
+        println!("  no policy file applies here (built-in defaults)");
+    }
+    for s in &policy.sources {
+        println!(
+            "  {} {} policy {}{}",
+            "source:".dimmed(),
+            match s.origin {
+                project_config::Origin::Org => "organisation",
+                project_config::Origin::Project => "project",
+            },
+            s.path,
+            s.restricted
+                .as_ref()
+                .map(|w| format!(" (tighten-only: {w})"))
+                .unwrap_or_default()
+        );
+    }
+    let show = |k: &str, v: String| println!("  {:<19} {v}", format!("{k}:").dimmed());
+    show("fail_on", policy.fail_on.to_string());
+    show(
+        "fail_on_verdict",
+        policy
+            .fail_on_verdict
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "(not set)".to_string()),
+    );
+    show("fail_on_incomplete", policy.fail_on_incomplete.to_string());
+    show(
+        "min_severity",
+        policy
+            .min_severity
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "LOW (show everything)".to_string()),
+    );
+    let list = |items: Vec<String>| {
+        if items.is_empty() {
+            "(none)".to_string()
+        } else {
+            items.join(", ")
+        }
+    };
+    show(
+        "disable_rules",
+        list(
+            policy
+                .disable_rules
+                .iter()
+                .map(|d| d.value.clone())
+                .collect(),
+        ),
+    );
+    show(
+        "severity_overrides",
+        list(
+            policy
+                .severity_overrides
+                .iter()
+                .map(|o| {
+                    format!(
+                        "{}={}{}",
+                        o.pattern,
+                        o.severity,
+                        if o.raise_only { " (raise only)" } else { "" }
+                    )
+                })
+                .collect(),
+        ),
+    );
+    show(
+        "ignore_paths",
+        list(
+            policy
+                .ignore_paths
+                .iter()
+                .map(|d| d.value.clone())
+                .collect(),
+        ),
+    );
+    show(
+        "trusted_domains",
+        list(
+            policy
+                .trusted_domains
+                .iter()
+                .map(|d| d.value.clone())
+                .collect(),
+        ),
+    );
+    show(
+        "baseline",
+        list(
+            policy
+                .baselines
+                .iter()
+                .map(|d| d.value.display().to_string())
+                .collect(),
+        ),
+    );
+    show(
+        "rule_packs",
+        list(
+            policy
+                .rule_packs
+                .iter()
+                .map(|d| d.value.display().to_string())
+                .collect(),
+        ),
+    );
+    show(
+        "yara_engine",
+        match &policy.yara_engine {
+            Some(s) => format!("{} ({})", s.value.name(), s.source),
+            None => "auto (default)".to_string(),
+        },
+    );
+    show("locked", list(policy.locked.clone()));
+    let l = &policy.llm;
+    show(
+        "llm_review",
+        if l.review == Some(true) {
+            format!(
+                "on ({}; provider {}, model {}, max {} calls / {} tokens)",
+                if l.may_downgrade == Some(true) {
+                    "llm_may_downgrade: true"
+                } else {
+                    "advisory"
+                },
+                l.provider
+                    .map(|p| p.label().to_string())
+                    .unwrap_or_else(|| "from the environment".to_string()),
+                l.model
+                    .clone()
+                    .unwrap_or_else(|| "provider default".to_string()),
+                l.max_calls.unwrap_or(llm_review::DEFAULT_MAX_CALLS),
+                l.max_tokens.unwrap_or(llm_review::DEFAULT_MAX_TOKENS),
+            )
+        } else {
+            "off (no code leaves the machine)".to_string()
+        },
+    );
+    if let Some(e) = &l.endpoint {
+        show("llm_endpoint", llm_review::provider::display_url(e));
+    }
+    for r in &policy.refused {
+        println!("  {} {r}", "refused:".yellow());
+    }
+    for w in &policy.warnings {
+        println!("  {} {w}", "note:".dimmed());
+    }
+    println!();
+    EXIT_CLEAN
 }
 
 // ---------------------------------------------------------------------------
@@ -1325,7 +3445,24 @@ fn collect_file_contents(
     file_contents
 }
 
+/// Exit code for `sigil diff`: 1 when the scan introduced new findings.
+fn diff_exit_code(diff: &diff::ScanDiff) -> i32 {
+    if diff.new_findings.is_empty() {
+        EXIT_CLEAN
+    } else {
+        EXIT_FINDINGS
+    }
+}
+
 async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: bool) -> i32 {
+    if !scan_path.exists() {
+        eprintln!(
+            "{} path does not exist: {}",
+            "error:".bold().red(),
+            scan_path.display()
+        );
+        return EXIT_ERROR;
+    }
     // Load baseline
     let baseline_data = match std::fs::read_to_string(baseline_path) {
         Ok(data) => data,
@@ -1336,11 +3473,11 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
                 baseline_path,
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
-    let baseline_result: scanner::ScanResult = match serde_json::from_str(&baseline_data) {
+    let baseline_result: scanner::ScanResult = match diff::parse_baseline(&baseline_data) {
         Ok(result) => result,
         Err(err) => {
             eprintln!(
@@ -1348,7 +3485,7 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
                 "error:".bold().red(),
                 err
             );
-            return 1;
+            return EXIT_ERROR;
         }
     };
 
@@ -1411,12 +3548,10 @@ async fn cmd_diff(baseline_path: &str, scan_path: &Path, format: &str, verbose: 
         }
     }
 
-    // Exit with non-zero if new findings were introduced
-    if !diff_result.new_findings.is_empty() {
-        2
-    } else {
-        0
-    }
+    // ADR-0010: new findings are a gate failure (1), not an error (2). This
+    // returned 2 before, which a CI job that retries on "infrastructure
+    // errors" would have treated as a flaky run rather than a regression.
+    diff_exit_code(&diff_result)
 }
 
 async fn cmd_clear_cache() -> i32 {
@@ -1481,6 +3616,7 @@ async fn cmd_approve(id: &str, reason: Option<&str>, verbose: bool) -> i32 {
         entry.id,
         entry.source
     );
+    println!("  code lives at {}", entry.path.display());
     println!(
         "  pinned {} files (digest {})",
         rec.pin.file_count,
@@ -2279,6 +4415,21 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
 }
 
 #[cfg(test)]
+mod scan_target_tests {
+    use super::looks_like_git_url;
+
+    #[test]
+    fn urls_route_to_clone_and_paths_do_not() {
+        assert!(looks_like_git_url("https://github.com/x/y"));
+        assert!(looks_like_git_url("git@github.com:x/y.git"));
+        assert!(looks_like_git_url("ssh://git@host/x.git"));
+        assert!(!looks_like_git_url("./vendor"));
+        assert!(!looks_like_git_url("/tmp/https"));
+        assert!(!looks_like_git_url("http-client/"));
+    }
+}
+
+#[cfg(test)]
 mod exit_code_tests {
     use super::{approve_with_ledger, exit_code_for};
     use std::fs;
@@ -2311,6 +4462,9 @@ mod exit_code_tests {
             weight: 1,
             kev: false,
             epss: 0.0,
+            fingerprint: String::new(),
+            locator: None,
+            evidence: Default::default(),
         }
     }
 
@@ -2341,6 +4495,182 @@ mod exit_code_tests {
     fn critical_threshold_ignores_high() {
         let f = vec![finding(Severity::High)];
         assert_eq!(exit_code_for(&f, Severity::Critical), 0);
+    }
+
+    /// The acquisition commands (`clone`/`pip`/`npm`) must never return 2 for
+    /// a risky verdict. ADR-0010 reserves 2 for "the scan did not produce a
+    /// usable verdict"; a CI job that treats 2 as an infrastructure failure
+    /// and retries would otherwise silently pass a malicious package.
+    #[test]
+    fn acquisition_never_returns_error_code_for_a_bad_verdict() {
+        use super::acquisition_exit_code;
+        use crate::scanner::Verdict;
+        for verdict in [
+            Verdict::LowRisk,
+            Verdict::MediumRisk,
+            Verdict::HighRisk,
+            Verdict::CriticalRisk,
+        ] {
+            assert_ne!(
+                acquisition_exit_code(verdict),
+                super::EXIT_ERROR,
+                "{verdict:?} must not collide with the scan-error exit code"
+            );
+        }
+    }
+
+    #[test]
+    fn extraction_caps_admit_normal_packages() {
+        let mut r = super::ExtractionReport::default();
+        // A realistic package: a few hundred files, a few MiB.
+        for _ in 0..500 {
+            assert!(admit(&mut r, 8 * 1024));
+        }
+        assert!(r.capped.is_none());
+        assert_eq!(r.entries, 500);
+    }
+
+    #[test]
+    fn extraction_caps_stop_a_size_bomb() {
+        let mut r = super::ExtractionReport::default();
+        // Each entry claims 512 MiB; the 2 GiB cap must stop it.
+        let half_gig = 512 * 1024 * 1024;
+        let mut admitted = 0;
+        for _ in 0..100 {
+            if admit(&mut r, half_gig) {
+                admitted += 1;
+            } else {
+                break;
+            }
+        }
+        assert!(r.capped.is_some(), "size cap did not fire");
+        assert!(
+            admitted <= 4,
+            "admitted {admitted} x 512 MiB past a 2 GiB cap"
+        );
+        assert!(r.capped.as_ref().unwrap().contains("MiB"));
+    }
+
+    #[test]
+    fn extraction_caps_stop_an_entry_bomb() {
+        let mut r = super::ExtractionReport::default();
+        // Zero-byte entries never trip the size cap, so only the entry cap
+        // can stop inode exhaustion.
+        for _ in 0..(super::MAX_EXTRACTED_ENTRIES + 10) {
+            if !admit(&mut r, 0) {
+                break;
+            }
+        }
+        assert!(r.capped.is_some(), "entry cap did not fire");
+        assert!(r.capped.as_ref().unwrap().contains("entries"));
+        assert_eq!(r.entries, super::MAX_EXTRACTED_ENTRIES);
+    }
+
+    #[test]
+    fn a_cap_hit_becomes_a_finding_and_moves_the_verdict() {
+        let mut result = crate::scanner::ScanResult {
+            findings: vec![],
+            score: 0,
+            verdict: crate::scanner::Verdict::LowRisk,
+            files_scanned: 1,
+            duration_ms: 0,
+            suppressed_findings: vec![],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
+            suppressed_by: None,
+            scanner: None,
+            platform: String::new(),
+        };
+        let report = super::ExtractionReport {
+            bytes: u64::MAX,
+            entries: 1,
+            capped: Some("expanded past 2048 MiB".to_string()),
+        };
+        super::apply_extraction_report(&mut result, &report, "evil@1.0.0");
+
+        assert_eq!(result.findings.len(), 1);
+        assert_eq!(result.findings[0].rule, "ARCHIVE-BOMB-001");
+        assert!(result.score > 0, "a decompression bomb must not score zero");
+    }
+
+    #[test]
+    fn no_cap_hit_leaves_the_result_untouched() {
+        let mut result = crate::scanner::ScanResult {
+            findings: vec![],
+            score: 0,
+            verdict: crate::scanner::Verdict::LowRisk,
+            files_scanned: 1,
+            duration_ms: 0,
+            suppressed_findings: vec![],
+            inline_suppressed: Vec::new(),
+            inline_suppressions: Vec::new(),
+            suppressed_by: None,
+            scanner: None,
+            platform: String::new(),
+        };
+        super::apply_extraction_report(
+            &mut result,
+            &super::ExtractionReport::default(),
+            "fine@1.0.0",
+        );
+        assert!(result.findings.is_empty());
+        assert_eq!(result.score, 0);
+    }
+
+    /// End-to-end: a real zip whose headers claim more than the cap must not
+    /// write past it.
+    #[test]
+    fn zip_extraction_is_bounded_on_disk() {
+        let dir = tempdir().expect("tempdir");
+        let archive_path = dir.path().join("bomb.zip");
+        {
+            let f = fs::File::create(&archive_path).expect("create zip");
+            let mut w = zip::ZipWriter::new(f);
+            let opts = zip::write::FileOptions::default()
+                .compression_method(zip::CompressionMethod::Deflated);
+            // Highly compressible: 8 MiB of zeros per entry, 40 entries.
+            let payload = vec![0u8; 8 * 1024 * 1024];
+            for i in 0..40 {
+                w.start_file(format!("f{i}.bin"), opts).expect("start");
+                std::io::Write::write_all(&mut w, &payload).expect("write");
+            }
+            w.finish().expect("finish");
+        }
+
+        let report = super::extract_archives(dir.path()).expect("extract");
+        // 40 x 8 MiB = 320 MiB, under the 2 GiB cap, so this should complete.
+        assert!(
+            report.capped.is_none(),
+            "320 MiB should be under the cap, got {:?}",
+            report.capped
+        );
+        assert_eq!(report.entries, 40);
+
+        // Everything that was admitted is accounted for in the byte total.
+        assert_eq!(report.bytes, 40 * 8 * 1024 * 1024);
+    }
+
+    fn admit(r: &mut super::ExtractionReport, n: u64) -> bool {
+        super::admit_entry(r, n)
+    }
+
+    #[test]
+    fn acquisition_exit_code_contract() {
+        use super::acquisition_exit_code;
+        use crate::scanner::Verdict;
+        assert_eq!(acquisition_exit_code(Verdict::LowRisk), super::EXIT_CLEAN);
+        assert_eq!(
+            acquisition_exit_code(Verdict::MediumRisk),
+            super::EXIT_FINDINGS
+        );
+        assert_eq!(
+            acquisition_exit_code(Verdict::HighRisk),
+            super::EXIT_FINDINGS
+        );
+        assert_eq!(
+            acquisition_exit_code(Verdict::CriticalRisk),
+            super::EXIT_FINDINGS
+        );
     }
 
     #[test]

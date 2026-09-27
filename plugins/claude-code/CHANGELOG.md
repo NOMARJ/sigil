@@ -5,6 +5,64 @@ All notable changes to the Sigil Security plugin for Claude Code will be documen
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- The PreToolUse gate now also runs on Write, Edit and MultiEdit (matcher `Bash|Write|Edit|MultiEdit`). The native `sigil hook pretooluse` denies edits that plant a download-to-shell or an exfiltrating command in agent tooling (hooks, MCP configs, skills), and asks before hook or MCP-config edits.
+- The shell fallback (`hooks/sigil-guard.sh`, used when the binary is not on PATH) now denies remote runners (`npx`, `bunx`, `uvx`, `pipx run`, `pnpm dlx`, `yarn dlx`) instead of asking, matching the native hook.
+- The shell fallback now also has the native hook's remote-execution denies, with the same reasons:
+  - a download piped through `tee`, into `bash -s …`, into `sudo -u <user> bash`, into python/node/perl/ruby/php/deno/bun or PowerShell `iex`, or substituted into one (`bash <(curl …)`, `sh -c "$(curl …)"`). This is never gated, and a `sigil` call elsewhere in the command no longer exempts it;
+  - a file downloaded and run in one command (`curl -o i.sh URL && bash i.sh`, `wget …/x.sh; sh x.sh`, `curl … > i.sh && ./i.sh`), allowed when `sigil scan i.sh &&` comes between the download and the run;
+  - a download saved into agent tooling (`curl … > ~/.claude/skills/x/SKILL.md`, `-o .mcp.json`, `wget -P ~/.codex/skills`, `.cursor/rules`, `.gemini/…` and the other paths the native hook lists), never gated;
+  - `pipx install <pkg>` and `uv tool install <pkg>`, allowed after `sigil pip <pkg> &&`;
+  - `deno run|x|install|serve` of an `npm:`, `jsr:` or `http(s)://` module (`npm:` allowed after `sigil npm <pkg> &&`);
+  - `npm exec` / `npm x`, `bun x` and `uv tool run` of a registry package, in command position as the native hook matches runners, allowed after `sigil npm|pip <pkg> &&` (`bun x <bin>` of the project's own `node_modules/.bin` is allowed, as natively).
+- Like the native hook, the fallback judges these per pipeline stage, and it follows `cd`. It matches command words after quote removal (`cu''rl`, `w\get` and `"curl"` are curl) and treats a runner word as a runner only in command position, so a URL ending in `/npx` or an argument named `bunx` does not exempt a stage from these checks. It no longer denies a download piped into an interpreter that reads it as data (`| python3 -m json.tool`, `| bash -c '…'`, `| sh ./script.sh`).
+- The per-stage checks need `awk`. Without it they are skipped, and the pipe check and the older rules still apply.
+- Without `jq`, a JSON-escaped newline in the command now separates commands, as it does with `jq`, instead of becoming a space. Deny reasons that quote the command are JSON-escaped.
+- The gate (native hook and shell fallback alike) now closes command shapes that got past both:
+  - a download piped to an interpreter after `2>&1` or `|&`, with `;`, `&`, `#` or an output redirect after the interpreter, a quoted interpreter name (`| "bash"`, `| ba''sh`), `env -i`, `command`, `doas`, `busybox`, `timeout` or `$SHELL` in front of it, a whole pipeline in backticks, `bash < <(curl …)` and `bash <<< "$(curl …)"`;
+  - a downloaded file run through `bash -e`, `sudo -u <user>` / `sudo -E`, `exec`, `command`, `nohup`, `time`, `xargs`, `. ./i.sh`, `( … )` or `{ …; }`, `bash < i.sh` or `cat i.sh | sh`, saved by `curl -oFILE`, `1> FILE`, `&> FILE` or `| tee FILE`, or run with an option that takes a value (`python3 -X dev`, `bash -O extglob`, `bash -euo pipefail`);
+  - the scan gate: a scan that ran before the download, or before a second download to the same path, no longer vets it; only the bare `sigil` on PATH vets (not `./sigil`, not `PATH=… sigil`, and nothing when the command defines a `sigil` function or alias or changes PATH);
+  - downloads into agent tooling behind `sudo -E`, `env`, `command`, a `( … )` subshell, `bash -c '…'`, or through `| tee <tooling path>`;
+  - quoted command words (`"npm" exec`, `de''no run`, `pip''x install`) and runners behind a wrapper (`sudo -u root npm exec x`).
+- Paths apply `..` (`curl -o i.sh …; cd sub; bash ../i.sh` is denied), and `wget -P dir -O f` is read as saving to `f`, as wget does.
+- A scan gate across a line continuation (`… && sigil scan i.sh && \` then `bash i.sh`) is no longer denied: a backslash-newline continues the command.
+- A download piped to an interpreter whose stdin is a here-document or a file (`curl … | python3 - <<'EOF'`, `curl … | bash < local.sh`) is no longer denied: the download is not what runs. A redirection that reads the pipe itself (`< /dev/stdin`, `<&0`) or copies it to another descriptor (`3<&0`) is still denied.
+- The fallback reads each stage the way the native hook does (`cmdline::command_words`: grouping, redirections, assignments and wrapper commands set aside; interpreter options read per interpreter), in its awk lexer, and gives the same reasons for these denies. Measured on synthetic commands written for these shapes, it agrees with the native hook on 12,444 of 12,444 generated download-to-interpreter commands (decision and reason) and on the decision for all 22,246 generated per-stage commands (3 differ in reason only: its older generic runner reason).
+- With `awk`, a command that contains a `sigil` call is no longer allowed whole: the package-manager rules read every stage that is not a sigil call and that no sigil call vetted, as the native hook does, so `sigil --version; npm install evil` and `sigil npm evil | npm install evil` are denied, and `sigil clone <url> && git clone <url>` (same repository and branch) is allowed. Without `awk`, the old early allow still applies.
+- A verification pass closed further shapes in both gates ([docs/detection/ux.md §8](../../docs/detection/ux.md#8-verification-pass-what-still-got-through)):
+  - a download piped into an interpreter through a filter (`| tr -d '\r' | bash`, `| base64 -d | sh`), into a group (`| (bash)`, `{ curl …; } | sh`), as the script itself (`bash /dev/stdin`, `bash < /dev/stdin`, `bash <&0`), past an option that takes a value (`node -r x`, `perl -I lib`, `pwsh -ExecutionPolicy Bypass`), into more shells (`ksh93`, `mksh`, `tcsh`, `$BASH`) or behind `VAR=value`;
+  - a downloaded file run through a substitution (`eval "$(cat i.sh)"`, `bash <(cat i.sh)`) or a copy (`mv`, `cp`, `ln`, `install`, `cat i.sh > j.sh`, `dd of=`);
+  - a sigil call that vets nothing: not the last stage of its pipeline, inside a substitution or quotes, with `--fail-on critical`, `--severity critical`, a subset of `--phases`, `--config`, `--baseline` or `--help`, under a `SIGIL_…=` setting or a Sigil policy file the command sets or writes (`SIGIL_POLICY_FILE`, `.sigil.yml`), after an alias or builtin named sigil or a sourced file;
+  - a `cd` inside a substitution or a list sent to the background (`cd /tmp & …`), and `cd -P`, `cd -`, `pushd`/`popd`, `cd $HOME`;
+  - downloads into agent tooling spelled in another case (`~/.CLAUDE/skills`, the same directory on macOS and Windows) or written by `dd of=`;
+  - without `awk`, a runner named by its path (`/usr/bin/npx -y x`).
+- A copy of a scanned file made later in the same `&&` chain is vetted with it (`sigil scan t && install -m 755 t ~/bin/t && ~/bin/t`), and a `git clone` deny names the repository (and `-b <branch>`) rather than an option's value.
+- A second verification pass closed more, in both gates ([docs/detection/ux.md §8](../../docs/detection/ux.md#8-verification-pass-what-still-got-through)):
+  - a shell that `sudo -s`, `sudo -i`, `doas -s`, `su` or `runuser <user>` starts reads the pipe (`curl … | sudo -s`);
+  - code that reads the pipe: `| bash -c "$(cat)"`, `| eval "$(cat)"`, `| sh -c 'source /dev/stdin'`, `| xargs -0 bash -c`, `| xargs -I{} sh -c '{}'`, python/node/perl/ruby code that evaluates its stdin (compiling or matching a regex against it does not count), and a variable run as code inside a compound command that receives the download (`| while read l; do eval "$l"; done`);
+  - a process substitution (`| tee >(bash)`, `> >(bash)`), a group or compound command that holds the download (`{ curl …; echo; } | sh`, `for …; do curl …; done | sh`) or receives it (`| { echo; bash; }`), and stdout by another name (`-o /dev/fd/1`);
+  - the words after a substitution's `)`: `$(sigil --version) npm install evil`;
+  - a downloaded file run behind `trap '…' EXIT`, `watch`, `flock`, `chroot`, `taskset`, `chrt`, `unshare`, `setpriv`, `strace`, `ltrace`, `script -c`, `sg -c`, `runuser`, or through `xargs -a <file>`;
+  - the scan gate: options attached or bundled (`-pnetwork`, `-s=critical`, `-vh`, `-vo i.sh x.sh`), `LD_*`/`DYLD_*`, `sigil approve`, `sigil known-good` or a write into `~/.sigil/` in the command, a write to the scanned file after the scan (`sed -i`, `>>`, `cp` over it), and a download still running in the background (`curl -o i.sh … & sigil scan i.sh`, until a `wait`);
+  - a package named beside a requirements file (`pip install -r req.txt evil-pkg`, `uv pip install -r req.txt evil-pkg`) is denied like `pip install evil-pkg` instead of asked about as a requirements install; option values (`-r f`, `-e .`, `-i <url>`) are not packages, so `pip install -r req.txt -e .` is still an ask. Without `awk`, the fallback still asks.
+- Without `awk`, the pipe check reads interpreter options with one shared list, where the native hook and the awk per-stage check read them per interpreter: `curl … | python3 -E`, `curl … | bash -oc -x` and `curl … | timeout 5 node -NoProfile` are allowed there. On every seventh generated download-to-interpreter command it agrees with the native hook on 1,666 of 1,778; the other 112 are native denies it allows (the change as first written allowed them in both gates, main's fallback denied 3 of them).
+- The bundled MCP server is now the `sigil` binary's built-in server (`sigil mcp`) instead of `npx -y @nomark/sigil-mcp-server`. The npm package was never published, so the previous registration failed to start on every install; the built-in server needs nothing beyond the `sigil` binary the hooks already require.
+
+## [1.1.0] - 2026-08-06
+
+### Added
+- PreToolUse enforcement gate (`hooks/sigil-guard.sh`): blocks `git clone`, `npm install <pkg>`, `pip install <pkg>`, `cargo`/`gem`/`go` installs, and curl-pipe-to-shell in Claude Code sessions, redirecting to Sigil's quarantine-first equivalents. Lockfile restores and one-shot runners (`npx`, `dlx`, `pipx run`) prompt for confirmation instead
+- Escape hatches for the gate: `SIGIL_BYPASS=1` (single command) and `SIGIL_GUARD_MODE=enforce|advise|off`
+- SessionStart hook (`hooks/session-setup.sh`) that checks the `sigil` binary is available and surfaces install instructions when it is missing
+- Automatic MCP server registration: installing the plugin now registers `@nomark/sigil-mcp-server` via `mcpServers` in the plugin manifest
+
+### Changed
+- Skills now invoke `sigil` from PATH instead of the repo-relative `./bin/sigil`, so they work in any project directory
+- `scan-file` skill gained `name` and `allowed-tools` frontmatter matching the other skills
+- `security-auditor` agent and plugin documentation updated to cover all 8 scan phases, adding Prompt Injection (Critical 10x) and Skill Security (High 5x)
+
 ## [1.0.0] - 2026-02-22
 
 ### Added
@@ -13,13 +71,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scan-repo` - Scan repositories for malicious patterns
   - `scan-package` - Audit npm and pip packages before installation
   - `scan-file` - Analyze specific files for security vulnerabilities
-  - `quarantine-review` - Review and manage quarantined findings
+  - `review-quarantine` - Review and manage quarantined findings
 - Two specialized security agents:
   - `security-auditor` - Expert threat analysis and remediation guidance
   - `quarantine-manager` - Quarantine workflow coordination
 - Automated hooks for security recommendations:
   - Auto-suggest Sigil when user mentions cloning, installing, or security
-  - Intercept `git clone`, `pip install`, `npm install` commands with quarantine alternatives
+  - Advisory prompts suggesting quarantine alternatives when `git clone`, `pip install`, or `npm install` appear in a prompt (advisory only — commands were not blocked; enforcement arrived in 1.1.0)
 - Comprehensive documentation and usage examples
 - Support for all 6 Sigil scan phases:
   - Install Hooks (Critical 10x)

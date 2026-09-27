@@ -22,27 +22,41 @@ Sigil fills this gap with a **quarantine-first approach**.
 
 ## Quick Install
 
-**Manual Install (Current):**
+**Install via Script:**
 
 ```bash
 # Clone the repository
 git clone https://github.com/NOMARJ/sigil.git
 cd sigil
 
-# Make the CLI executable and install
-chmod +x bin/sigil
-sudo cp bin/sigil /usr/local/bin/sigil
+# Run the installer — downloads the prebuilt release binary for your
+# platform and wires up the Claude Code integration by default
+# (opt out with --no-integrations)
+./install.sh
 
-# Initialize directories and aliases
-sigil install
+# Optional: add gclone/safepip/safenpm shell aliases
+./install.sh --with-aliases
+```
+
+**Package managers:**
+
+```bash
+# Homebrew (macOS/Linux)
+brew install nomarj/tap/sigil
+
+# npm (macOS/Linux)
+npm install -g @nomarj/sigil
+
+# Cargo (Rust)
+cargo install sigil-cli
+
+# curl installer
+curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 ```
 
 **Coming Soon:**
 
-- **Homebrew**: `brew install nomarj/tap/sigil`
-- **npm (macOS/Linux)**: `npm install -g @nomarj/sigil`
-- **curl installer**: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`
-- **Docker**: `docker pull nomark/sigil:1.2.1`
+- **Docker**: `docker pull nomark/sigil`
 
 > **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. Install the Rust CLI with `cargo install sigil-cli`.
 
@@ -56,32 +70,41 @@ sigil install
 │  command     │     │  quarantines │     │  Approve.    │
 │              │     │  & scans     │     │  Dirty?      │
 │  gclone      │     │              │     │  Reject.     │
-│  safepip     │     │  6 phases.   │     │              │
+│  safepip     │     │  8 phases.   │     │              │
 │  safenpm     │     │  <3 seconds. │     │  You decide. │
 └──────────────┘     └──────────────┘     └──────────────┘
 ```
 
-Sigil runs **six analysis phases** on every scan (Phases 1-6 are free, Phase 9 requires Pro):
+Sigil runs **eight analysis phases** on every scan (all free; LLM analysis requires Pro):
 
-| Phase               | What It Catches                                                                    | Tier    |
-| ------------------- | ---------------------------------------------------------------------------------- | ------- |
-| **Install Hooks**   | `setup.py` cmdclass, npm `postinstall`, Makefile targets that execute on install   | Free    |
-| **Code Patterns**   | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports               | Free    |
-| **Network / Exfil** | Outbound HTTP, webhooks, socket connections, DNS tunnelling                        | Free    |
-| **Credentials**     | ENV var access, `.aws`, `.kube`, SSH keys, API key patterns                        | Free    |
-| **Obfuscation**     | Base64 decode, charCode, hex encoding, minified payloads                           | Free    |
-| **Provenance**      | Git history depth, author count, binary files, hidden files                        | Free    |
-| **🔒 LLM Analysis** | AI-powered zero-day detection, contextual threat correlation, advanced remediation | **Pro** |
+| Phase                | What It Catches                                                                    | Tier    |
+| -------------------- | ---------------------------------------------------------------------------------- | ------- |
+| **Install Hooks**    | `setup.py` cmdclass, npm `postinstall`, Makefile targets that execute on install   | Free    |
+| **Code Patterns**    | `eval()`, `exec()`, `pickle.loads`, `child_process`, dynamic imports               | Free    |
+| **Network / Exfil**  | Outbound HTTP, webhooks, socket connections, DNS tunnelling                        | Free    |
+| **Credentials**      | ENV var access, `.aws`, `.kube`, SSH keys, API key patterns                        | Free    |
+| **Obfuscation**      | Base64 decode, charCode, hex encoding, minified payloads                           | Free    |
+| **Provenance**       | Git history depth, author count, binary files, hidden files                        | Free    |
+| **Prompt Injection** | AI agent instruction injection in code, docs, and tool descriptions                | Free    |
+| **Skill Security**   | MCP permission escalation, over-broad agent tool grants                            | Free    |
+| **🔒 LLM Analysis**  | AI-powered zero-day detection, contextual threat correlation, advanced remediation | **Pro** |
 
 Each finding is weighted and scored. You get a clear verdict:
 
-| Score | Verdict         | What Happens                |
-| ----- | --------------- | --------------------------- |
-| 0     | **CLEAN**       | Auto-approve (configurable) |
-| 1–9   | **LOW RISK**    | Approve with review         |
-| 10–24 | **MEDIUM RISK** | Manual review required      |
-| 25–49 | **HIGH RISK**   | Blocked, requires override  |
-| 50+   | **CRITICAL**    | Blocked, no override        |
+| Score / Evidence                      | Verdict           | What Happens                                        |
+| ------------------------------------- | ----------------- | --------------------------------------------------- |
+| 0–9                                   | **LOW RISK**      | No known malicious patterns detected                |
+| 10–24                                 | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
+| HIGH gate ([details](docs/cli.md))    | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
+| Any single Critical-severity finding  | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
+
+CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.
+
+Every scan also prints a letter grade (A–F, a label over the verdict), the behaviours the
+findings add up to (`exfiltration`, `persistence`, `harvests_credentials`, …), the five key
+risks, and what it scanned (`npm`, `pypi`, `agent-skill`, `mcp-server`, …). Findings carry
+remediation text and references; a reviewed finding can be silenced in place with
+`# sigil:ignore RULE-ID -- reason` and stays in the report as suppressed.
 
 ## Usage
 
@@ -97,60 +120,41 @@ sigil pip some-agent-toolkit
 # Download and scan an npm package before installing
 sigil npm langchain-community-plugin
 
-# Scan a directory or file already on disk
+# Scan a directory or file already on disk — or a git URL (quarantined first)
 sigil scan ./downloaded-skill/
+sigil scan https://github.com/someone/cool-mcp-server
+sigil scan ./downloaded-skill/ --format html > report.html   # shareable report
+sigil scan ./downloaded-skill/ --format json | jq .summary    # verdict, score, grade, platform
+
+# What installed agent tooling left behind on THIS machine (read-only, then reversible)
+sigil residue scan        # shell rc edits, cron/launchd/systemd, git hooks, credential modes, /etc/hosts
+sigil residue plan        # the fixes it would make, without making them
+sigil residue apply       # apply with a backup of every target; undo with `sigil residue rollback --last`
 
 # 🔒 Pro: Enhanced LLM-powered scanning (requires authentication)
-sigil login --token YOUR_API_TOKEN
+sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
 
-# Download and scan any URL
-sigil fetch https://example.com/agent-tool.tar.gz
+# Download and scan any URL: archives, single files, GitHub /tree/ links
+sigil scan https://example.com/agent-tool.tar.gz
 
 # Manage quarantine
 sigil list              # See all quarantined items
-sigil approve abc123    # Move approved code out of quarantine
+sigil approve abc123    # Mark trusted: pins the item's digest in the trust ledger
+                        # (files stay at ~/.sigil/quarantine/<id>/ — copy them out yourself)
 sigil reject abc123     # Permanently delete quarantined code
+
+# Wire Sigil into your tooling
+sigil setup claude      # Register the Claude Code plugin (marketplace + install)
+sigil setup shell       # Add gclone/safepip/safenpm aliases to your shell rc
+sigil setup git         # Install a pre-commit hook (sigil scan --fail-on high)
+sigil setup all         # All of the above
 ```
-
-### Discovery Commands
-
-Find and research AI tools, packages, and dependencies before using them:
-
-```bash
-# Search for AI tools and packages
-sigil search "natural language processing"
-sigil search "web scraping"
-sigil search "machine learning"
-
-# Get curated tool recommendations for specific use cases
-sigil discover "chatbot development"
-sigil discover "data analysis pipeline"
-sigil discover "web scraping automation"
-
-# Get detailed information about a specific tool
-sigil info pypi/langchain
-sigil info npm/puppeteer
-sigil info pypi/scrapy
-
-# Discovery integrates with security auditing
-sigil search "pdf processing" | head -3    # Find options
-sigil info pypi/pypdf                      # Research a tool
-sigil pip pypdf                            # Audit before installing
-```
-
-**Discovery Features:**
-
-- **Smart Search**: Natural language queries find relevant tools
-- **Use Case Stacks**: Get curated tool recommendations for specific workflows
-- **Trust Scoring**: See security ratings and trust scores for every tool
-- **Installation Ready**: Get exact install commands with security pre-checks
-- **Ecosystem Coverage**: Search across pip, npm, and other package managers
 
 ### Shell Aliases
 
-After running `sigil install`, these aliases are available in every terminal session. Use the commands you already know — Sigil protects you automatically:
+Aliases are opt-in: run `./install.sh --with-aliases` to append them to your shell rc. Use the commands you already know — Sigil protects you automatically:
 
 | Alias                  | What It Does                       |
 | ---------------------- | ---------------------------------- |
@@ -162,13 +166,6 @@ After running `sigil install`, these aliases are available in every terminal ses
 | `qls`                  | Quarantine status                  |
 | `qapprove` / `qreject` | Approve or reject most recent item |
 
-### Git Hooks
-
-```bash
-# Auto-scan any repo on clone (global git hook)
-sigil install --git-hooks
-```
-
 ## IDE & Agent Integrations
 
 Sigil works where you work. Install the plugin for your editor, or connect AI agents via MCP:
@@ -177,63 +174,67 @@ Sigil works where you work. Install the plugin for your editor, or connect AI ag
 | ------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------- |
 | **VS Code / Cursor / Windsurf** | Scan workspace, files, selections, packages. Findings in Problems panel.           | [plugins/vscode](plugins/vscode/)           |
 | **JetBrains IDEs**              | IntelliJ, WebStorm, PyCharm, GoLand, CLion, etc. Tool window + inline annotations. | [plugins/jetbrains](plugins/jetbrains/)     |
-| **Claude Code Plugin**          | 4 skills + 2 security agents. Auto-suggests scans on clone/install.                | [plugins/claude-code](plugins/claude-code/) |
-| **Claude Code (MCP)**           | 6 tools: scan, scan_package, clone, quarantine, approve, reject.                   | [plugins/mcp-server](plugins/mcp-server/)   |
+| **Claude Code Plugin**          | 6 skills + 2 security agents. Blocks unscanned installs/clones by default.         | [plugins/claude-code](plugins/claude-code/) |
+| **Claude Code (MCP)**           | 9 tools: scan, scan_package, clone, quarantine, approve, reject, check_package, search_database, report_threat. | [plugins/mcp-server](plugins/mcp-server/)   |
 | **GitHub Actions**              | Run Sigil as a CI check on every PR.                                               | [action.yml](action.yml)                    |
 
 ### Claude Code Plugin (Recommended)
 
-Install as a native Claude Code plugin for skills, agents, and auto-recommendations:
+Install as a native Claude Code plugin — enforcement, skills, agents, and the MCP server in one step:
 
 ```bash
 # Add Sigil marketplace
-claude plugin marketplace add https://github.com/NOMARJ/sigil.git
+claude plugin marketplace add NOMARJ/sigil
 
 # Install the plugin
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 ```
 
 This provides:
 
+- **Enforcement by default** - a PreToolUse hook blocks `git clone`, `npm install <pkg>`, and `pip install <pkg>` in Claude Code sessions, redirecting them through Sigil's quarantine (bypass per-command with `SIGIL_BYPASS=1`, tune with `SIGIL_GUARD_MODE=enforce|advise|off`)
+- **Bundled MCP server** - registered automatically, no separate config
 - `/sigil-security:scan-repo` - Scan repositories
 - `/sigil-security:scan-package` - Audit npm/pip packages
 - `/sigil-security:scan-file` - Analyze specific files
-- `/sigil-security:quarantine-review` - Manage findings
+- `/sigil-security:review-quarantine` - Manage findings
+- `/sigil-security:fix-finding` - Propose fixes for scan findings
+- `/sigil-security:generate-policy` - Generate sandbox policies from scan results
 - `@security-auditor` - Expert threat analysis agent
 - `@quarantine-manager` - Quarantine workflow agent
 
 [**→ See Claude Code plugin documentation**](plugins/claude-code/README.md)
 
-### Claude Code MCP Server
+### MCP Server (Other Agents)
 
-Alternatively, use the MCP server for tool-based integration:
+Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tools directly:
 
 ```json
 {
   "mcpServers": {
     "sigil": {
-      "command": "node",
-      "args": ["/path/to/sigil/plugins/mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"]
     }
   }
 }
 ```
 
-Build the MCP server first:
+> **Note**: `@nomark/sigil-mcp-server` v1.3.0 is not yet published to npm — the `npx` config above will work once it is. Until then, build from source (`cd plugins/mcp-server && npm install && npm run build`) and point your MCP client at `node /path/to/sigil/plugins/mcp-server/dist/index.js`.
 
-```bash
-cd plugins/mcp-server && npm install && npm run build
-```
-
-`npx @nomark/sigil-mcp-server` will be available once the package is published to npm.
+[**→ See MCP integration guide**](docs/mcp.md)
 
 ## Threat Intelligence
 
 When authenticated (`sigil login`), Sigil connects to a **community-powered threat intelligence database**. Every scan from every user contributes anonymised pattern data. When someone flags a malicious package, the threat signature propagates to all users within minutes.
 
-No source code is ever transmitted — only pattern match metadata (which rules triggered, file types, risk scores).
+**What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
 
-**Offline mode:** All six scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
+- **Offline / unauthenticated (default):** nothing. All eight phases run locally; no network calls, no account.
+- **Authenticated threat intel (`sigil login`):** scan submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
+- **Pro AI investigation:** the relevant source files for a finding are uploaded and shared with an LLM provider to produce the analysis. This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
+
+**Offline mode:** All eight scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
 
 ```bash
 # Authenticate to enable threat intel
@@ -244,18 +245,56 @@ sigil login
 
 ## Why Not [Existing Tool]?
 
-| Capability                 | Sigil       | Aardvark/Codex | Claude Code   | Snyk       | Semgrep |
-| -------------------------- | ----------- | -------------- | ------------- | ---------- | ------- |
-| **Pre-install quarantine** | ✅          | ❌             | ❌            | ❌         | ❌      |
-| **Supply-chain attacks**   | ✅ Primary  | ⚠️ Limited     | ⚠️ Limited    | ⚠️ CVEs    | ❌      |
-| **Install hook scanning**  | ✅          | ❌             | ❌            | ❌         | ❌      |
-| **Malware analysis**       | ⚠️ Patterns | ✅ Dedicated   | ⚠️ Context    | ❌         | ❌      |
-| **AI-powered analysis**    | ❌          | ✅ GPT-5       | ✅ Claude     | ⚠️ Limited | ❌      |
-| **Deep vuln scanning**     | ⚠️ Patterns | ✅ 92% recall  | ✅ Primary    | ✅         | ✅      |
-| **Auto-patching**          | ❌          | ✅ Codex       | ✅ AI patches | ⚠️ Limited | ❌      |
-| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      |
-| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      |
-| **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     |
+| Capability                 | Sigil       | Aardvark/Codex | Claude Code   | Snyk       | Semgrep | Prism Scanner               |
+| -------------------------- | ----------- | -------------- | ------------- | ---------- | ------- | --------------------------- |
+| **Pre-install quarantine** | ✅          | ❌             | ❌            | ❌         | ❌      | ❌                          |
+| **Host residue cleanup**   | ✅ Reversible | ❌           | ❌            | ❌         | ❌      | ✅                          |
+| **Supply-chain attacks**   | ✅ Primary  | ⚠️ Limited     | ⚠️ Limited    | ⚠️ CVEs    | ❌      | ⚠️ Patterns                 |
+| **Install hook scanning**  | ✅          | ❌             | ❌            | ❌         | ❌      | ⚠️ `package.json` scripts   |
+| **Malware analysis**       | ⚠️ Patterns | ✅ Dedicated   | ⚠️ Context    | ❌         | ❌      | ⚠️ Patterns                 |
+| **AI-powered analysis**    | ❌          | ✅ GPT-5       | ✅ Claude     | ⚠️ Limited | ❌      | ❌                          |
+| **Deep vuln scanning**     | ⚠️ Patterns | ✅ 92% recall  | ✅ Primary    | ✅         | ✅      | ❌                          |
+| **Auto-patching**          | ❌          | ✅ Codex       | ✅ AI patches | ⚠️ Limited | ❌      | ❌                          |
+| **AI agent / MCP focus**   | ✅          | ✅             | ✅            | ❌         | ❌      | ✅ Skills / MCP             |
+| **Multi-ecosystem**        | ✅ All      | ✅             | ✅            | ✅         | ✅      | ⚠️ Python AST; regex elsewhere |
+| **Free tier**              | ✅ Full     | Private beta   | Waitlist      | Limited    | OSS     | ✅ Apache-2.0               |
+
+### Sigil vs NVIDIA SkillSpector — measured
+
+Both tools on the same real samples, static analysis on both sides. Full
+method, the cases Sigil loses, and the feature comparison:
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
+
+```
+Data Source: Real samples. Malicious: Datadog malicious-software-packages-dataset, ai-skills bucket.
+             Clean: every skill in anthropics/skills, NVIDIA/skills, openai/skills,
+             vercel-labs/agent-skills; 169 MCP servers from the official MCP registry.
+Sample Size: 204 malicious skills, 455 clean skills, 169 clean MCP servers.
+Limitations: SkillSpector 2.11.2 with --no-llm (its optional LLM stage was not measured).
+             "Clean" is vendor-published, not audited. Sigil's newer rules were written after
+             reading these corpora, so its figures are in-sample.
+```
+
+| | Malicious blocked | Clean skills blocked | Clean skills warned |
+|---|---:|---:|---:|
+| **Sigil** | **173/204 (84.8%)** | **7/455 (1.5%)** | **71/455 (15.6%)** |
+| SkillSpector 2.11.2 | 45/203 (22.2%) | 118/455 (25.9%) | 282/455 (62.0%) |
+
+| Clean MCP servers | Blocked | Warned |
+|---|---:|---:|
+| **Sigil** | **29/169 (17.2%)** | **95/169 (56.2%)** |
+| SkillSpector 2.11.2 | 100/156 (64.1%), 13 timed out | 127/156 (81.4%) |
+
+Sigil's MCP row is from the build that reports credential values whatever their
+shape and whose npm lifecycle-script rewrites fail closed (28 and 89 with the
+withdrawn credential exemptions; 24 and 76 before the rewrites failed closed;
+39 and 125 before the third false-positive pass); SkillSpector was not re-run for it. See
+[docs/detection/mcp-server-calibration.md](docs/detection/mcp-server-calibration.md#third-pass-lifecycle-scripts-and-match-local-suppression).
+
+Median scan time per skill, both tools in one run on the same machine: 1.38 s
+for Sigil (before this change) and 26.82 s for SkillSpector; the current build
+measured 1.48 s in its own run. SkillSpector can send findings to a model you choose for
+adjudication; Sigil's LLM analysis runs on Sigil's service.
 
 **The Complete Stack:**
 
@@ -273,6 +312,103 @@ sigil login
 
 Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. Socket.dev is npm-only. Semgrep is a pattern engine, not a workflow. **The AI security stack (Sigil + Aardvark/Claude Code Security) provides defense-in-depth.**
 
+## Detection Accuracy — Measured, Not Marketed
+
+Sigil publishes its measured detection numbers, including the ones that
+aren't flattering. Full method and results for this release:
+[`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md)
+(recall and the clean control set) and
+[`evaluation_results/honest_detection_eval_control_verdicts.json`](evaluation_results/honest_detection_eval_control_verdicts.json)
+(each clean package's verdict); every run is in
+[`evaluation_results/HISTORY.md`](evaluation_results/HISTORY.md).
+
+```
+Data Source: Datadog malicious-software-packages-dataset (real, human-triaged
+             malicious npm/PyPI packages) + a 20-package clean control set of
+             popular npm/PyPI packages fetched from the live registries.
+Sample Size: 844 malicious samples (204 per ecosystem/category bucket, including
+             the dataset's AI-skills bucket); 20 clean control packages.
+Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
+             Offline static phases only. Small clean control set. The clean-set
+             row counts a package as flagged if it contains one finding at that
+             severity, which is a stricter reading than the verdict a CI gate
+             sees — both are given below.
+```
+
+| Metric | v1.3.7 (this release) | Previous run with a control set (`da316a5`) |
+| --- | --- | --- |
+| Recall (malicious detected, any severity) | **93.01%** (785/844) | 91.47% |
+| Recall at ≥ Medium | 90.17% (761/844) | 90.52% |
+| Recall at ≥ High | **89.10%** (752/844) | 85.07% |
+| Recall at ≥ Critical | **66.35%** (560/844) | 65.52% |
+| Clean packages with a ≥ High finding, first scan | 55% (11 of 20) | 65% (13 of 20) |
+| Clean packages returning a CRITICAL RISK verdict | **2 of 20** (vite, boto3) | 0 of 20 |
+| Clean packages returning HIGH RISK or worse | 7 of 20 | 16 of 20 |
+| FP rate after trust-ledger approval (`sigil approve`) | not re-measured | 0% |
+| FP rate at ≥ High with Pro AI adjudication | not re-measured | not re-measured (30% two runs earlier) |
+
+Recall compares directly: the malicious samples are the same 844 in both
+columns, and the release run's recall equals the run that measured the same
+code before release (dataset commit `1dbcfc5`, fingerprint `63fcde5b…`) at
+every threshold. The clean columns do not compare like for like. The control
+set was fetched again from the live registries for this release, so its
+package versions (and possibly some names) differ from the earlier set, which
+was not recorded. Read them as two measurements, not a trend. Two clean
+packages now return CRITICAL RISK, which the earlier run did not: `vite`
+(`CODE-001`/`002`/`008`/`014`, `OBFUSC-012`, `SUPPLY-001`/`008`/`014`) and
+`boto3` (`CRED-004`, `SUPPLY-003`). Beyond packages, the release's
+false-positive measurements on agent skills and MCP servers: 7 of 455 clean
+vendor skills blocked (1.5%, down from 108) and 29 of 169 clean MCP servers
+blocked (39 before the third false-positive pass). See
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md) and
+[docs/detection/mcp-server-calibration.md](docs/detection/mcp-server-calibration.md).
+
+The AI-skills bucket was the weakest by a wide margin and is no longer: on the
+60-sample subset the harness reports it at 95.0% detected at any severity and
+90.0% at ≥ High, against 68.3% and 48.3% before. Some of that gap was never
+real — a rule was matching the word "exec" in English prose, so it scored
+markdown headings like `### Code Execution` as Critical. Removing it lowers the
+old number and raises the new one; see
+[docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md).
+
+**What this means in practice:** the static phases deliberately over-trigger —
+network calls, base64, and env access are dangerous in malware and routine in
+legitimate code, and a first scan of a normal package will often come back
+MEDIUM or HIGH. That is the designed workflow, not a bug: review the findings,
+then `sigil approve` what you trust (drops its findings to zero on re-scan) or
+use Pro's false-positive verification to have AI adjudicate them. Recall is
+unaffected by ledger approvals (measured `recall_delta = 0`).
+
+## Grade badge
+
+Every scan carries a letter grade in `--format json` (`summary.grade`) and in the
+GitHub Action's `grade` / `badge` outputs. The grade is derived from the verdict —
+scoring is unchanged, this is just a shorter label for it:
+
+| Grade | Verdict                                | Badge                                                                                                                                                        |
+| ----- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **A** | No findings                            | [![Sigil grade A](https://img.shields.io/badge/Sigil-Grade%20A-brightgreen?style=flat-square)](https://github.com/NOMARJ/sigil)                              |
+| **B** | Low-severity observations only         | [![Sigil grade B](https://img.shields.io/badge/Sigil-Grade%20B-green?style=flat-square)](https://github.com/NOMARJ/sigil)                                    |
+| **C** | `MEDIUM RISK`                          | [![Sigil grade C](https://img.shields.io/badge/Sigil-Grade%20C-yellow?style=flat-square)](https://github.com/NOMARJ/sigil)                                   |
+| **D** | `HIGH RISK`                            | [![Sigil grade D](https://img.shields.io/badge/Sigil-Grade%20D-orange?style=flat-square)](https://github.com/NOMARJ/sigil)                                   |
+| **F** | `CRITICAL RISK`                        | [![Sigil grade F](https://img.shields.io/badge/Sigil-Grade%20F-red?style=flat-square)](https://github.com/NOMARJ/sigil)                                      |
+
+Badge markdown, ready to paste (swap the letter and colour for your grade):
+
+```markdown
+[![Sigil grade A](https://img.shields.io/badge/Sigil-Grade%20A-brightgreen?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade B](https://img.shields.io/badge/Sigil-Grade%20B-green?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade C](https://img.shields.io/badge/Sigil-Grade%20C-yellow?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade D](https://img.shields.io/badge/Sigil-Grade%20D-orange?style=flat-square)](https://github.com/NOMARJ/sigil)
+[![Sigil grade F](https://img.shields.io/badge/Sigil-Grade%20F-red?style=flat-square)](https://github.com/NOMARJ/sigil)
+```
+
+The [GitHub Action](docs/cicd.md#github-actions) emits the same markdown as its `badge`
+output and prints it in the job summary.
+
+A badge is a point-in-time static-analysis result for the commit that was scanned. It is
+not a certification, and it says nothing about code added after the scan.
+
 ## Pricing
 
 The CLI is **free and open source** with all eight scan phases. **Sigil Pro turns your scanner into an AI security consultant.**
@@ -284,7 +420,8 @@ The CLI is **free and open source** with all eight scan phases. **Sigil Pro turn
 | **🔍 False Positive Verification** | —           | ✅           | ✅             |
 | **💬 Interactive Security Chat**   | —           | ✅           | ✅             |
 | **⚡ Smart Model Routing**         | —           | ✅           | ✅             |
-| 5,000 monthly AI credits           | —           | ✅           | ✅             |
+| Monthly AI credits                 | —           | 5,000        | 50,000         |
+| Monthly cloud scans                | —           | 500          | 5,000          |
 | Cloud threat intelligence          | —           | ✅           | ✅             |
 | Scan history                       | —           | 90 days      | 1 year         |
 | Web dashboard                      | —           | ✅           | ✅             |
@@ -304,7 +441,6 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 - [Getting Started Guide](docs/getting-started.md) — Installation and first scan
 - [CLI Reference](docs/cli.md) — All commands and options
-- [Discovery Commands](docs/cli.md#discovery-commands) — Find and research tools before use ⭐ **NEW**
 - [Authentication Guide](docs/authentication-guide.md) — Connect to Sigil Pro
 - [Configuration](docs/configuration.md) — Environment variables and settings
 
@@ -320,7 +456,6 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 - [CI/CD Integration](docs/cicd.md) — GitHub Actions, GitLab CI, etc.
 - [IDE Plugins](docs/ide-plugins.md) — VS Code, JetBrains setup
 - [MCP Server](docs/mcp.md) — Use Sigil as an MCP tool for AI agents
-- [Forge to CLI Migration](docs/migration-guides/forge-to-cli.md) — Migrate from Forge web UI to CLI discovery ⭐ **NEW**
 - [AI Security Stack](docs/ai-security-stack-integration.md) — Sigil + Aardvark + Claude Code Security
 - [Claude Code Security Integration](docs/claude-code-security-integration.md) — Defense-in-depth with Anthropic
 - [AI Agent Integration](docs/ai-agent-integration.md) — Claude Code, MCP, and other AI agents
@@ -337,11 +472,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 See [ROADMAP.md](ROADMAP.md) for the full roadmap.
 
-**Today:** Quarantine-first scanning for pip, npm, and git repos. Six-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
+**Today:** Quarantine-first scanning for pip, npm, and git repos. Eight-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
 
 **Now:** Hosted cloud — sign up and scan without running infrastructure.
 
-**Next:** Homebrew tap and npm package. Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
+**Next:** Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
 
 ## Contributing
 

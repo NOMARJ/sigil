@@ -205,7 +205,7 @@ Sandbox and detection evasion:
 
 The database includes known malware family metadata:
 
-- **Shai-Hulud** - Self-propagating npm worm (Sep 2024)
+- **Shai-Hulud** - Self-propagating npm worm (Sep 2025)
 - **MUT-8694** - Cross-ecosystem attack (npm + PyPI)
 - **Hugging Face Poisoned Models** - ML model pickle exploits
 - And more...

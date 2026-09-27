@@ -34,9 +34,10 @@
       "CHARTER II.5"
     ]
   },
-  "status": "pending",
-  "claimed_by": null,
-  "claimed_at": null,
+  "status": "blocked",
+  "claimed_by": "claude/admiring-hopper-rgo06o",
+  "claimed_at": "2026-06-27T00:00:00.000Z",
   "completed_at": null,
-  "completion_ref": null
+  "completion_ref": null,
+  "block_reason": "CHARTER II.5 credential boundary. Three paths confirmed blocked: (1) Stripe MCP does not expose GetWebhookEndpoints operation. (2) Local Stripe CLI configured for wrong account acct_1TNsZTFvlPr69lA2 (exectables), not acct_1RkD8NFhPhxEz27f (Sigil). (3) Test-mode Stripe secret lives in Azure Key Vault sigil-kv-46iy6y — CHARTER II.5 forbids reading it into agent context. Operator runbook written at evidence/F-003/US-105a-test-mode-webhook-audit.md. Operator must run Options A, B, or C from that file using their own Stripe credentials."
 }

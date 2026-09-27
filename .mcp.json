@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sigil": {
+      "command": "npx",
+      "args": ["-y", "@nomark/sigil-mcp-server"]
+    }
+  }
+}

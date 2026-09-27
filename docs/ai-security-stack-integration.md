@@ -118,7 +118,7 @@ brew install nomarj/tap/sigil
 
 # 2. Install Sigil plugin for Claude Code
 claude plugin marketplace add https://github.com/NOMARJ/sigil.git
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 
 # 3. Join Aardvark/Codex Security beta
 # Visit: https://openai.com (check for Codex Security access)
@@ -343,7 +343,7 @@ echo 'alias npm="sigil npm"' >> ~/.zshrc
 echo 'alias pip="sigil pip"' >> ~/.zshrc
 
 # 3. Use Claude Code plugin for in-editor scanning
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 
 # 4. Enable deep scanning
 # Set up Aardvark OR Claude Code Security
@@ -533,7 +533,7 @@ If tools disagree:
 ```bash
 # 1. Install Sigil (5 minutes)
 brew install nomarj/tap/sigil
-claude plugin install sigil-security@sigil
+claude plugin install sigil-security@sigil-marketplace
 
 # 2. Join deep scanner waitlists (1 minute each)
 # Aardvark: https://openai.com

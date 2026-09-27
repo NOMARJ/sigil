@@ -169,7 +169,7 @@ Enable automatic scanning in your shell (`.bashrc` or `.zshrc`):
 # Auto-scan before install
 alias npm='sigil npm'
 alias pip='sigil pip'
-alias git clone='sigil clone'
+alias gclone='sigil clone'   # shell aliases cannot contain spaces, so use gclone instead of overriding git clone
 ```
 
 ### Claude Code Security Configuration
@@ -182,9 +182,11 @@ alias git clone='sigil clone'
 
 1. **Install Sigil plugin for Claude Code**
    ```bash
-   claude plugin marketplace add https://github.com/NOMARJ/sigil.git
-   claude plugin install sigil-security@sigil
+   claude plugin marketplace add NOMARJ/sigil
+   claude plugin install sigil-security@sigil-marketplace
    ```
+
+   The plugin enforces the quarantine-first workflow by default: a PreToolUse hook blocks unscanned `git clone` / `npm install` / `pip install` commands inside Claude Code sessions and redirects them through Sigil (override with `SIGIL_BYPASS=1`, tune with `SIGIL_GUARD_MODE=enforce|advise|off`). It also registers Sigil's MCP server automatically.
 
 2. **Use Sigil for all package installations**
 3. **Run Claude Code Security scans before PRs**
@@ -268,9 +270,9 @@ Ensure developers understand:
 # 1. Install Sigil
 brew install nomarj/tap/sigil
 
-# 2. Install Sigil plugin for Claude Code
-claude plugin marketplace add https://github.com/NOMARJ/sigil.git
-claude plugin install sigil-security@sigil
+# 2. Install Sigil plugin for Claude Code (enforcement + MCP included)
+claude plugin marketplace add NOMARJ/sigil
+claude plugin install sigil-security@sigil-marketplace
 
 # 3. Join Claude Code Security waitlist
 # Visit: https://claude.com/solutions/claude-code-security

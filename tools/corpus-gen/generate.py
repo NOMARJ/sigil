@@ -2,7 +2,7 @@
 """Generate Sigil signature packs from the vendored LOLBin / reverse-shell corpora.
 
 Reads ``vendor/{gtfobins,lolbas,revshells}.json`` (produced by ``fetch.py``)
-and emits three declarative packs into ``packs/core/v1/``:
+and emits three declarative packs into ``cli/packs/core/v1/``:
 
   * ``lolbin_unix.json``     — GTFOBins, one consolidated rule per binary
   * ``lolbin_windows.json``  — LOLBAS,    one consolidated rule per binary
@@ -36,8 +36,8 @@ import re
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 VENDOR = os.path.join(HERE, "vendor")
-# revshells (MIT) is embedded into the Apache-2.0 binary -> packs/core/v1/.
-PACKS_CORE = os.path.normpath(os.path.join(HERE, "..", "..", "packs", "core", "v1"))
+# revshells (MIT) is embedded into the Apache-2.0 binary -> cli/packs/core/v1/.
+PACKS_CORE = os.path.normpath(os.path.join(HERE, "..", "..", "cli", "packs", "core", "v1"))
 # GTFOBins / LOLBAS (GPL-3.0) ship as an OPTIONAL, separately-distributed bundle
 # loaded at runtime from ~/.sigil/packs/ — NOT compiled into the Apache binary.
 # See tools/corpus-gen/README.md (licensing) and packs/lolbin/v1/LICENSE.

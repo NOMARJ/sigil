@@ -1,14 +1,6 @@
 ---
 name: sigil-scan
-description: >
-  Automated security auditing for AI agent code. Scans repos, packages, MCP
-  servers, and installed skills for malicious patterns using eight-phase
-  analysis: install hooks, dangerous code patterns, network exfiltration,
-  credential access, obfuscation, provenance, prompt injection, and skill
-  security. Use when: cloning repos, installing
-  packages, reviewing MCP servers, auditing skills, scanning code before
-  execution, or when asked to check if something is safe, audit code, scan
-  for malware, review dependencies.
+description: "Automated security auditing for AI agent code. Scans repos, packages, MCP servers, and installed skills for malicious patterns using eight-phase analysis: install hooks, dangerous code patterns, network exfiltration, credential access, obfuscation, provenance, prompt injection, and skill security. Use when: cloning repos, installing packages, reviewing MCP servers, auditing skills, scanning code before execution, or when asked to check if something is safe, audit code, scan for malware, review dependencies. Trigger phrases (English): 'is this safe to install', 'scan this skill', 'vet this MCP server', 'check this package before installing', 'is this repo safe', 'audit this MCP server'. Trigger phrases (Chinese): '安全扫描', '这个插件安全吗', '这个技能安全吗', '扫描一下', '安装前检查'."
 compatibility: Requires internet for initial setup only. All scanning is local and offline. Works on macOS (arm64/x64), Linux (x64), and WSL.
 license: Apache-2.0
 allowed-tools: Read Bash(bash:*)

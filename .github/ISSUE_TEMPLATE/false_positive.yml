@@ -1,0 +1,83 @@
+name: False positive
+description: A scan rule fired on code that is benign.
+title: "[false-positive] RULE-ID on "
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A false positive is a real bug in the rule. The fastest fix is a precise one: the rule ID, the exact line, and why that line is fine. `sigil explain <rule-id>` prints what the rule looks for and why; `sigil scan <path> --format json` gives the machine-readable finding.
+  - type: input
+    id: version
+    attributes:
+      label: Sigil version
+      placeholder: sigil 1.3.6
+    validations:
+      required: true
+  - type: input
+    id: rule
+    attributes:
+      label: Rule ID
+      description: The rule that fired, exactly as shown in the finding (for example `CODE-013`, `NET-004`, `CRED-008`).
+      placeholder: CODE-013
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: File and line
+      description: "`path/to/file:line` from the finding. If the file is public, a permalink is better still."
+      placeholder: src/runner.py:42
+    validations:
+      required: true
+  - type: textarea
+    id: excerpt
+    attributes:
+      label: Finding excerpt
+      description: The output of `sigil explain <rule-id>` or the finding object from `sigil scan <path> --format json`. Redact anything private; keep `rule`, `severity`, `phase`, `file`, `line` and `snippet`.
+      render: json
+      placeholder: |
+        {
+          "rule": "CODE-013",
+          "severity": "high",
+          "phase": "CodePatterns",
+          "file": "src/runner.py",
+          "line": 42,
+          "snippet": "..."
+        }
+    validations:
+      required: true
+  - type: textarea
+    id: why-benign
+    attributes:
+      label: Why this line is benign
+      description: What the code actually does and why the rule's threat model does not apply. If the pattern is common in a framework or ecosystem, say which one; that is what turns a one-off into a suppression predicate.
+    validations:
+      required: true
+  - type: dropdown
+    id: workaround
+    attributes:
+      label: Did you try a suppression?
+      description: "Sigil has two scoped suppressions: a `.sigilignore` path entry, and an inline marker on the line (`# sigil:ignore RULE-ID -- reason`) or the line before it (`sigil:ignore-next-line RULE-ID -- reason`)."
+      options:
+        - Not tried
+        - Inline sigil:ignore marker, and it worked
+        - Inline sigil:ignore marker, and it did not work
+        - .sigilignore entry, and it worked
+        - .sigilignore entry, and it did not work
+    validations:
+      required: true
+  - type: textarea
+    id: workaround-detail
+    attributes:
+      label: Suppression details
+      description: If you tried one, paste the marker or `.sigilignore` line you used. If it did not work, include the output that shows the finding still counted.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues for this rule ID.
+          required: true
+        - label: I am willing to contribute a benign fixture under `tests/fixtures/clean/` that reproduces this.

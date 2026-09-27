@@ -1,0 +1,119 @@
+name: Tag Release
+
+# Creates a vX.Y.Z tag on a commit of the default branch and starts
+# release.yml for it. Use it when the tag cannot be pushed from git, for
+# example from an environment whose credentials may push branches but not
+# tags. Pushing the tag from git (docs/RELEASING.md) remains the normal path.
+#
+# A tag created with the workflow token does not fire the tag-push triggers
+# (GitHub starts no workflow from a GITHUB_TOKEN push), so this job
+# dispatches the tag's workflows on the new tag instead: a dispatch is the
+# one event GitHub lets that token start, and release.yml already relies on
+# it for npm and Homebrew. Each run then sees the tag as its ref, exactly as
+# for a pushed tag. Nothing here creates a GitHub release; release.yml still
+# builds the binaries, attaches them to a draft and only then publishes it.
+# Never create the release from the web UI: it publishes an immutable,
+# assetless release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create, e.g. v1.3.7"
+        required: true
+      sha:
+        description: "Full 40-character SHA of the commit on the default branch to tag"
+        required: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Create the tag and start the release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Inputs reach the shell through the environment, never through
+      # expression interpolation into the script.
+      - name: Refuse anything but a vX.Y.Z tag on the default branch
+        id: check
+        env:
+          TAG: ${{ inputs.tag }}
+          SHA: ${{ inputs.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag '${TAG}' is not vX.Y.Z, the only form release.yml builds"
+            exit 1
+          fi
+          if [[ ! "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha must be a full 40-character lowercase commit SHA"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$SHA" "origin/${DEFAULT_BRANCH}"; then
+            echo "::error::${SHA} is not on ${DEFAULT_BRANCH}"
+            exit 1
+          fi
+          # A tag already at this commit is a re-run after a failed dispatch:
+          # skip creating it and dispatch again. A tag anywhere else is never
+          # re-pointed. `^{}` resolves an annotated tag to its commit.
+          EXISTING="$(git ls-remote --tags origin "refs/tags/${TAG}" "refs/tags/${TAG}^{}" | awk '{print $1}' | tail -n 1)"
+          if [ -n "$EXISTING" ]; then
+            if [ "$EXISTING" != "$SHA" ]; then
+              echo "::error::${TAG} already exists at ${EXISTING}. Never re-point a tag; release a new version instead (docs/RELEASING.md)."
+              exit 1
+            fi
+            echo "${TAG} already exists at ${SHA}; dispatching its workflows again"
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          fi
+          git -c advice.detachedHead=false checkout -q "$SHA"
+          python3 scripts/check_versions.py --expect "$TAG"
+
+      - name: Create the tag
+        if: steps.check.outputs.create == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+          SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${TAG}" -f sha="${SHA}" >/dev/null
+          echo "Created ${TAG} at ${SHA}"
+
+      # Every workflow a pushed vX.Y.Z tag starts: release.yml (binaries,
+      # GitHub release, crates.io, npm, Homebrew), docker.yml (images) and
+      # sbom.yml (signed SBOMs attached to the release). Each reads the tag
+      # from the ref it runs on (GITHUB_REF_NAME / GITHUB_REF_TYPE), so a
+      # dispatch on the tag behaves as the push would. All three are tried
+      # even if one dispatch fails, and the job fails if any did.
+      - name: Start the tag's workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -uo pipefail
+          failed=0
+          for wf in release.yml docker.yml sbom.yml; do
+            if gh workflow run "$wf" --repo "${GITHUB_REPOSITORY}" --ref "${TAG}"; then
+              echo "Dispatched ${wf} on ${TAG}"
+            else
+              echo "::error::Could not dispatch ${wf} on ${TAG}; run it by hand on the tag"
+              failed=1
+            fi
+          done
+          exit "$failed"
