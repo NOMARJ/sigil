@@ -48,9 +48,9 @@ jobs:
           echo "Generating SBOMs for version: ${VERSION}"
 
       # Generate CycloneDX SBOM in JSON format (OWASP standard). syft 1.x
-      # names the source with --source-name/--source-version; the old
-      # --name/--version flags are gone ("unknown flag: --name", which
-      # failed this job on every tag through v1.3.7).
+      # names the source with --source-name/--source-version: it rejects
+      # --name ("unknown flag: --name", the v1.3.7 failure), and --version
+      # is syft's own version flag.
       - name: Generate CycloneDX SBOM from source
         run: |
           syft dir:. \

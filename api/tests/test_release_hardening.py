@@ -611,6 +611,26 @@ def _workflow(name: str) -> str:
     return (repo_root / ".github" / "workflows" / name).read_text()
 
 
+def _step_blocks(workflow: str) -> list[tuple[str, str]]:
+    """(name, text) of every step in the workflow's jobs, in order."""
+    blocks, name, lines = [], None, []
+    for line in workflow.splitlines():
+        if re.match(r"^      - ", line):
+            if name is not None:
+                blocks.append((name, "\n".join(lines)))
+            match = re.match(r"^      - name: (.+)$", line)
+            name, lines = (match.group(1) if match else line.strip()), [line]
+        elif name is not None:
+            if re.match(r"^  \S", line):  # the next job
+                blocks.append((name, "\n".join(lines)))
+                name, lines = None, []
+            else:
+                lines.append(line)
+    if name is not None:
+        blocks.append((name, "\n".join(lines)))
+    return blocks
+
+
 def _step_script(workflow: str, step_name: str) -> str:
     """The `run: |` script of the named step, dedented, as bash will see it."""
     lines = workflow.splitlines()
@@ -632,15 +652,24 @@ def _step_script(workflow: str, step_name: str) -> str:
     return textwrap.dedent("\n".join(body)) + "\n"
 
 
+def _as_actions_would(script: str, expressions: dict) -> str:
+    """Substitute `${{ expr }}` into the script text, as Actions does before bash
+    parses it. A step that interpolates an input then runs the input's shell
+    syntax, which is what the injection cases below detect."""
+    for expression, value in expressions.items():
+        script = script.replace("${{ " + expression + " }}", value)
+    return script
+
+
 def _run_step(
-    script: str, tmp_path: Path, env: dict
+    script: str, tmp_path: Path, env: dict, cwd: Path | None = None
 ) -> tuple[subprocess.CompletedProcess, dict]:
     output = tmp_path / "github-output"
     output.write_text("")
     result = subprocess.run(
-        # How GitHub runs a `run:` step: bash --noprofile --norc -eo pipefail.
-        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
-        cwd=tmp_path,
+        # How Actions runs a `run:` step that sets no `shell:`: bash -e {0}.
+        ["bash", "-e", "-c", script],
+        cwd=cwd or tmp_path,
         env={**os.environ, "GITHUB_OUTPUT": str(output), **env},
         capture_output=True,
         text=True,
@@ -652,6 +681,15 @@ def _run_step(
     return result, outputs
 
 
+def _fake_bin(tmp_path: Path, name: str, body: str) -> Path:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir(exist_ok=True)
+    tool = fake_bin / name
+    tool.write_text("#!/usr/bin/env bash\n" + body)
+    tool.chmod(tool.stat().st_mode | stat.S_IXUSR)
+    return fake_bin
+
+
 _SBOM_SET = [
     f"sbom-{kind}.{fmt}.json{att}"
     for kind in ("source", "cli-container", "full-container")
@@ -661,35 +699,34 @@ _SBOM_SET = [
 
 
 def _fake_gh(tmp_path: Path) -> Path:
-    """A gh that logs its calls and plays one release's state.
+    """A gh that answers only the exact calls the attach step should make.
 
     FAKE_STATE_FILE holds "true" (draft), "false" (published) or "absent";
     FAKE_ASSETS lists the assets already attached; FAKE_UPLOAD makes an
     upload succeed ("ok"), fail ("fail") or fail because the release was
-    published meanwhile ("publish").
+    published meanwhile ("publish"). Any other call exits 2, as a changed
+    flag or --jq filter would print something the step does not expect.
     """
-    fake_bin = tmp_path / "bin"
-    fake_bin.mkdir()
-    gh = fake_bin / "gh"
-    gh.write_text(
-        "#!/usr/bin/env bash\n"
+    return _fake_bin(
+        tmp_path,
+        "gh",
         'echo "$*" >> "$FAKE_GH_LOG"\n'
         'state="$(cat "$FAKE_STATE_FILE")"\n'
-        'case "$1 $2" in\n'
-        '  "release view")\n'
+        'view="release view v9.9.9 --repo NOMARJ/sigil"\n'
+        'case "$*" in\n'
+        '  "$view --json isDraft --jq .isDraft")\n'
         '    [ "$state" = "absent" ] && { echo "release not found" >&2; exit 1; }\n'
-        '    case "$*" in\n'
-        '      *"--json assets"*) printf "%s\\n" $FAKE_ASSETS ;;\n'
-        '      *) echo "$state" ;;\n'
-        "    esac ;;\n"
-        '  "release upload")\n'
+        '    echo "$state" ;;\n'
+        '  "$view --json assets --jq .assets[].name")\n'
+        '    [ "$state" = "absent" ] && { echo "release not found" >&2; exit 1; }\n'
+        '    printf "%s\\n" $FAKE_ASSETS ;;\n'
+        '  "release upload v9.9.9 --repo NOMARJ/sigil --clobber "*)\n'
         '    [ "$FAKE_UPLOAD" = "ok" ] && exit 0\n'
         '    [ "$FAKE_UPLOAD" = "publish" ] && echo false > "$FAKE_STATE_FILE"\n'
         '    echo "upload failed" >&2; exit 1 ;;\n'
-        "esac\n"
+        '  *) echo "unexpected gh call: $*" >&2; exit 2 ;;\n'
+        "esac\n",
     )
-    gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
-    return fake_bin
 
 
 @pytest.mark.parametrize(
@@ -738,22 +775,20 @@ def test_sbom_workflow_attaches_only_to_a_draft_release(
         },
     )
 
+    assert "unexpected gh call" not in result.stderr
     assert result.returncode == code, result.stderr
     calls = log.read_text().splitlines()
-    assert calls[0].startswith("release view v9.9.9 ")
-    uploads = [call for call in calls if call.startswith("release upload v9.9.9 ")]
+    assert (
+        calls[0]
+        == "release view v9.9.9 --repo NOMARJ/sigil --json isDraft --jq .isDraft"
+    )
+    uploads = [call for call in calls if call.startswith("release upload ")]
     assert bool(uploads) is uploaded
     for call in uploads:
         # Always the complete set from this run, never a subset, so a
         # partial set left by an earlier upload is replaced whole.
-        args = call.split()
-        assert args[3:6] == ["--repo", "NOMARJ/sigil", "--clobber"]
-        assert args[6:] == [f"sboms/{name}" for name in _SBOM_SET]
+        assert call.split()[6:] == [f"sboms/{name}" for name in _SBOM_SET]
     assert outputs.get("attached") == attached
-    assert all(
-        call.split()[:2] in (["release", "view"], ["release", "upload"])
-        for call in calls
-    )
 
 
 @pytest.mark.parametrize(
@@ -780,20 +815,45 @@ def test_sbom_workflow_attaches_only_to_a_draft_release(
             1,
             {},
         ),
+        (
+            {"EVENT_NAME": "release", "RELEASE_TAG": "v1.3.7$(touch pwned)"},
+            0,
+            {"skip": "true"},
+        ),
         ({"EVENT_NAME": "workflow_dispatch", "INPUT_TAG": "vscode-v1.2.0"}, 1, {}),
     ],
 )
 def test_homebrew_workflow_accepts_only_cli_release_tags(tmp_path, env, code, outputs):
-    workflow = _workflow("update-homebrew.yml")
-    result, got = _run_step(
-        _step_script(workflow, "Get release info"),
-        tmp_path,
-        {"RELEASE_TAG": "", "INPUT_TAG": "", "GH_TOKEN": "unused", **env},
+    env = {"RELEASE_TAG": "", "INPUT_TAG": "", "GH_TOKEN": "unused", **env}
+    script = _as_actions_would(
+        _step_script(_workflow("update-homebrew.yml"), "Get release info"),
+        {
+            "github.event_name": env["EVENT_NAME"],
+            "github.event.release.tag_name": env["RELEASE_TAG"],
+            "inputs.tag": env["INPUT_TAG"],
+        },
     )
 
+    result, got = _run_step(script, tmp_path, env)
+
+    assert not (tmp_path / "pwned").exists()
     assert result.returncode == code, result.stderr
     assert got == outputs
-    assert not (tmp_path / "pwned").exists()
+
+
+def test_homebrew_steps_after_release_info_all_honour_skip():
+    blocks = _step_blocks(_workflow("update-homebrew.yml"))
+    names = [name for name, _ in blocks]
+    later = blocks[names.index("Get release info") + 1 :]
+
+    assert [name for name, _ in later] == [
+        "Download checksums",
+        "Extract SHA256 hashes",
+        "Update Formula",
+        "Commit and push",
+    ]
+    for name, text in later:
+        assert "if: steps.release.outputs.skip != 'true'" in text, name
 
 
 def test_homebrew_workflow_refuses_a_missing_or_malformed_hash(tmp_path):
@@ -829,20 +889,19 @@ def test_homebrew_workflow_refuses_a_missing_or_malformed_hash(tmp_path):
     assert outputs == {}
 
 
-def test_homebrew_formula_tests_the_version_and_has_no_post_install(tmp_path):
-    workflow = _workflow("update-homebrew.yml")
-    script = _step_script(workflow, "Update Formula")
-    values = {
-        "${{ steps.release.outputs.version }}": "1.3.7",
-        "${{ steps.release.outputs.tag }}": "v1.3.7",
-        "${{ github.repository }}": "NOMARJ/sigil",
-        "${{ steps.hashes.outputs.macos_arm64_sha }}": "0" * 64,
-        "${{ steps.hashes.outputs.macos_x64_sha }}": "1" * 64,
-        "${{ steps.hashes.outputs.linux_x64_sha }}": "2" * 64,
-        "${{ steps.hashes.outputs.linux_arm64_sha }}": "3" * 64,
-    }
-    for expression, value in values.items():
-        script = script.replace(expression, value)
+def _render_formula(tmp_path: Path) -> str:
+    script = _as_actions_would(
+        _step_script(_workflow("update-homebrew.yml"), "Update Formula"),
+        {
+            "steps.release.outputs.version": "1.3.7",
+            "steps.release.outputs.tag": "v1.3.7",
+            "github.repository": "NOMARJ/sigil",
+            "steps.hashes.outputs.macos_arm64_sha": "0" * 64,
+            "steps.hashes.outputs.macos_x64_sha": "1" * 64,
+            "steps.hashes.outputs.linux_x64_sha": "2" * 64,
+            "steps.hashes.outputs.linux_arm64_sha": "3" * 64,
+        },
+    )
     assert "${{" not in script
     if shutil.which("ruby") is None:
         script = script.replace("ruby -c homebrew-tap/Formula/sigil.rb", "true")
@@ -851,7 +910,12 @@ def test_homebrew_formula_tests_the_version_and_has_no_post_install(tmp_path):
     result, _ = _run_step(script, tmp_path, {})
 
     assert result.returncode == 0, result.stderr
-    formula = (tmp_path / "homebrew-tap" / "Formula" / "sigil.rb").read_text()
+    return (tmp_path / "homebrew-tap" / "Formula" / "sigil.rb").read_text()
+
+
+def test_homebrew_formula_tests_the_version_and_has_no_post_install(tmp_path):
+    formula = _render_formula(tmp_path)
+
     # `sigil --version` prints "sigil X.Y.Z"; the old "SIGIL" never matched.
     assert (
         'assert_match version.to_s, shell_output("#{bin}/sigil --version")' in formula
@@ -859,21 +923,66 @@ def test_homebrew_formula_tests_the_version_and_has_no_post_install(tmp_path):
     assert "SIGIL" not in formula
     # `sigil install` copied the binary onto the Homebrew symlink to itself.
     assert "post_install" not in formula
-    assert "sigil install" not in formula and '"install"' not in formula
-    assert "releases/download/v1.3.7/sigil-linux-arm64.tar.gz" in formula
-    assert f'sha256 "{"3" * 64}"' in formula
+    assert '"install"' not in formula
+
+
+def test_homebrew_formula_gives_each_platform_its_own_binary(tmp_path):
+    formula = _render_formula(tmp_path)
+    base = r'url "https://github\.com/NOMARJ/sigil/releases/download/v1\.3\.7/'
+
+    for block, arm, intel in (
+        ("on_macos", ("macos-arm64", "0"), ("macos-x64", "1")),
+        ("on_linux", ("linux-arm64", "3"), ("linux-x64", "2")),
+    ):
+        assert re.search(
+            rf"{block} do\s+if Hardware::CPU\.arm\?\s+"
+            rf'{base}sigil-{arm[0]}\.tar\.gz"\s+sha256 "{arm[1] * 64}"\s+else\s+'
+            rf'{base}sigil-{intel[0]}\.tar\.gz"\s+sha256 "{intel[1] * 64}"\s+end\s+end',
+            formula,
+        ), block
+
+
+def _git(cwd: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=cwd, capture_output=True, text=True, check=True
+    ).stdout
+
+
+def test_homebrew_commit_is_a_no_op_when_the_formula_is_unchanged(tmp_path):
+    script = _step_script(_workflow("update-homebrew.yml"), "Commit and push")
+    remote, tap = tmp_path / "tap.git", tmp_path / "homebrew-tap"
+    _git(tmp_path, "init", "-q", "--bare", "-b", "main", str(remote))
+    _git(tmp_path, "clone", "-q", str(remote), str(tap))
+    (tap / "Formula").mkdir()
+    (tap / "Formula" / "sigil.rb").write_text("# 1.3.6\n")
+    _git(tap, "add", ".")
+    _git(tap, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
+    _git(tap, "push", "-q", "-u", "origin", "main")
+
+    (tap / "Formula" / "sigil.rb").write_text("# 1.3.7\n")
+    first, _ = _run_step(script, tmp_path, {"VERSION": "1.3.7"}, cwd=tap)
+    second, _ = _run_step(script, tmp_path, {"VERSION": "1.3.7"}, cwd=tap)
+
+    assert first.returncode == 0, first.stderr
+    assert second.returncode == 0, second.stderr
+    assert "nothing to push" in second.stdout
+    log = _git(remote, "log", "--format=%s", "main").splitlines()
+    assert log == ["Update sigil to 1.3.7", "init"]
+
+
+_TAG_EXPRESSION = re.compile(
+    r"\$\{\{[^}]*\b(inputs\.tag|github\.event\.inputs\.tag|github\.event\.release\.tag_name)\b[^}]*\}\}"
+)
 
 
 def test_release_side_workflows_never_interpolate_a_tag_into_shell():
     for name in ("publish-npm.yml", "update-homebrew.yml"):
-        workflow = _workflow(name)
-        for expression in ("${{ inputs.tag }}", "${{ github.event.release.tag_name }}"):
-            for line in workflow.splitlines():
-                if expression in line:
-                    assert re.match(r"^\s*(TAG|INPUT_TAG|RELEASE_TAG|ref):", line), (
-                        name,
-                        line,
-                    )
+        for line in _workflow(name).splitlines():
+            if _TAG_EXPRESSION.search(line):
+                assert re.match(r"^\s*(TAG|INPUT_TAG|RELEASE_TAG|ref):", line), (
+                    name,
+                    line,
+                )
 
     npm = _workflow("publish-npm.yml")
     assert "ref: refs/tags/${{ inputs.tag }}" in npm
@@ -887,14 +996,46 @@ def test_release_side_workflows_never_interpolate_a_tag_into_shell():
     [("v1.3.7", 0), ("v1.3.7$(touch pwned)", 1), ("1.3.7", 1), ("v1.3", 1)],
 )
 def test_npm_publish_refuses_a_tag_that_is_not_vxyz(tmp_path, tag, code):
-    result, _ = _run_step(
+    script = _as_actions_would(
         _step_script(_workflow("publish-npm.yml"), "Refuse anything but a vX.Y.Z tag"),
-        tmp_path,
-        {"TAG": tag},
+        {"inputs.tag": tag},
     )
 
-    assert result.returncode == code
+    result, _ = _run_step(script, tmp_path, {"TAG": tag})
+
     assert not (tmp_path / "pwned").exists()
+    assert result.returncode == code
+
+
+def test_npm_publish_step_reads_the_tag_as_data(tmp_path):
+    tag = "v1.3.7$(touch pwned)"
+    fake_bin = _fake_bin(
+        tmp_path,
+        "npm",
+        'echo "$*" >> "$FAKE_NPM_LOG"\n[ "$1" = "view" ] && exit 1\nexit 0\n',
+    )
+    script = _as_actions_would(
+        _step_script(_workflow("publish-npm.yml"), "Publish to npm"),
+        {"inputs.tag": tag},
+    )
+
+    result, _ = _run_step(
+        script,
+        tmp_path,
+        {
+            "TAG": tag,
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_NPM_LOG": str(tmp_path / "npm.log"),
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "pwned").exists()
+    calls = (tmp_path / "npm.log").read_text().splitlines()
+    assert (
+        calls[1]
+        == "version 1.3.7$(touch pwned) --no-git-tag-version --allow-same-version"
+    )
 
 
 def test_crate_excludes_the_maintainers_nomark_graph():
@@ -904,8 +1045,32 @@ def test_crate_excludes_the_maintainers_nomark_graph():
     manifest = tomllib.loads((repo_root / "cli" / "Cargo.toml").read_text())
 
     assert ".nomark/" in manifest["package"]["exclude"]
-    ci = _workflow("ci.yml")
-    assert "cargo package --list --allow-dirty" in ci
+
+
+@pytest.mark.parametrize(
+    ("listing", "code"),
+    [
+        (["Cargo.toml", "src/main.rs", ".cargo_vcs_info.json"], 0),
+        (["Cargo.toml", ".nomark/graph.json", ".cargo_vcs_info.json"], 1),
+        (["Cargo.toml", "src/.secret", ".cargo_vcs_info.json"], 1),
+    ],
+)
+def test_ci_fails_when_the_crate_would_ship_a_hidden_file(tmp_path, listing, code):
+    fake_bin = _fake_bin(
+        tmp_path,
+        "cargo",
+        '[ "$*" = "package --list --allow-dirty" ] || exit 2\n'
+        'printf "%s\\n" $FAKE_LISTING\n',
+    )
+    script = _step_script(_workflow("ci.yml"), "Crate ships no hidden files")
+
+    result, _ = _run_step(
+        script,
+        tmp_path,
+        {"PATH": f"{fake_bin}:{os.environ['PATH']}", "FAKE_LISTING": " ".join(listing)},
+    )
+
+    assert result.returncode == code, result.stdout + result.stderr
 
 
 def test_cli_auto_approval_uses_ledger_helper():

@@ -347,7 +347,8 @@ Checklist:
   skips an already-published version.
 - **Homebrew step failed** — re-run `update-homebrew.yml` with the tag. It
   rewrites the same formula, and a re-run that changes nothing succeeds without
-  a commit.
+  a commit. Do the same after changing the formula template in
+  `update-homebrew.yml`: the tap only changes when the workflow runs.
 - **crates.io step failed** — `release.yml` runs it *after* the GitHub release
   precisely so this cannot block the binaries; re-run the job or
   `cargo publish` from `cli/`.
