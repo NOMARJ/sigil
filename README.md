@@ -315,11 +315,11 @@ Snyk and Dependabot flag known CVEs — they don't scan for intentional malice. 
 ## Detection Accuracy — Measured, Not Marketed
 
 Sigil publishes its measured detection numbers, including the ones that
-aren't flattering. Full method and results:
-[`evaluation_results/honest_detection_eval_7826ea1.md`](evaluation_results/honest_detection_eval_7826ea1.md)
-(recall, this change) and
+aren't flattering. Full method and results for this release:
 [`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md)
-(recall and the clean control set, previous run); every run is in
+(recall and the clean control set) and
+[`evaluation_results/honest_detection_eval_control_verdicts.json`](evaluation_results/honest_detection_eval_control_verdicts.json)
+(each clean package's verdict); every run is in
 [`evaluation_results/HISTORY.md`](evaluation_results/HISTORY.md).
 
 ```
@@ -335,25 +335,33 @@ Limitations: Dataset has GuardDog selection bias (Datadog's own disclaimer).
              sees — both are given below.
 ```
 
-| Metric | This change | Previous run |
+| Metric | v1.3.7 (this release) | Previous run with a control set (`da316a5`) |
 | --- | --- | --- |
 | Recall (malicious detected, any severity) | **93.01%** (785/844) | 91.47% |
 | Recall at ≥ Medium | 90.17% (761/844) | 90.52% |
 | Recall at ≥ High | **89.10%** (752/844) | 85.07% |
-| Recall at ≥ Critical | **66.47%** (561/844) | 65.52% |
-| Clean packages with a ≥ High finding, first scan | not re-measured | 65% (13 of 20) |
-| Clean packages returning a CRITICAL RISK verdict | not re-measured | 0 (0 of 20) |
-| Clean packages returning HIGH RISK or worse | not re-measured | 16 of 20 |
+| Recall at ≥ Critical | **66.35%** (560/844) | 65.52% |
+| Clean packages with a ≥ High finding, first scan | 55% (11 of 20) | 65% (13 of 20) |
+| Clean packages returning a CRITICAL RISK verdict | **2 of 20** (vite, boto3) | 0 of 20 |
+| Clean packages returning HIGH RISK or worse | 7 of 20 | 16 of 20 |
 | FP rate after trust-ledger approval (`sigil approve`) | not re-measured | 0% |
 | FP rate at ≥ High with Pro AI adjudication | not re-measured | not re-measured (30% two runs earlier) |
 
-Both columns are the same 844 samples (dataset fingerprint `587e09d2…`), so
-recall compares directly: it rose at any, ≥ High and ≥ Critical and fell by 3
-samples at ≥ Medium. This change was not re-measured on the 20-package clean
-control set. Its false-positive measurement is on agent skills and MCP servers
-instead: 7 of 455 clean vendor skills blocked (1.5%, down from 108) and 39 of
-169 clean MCP servers blocked. See
-[docs/comparison/skillspector.md](docs/comparison/skillspector.md).
+Recall compares directly: the malicious samples are the same 844 in both
+columns, and the release run's recall equals the run that measured the same
+code before release (dataset commit `1dbcfc5`, fingerprint `63fcde5b…`) at
+every threshold. The clean columns do not compare like for like. The control
+set was fetched again from the live registries for this release, so its
+package versions (and possibly some names) differ from the earlier set, which
+was not recorded. Read them as two measurements, not a trend. Two clean
+packages now return CRITICAL RISK, which the earlier run did not: `vite`
+(`CODE-001`/`002`/`008`/`014`, `OBFUSC-012`, `SUPPLY-001`/`008`/`014`) and
+`boto3` (`CRED-004`, `SUPPLY-003`). Beyond packages, the release's
+false-positive measurements on agent skills and MCP servers: 7 of 455 clean
+vendor skills blocked (1.5%, down from 108) and 29 of 169 clean MCP servers
+blocked (39 before the third false-positive pass). See
+[docs/comparison/skillspector.md](docs/comparison/skillspector.md) and
+[docs/detection/mcp-server-calibration.md](docs/detection/mcp-server-calibration.md).
 
 The AI-skills bucket was the weakest by a wide margin and is no longer: on the
 60-sample subset the harness reports it at 95.0% detected at any severity and

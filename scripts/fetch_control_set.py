@@ -25,6 +25,7 @@ import argparse
 import hashlib
 import io
 import json
+import shutil
 import sys
 import tarfile
 import time
@@ -251,10 +252,16 @@ def main() -> int:
                     log(f"  pypi {i}/{len(futs)} ({got} fetched)")
         # keep only the first `--pypi` by top-list order
         order = {n: i for i, n in enumerate(names)}
-        py = sorted([e for e in entries if e["ecosystem"] == "pypi"], key=lambda e: order.get(e["name"], 1e9))[: args.pypi]
+        ranked_py = sorted([e for e in entries if e["ecosystem"] == "pypi"], key=lambda e: order.get(e["name"], 1e9))
+        py, dropped = ranked_py[: args.pypi], ranked_py[args.pypi:]
         entries = [e for e in entries if e["ecosystem"] != "pypi"] + py
-        for e in [x for x in entries if x["ecosystem"] == "pypi"]:
-            pass
+        # Twice as many candidates are fetched so failures can be skipped;
+        # remove the surplus from disk too. run_eval.py scans the directories
+        # of the output, so a leftover would silently enlarge the control set.
+        for e in dropped:
+            shutil.rmtree(out / e["dir"], ignore_errors=True)
+        if dropped:
+            log(f"pypi: removed {len(dropped)} surplus candidates beyond the top {args.pypi}")
     manifest = {"generated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "packages": sorted(entries, key=lambda e: (e["ecosystem"], e["name"]))}
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1))
     log(f"done: {len(manifest['packages'])} packages under {out}")
