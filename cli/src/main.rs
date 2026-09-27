@@ -3842,14 +3842,29 @@ async fn cmd_install(path: Option<&std::path::Path>, verbose: bool) -> i32 {
                 // The full path, so sudo runs this build rather than
                 // whichever `sigil` root's PATH finds first.
                 eprintln!(
-                    "hint: installing needs write access to {}; re-run with sudo: sudo \"{}\" install --path \"{}\"",
+                    "hint: installing needs write access to {}; re-run with sudo: sudo {} install --path {}",
                     install_dir.display(),
-                    current_exe.display(),
-                    install_dir.display()
+                    shell_quote(&current_exe.to_string_lossy()),
+                    shell_quote(&install_dir.to_string_lossy())
                 );
             }
             1
         }
+    }
+}
+
+/// `s` as one POSIX shell word, safe to paste: left bare when it holds only
+/// characters no shell treats specially, otherwise single-quoted with each
+/// `'` written as `'\''`. Inside single quotes nothing is special, so `$()`,
+/// backticks, `"` and `\` stay literal.
+fn shell_quote(s: &str) -> String {
+    let plain = !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || "/._-+,:@%=".contains(c));
+    if plain {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
     }
 }
 
@@ -3892,22 +3907,26 @@ fn install_binary(source: &Path, target: &Path) -> std::io::Result<InstallOutcom
             format!("{} does not name a file", target.display()),
         )
     })?;
-    let temp = dir.join(format!(
-        ".{}.install-{}",
-        name.to_string_lossy(),
-        std::process::id()
-    ));
-
     let mut src = std::fs::File::open(source)?;
     let permissions = src.metadata()?.permissions();
-    // A leftover from an interrupted run with the same pid is removed once
-    // (unlinking a symlink never touches its target) and creation is retried.
-    let mut out = match create_install_temp(&temp) {
-        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
-            std::fs::remove_file(&temp)?;
-            create_install_temp(&temp)?
+    // A random name per attempt, not the pid: installers in different pid
+    // namespaces can share one directory. A name that already exists belongs
+    // to someone else (another run, or something planted) and is never
+    // removed; another name is tried instead.
+    let mut attempt = 0;
+    let (temp, mut out) = loop {
+        let temp = dir.join(format!(
+            ".{}.install-{}",
+            name.to_string_lossy(),
+            uuid::Uuid::new_v4().simple()
+        ));
+        match create_install_temp(&temp) {
+            Ok(file) => break (temp, file),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && attempt < 3 => {
+                attempt += 1;
+            }
+            Err(e) => return Err(e),
         }
-        other => other?,
     };
 
     let written = std::io::copy(&mut src, &mut out)
@@ -3924,7 +3943,8 @@ fn install_binary(source: &Path, target: &Path) -> std::io::Result<InstallOutcom
 /// Create the temporary file for [`install_binary`].
 ///
 /// create_new (O_EXCL) never opens an existing file or follows a symlink, so
-/// nothing planted at the name is written to. On Unix it starts owner-only
+/// anything already at the name, a planted link included, is refused rather
+/// than written to. On Unix it starts owner-only
 /// (0700 whatever the umask), so nobody else can open it for writing while
 /// the binary is copied in. `set_permissions` gives it the source's mode
 /// only once the copy is complete.
@@ -4542,7 +4562,7 @@ async fn cmd_policy(action: PolicyAction) -> i32 {
 
 #[cfg(test)]
 mod install_tests {
-    use super::{create_install_temp, install_binary, InstallOutcome};
+    use super::{create_install_temp, install_binary, shell_quote, InstallOutcome};
     use std::fs;
     use std::path::{Path, PathBuf};
     use tempfile::{tempdir, TempDir};
@@ -4669,22 +4689,88 @@ mod install_tests {
         assert_eq!(fs::read(&other).unwrap(), b"someone else's file");
     }
 
-    /// A symlink sitting at the temporary name is removed, never followed.
+    /// Anything already at a temporary name (a planted link, or another
+    /// installer's file) is refused, never followed, removed or reused.
     #[cfg(unix)]
     #[test]
-    fn a_link_planted_at_the_temporary_name_is_not_written_through() {
-        let (root, src, bin) = setup();
+    fn an_existing_file_or_link_at_a_temporary_name_is_left_alone() {
+        let (root, _src, bin) = setup();
         let victim = root.path().join("victim");
         fs::write(&victim, b"must not change").unwrap();
-        let temp = bin.join(format!(".sigil.install-{}", std::process::id()));
-        std::os::unix::fs::symlink(&victim, &temp).unwrap();
+        let link = bin.join(".sigil.install-planted-link");
+        std::os::unix::fs::symlink(&victim, &link).unwrap();
+        let busy = bin.join(".sigil.install-another-run");
+        fs::write(&busy, b"another installer's half-written copy").unwrap();
 
-        let outcome = install_binary(&src, &bin.join("sigil")).unwrap();
+        for taken in [&link, &busy] {
+            let err = create_install_temp(taken).unwrap_err();
+            assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        }
 
-        assert_eq!(outcome, InstallOutcome::Installed);
-        assert_eq!(fs::read(bin.join("sigil")).unwrap(), BUILD);
         assert_eq!(fs::read(&victim).unwrap(), b"must not change");
-        assert!(leftovers(&bin).is_empty());
+        assert!(fs::symlink_metadata(&link)
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(
+            fs::read(&busy).unwrap(),
+            b"another installer's half-written copy"
+        );
+    }
+
+    /// Another installer's temporary file is never touched, even one named
+    /// after this process's pid, as a run with the same pid in another pid
+    /// namespace (another container sharing the directory) would name it.
+    #[test]
+    fn installs_leave_other_temporary_files_alone() {
+        let (_root, src, bin) = setup();
+        let other = bin.join(format!(".sigil.install-{}", std::process::id()));
+        fs::write(&other, b"another installer's half-written copy").unwrap();
+
+        install_binary(&src, &bin.join("sigil")).unwrap();
+
+        assert_eq!(fs::read(bin.join("sigil")).unwrap(), BUILD);
+        assert_eq!(
+            fs::read(&other).unwrap(),
+            b"another installer's half-written copy"
+        );
+    }
+
+    #[test]
+    fn shell_quote_leaves_plain_paths_bare_and_quotes_the_rest() {
+        assert_eq!(shell_quote("/usr/local/bin"), "/usr/local/bin");
+        assert_eq!(shell_quote("/opt/sigil-1.3.7/bin"), "/opt/sigil-1.3.7/bin");
+        assert_eq!(shell_quote("/tmp/my dir"), "'/tmp/my dir'");
+        assert_eq!(shell_quote("it's"), "'it'\\''s'");
+        assert_eq!(shell_quote(""), "''");
+    }
+
+    /// The quoted word reaches a real shell as exactly the original string,
+    /// with nothing expanded or run.
+    #[cfg(unix)]
+    #[test]
+    fn shell_quoted_paths_survive_a_real_shell_unchanged() {
+        let dir = tempdir().unwrap();
+        let marker = dir.path().join("ran");
+        for s in [
+            "/tmp/a b",
+            "/tmp/$(touch ran)",
+            "/tmp/`touch ran`",
+            "/tmp/\"quoted\"",
+            "/tmp/back\\slash",
+            "/tmp/it's",
+            "/tmp/$HOME;touch ran",
+            "/tmp/new\nline",
+        ] {
+            let out = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(format!("printf '%s' {}", shell_quote(s)))
+                .current_dir(dir.path())
+                .output()
+                .unwrap();
+            assert_eq!(String::from_utf8(out.stdout).unwrap(), s);
+        }
+        assert!(!marker.exists());
     }
 
     /// Nobody else can open the half-written file: it starts owner-only
