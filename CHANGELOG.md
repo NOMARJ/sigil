@@ -959,7 +959,9 @@ and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
   the `Install cross` and `Build release binary with cross` steps tested a
   `matrix.use_cross` key that no matrix entry defines, so they never ran. Both are
   removed. Every target was already built natively on its own runner, so the
-  release build is unchanged.
+  release build is unchanged. `api/tests/test_release_hardening.py` had pinned
+  the dead `cross build` line; it now checks that linux-arm64 builds natively
+  on the arm64 runner and that no step depends on cross.
 
 Everything below came out of the prism-scanner review
 ([docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md)). Every

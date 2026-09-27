@@ -5,6 +5,7 @@ import shutil
 import stat
 import subprocess
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -351,8 +352,15 @@ def test_release_workflow_publishes_npm_after_public_release_assets_exist():
     ]:
         assert f"test -f {asset}" in workflow
 
-    assert "aarch64-unknown-linux-gnu" in workflow
-    assert "cross build --release --target ${{ matrix.target }}" in workflow
+    # linux-arm64 is built natively on GitHub's arm64 runner. cross cannot be
+    # used for it: its container mounts only cli/, so the corpus include_str!
+    # paths into the repo-root packs/ never resolve (release run 33239558719).
+    assert re.search(
+        r"target: aarch64-unknown-linux-gnu\s+os: ubuntu-22\.04-arm\s", workflow
+    )
+    assert "cargo build --release --target ${{ matrix.target }}" in workflow
+    assert "cross build" not in workflow
+    assert "use_cross" not in workflow
 
     # The repo uses immutable releases: assets can only be attached before
     # publication, so the workflow must create the release as a draft with
