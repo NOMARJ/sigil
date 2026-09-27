@@ -1,6 +1,6 @@
 {
  "description": "Per-package verdicts for the v1.3.7 release benchmark clean control set (honest_detection_eval.json). Scanner: release build of v1.3.7 (cli/ identical to 0b5a121). Command per package, as scripts/run_eval.py runs it: sigil scan <pkg> --no-cache --phases install_hooks,code_patterns,network_exfil,credentials,obfuscation,prompt_injection --format json, with an empty HOME.",
- "control_set": "scripts/fetch_control_set.py --npm 10 --pypi 10, fetched 2026-09-27T08:10:58Z from the live npm and PyPI registries; the 20 packages recorded in its manifest",
+ "control_set": "scripts/fetch_control_set.py --npm 10 --pypi 10, fetched 2026-09-27T08:10:58Z from the live npm and PyPI registries. The 20 packages are the ones its manifest records. The fetcher then in use also left the 10 surplus PyPI candidates it downloads extracted on disk; those were removed before the run, so exactly these 20 were scanned. The fetcher now removes them itself, and run_eval.py scans only the packages a control manifest lists. Re-running the fixed command on 2026-09-27 fetched the same 20 packages with the same versions and archive hashes.",
  "packages": [
   {
    "package": "npm:chalk",

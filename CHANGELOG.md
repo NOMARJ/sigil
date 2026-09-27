@@ -37,9 +37,14 @@ false-positive pass below); SkillSpector blocks 100 of the 156 it finished
 (64.1%; it timed out on 13).
 
 On the 844-package Datadog selection (npm and PyPI malware, same samples as the
-previous run), recall rose from 85.07% to 89.10% at ≥ High, from 91.47% to
-93.01% at any severity and from 65.52% to 66.47% at ≥ Critical, and fell from
-90.52% to 90.17% at ≥ Medium ([report](evaluation_results/honest_detection_eval_7826ea1.md)).
+previous run), the v1.3.7 release build's recall rose from 85.07% to 89.10% at
+≥ High, from 91.47% to 93.01% at any severity and from 65.52% to 66.35% at
+≥ Critical, and fell from 90.52% to 90.17% at ≥ Medium
+([release report](evaluation_results/honest_detection_eval.md)). The
+pre-release build measured 66.47% at ≥ Critical
+([report](evaluation_results/honest_detection_eval_7826ea1.md)); the one sample
+between the two is `artifact-lab-3-package-b1ec2b9f` 0.2.3, which is still
+High.
 
 - **Coverage.**
   - Agent supply chain pack (AGENTSC-001..041): fake-prerequisite downloads,
@@ -981,6 +986,13 @@ and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
   `python/README.md`, which becomes the project description on PyPI, dropped its
   "not yet published" banner and its "publishing is not automated" section for a
   pointer to `docs/RELEASING.md`.
+- **The benchmark's clean control set is what its manifest says.**
+  `scripts/fetch_control_set.py` downloads twice the requested PyPI candidates
+  and recorded only the top N, but left every one extracted, and
+  `scripts/run_eval.py` scanned every directory: `--npm 10 --pypi 10` gave a
+  30-package control set labelled 20. The fetcher now removes the surplus, and
+  `run_eval.py` scans exactly the packages a control manifest lists (a missing
+  one is an error).
 
 Everything below came out of the prism-scanner review
 ([docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md)). Every
