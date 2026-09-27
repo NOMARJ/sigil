@@ -23,6 +23,8 @@ Copies the running `sigil` binary to an install directory (default `/usr/local/b
 sigil install [--path <dir>]
 ```
 
+If `<dir>/sigil` already is the running binary (the same file, or a symlink or hard link to it, such as a package manager's link), it says so and changes nothing. Otherwise it writes the copy to a new file in `<dir>` and renames it into place. So an existing symlink there is replaced rather than written through, a copy of `sigil` that is running is replaced safely, and a failed install leaves the old binary intact. To upgrade, use the channel you installed from (`brew upgrade`, `npm`, `pip`, `cargo install`).
+
 For shell aliases, Claude Code wiring, and git hooks, use `sigil setup`.
 
 ---

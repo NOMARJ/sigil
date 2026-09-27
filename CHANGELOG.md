@@ -6,6 +6,24 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+### 🐛 Fixed
+
+- **`sigil install` can no longer empty its own binary.** It copied the running
+  binary with `std::fs::copy`, which truncates its destination and follows
+  symlinks. So `sigil install` onto a path that already was that binary
+  truncated it to 0 bytes before reading it: running `/usr/local/bin/sigil
+  install`, or installing where `/usr/local/bin/sigil` is a package manager's
+  link to it. On Linux the kernel refused the write (`Text file busy`), which
+  hid the bug; macOS was not tested. Now a target that is the same file (the
+  path itself, a symlink or a hard link) is reported as already installed and
+  left alone. Any other target gets a new file in the install directory, created
+  exclusively and renamed into place. So a symlink there is replaced rather than
+  written through, a running copy is replaced instead of failing with
+  `Text file busy`, and a failed install leaves the old binary intact.
+- **The unknown-phase warning for cloud signatures no longer suggests
+  `sigil install --update`**, a flag that does not exist. It now says to update
+  sigil to the latest release.
+
 ### 🔧 CI
 
 - **`tag-release.yml` tags a release when git cannot push the tag.** Dispatched

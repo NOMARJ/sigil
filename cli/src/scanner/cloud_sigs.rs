@@ -155,7 +155,7 @@ pub fn compile_cloud_signatures(signatures: &[CloudSignature]) -> Vec<CompiledCl
     if !bad_phase.is_empty() {
         eprintln!(
             "[cloud] warning: {} signature(s) skipped — unrecognised phase: {}. \
-             This usually means the signature feed is newer than this binary; run `sigil install --update`.",
+             This usually means the signature feed is newer than this binary; update sigil to the latest release.",
             bad_phase.len(),
             bad_phase.join(", ")
         );
