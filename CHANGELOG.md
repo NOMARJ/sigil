@@ -6,6 +6,8 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+## [1.3.7] - 2026-09-27
+
 ### 🥊 Head-to-head with NVIDIA SkillSpector
 
 Measured on the same real samples as SkillSpector 2.11.2 (static, `--no-llm`):
@@ -1484,7 +1486,8 @@ Based on client feedback reporting critical trust erosion from false positive sc
 
 ---
 
-[Unreleased]: https://github.com/NOMARJ/sigil/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/NOMARJ/sigil/compare/v1.3.7...HEAD
+[1.3.7]: https://github.com/NOMARJ/sigil/compare/v1.3.6...v1.3.7
 [1.1.1]: https://github.com/NOMARJ/sigil/compare/v0.9.0...v1.1.1
 [0.9.0]: https://github.com/NOMARJ/sigil/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/NOMARJ/sigil/compare/v0.7.0...v0.8.0
