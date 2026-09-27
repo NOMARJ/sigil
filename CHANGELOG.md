@@ -964,6 +964,15 @@ and the unseen 146 fall 80 → 70 blocked and 135 → 115 warned.
   release build is unchanged. `api/tests/test_release_hardening.py` had pinned
   the dead `cross build` line; it now checks that linux-arm64 builds natively
   on the arm64 runner and that no step depends on cross.
+- **`release.yml`'s crates.io "already published" check works.** It sent no
+  User-Agent, which crates.io answers with 403, so it never skipped: a re-run of
+  a release died at `cargo publish` and never reached the npm and Homebrew
+  dispatches. It now identifies itself and skips on 200. Any other answer falls
+  through to `cargo publish`, as before, with a warning.
+- **The `sigilsec` PyPI page no longer says it is unpublished.**
+  `python/README.md`, which becomes the project description on PyPI, dropped its
+  "not yet published" banner and its "publishing is not automated" section for a
+  pointer to `docs/RELEASING.md`.
 
 Everything below came out of the prism-scanner review
 ([docs/research/prism-scanner-lessons.md](docs/research/prism-scanner-lessons.md)). Every
