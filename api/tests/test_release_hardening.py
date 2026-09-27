@@ -6,6 +6,7 @@ import stat
 import subprocess
 import json
 import re
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -603,6 +604,259 @@ def test_release_support_workflows_have_valid_outputs_and_action_pins():
     assert "anchore/sbom-action/download-syft@v0.24.0" in sbom_workflow
     assert "f325610c9f50a54015d37feeff2e57e8981374a0" not in sbom_workflow
     assert "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true" in sbom_workflow
+
+
+def _workflow(name: str) -> str:
+    repo_root = Path(__file__).resolve().parents[2]
+    return (repo_root / ".github" / "workflows" / name).read_text()
+
+
+def _step_script(workflow: str, step_name: str) -> str:
+    """The `run: |` script of the named step, dedented, as bash will see it."""
+    lines = workflow.splitlines()
+    start = next(
+        i for i, line in enumerate(lines) if line.strip() == f"- name: {step_name}"
+    )
+    step_indent = len(lines[start]) - len(lines[start].lstrip())
+    run = next(i for i in range(start + 1, len(lines)) if lines[i].strip() == "run: |")
+    assert not any(
+        line.strip().startswith("- ") and len(line) - len(line.lstrip()) == step_indent
+        for line in lines[start + 1 : run]
+    ), f"no run block in step {step_name!r}"
+    run_indent = len(lines[run]) - len(lines[run].lstrip())
+    body = []
+    for line in lines[run + 1 :]:
+        if line.strip() and len(line) - len(line.lstrip()) <= run_indent:
+            break
+        body.append(line)
+    return textwrap.dedent("\n".join(body)) + "\n"
+
+
+def _run_step(
+    script: str, tmp_path: Path, env: dict
+) -> tuple[subprocess.CompletedProcess, dict]:
+    output = tmp_path / "github-output"
+    output.write_text("")
+    result = subprocess.run(
+        # How GitHub runs a `run:` step: bash --noprofile --norc -eo pipefail.
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
+        cwd=tmp_path,
+        env={**os.environ, "GITHUB_OUTPUT": str(output), **env},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    outputs = dict(
+        line.split("=", 1) for line in output.read_text().splitlines() if "=" in line
+    )
+    return result, outputs
+
+
+def _fake_gh(tmp_path: Path) -> Path:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    gh = fake_bin / "gh"
+    gh.write_text(
+        "#!/usr/bin/env bash\n"
+        'echo "$*" >> "$FAKE_GH_LOG"\n'
+        'if [ "$1 $2" = "release view" ]; then\n'
+        '  [ "$FAKE_RELEASE" = "absent" ] && { echo "release not found" >&2; exit 1; }\n'
+        '  echo "$FAKE_RELEASE"\n'
+        "fi\n"
+    )
+    gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
+    return fake_bin
+
+
+@pytest.mark.parametrize(
+    ("release", "uploads", "attached"),
+    [("true", True, "true"), ("false", False, "false"), ("absent", False, "false")],
+)
+def test_sbom_workflow_attaches_only_to_a_draft_release(
+    tmp_path, release, uploads, attached
+):
+    workflow = _workflow("sbom.yml")
+    # softprops/action-gh-release creates (and so publishes) a release when the
+    # tag has none, and replaces the notes of one that exists.
+    assert "softprops/action-gh-release" not in workflow
+    assert "gh release create" not in workflow
+    assert "gh release edit" not in workflow
+
+    fake_bin = _fake_gh(tmp_path)
+    log = tmp_path / "gh.log"
+    result, outputs = _run_step(
+        _step_script(workflow, "Attach SBOMs to the draft release"),
+        tmp_path,
+        {
+            "PATH": f"{fake_bin}:{os.environ['PATH']}",
+            "FAKE_GH_LOG": str(log),
+            "FAKE_RELEASE": release,
+            "GITHUB_REF_NAME": "v9.9.9",
+            "GITHUB_REPOSITORY": "NOMARJ/sigil",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    calls = log.read_text().splitlines()
+    assert calls[0].startswith("release view v9.9.9 ")
+    assert any(call.startswith("release upload v9.9.9 ") for call in calls) is uploads
+    assert outputs["attached"] == attached
+    assert all(
+        call.split()[:2] in (["release", "view"], ["release", "upload"])
+        for call in calls
+    )
+
+
+@pytest.mark.parametrize(
+    ("env", "code", "outputs"),
+    [
+        (
+            {"EVENT_NAME": "workflow_dispatch", "INPUT_TAG": "v1.3.7"},
+            0,
+            {"version": "1.3.7", "tag": "v1.3.7", "skip": "false"},
+        ),
+        (
+            {"EVENT_NAME": "release", "RELEASE_TAG": "v1.3.7"},
+            0,
+            {"version": "1.3.7", "tag": "v1.3.7", "skip": "false"},
+        ),
+        # Other ship channels publish releases too; they are not formula updates.
+        (
+            {"EVENT_NAME": "release", "RELEASE_TAG": "vscode-v1.2.0"},
+            0,
+            {"skip": "true"},
+        ),
+        (
+            {"EVENT_NAME": "workflow_dispatch", "INPUT_TAG": "v1.3.7$(touch pwned)"},
+            1,
+            {},
+        ),
+        ({"EVENT_NAME": "workflow_dispatch", "INPUT_TAG": "vscode-v1.2.0"}, 1, {}),
+    ],
+)
+def test_homebrew_workflow_accepts_only_cli_release_tags(tmp_path, env, code, outputs):
+    workflow = _workflow("update-homebrew.yml")
+    result, got = _run_step(
+        _step_script(workflow, "Get release info"),
+        tmp_path,
+        {"RELEASE_TAG": "", "INPUT_TAG": "", "GH_TOKEN": "unused", **env},
+    )
+
+    assert result.returncode == code, result.stderr
+    assert got == outputs
+    assert not (tmp_path / "pwned").exists()
+
+
+def test_homebrew_workflow_refuses_a_missing_or_malformed_hash(tmp_path):
+    workflow = _workflow("update-homebrew.yml")
+    script = _step_script(workflow, "Extract SHA256 hashes")
+    names = [
+        "sigil-macos-arm64.tar.gz",
+        "sigil-macos-x64.tar.gz",
+        "sigil-linux-x64.tar.gz",
+        "sigil-linux-arm64.tar.gz",
+    ]
+    sums = tmp_path / "SHA256SUMS.txt"
+
+    sums.write_text("".join(f"{str(i) * 64}  {name}\n" for i, name in enumerate(names)))
+    result, outputs = _run_step(script, tmp_path, {})
+    assert result.returncode == 0, result.stderr
+    assert outputs == {
+        "macos_arm64_sha": "0" * 64,
+        "macos_x64_sha": "1" * 64,
+        "linux_x64_sha": "2" * 64,
+        "linux_arm64_sha": "3" * 64,
+    }
+
+    # linux-arm64 missing: the step fails before writing any output.
+    sums.write_text("".join(f"{'a' * 64}  {name}\n" for name in names[:3]))
+    result, outputs = _run_step(script, tmp_path, {})
+    assert result.returncode != 0
+    assert outputs == {}
+
+    sums.write_text("".join(f"{'z' * 64}  {name}\n" for name in names))
+    result, outputs = _run_step(script, tmp_path, {})
+    assert result.returncode != 0
+    assert outputs == {}
+
+
+def test_homebrew_formula_tests_the_version_and_has_no_post_install(tmp_path):
+    workflow = _workflow("update-homebrew.yml")
+    script = _step_script(workflow, "Update Formula")
+    values = {
+        "${{ steps.release.outputs.version }}": "1.3.7",
+        "${{ steps.release.outputs.tag }}": "v1.3.7",
+        "${{ github.repository }}": "NOMARJ/sigil",
+        "${{ steps.hashes.outputs.macos_arm64_sha }}": "0" * 64,
+        "${{ steps.hashes.outputs.macos_x64_sha }}": "1" * 64,
+        "${{ steps.hashes.outputs.linux_x64_sha }}": "2" * 64,
+        "${{ steps.hashes.outputs.linux_arm64_sha }}": "3" * 64,
+    }
+    for expression, value in values.items():
+        script = script.replace(expression, value)
+    assert "${{" not in script
+    if shutil.which("ruby") is None:
+        script = script.replace("ruby -c homebrew-tap/Formula/sigil.rb", "true")
+    (tmp_path / "homebrew-tap" / "Formula").mkdir(parents=True)
+
+    result, _ = _run_step(script, tmp_path, {})
+
+    assert result.returncode == 0, result.stderr
+    formula = (tmp_path / "homebrew-tap" / "Formula" / "sigil.rb").read_text()
+    # `sigil --version` prints "sigil X.Y.Z"; the old "SIGIL" never matched.
+    assert (
+        'assert_match version.to_s, shell_output("#{bin}/sigil --version")' in formula
+    )
+    assert "SIGIL" not in formula
+    # `sigil install` copied the binary onto the Homebrew symlink to itself.
+    assert "post_install" not in formula
+    assert "sigil install" not in formula and '"install"' not in formula
+    assert "releases/download/v1.3.7/sigil-linux-arm64.tar.gz" in formula
+    assert f'sha256 "{"3" * 64}"' in formula
+
+
+def test_release_side_workflows_never_interpolate_a_tag_into_shell():
+    for name in ("publish-npm.yml", "update-homebrew.yml"):
+        workflow = _workflow(name)
+        for expression in ("${{ inputs.tag }}", "${{ github.event.release.tag_name }}"):
+            for line in workflow.splitlines():
+                if expression in line:
+                    assert re.match(r"^\s*(TAG|INPUT_TAG|RELEASE_TAG|ref):", line), (
+                        name,
+                        line,
+                    )
+
+    npm = _workflow("publish-npm.yml")
+    assert "ref: refs/tags/${{ inputs.tag }}" in npm
+    assert npm.index("Refuse anything but a vX.Y.Z tag") < npm.index(
+        "actions/checkout@v5"
+    )
+
+
+@pytest.mark.parametrize(
+    ("tag", "code"),
+    [("v1.3.7", 0), ("v1.3.7$(touch pwned)", 1), ("1.3.7", 1), ("v1.3", 1)],
+)
+def test_npm_publish_refuses_a_tag_that_is_not_vxyz(tmp_path, tag, code):
+    result, _ = _run_step(
+        _step_script(_workflow("publish-npm.yml"), "Refuse anything but a vX.Y.Z tag"),
+        tmp_path,
+        {"TAG": tag},
+    )
+
+    assert result.returncode == code
+    assert not (tmp_path / "pwned").exists()
+
+
+def test_crate_excludes_the_maintainers_nomark_graph():
+    import tomllib
+
+    repo_root = Path(__file__).resolve().parents[2]
+    manifest = tomllib.loads((repo_root / "cli" / "Cargo.toml").read_text())
+
+    assert ".nomark/" in manifest["package"]["exclude"]
+    ci = _workflow("ci.yml")
+    assert "cargo package --list --allow-dirty" in ci
 
 
 def test_cli_auto_approval_uses_ledger_helper():

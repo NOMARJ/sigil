@@ -223,6 +223,20 @@ jobs:
         working-directory: cli
         run: cargo test --release
 
+      # The crate ships only what builds it. A hidden path such as the
+      # maintainers' .nomark/ graph must stay out (Cargo.toml `exclude`);
+      # .cargo_vcs_info.json is the one file cargo itself adds.
+      - name: Crate ships no hidden files
+        working-directory: cli
+        run: |
+          LIST="$(cargo package --list --allow-dirty)"
+          HIDDEN="$(printf '%s\n' "$LIST" | grep -E '(^|/)\.' | grep -v -x '\.cargo_vcs_info\.json' || true)"
+          if [ -n "$HIDDEN" ]; then
+            echo "::error::the sigil-cli crate would ship hidden files:"
+            echo "$HIDDEN"
+            exit 1
+          fi
+
   # ── Claude Code Plugin ──────────────────────────────────────────────────────
   validate-marketplace:
     name: Validate Plugin Manifests

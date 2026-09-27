@@ -16,6 +16,43 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   it, because a tag made with the workflow token fires no push trigger.
   `docs/RELEASING.md` step 4 documents it; pushing the tag from git remains the
   normal path.
+- **`sbom.yml` can no longer publish a release.** Its upload used
+  `softprops/action-gh-release` with no `draft`, so a run that beat
+  `release.yml` would have created a published, immutable release with only
+  SBOMs on it, and no binaries could ever be attached. On an existing release it
+  also replaced the release notes. It now attaches the SBOMs with
+  `gh release upload` only while the release is a draft; it never creates one and
+  leaves a published one alone. The signed set is always kept as the run's
+  `signed-sboms` artifact (90 days).
+- **`publish-npm.yml` reads its `tag` input through the environment.** It used
+  to substitute the input straight into the shell script. It now refuses anything
+  but `vX.Y.Z` before checkout, and checks out `refs/tags/<tag>` so a branch with
+  the same name is never what gets published.
+- **CI fails if the `sigil-cli` crate would ship a hidden file.** The Build Rust
+  job lists the package and fails on any hidden path other than
+  `.cargo_vcs_info.json`.
+
+### 📦 Distribution
+
+- **The Homebrew formula's test now passes.** It asserted `SIGIL` in
+  `sigil --version`, which prints `sigil X.Y.Z`, so `brew test` always failed. It
+  now checks the formula's version.
+- **The Homebrew formula no longer runs `sigil install` after installing.**
+  Homebrew already links `sigil` into its prefix. `sigil install` copies the
+  binary to `/usr/local/bin`, which on an Intel Mac is the Homebrew symlink to
+  that same binary, and copying a file onto a symlink to itself truncates it to
+  0 bytes. On Linux the kernel refuses the write to a running binary; macOS was
+  not tested.
+- **Homebrew on Linux arm64 gets the arm64 binary.** The formula gave every
+  Linux machine the x64 build.
+- **`update-homebrew.yml` checks its inputs.** The tag reaches the shell through
+  the environment and must be `vX.Y.Z`. A release of another channel
+  (`vscode-v…`, `jetbrains-v…`) is skipped instead of rewriting the formula. The
+  checksums download fails on an HTTP error, each hash must be 64 hex
+  characters, and the formula must pass `ruby -c`. A re-run for a version the tap
+  already has succeeds without an empty commit.
+- **The crate no longer ships `cli/.nomark/graph.json`**, the maintainers'
+  traceability graph. `Cargo.toml` excludes `.nomark/`.
 
 ## [1.3.7] - 2026-09-27
 

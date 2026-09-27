@@ -157,7 +157,11 @@ git push origin vX.Y.Z          # push the tag from git ONLY — never the web U
 `release.yml` then builds five targets (macOS arm64/x64, Linux x64/arm64,
 Windows x64), attaches them plus `SHA256SUMS.txt` to a draft release, publishes
 it, pushes to crates.io, dispatches `publish-npm.yml`, and triggers the Homebrew
-formula update. `docker.yml` fires on the same tag.
+formula update. `docker.yml` and `sbom.yml` fire on the same tag. `sbom.yml`
+attaches its signed SBOMs only while the release is still a draft, and never
+creates or publishes a release itself. `release.yml` publishes as soon as the
+binaries are attached, so the SBOMs normally arrive too late for the immutable
+release and stay in that run's `signed-sboms` artifact (kept 90 days).
 
 **When a tag cannot be pushed from git** (for example from an environment whose
 credentials may push branches but not tags): Actions → **Tag Release** → Run
@@ -308,6 +312,7 @@ npx --yes @nomark/sigil-mcp-server@X.Y.Z     # then Ctrl-C
 
 # Homebrew
 brew update && brew install nomarj/tap/sigil && sigil --version
+brew test nomarj/tap/sigil                   # the formula's own test block
 
 # Release assets and checksums (download an asset first — --ignore-missing
 # checks only the files that are actually present, so an empty directory
@@ -339,6 +344,9 @@ Checklist:
   the version is already published, so re-runs are safe.
 - **PyPI step failed** — re-run `publish-pypi.yml` with the same tag; it also
   skips an already-published version.
+- **Homebrew step failed** — re-run `update-homebrew.yml` with the tag. It
+  rewrites the same formula, and a re-run that changes nothing succeeds without
+  a commit.
 - **crates.io step failed** — `release.yml` runs it *after* the GitHub release
   precisely so this cannot block the binaries; re-run the job or
   `cargo publish` from `cli/`.

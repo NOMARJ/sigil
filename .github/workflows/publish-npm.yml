@@ -28,9 +28,24 @@ jobs:
     name: Publish @nomarj/sigil
     runs-on: ubuntu-latest
     steps:
+      # The tag reaches the shell through the environment, never through
+      # expression interpolation into the script: an expression is substituted
+      # before bash parses the line, so a tag containing shell syntax would be
+      # executed rather than read. Checked before anything else runs.
+      - name: Refuse anything but a vX.Y.Z tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::tag '${TAG}' is not vX.Y.Z, the only form release.yml builds"
+            exit 1
+          fi
+
+      # refs/tags/ so a branch that happens to share the tag's name is never
+      # what gets published.
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag }}
+          ref: refs/tags/${{ inputs.tag }}
 
       # Node 24 bundles npm >= 11.5.1, the minimum for trusted publishing.
       - uses: actions/setup-node@v5
@@ -39,9 +54,11 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish to npm
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          VERSION="${{ inputs.tag }}"
-          VERSION="${VERSION#v}"
+          set -euo pipefail
+          VERSION="${TAG#v}"
           if npm view "@nomarj/sigil@${VERSION}" version >/dev/null 2>&1; then
             echo "@nomarj/sigil ${VERSION} is already on npm — nothing to do"
             exit 0
