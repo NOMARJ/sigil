@@ -18,7 +18,7 @@ curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh
 sh install.sh
 ```
 
-Detects your platform (Linux or macOS, x64 or arm64), downloads the pre-built binary from the latest GitHub release and checks it against the release's `SHA256SUMS.txt`. If it cannot download or run a release binary it stops and suggests `cargo install sigil-cli`. Installs to `/usr/local/bin` (set `INSTALL_DIR` to change it) and sets up the Claude Code plugin when the `claude` CLI is on your PATH (skip with `--no-integrations`). Shell aliases are added only with `sh install.sh --with-aliases`.
+Detects your platform (Linux or macOS, x64 or arm64), downloads the pre-built binary from the latest GitHub release and checks it against the release's `SHA256SUMS.txt` when `sha256sum` or `shasum` is available. If neither hashing tool is installed, the installer warns and continues without checksum verification; install one of these tools before running it to verify the download. `--skip-verify` also disables this check. If it cannot download or run a release binary it stops and suggests `cargo install sigil-cli`. Installs to `/usr/local/bin` (set `INSTALL_DIR` to change it) and sets up the Claude Code plugin when the `claude` CLI is on your PATH (skip with `--no-integrations`). Shell aliases are added only with `sh install.sh --with-aliases`.
 
 ### Option 2: Homebrew
 

@@ -501,7 +501,7 @@ sudo npm install -g @nomarj/sigil
 
 ### Download fails / Binary unavailable
 
-The installer fails closed when a platform binary or checksum is unavailable. When it cannot download or run a release binary, it points you to installing from source instead:
+The installer stops when a platform binary, checksum file, or matching checksum entry is unavailable. Checksum verification requires `sha256sum` or `shasum`: if neither tool is installed, it warns and continues without verifying the download. Install a hashing tool before running the installer to verify the download; `--skip-verify` also disables this check. When it cannot download or run a release binary, it points you to installing from source instead:
 
 ```bash
 cargo install sigil-cli
