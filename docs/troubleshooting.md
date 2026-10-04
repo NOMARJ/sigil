@@ -256,24 +256,22 @@ cat results.sarif | python -m json.tool    # Check it's valid JSON
 
 ### Exit code mapping in CI
 
-| Exit Code | Verdict | Suggested CI Action |
+| Exit Code | Meaning | Suggested CI Action |
 |-----------|---------|-------------------|
-| `0` | CLEAN | Pass |
-| `4` | LOW_RISK | Pass (with optional warning) |
-| `3` | MEDIUM_RISK | Pass or fail (configurable) |
-| `2` | HIGH_RISK | Fail |
-| `1` | CRITICAL / Error | Fail |
+| `0` | No finding at or above `--fail-on` (default `high`) | Pass |
+| `1` | A finding at or above `--fail-on`, or a verdict at or above `--fail-on-verdict` | Fail |
+| `2` | Scan error: invalid path or flags, or the scan could not run | Fail, and fix the job |
+
+The exit code follows the findings, not the verdict: with the default `--fail-on high`, a MEDIUM RISK result exits `0` when none of its findings is High or Critical, and `1` when one is. To gate on the verdict as well, add `--fail-on-verdict` (see [Exit Codes](cli.md#exit-codes)).
 
 **Example gate script:**
 
 ```bash
-sigil scan .
+sigil scan . --fail-on-verdict medium
 case $? in
-  0) echo "CLEAN — pipeline passes" ;;
-  4) echo "LOW RISK — review recommended" ;;
-  3) echo "MEDIUM RISK — manual review required"; exit 1 ;;
-  2) echo "HIGH RISK — blocking"; exit 1 ;;
-  1) echo "CRITICAL — blocking"; exit 1 ;;
+  0) echo "Verdict below MEDIUM RISK, no High or Critical finding — pipeline passes" ;;
+  1) echo "MEDIUM RISK or worse, or a High or Critical finding — blocking"; exit 1 ;;
+  *) echo "Scan error — fix the job"; exit 2 ;;
 esac
 ```
 
