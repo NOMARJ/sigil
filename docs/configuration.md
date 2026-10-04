@@ -60,7 +60,7 @@ yara_engine: auto                   # auto | best-effort | builtin | yara-x | ya
 # Organisation policy only:
 locked: [fail_on, disable_rules]    # or [all]
 allow_project_policy: true          # false = project files may only tighten
-llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends code
+# llm_endpoint: https://llm.internal.example.com/v1   # with llm_provider: openai-compatible; where the LLM stage sends code
 ```
 
 | Key | Type | Effect |
@@ -319,12 +319,14 @@ poetry.lock
 
 ### Default Exclusions
 
-Even without a `.sigilignore` file, Sigil always skips:
+Even without a `.sigilignore` file, Sigil never content-scans:
 
 - `node_modules/` — npm dependencies
 - `.git/` — git internal files
-- Test files and example files
-- Documentation files
+- `target/`, `.next/` and `__pycache__/` — build output and caches
+- Virtualenvs (`.venv/`, `venv/`) and tool caches (`.tox/`, `.mypy_cache/`, `.pytest_cache/`)
+
+Test, example and documentation files are scanned. Findings under `tests/`, `docs/`, `examples/` and similar directories are still reported, but they do not count toward the first-party evidence the HIGH verdict needs (see [Verdicts and Scoring](cli.md#verdicts-and-scoring)).
 
 ### Pattern Rules
 
@@ -337,7 +339,7 @@ Even without a `.sigilignore` file, Sigil always skips:
 
 ---
 
-## Scan Policies (Team Tier)
+## Team Policies (Team Tier, dashboard)
 
 Teams on the Team plan can configure scan policies that apply to all members. Policies define auto-approve thresholds, required review rules, and package allow/block lists.
 
@@ -381,7 +383,7 @@ deprecated-unsafe-lib
 
 ### Policy Sync
 
-Policies are stored in the Sigil cloud and sync to all authenticated team members. When a policy changes, it takes effect on the next scan.
+Policies are stored in the Sigil cloud and apply to the dashboard and API. The CLI does not fetch them, so they do not change `sigil scan`, `clone`, `pip` or `npm`: the CLI's only auto-approve is `--auto-approve` on `clone`, `pip` and `npm`, for a LOW RISK verdict, and what a CLI scan enforces comes from its [scan policy](#scan-policy-sigilyml).
 
 Configure policies via the web dashboard at **Settings > Scan Policies**, or via the API:
 
@@ -467,23 +469,16 @@ After `sigil login`, the JWT token is stored at `~/.sigil/token`. The file conta
 
 - Tokens are issued by the Sigil API with an expiration time
 - The CLI reads the token on each authenticated request
-- If the token is expired or missing, the CLI falls back to offline mode (no threat intelligence)
+- Logging in does not change a plain `sigil scan`; only the cloud options (`--enrich`, `--submit`, `--enhanced`, `sigil fetch`, `sigil report`) send the token
 - Run `sigil login` again to refresh an expired token
 
 ### What Data Is Sent
 
-When authenticated, scan metadata is sent to the Sigil API. **Source code is never transmitted.**
+Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a `sigil scan` of a tree with a lockfile does look its dependencies' names and versions up in OSV and npm/PyPI). What each option sends, per [Data Handling](data-handling.md):
 
-**Sent:**
-- Which scan rules triggered (e.g., "Phase 2: eval() found")
-- File type distribution (e.g., "12 Python files, 8 JavaScript files")
-- Risk score and verdict
-- Package name, version, and hash
-
-**Never sent:**
-- Source code or file contents
-- Credentials or environment variable values
-- File paths on your machine
+- `sigil scan --enrich`: a SHA-256 hash of the scanned files' paths and sizes
+- `sigil scan --submit`: the scan result, including each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. Flagged lines are source code, and can include a secret the line contains
+- `sigil scan --enhanced` (Pro): the contents of up to 50 scanned files, for LLM analysis
 
 ---
 

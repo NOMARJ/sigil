@@ -193,27 +193,37 @@ winget install NOMARK.Sigil
 
 ---
 
-## 🐳 Docker
+## 🐳 Docker — _Coming soon_
+
+> **No image is published yet.** Docker Hub has no `nomark/sigil` or
+> `nomark/sigil-full` repository, so the `docker pull` commands below do not
+> work today. Until they do, [build the CLI image yourself](#build-the-cli-image-yourself).
+> Published images will be tagged with the release version
+> (`nomark/sigil:<version>`, for example `1.3.7`); there is no `latest` tag.
 
 ### CLI Only
 
 ```bash
-docker pull nomark/sigil:1.2.1
+docker pull nomark/sigil:<version>
 
 # Scan a directory
-docker run --rm -v $(pwd):/workspace nomark/sigil:1.2.1 scan .
+docker run --rm -v $(pwd):/workspace nomark/sigil:<version> scan .
 
 # Clone and scan a repo
-docker run --rm -v ~/.sigil:/home/sigil/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
+docker run --rm -v ~/.sigil:/home/sigil/.sigil nomark/sigil:<version> clone https://github.com/someone/repo
 ```
 
 ### Full Stack (API + Dashboard + CLI)
 
+In this image `sigil` is the legacy bash CLI (`bin/sigil`), which hands scans to
+the Rust CLI installed as `sigil-engine`, and the image pre-creates
+`~/.sigil/approved`, `logs` and `reports`, which the Rust CLI does not use.
+
 ```bash
-docker pull nomark/sigil-full:1.2.1
+docker pull nomark/sigil-full:<version>
 
 # Run the full stack
-docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:1.2.1
+docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:<version>
 ```
 
 **Docker Compose:**
@@ -222,7 +232,7 @@ docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:1.2.1
 version: "3.8"
 services:
   sigil:
-    image: nomark/sigil-full:1.2.1
+    image: nomark/sigil-full:<version>
     ports:
       - "8000:8000" # API
       - "3000:3000" # Dashboard
@@ -340,11 +350,11 @@ sigil scan .
 sigil login
 ```
 
-Enables:
+Stores a token for the cloud options; a plain `sigil scan` does not change. You then opt in explicitly:
 
-- Hash-based malware lookup
-- Auto-updating threat signatures
-- Community-reported threats
+- Hash-based malware lookup: `sigil scan --enrich`
+- Threat signature updates: `sigil fetch` (signatures do not update on their own)
+- Reporting a threat: `sigil report`
 
 See [Authentication Guide](./authentication-guide.md) for details.
 
@@ -411,8 +421,10 @@ cargo install sigil-cli --force
 
 ### Docker
 
+No image is published yet; rebuild the CLI image from an updated checkout:
+
 ```bash
-docker pull nomark/sigil:1.2.1
+docker build -f Dockerfile.cli -t sigil .
 ```
 
 ### Manual / Script Install
