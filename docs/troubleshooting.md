@@ -134,7 +134,7 @@ sigil scan . --severity high
 
 ### `sigil scan` exits with an error
 
-**Run it verbosely** to see which step failed (`grep`, `find`, `file` and external scanners are not needed):
+**Run it verbosely** to see which step failed (`grep`, `find`, `file`, `semgrep`, `bandit`, `trufflehog` and `safety` are not needed):
 
 ```bash
 sigil -v scan /path/you/are/scanning
@@ -146,13 +146,15 @@ sigil -v scan /path/you/are/scanning
 ls -la /path/you/are/scanning
 ```
 
+**YARA rules that use modules:** a YARA file given with `--rules` or a policy that imports a module (`import "pe"`, for example) needs YARA-X (`yr`) or YARA (`yara`) on your PATH. Without either, the scan exits `2` and says so. Install one, or pass `--yara-engine best-effort` to load those rules unevaluated (the scan then reports incomplete coverage).
+
 ### External scanner not detected
 
 A "semgrep not found" message came from the legacy bash CLI (`bin/sigil`). The current CLI does not call `semgrep`, `bandit`, `trufflehog` or `safety` and never reports them missing: all eight scan phases are built in, so there is nothing to install.
 
 ### Scan shows no findings but I expect some
 
-1. **Check file types:** Sigil scans `.py`, `.js`, `.mjs`, `.ts`, `.tsx`, `.jsx`, `.sh`, `.yaml`, `.yml`, `.json`, `.toml`. Other file types are not scanned.
+1. **Check file types:** every text file is content-scanned, whatever its extension. Binary files get only the structural checks, and `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches are never content-scanned (see [File Types Scanned](cli.md#file-types-scanned)).
 
 2. **Check .sigilignore:** Your ignore file may be excluding the relevant files.
 
@@ -186,7 +188,7 @@ curl -s https://api.sigilsec.ai/health
 curl -s "https://api.yourcompany.com/health"
 ```
 
-**Check credentials:** Ensure you are using the correct email and password.
+**Check how you log in:** `sigil login` has no email or password option. Without flags it opens a browser sign-in (it prints a URL and a code to confirm); `sigil login --token <token>` checks a token you already have against the API before storing it.
 
 ### Token expired
 
@@ -200,7 +202,7 @@ sigil login
 
 ### Threat intelligence not loading
 
-After login, scans should show a "Cloud threat enrichment" section. If missing:
+Logging in does not change a plain `sigil scan`. The hash lookup runs only with `sigil scan --enrich`, which prints `THREAT INTEL: <path> is a known threat` on a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. If it fails:
 
 1. **Check authentication status:**
 
@@ -234,12 +236,12 @@ sigil login
 - uses: NOMARJ/sigil@main
 
 # Or pin to a specific version
-- uses: NOMARJ/sigil@v0.9.0
+- uses: NOMARJ/sigil@v1.3.7
 ```
 
 **Check runner has required tools:**
 
-The action runs on `ubuntu-latest` which includes all required tools. If using a custom runner, ensure `grep`, `find`, `file`, `git`, and `curl` are available.
+The action runs on `ubuntu-latest` which includes all required tools. If using a custom runner, ensure `curl`, `tar`, `sha256sum` (or `shasum`) and `jq` are available: the action installs the release binary with `install.sh` and reads the JSON report with `jq`.
 
 ### SARIF upload rejected by GitHub
 
