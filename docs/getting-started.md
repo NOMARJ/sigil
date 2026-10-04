@@ -246,7 +246,7 @@ Sigil needs no account, and the eight scan phases run locally. `sigil scan` does
 sigil login
 ```
 
-This prompts for your email and password (or opens a browser for SSO). After authentication, the CLI stores a JWT token locally and includes it in API calls.
+The CLI prints a verification URL and code. Open the URL, confirm the code, and finish signing in in your browser while the CLI waits. After authentication, the CLI stores the access token in `~/.sigil/token` and includes it in API calls. For non-interactive use, pass an existing token with `sigil login --token "$SIGIL_API_TOKEN"`.
 
 **What changes after login:**
 
