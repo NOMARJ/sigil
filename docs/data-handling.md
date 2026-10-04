@@ -13,7 +13,7 @@
 | --- | --- | --- | --- |
 | Default CLI, logged in or not | **No** | For `sigil scan` of a tree with a lockfile: the listed dependencies' names and versions, and the IDs of any `CVE-` advisories found | OSV (`api.osv.dev`), the npm and PyPI registries, and FIRST EPSS (`api.first.org`); the CISA KEV catalogue is downloaded from `www.cisa.gov` |
 | Scan submission (`sigil scan --submit`, after `sigil login`) | **Flagged lines only** | Finding metadata + the source-line excerpts shown in scan output | Sigil API |
-| Pro enhanced scan / AI investigation | **Yes — relevant files** | Full contents of files relevant to a finding | Sigil API → LLM provider |
+| Pro enhanced scan / AI investigation | **Yes — collected text files** | For CLI `--enhanced`, up to 50 eligible text files under the target directory, collected independently of scan exclusions; investigation sends finding context | Sigil API → LLM provider |
 | Optional LLM review (`sigil scan --llm-review`, off by default) | **Yes — masked excerpts** | Per finding at Medium or above: rule, title, path, masked matched line and up to 6 masked lines on each side | The model endpoint you configure (Anthropic, or an OpenAI-compatible endpoint), directly, not via Sigil |
 
 ## 1. Default CLI, logged in or not (Open Source tier)
@@ -63,8 +63,11 @@ Pro features exist to have an AI read and reason about your code. They
 transmit source code by design:
 
 - `ApiClient::submit_enhanced_scan` (`cli/src/api.rs`) uploads a
-  `file_contents` map — full text of the scanned files included in the
-  request — to `POST /v1/scan-enhanced`.
+  `file_contents` map to `POST /v1/scan-enhanced`. The CLI independently
+  collects up to 50 eligible text files under the target directory; this
+  collection does not apply scanner exclusions such as `.sigilignore`.
+  Ignored files can therefore be uploaded. Review the target directory
+  before requesting enhanced analysis.
 - The investigation service (`api/services/finding_investigator.py`) builds
   LLM prompts containing the finding's `code_snippet` plus surrounding
   context lines.

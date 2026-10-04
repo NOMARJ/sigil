@@ -264,7 +264,7 @@ The CLI prints a verification URL and code. Open the URL, confirm the code, and 
 | `sigil scan --submit`        | Sends the scan result to the Sigil API (scan history)          |
 | `sigil scan --enhanced`      | Pro: uploads file contents for LLM analysis (requires login)   |
 
-**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the scanned files' paths and sizes. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 scanned files. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
+**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the scanned files' paths and sizes. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
 
 ## Configuration
 

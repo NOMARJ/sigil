@@ -335,7 +335,7 @@ See the [MCP Integration Guide](mcp.md) for detailed setup instructions.
 
 ### Does Sigil send my source code to the cloud?
 
-Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups. Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `--enhanced` (Pro) uploads the contents of up to 50 scanned files; and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
+Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups. Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `--enhanced` (Pro) uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions; and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
 
 ### Can I use Sigil without an internet connection?
 

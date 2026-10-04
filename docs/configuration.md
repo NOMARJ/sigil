@@ -478,7 +478,7 @@ Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a
 
 - `sigil scan --enrich`: a SHA-256 hash of the scanned files' paths and sizes
 - `sigil scan --submit`: the scan result, including each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. Flagged lines are source code, and can include a secret the line contains
-- `sigil scan --enhanced` (Pro): the contents of up to 50 scanned files, for LLM analysis
+- `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis
 
 ---
 
