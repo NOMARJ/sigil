@@ -6,9 +6,9 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 ## Global Behavior
 
-- Sigil runs entirely offline by default. All eight scan phases execute locally with no network calls.
+- All eight scan phases execute locally, and no account is needed. `sigil scan` of a directory with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry); without a connection those lookups are skipped. `sigil clone`, `pip` and `npm` need the network to fetch what they scan.
 - When authenticated (`sigil login`), scans are enriched with cloud threat intelligence.
-- All scanned code is quarantined under `~/.sigil/quarantine/` — nothing executes until explicitly approved.
+- Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/` — nothing executes until explicitly approved. `sigil scan <dir>` scans a local directory in place.
 - Exit codes reflect the scan verdict severity (see [Exit Codes](#exit-codes) below).
 
 ---
@@ -47,7 +47,7 @@ Wire Sigil into AI agent and developer workflows. Every step is best-effort and 
 sigil setup claude   # Register the Claude Code plugin marketplace + install sigil-security
 sigil setup shell    # Append gclone/safepip/safenpm aliases to your .bashrc/.zshrc
 sigil setup git      # Install a pre-commit hook running `sigil scan . --fail-on high`
-sigil setup all      # claude + shell, plus git when run inside a repository
+sigil setup all      # claude + shell, plus git when run from the root of a git repository
 ```
 
 `setup claude` requires the `claude` CLI on PATH and skips with a pointer when it is absent. `setup git` refuses to overwrite a pre-commit hook it didn't write.
@@ -141,12 +141,14 @@ Full policy table: [detection/ux.md](detection/ux.md#4-sigil-hook-pretooluse--th
 ### sigil config
 
 Read or set values in `~/.sigil/config.json`, and inspect or validate the scan
-policy that applies to a directory.
+policy that applies to a directory. No other command reads `config.json`, so a
+value set here changes nothing else; the API endpoint, for example, is given
+per login with [`sigil login --endpoint`](#sigil-login).
 
 ```bash
 sigil config --list                      # Print ~/.sigil/config.json
-sigil config api_url                     # Print one value
-sigil config api_url https://sigil.local # Set one value
+sigil config example_key                 # Print one value
+sigil config example_key example_value   # Set one value
 sigil config --policy                    # Effective scan policy for the current directory
 sigil config --validate .sigil.yml       # Check a project policy without scanning
 sigil config --validate /etc/sigil/policy.yml --org   # Check an organisation policy
@@ -186,9 +188,9 @@ sigil clone <git-url>
 
 1. Validates the URL format (http(s), git@, ssh://)
 2. Shallow clones (`--depth 1`) into `~/.sigil/quarantine/<id>/`
-3. Runs all 8 scan phases + external scanners + dependency analysis
-4. If authenticated, queries cloud threat intelligence
-5. Generates verdict and saves report to `~/.sigil/reports/`
+3. Runs all 8 scan phases + dependency analysis
+4. Applies the cloud threat signatures saved by `sigil fetch`, if any
+5. Prints the verdict and report to the terminal (or writes it to the file given by `-o`)
 
 **Example:**
 
@@ -219,7 +221,7 @@ sigil pip <package-name>
 2. Downloads the package via `pip download --no-deps`
 3. Extracts the wheel or tarball into quarantine
 4. Runs full scan
-5. If the package is approved, prompts to install with `pip install`
+5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
 
 **Example:**
 
@@ -250,7 +252,7 @@ sigil npm <package-name>
 2. Downloads via `npm pack` (creates a `.tgz` archive)
 3. Extracts into quarantine
 4. Runs full scan
-5. If approved, prompts to install with `npm install`
+5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
 
 **Example:**
 
@@ -880,7 +882,6 @@ Every audit command runs these eight phases. Each phase has a severity weight th
 
 **Supplementary checks (run after the 8 phases):**
 
-- External scanners: semgrep, bandit, trufflehog, safety, npm audit
 - Dependency analysis: package count, unpinned versions
 - Permission/scope analysis: Docker privileged mode, GitHub Actions secrets, MCP tool configurations
 
@@ -1023,17 +1024,22 @@ fi
 
 ## Environment Variables
 
-All configuration can be overridden via environment variables.
+The CLI reads the variables below. Others are described with the feature they
+control: `SIGIL_POLICY_FILE` and `SIGIL_NO_PROJECT_CONFIG` (scan policy, see the
+[Configuration Guide](configuration.md#scan-policy-sigilyml)),
+`SIGIL_PACK_PUBLIC_KEY` ([`sigil rules`](#sigil-rules)),
+`SIGIL_ALLOW_PRIVATE_URLS` ([archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links))
+and `SIGIL_GUARD_MODE` / `SIGIL_BYPASS` ([`sigil hook`](#sigil-hook)).
+
+The CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`,
+`SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; the
+legacy bash CLI (`bin/sigil`) did. The token is always `~/.sigil/token`, and
+the API endpoint is given per login with `sigil login --endpoint`. The MCP
+server reads its own `SIGIL_API_URL` ([mcp.md](mcp.md#environment-variables)).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SIGIL_QUARANTINE_DIR` | `~/.sigil/quarantine` | Directory for quarantined code |
-| `SIGIL_APPROVED_DIR` | `~/.sigil/approved` | Directory for approved code |
-| `SIGIL_LOG_DIR` | `~/.sigil/logs` | Directory for scan logs |
-| `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Directory for scan reports |
-| `SIGIL_CONFIG` | `~/.sigil/config` | Path to config file |
-| `SIGIL_TOKEN` | `~/.sigil/token` | Path to auth token file |
-| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
 | `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |

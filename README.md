@@ -149,22 +149,20 @@ sigil reject abc123     # Permanently delete quarantined code
 sigil setup claude      # Register the Claude Code plugin (marketplace + install)
 sigil setup shell       # Add gclone/safepip/safenpm aliases to your shell rc
 sigil setup git         # Install a pre-commit hook (sigil scan --fail-on high)
-sigil setup all         # All of the above
+sigil setup all         # claude + shell, plus git when run from a repository's root
 ```
 
 ### Shell Aliases
 
-Aliases are opt-in: run `./install.sh --with-aliases` to append them to your shell rc. Use the commands you already know — Sigil protects you automatically:
+Aliases are opt-in: run `./install.sh --with-aliases` (or `sigil setup shell`) to append them to your shell rc. Use the commands you already know — Sigil protects you automatically:
 
-| Alias                  | What It Does                       |
-| ---------------------- | ---------------------------------- |
-| `gclone <url>`         | `git clone` with quarantine + scan |
-| `safepip <pkg>`        | `pip install` with scan first      |
-| `safenpm <pkg>`        | `npm install` with scan first      |
-| `safefetch <url>`      | Download + quarantine + scan       |
-| `audithere`            | Scan current directory             |
-| `qls`                  | Quarantine status                  |
-| `qapprove` / `qreject` | Approve or reject most recent item |
+| Alias           | What It Does                                                      |
+| --------------- | ----------------------------------------------------------------- |
+| `gclone <url>`  | `git clone` with quarantine + scan                                |
+| `safepip <pkg>` | `sigil pip`: download into quarantine and scan (does not install) |
+| `safenpm <pkg>` | `sigil npm`: download into quarantine and scan (does not install) |
+
+Add others yourself if you want them, for example `alias audithere='sigil scan .'` and `alias qls='sigil list'`.
 
 ## IDE & Agent Integrations
 
@@ -230,7 +228,7 @@ When authenticated (`sigil login`), Sigil connects to a **community-powered thre
 
 **What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
 
-- **Offline / unauthenticated (default):** nothing. All eight phases run locally; no network calls, no account.
+- **Offline / unauthenticated (default):** no source code, no account. All eight phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), which sends their names and versions.
 - **Authenticated threat intel (`sigil login`):** scan submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
 - **Pro AI investigation:** the relevant source files for a finding are uploaded and shared with an LLM provider to produce the analysis. This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
 

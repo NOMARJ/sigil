@@ -12,7 +12,7 @@ Configuration is resolved in this order (highest priority first):
 2. **Environment variables** — override defaults
 3. **Built-in defaults** — used when nothing else is set
 
-There is no config-file layer: `sigil config` stores values in `~/.sigil/config.json` (see [Config File](#config-file)), but no other command reads them.
+The values `sigil config` stores in `~/.sigil/config.json` are not read by any other command, so they form no layer here (see [Config File](#config-file)). The one other settings file the CLI reads is `~/.sigil/config`, for `disclaimer=false` only.
 
 What a *scan* enforces — the exit gate, disabled rules, ignored paths,
 baselines, custom rules — is set by the scan policy described next, which has
@@ -223,7 +223,7 @@ then written without colour). An unknown format is an error (exit `2`).
 |----------|---------|-------------|
 | `SIGIL_QUARANTINE_DIR` | `~/.sigil/quarantine` | Where quarantined code is stored |
 
-The current CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`, `SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; those were read by the legacy bash CLI in `bin/`. The scan-policy variables (`SIGIL_POLICY_FILE`, `SIGIL_NO_PROJECT_CONFIG`, `SIGIL_LLM_*`) are described under [Scan policy](#scan-policy-sigilyml).
+The current CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`, `SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; those were read by the legacy bash CLI in `bin/`. (The MCP server in `plugins/mcp-server` reads its own `SIGIL_API_URL`; see [mcp.md](mcp.md#environment-variables).) `SIGIL_POLICY_FILE` and `SIGIL_NO_PROJECT_CONFIG` are described under [Scan policy](#scan-policy-sigilyml), the `SIGIL_LLM_*` variables and `ANTHROPIC_API_KEY` in [llm-review.md](llm-review.md), and the other variables the CLI reads in the [CLI reference](cli.md#environment-variables).
 
 **Example: custom quarantine location**
 
@@ -239,16 +239,20 @@ Nothing creates `~/.sigil/` up front: `sigil install` and `sigil setup` do not t
 
 ```
 ~/.sigil/
-├── quarantine/       # Untrusted code awaiting review: one <id>/ per entry, plus index.json
-├── ledger/index.json # Content pins recorded by sigil approve
-├── cache/            # Cached results of sigil scan <dir> (sigil clear-cache removes them)
-├── config.json       # Values set with sigil config KEY VALUE
-├── token             # JWT authentication token (after sigil login)
-├── signatures.json   # Cloud threat signatures (after sigil fetch)
-└── .disclaimer_shown # Marker: the full disclaimer has been shown once
+├── quarantine/          # Untrusted code awaiting review: one <id>/ per entry, plus index.json
+├── ledger/index.json    # Content pins recorded by sigil approve
+├── cache/               # Cached results of sigil scan <dir> (sigil clear-cache empties only this)
+├── osv-cache/           # OSV advisory lookups for lockfile dependencies
+├── provenance-ledger/   # npm/PyPI provenance baselines for lockfile dependencies
+├── enrichment-cache/    # CISA KEV / EPSS data, fetched when a dependency finding is a CVE
+├── config.json          # Values set with sigil config KEY VALUE
+├── token                # JWT authentication token (after sigil login)
+├── signatures.json      # Cloud threat signatures (after sigil fetch)
+├── signatures_meta.json # When the signatures were last fetched (sigil fetch)
+└── .disclaimer_shown    # Marker: the full disclaimer has been shown once
 ```
 
-There is no `approved/`, `logs/` or `reports/` directory. Approved code stays in `quarantine/<id>/`, and reports go to the terminal or to the file named by `-o`. Some commands add their own paths: `providers/` (`sigil provider`), `known-good/` (`sigil known-good install`) and `backups/` (`sigil residue apply`), and the pip package caches its binary in `bin/`. Rule packs you place in `packs/` are read when present.
+There is no `approved/`, `logs/` or `reports/` directory. Approved code stays in `quarantine/<id>/`, and reports go to the terminal or to the file named by `-o`. `osv-cache/` is written when `sigil scan` or `sigil baseline` scans a tree with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` (plus `enrichment-cache/` when a finding is a CVE), and `provenance-ledger/` when the tree has a `requirements.txt` or `package-lock.json`. Some commands add their own paths: `providers/` (`sigil provider`), `known-good/` (`sigil known-good install`) and `backups/` (`sigil residue apply`), and the pip package caches its binary in `bin/`. Rule packs you place in `packs/` and a released corpus in `corpus/` are read when present.
 
 ---
 
@@ -410,8 +414,8 @@ Sigil detects your shell from `$SHELL` (bash or zsh). The step is idempotent —
 ```bash
 # Installed by `sigil setup shell`
 alias gclone='sigil clone'     # Git clone with quarantine + scan
-alias safepip='sigil pip'      # pip install with scan first
-alias safenpm='sigil npm'      # npm install with scan first
+alias safepip='sigil pip'      # Download a pip package into quarantine + scan (does not install)
+alias safenpm='sigil npm'      # Download an npm package into quarantine + scan (does not install)
 ```
 
 Useful extras you can add manually:
@@ -488,4 +492,4 @@ When authenticated, scan metadata is sent to the Sigil API. **Source code is nev
 - [CLI Command Reference](cli.md) — Full reference for every command and flag
 - [Getting Started](getting-started.md) — Installation and first scan walkthrough
 - [CI/CD Integration](cicd.md) — Configuration for CI/CD pipelines
-- [Scan Phases Reference](scan-rules.md) — What each scan phase detects
+- [Scan Phases](cli.md#scan-phases) — What each scan phase detects

@@ -39,7 +39,7 @@ npm install -g @nomarj/sigil
 git clone https://github.com/NOMARJ/sigil.git
 cd sigil/cli
 
-# Build the Rust CLI (needs a Rust toolchain) and copy it to /usr/local/bin
+# Build the Rust CLI (needs Rust 1.89 or newer) and copy it to /usr/local/bin
 cargo build --release
 sudo ./target/release/sigil install
 ```
@@ -215,11 +215,11 @@ sigil setup shell
 
 This adds the following aliases to your `.bashrc` or `.zshrc`:
 
-| Alias           | What It Does                       |
-| --------------- | ---------------------------------- |
-| `gclone <url>`  | `git clone` with quarantine + scan |
-| `safepip <pkg>` | `pip install` with scan first      |
-| `safenpm <pkg>` | `npm install` with scan first      |
+| Alias           | What It Does                                                         |
+| --------------- | -------------------------------------------------------------------- |
+| `gclone <url>`  | `git clone` with quarantine + scan                                   |
+| `safepip <pkg>` | `sigil pip`: download into quarantine and scan (does not install)    |
+| `safenpm <pkg>` | `sigil npm`: download into quarantine and scan (does not install)    |
 
 After installation, reload your shell:
 
@@ -240,7 +240,7 @@ The pre-commit hook runs `sigil scan . --fail-on high` — all eight scan phases
 
 ## Connecting to Cloud (sigil login)
 
-By default, Sigil runs entirely offline. To enable community threat intelligence, scan history, and team features, authenticate with the Sigil cloud:
+Sigil needs no account, and the eight scan phases run locally. `sigil scan` does go online for one thing by default: when the scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, it looks the listed dependencies up in the OSV advisory database, and npm and PyPI packages on their registry (without a connection those lookups are skipped and the scan still completes). To enable community threat intelligence, scan history, and team features, authenticate with the Sigil cloud:
 
 ```bash
 sigil login
@@ -290,7 +290,7 @@ export SIGIL_QUARANTINE_DIR=/custom/path/quarantine
 
 ## Next Steps
 
-- Read the [Scan Rules Reference](scan-rules.md) to understand what each phase detects
+- Read the [Scan Phases](cli.md#scan-phases) reference to understand what each phase detects
 - Read the [Threat Model](threat-model.md) to understand limitations and false positives
 - Read the [Architecture](architecture.md) for details on how the system works
 - Read the [API Reference](api-reference.md) if you are building integrations

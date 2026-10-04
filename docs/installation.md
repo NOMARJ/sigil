@@ -13,7 +13,7 @@ Complete installation instructions for all platforms and package managers.
 git clone https://github.com/NOMARJ/sigil.git
 cd sigil/cli
 
-# Build the Rust CLI (toolchain: see Build from Source below)
+# Build the Rust CLI (needs Rust 1.89 or newer; see Build from Source below)
 cargo build --release
 
 # Copy the binary to /usr/local/bin
@@ -262,7 +262,7 @@ a derived image).
 
 ### Prerequisites
 
-- **Rust 1.85+** (CI pins 1.90; current dependencies need edition 2024) — [Install Rust](https://rustup.rs)
+- **Rust 1.89+** (CI pins 1.90). `cli/Cargo.lock` is not committed, so a build resolves the newest compatible dependency releases and the minimum rises with them: in October 2026 a fresh clone built with 1.89 and failed with 1.88 (`uuid 1.27.0 requires rustc 1.89.0`) — [Install Rust](https://rustup.rs)
 - **Git**
 
 ### Build the CLI
@@ -271,7 +271,7 @@ a derived image).
 git clone https://github.com/NOMARJ/sigil
 cd sigil/cli
 cargo build --release
-sudo cp target/release/sigil /usr/local/bin/
+sudo ./target/release/sigil install    # copies the binary to /usr/local/bin
 ```
 
 ### Build the Full Stack
@@ -321,8 +321,8 @@ sigil setup shell
 This adds three aliases to `~/.bashrc` or `~/.zshrc`, chosen from `$SHELL` (for any other shell it prints the aliases to add by hand):
 
 - `gclone` — Safe git clone with scanning
-- `safepip` — Safe pip install with scanning
-- `safenpm` — Safe npm install with scanning
+- `safepip` — `sigil pip`: download a pip package into quarantine and scan it (does not install it)
+- `safenpm` — `sigil npm`: download an npm package into quarantine and scan it (does not install it)
 
 **Restart your shell** or run:
 
