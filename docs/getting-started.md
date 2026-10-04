@@ -175,8 +175,8 @@ After every scan, Sigil produces a risk score and verdict:
 
 The verdict is not read off the risk score, which is informational: Low
 findings count toward the score but never raise the verdict, and a single High
-finding in the code the package runs is enough for at least MEDIUM. The example
-above scores 20 and is HIGH RISK because its one High finding (`eval()`) sits in
+finding in the code the package runs is enough for at least MEDIUM. The clone
+example above scores 20 and is HIGH RISK because its one High finding (`eval()`) sits in
 a three-file repository.
 
 CRITICAL is evidence-gated: it needs one Critical finding from a rule whose

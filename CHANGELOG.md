@@ -123,8 +123,19 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   aliases only the bash CLI defined. `safepip`/`safenpm` download and scan but do not
   install, `sigil scan` looks lockfile dependencies up in OSV and npm/PyPI
   rather than running "entirely offline", building from source needs Rust 1.89+
-  (CI pins 1.90), and the `~/.sigil/` layout lists the feed caches. Links to the
-  missing `scan-rules.md` point to the CLI reference.
+  (CI pins 1.90), and the `~/.sigil/` layout lists the feed caches. Links in
+  `docs/` to the missing `scan-rules.md` point to the CLI reference.
+- **Verdicts, exit codes and cloud features are described as the CLI behaves**
+  (README, CLI reference, getting started, troubleshooting, configuration,
+  architecture, data handling). The verdict follows the evidence, not score
+  bands; the score is severity times phase weight; exit codes are 0/1/2 by
+  `--fail-on`. Logging in changes no scan: `--enrich`, `--submit`,
+  `--enhanced` and `sigil fetch` are explicit, and `--submit` sends flagged
+  source lines. A default `sigil scan` sends lockfile dependency names and
+  versions to OSV and npm/PyPI (and CVE IDs to EPSS); `clone`/`pip`/`npm` skip
+  those lookups. Every text file is scanned, `sigil list` shows no verdict,
+  Linux source builds need a C compiler, make and perl, `sigilsec` is on PyPI,
+  and the Docker images are not published yet.
 
 ## [1.3.7] - 2026-09-27
 

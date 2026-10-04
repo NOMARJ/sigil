@@ -165,7 +165,7 @@ Found an error or want to improve these docs?
 2. Edit the relevant `.md` file in `docs/`
 3. Submit a pull request
 
-See [CONTRIBUTING.md](../.github/CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ---
 
