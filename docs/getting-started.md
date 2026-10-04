@@ -4,7 +4,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans reposito
 
 ## Prerequisites
 
-- **Operating system:** macOS or Linux (Windows via WSL)
+- **Operating system:** macOS or Linux; on Windows, the native x64 `sigil.exe` from the release zip (see the [Installation Guide](installation.md#windows)) or WSL
 - **Shell:** Bash or Zsh, only for the optional `sigil setup shell` aliases
 - **Git:** Required for `sigil clone` and provenance analysis
 - **pip / npm:** Required only for `sigil pip` / `sigil npm`
@@ -39,7 +39,8 @@ npm install -g @nomarj/sigil
 git clone https://github.com/NOMARJ/sigil.git
 cd sigil/cli
 
-# Build the Rust CLI (needs Rust 1.89 or newer) and copy it to /usr/local/bin
+# Build the Rust CLI (needs Rust 1.89 or newer and, on Linux, a C compiler, make
+# and perl for the vendored OpenSSL) and copy it to /usr/local/bin
 cargo build --release
 sudo ./target/release/sigil install
 ```
@@ -165,12 +166,18 @@ Scans the directory in place; it is not copied into quarantine.
 
 After every scan, Sigil produces a risk score and verdict:
 
-| Score / Evidence                     | Verdict           | What It Means                                              | What to Do                                    |
-| ------------------------------------ | ----------------- | ---------------------------------------------------------- | --------------------------------------------- |
-| 0-9                                  | **LOW RISK**      | No known malicious patterns detected                       | Review any flagged items, then approve        |
-| 10-24                                | **MEDIUM RISK**   | Multiple findings that warrant attention                   | Read the report, check each finding manually  |
-| HIGH gate (see the CLI reference)    | **HIGH RISK**     | Significant suspicious patterns                            | Do not approve without thorough manual review |
-| Critical evidence                    | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report                             |
+| Evidence                                                                                          | Verdict           | What It Means                                              | What to Do                                    |
+| ------------------------------------------------------------------------------------------------- | ----------------- | ---------------------------------------------------------- | --------------------------------------------- |
+| Nothing that reaches MEDIUM (typically no findings, or Low-severity observations only)            | **LOW RISK**      | No known malicious patterns detected                       | Review any flagged items, then approve        |
+| A Medium-or-above finding in the code itself, a High or Critical one anywhere, or 10+ points of Medium-and-above findings | **MEDIUM RISK**   | Findings that warrant attention                            | Read the report, check each finding manually  |
+| HIGH gate (see the CLI reference)                                                                 | **HIGH RISK**     | Significant suspicious patterns                            | Do not approve without thorough manual review |
+| Critical evidence                                                                                 | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report                             |
+
+The verdict is not read off the risk score, which is informational: Low
+findings count toward the score but never raise the verdict, and a single High
+finding in the code the package runs is enough for at least MEDIUM. The example
+above scores 20 and is HIGH RISK because its one High finding (`eval()`) sits in
+a three-file repository.
 
 CRITICAL is evidence-gated: it needs one Critical finding from a rule whose
 evidence stands alone, or Critical findings from two *different* rules that are
@@ -199,7 +206,7 @@ sigil approve <quarantine-id>
 # Reject -- permanently delete the quarantined code
 sigil reject <quarantine-id>
 
-# See all quarantined items and their verdicts
+# See all quarantined items and their status
 sigil list
 ```
 
@@ -240,37 +247,24 @@ The pre-commit hook runs `sigil scan . --fail-on high` — all eight scan phases
 
 ## Connecting to Cloud (sigil login)
 
-Sigil needs no account, and the eight scan phases run locally. `sigil scan` does go online for one thing by default: when the scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, it looks the listed dependencies up in the OSV advisory database, and npm and PyPI packages on their registry (without a connection those lookups are skipped and the scan still completes). To enable community threat intelligence, scan history, and team features, authenticate with the Sigil cloud:
+Sigil needs no account, and the eight scan phases run locally. `sigil scan` does go online for one thing by default: when the scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, it looks the listed dependencies up in the OSV advisory database, and npm and PyPI packages on their registry; for CVE-numbered advisories it also fetches CISA KEV and FIRST EPSS data, sending those CVE IDs (without a connection these lookups are skipped and the scan still completes). For community threat intelligence and scan history, authenticate with the Sigil cloud:
 
 ```bash
 sigil login
 ```
 
-This prompts for your email and password (or opens a browser for SSO). After authentication, the CLI stores a JWT token locally and includes it in API calls.
+This opens a browser sign-in: the CLI prints a URL and a code to confirm there, waits while you sign in, then stores the token in `~/.sigil/token` (`sigil login --token <token>` stores a token you already have). Logging in does not change a plain scan; the token is sent only by the cloud options below.
 
-**What changes after login:**
+**The cloud options** (each is something you run explicitly):
 
-| Feature                      | Offline | Authenticated   |
-| ---------------------------- | ------- | --------------- |
-| Eight scan phases            | Yes     | Yes             |
-| Threat intelligence lookups  | No      | Yes             |
-| Publisher reputation scores  | No      | Yes             |
-| Community threat signatures  | No      | Yes             |
-| Scan history in dashboard    | No      | Yes             |
-| Team policies                | No      | Yes (Team tier) |
+| Option                       | What it does                                                    |
+| ---------------------------- | --------------------------------------------------------------- |
+| `sigil scan --enrich`        | Looks the scanned directory's hash up in the threat database   |
+| `sigil fetch`                | Downloads community threat signatures, which later scans apply |
+| `sigil scan --submit`        | Sends the scan result to the Sigil API (scan history)          |
+| `sigil scan --enhanced`      | Pro: uploads file contents for LLM analysis (requires login)   |
 
-**What is sent to the cloud:**
-
-- Which scan rules triggered (e.g., "Phase 2: eval() found")
-- File type distribution (e.g., "12 Python files, 8 JavaScript files")
-- Risk score and verdict
-- Package name/version/hash
-
-**What is NEVER sent:**
-
-- Source code
-- File contents
-- Credentials or environment variables
+**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the scanned files' paths and sizes. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 scanned files. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
 
 ## Configuration
 

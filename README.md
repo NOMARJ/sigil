@@ -91,14 +91,14 @@ Sigil runs **eight analysis phases** on every scan (all free; LLM analysis requi
 
 Each finding is weighted and scored. You get a clear verdict:
 
-| Score / Evidence                      | Verdict           | What Happens                                        |
-| ------------------------------------- | ----------------- | --------------------------------------------------- |
-| 0–9                                   | **LOW RISK**      | No known malicious patterns detected                |
-| 10–24                                 | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
-| HIGH gate ([details](docs/cli.md))    | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
-| Any single Critical-severity finding  | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
+| Evidence ([details](docs/cli.md#verdicts-and-scoring))                                                              | Verdict           | What Happens                                        |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------- |
+| Nothing that reaches MEDIUM (typically no findings, or Low-severity observations only)                              | **LOW RISK**      | No known malicious patterns detected                |
+| A Medium-or-above finding in the code itself, a High or Critical one anywhere (tests included), or 10+ points of Medium-and-above findings | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
+| HIGH gate: a High or Critical finding in the code itself that is a real part of the package                         | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
+| Critical evidence                                                                                                   | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
 
-CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.
+The verdict follows the evidence, not the printed score: Low observations never raise it, a pile of Medium findings stops at MEDIUM RISK, and HIGH needs a High or Critical finding in the code the package runs. CRITICAL is evidence-gated: it needs one Critical finding from a rule whose evidence stands alone, or Critical findings from two *different* rules that are individually inconclusive (a private key in a test fixture, for instance).
 
 Every scan also prints a letter grade (A–F, a label over the verdict), the behaviours the
 findings add up to (`exfiltration`, `persistence`, `harvests_credentials`, …), the five key
@@ -224,19 +224,21 @@ Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tool
 
 ## Threat Intelligence
 
-When authenticated (`sigil login`), Sigil connects to a **community-powered threat intelligence database**. Every scan from every user contributes anonymised pattern data. When someone flags a malicious package, the threat signature propagates to all users within minutes.
+Sigil can connect to a **community-powered threat intelligence database**, on request: `sigil scan --enrich` looks the scanned directory's hash up in it, and `sigil fetch` downloads its threat signatures, which later scans apply. Logging in (`sigil login`) stores the token these send; it does not change a plain scan. Scans you send with `sigil scan --submit` contribute their findings (see below for what that includes). New signatures reach your CLI only when you run `sigil fetch`; nothing is synced automatically.
 
 **What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
 
-- **Offline / unauthenticated (default):** no source code, no account. All eight phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), which sends their names and versions.
-- **Authenticated threat intel (`sigil login`):** scan submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
+- **Offline / unauthenticated (default):** no source code, no account. All eight phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), which sends their names and versions; for advisories numbered `CVE-…` it also downloads the CISA KEV catalogue and sends those CVE IDs to FIRST's EPSS API.
+- **Scan submission (`sigil scan --submit`, after `sigil login`):** submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
 - **Pro AI investigation:** the relevant source files for a finding are uploaded and shared with an LLM provider to produce the analysis. This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
 
 **Offline mode:** All eight scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
 
 ```bash
-# Authenticate to enable threat intel
+# Authenticate, then use threat intel explicitly
 sigil login
+sigil fetch                    # download threat signatures
+sigil scan . --enrich          # hash lookup in the threat database
 ```
 
 **[Learn more about authentication →](docs/authentication-guide.md)**

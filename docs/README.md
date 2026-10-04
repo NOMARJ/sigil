@@ -136,11 +136,11 @@ Sigil works in two modes:
 **Free (Offline)** — Local pattern scanning, no account required
 - All 8 scan phases
 - Built-in threat signatures
-- Works 100% offline
+- Works offline; when online, `sigil scan` looks lockfile dependencies up in OSV and npm/PyPI (sending their names and versions)
 
 **Pro (Cloud-Connected)** — Enhanced threat detection with cloud intelligence
-- Hash-based malware lookup
-- Auto-updating threat signatures
+- Hash-based malware lookup (`sigil scan --enrich`)
+- Threat signature updates (`sigil fetch`)
 - Community-reported threats
 - Advanced detection patterns
 

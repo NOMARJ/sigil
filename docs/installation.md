@@ -13,7 +13,8 @@ Complete installation instructions for all platforms and package managers.
 git clone https://github.com/NOMARJ/sigil.git
 cd sigil/cli
 
-# Build the Rust CLI (needs Rust 1.89 or newer; see Build from Source below)
+# Build the Rust CLI (needs Rust 1.89 or newer and, on Linux, a C compiler,
+# make and perl; see Build from Source below)
 cargo build --release
 
 # Copy the binary to /usr/local/bin
@@ -53,11 +54,7 @@ cargo install sigil-cli
 
 _Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library — the Rust CLI is published as `sigil-cli`._
 
-### pip (Python) — _pending first PyPI publication_
-
-> **Not yet on PyPI.** The package source lives in [`python/`](../python/) and
-> is ready, but the project has not been registered or published yet. The
-> commands below will work once the first release is pushed to PyPI.
+### pip (Python)
 
 ```bash
 pip install sigilsec         # the name sigil-cli is taken on PyPI by an unrelated project
@@ -264,6 +261,7 @@ a derived image).
 
 - **Rust 1.89+** (CI pins 1.90). `cli/Cargo.lock` is not committed, so a build resolves the newest compatible dependency releases and the minimum rises with them: in October 2026 a fresh clone built with 1.89 and failed with 1.88 (`uuid 1.27.0 requires rustc 1.89.0`) — [Install Rust](https://rustup.rs)
 - **Git**
+- **On Linux: a C compiler, `make` and `perl`** (for example `sudo apt install build-essential perl`). The HTTP client is built with `native-tls-vendored`, so the build compiles OpenSSL from source (`openssl-src`); `Dockerfile.cli` installs the same tools for that reason.
 
 ### Build the CLI
 

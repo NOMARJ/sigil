@@ -7,9 +7,9 @@ Complete reference for every `sigil` command, flag, and exit code.
 ## Global Behavior
 
 - All eight scan phases execute locally, and no account is needed. `sigil scan` of a directory with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry); without a connection those lookups are skipped. `sigil clone`, `pip` and `npm` need the network to fetch what they scan.
-- When authenticated (`sigil login`), scans are enriched with cloud threat intelligence.
+- Logging in (`sigil login`) stores a token and does not change a plain scan. The cloud options send it: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch` and `sigil report` (`--enhanced` and `sigil report` refuse to run without it).
 - Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/` — nothing executes until explicitly approved. `sigil scan <dir>` scans a local directory in place.
-- Exit codes reflect the scan verdict severity (see [Exit Codes](#exit-codes) below).
+- Exit codes reflect the findings' severity against `--fail-on`, and the verdict only with `--fail-on-verdict` (see [Exit Codes](#exit-codes) below).
 
 ---
 
@@ -182,15 +182,14 @@ sigil clone <git-url>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `git-url` | Yes | Repository URL (https, git@, or ssh://) |
+| `git-url` | Yes | Repository URL: anything `git clone` accepts (https, git@, ssh://, file://) |
 
 **Behavior:**
 
-1. Validates the URL format (http(s), git@, ssh://)
-2. Shallow clones (`--depth 1`) into `~/.sigil/quarantine/<id>/`
-3. Runs all 8 scan phases + dependency analysis
-4. Applies the cloud threat signatures saved by `sigil fetch`, if any
-5. Prints the verdict and report to the terminal (or writes it to the file given by `-o`)
+1. Shallow clones (`git clone --depth 1`) into `~/.sigil/quarantine/<id>/`; the URL is passed to git unchanged
+2. Runs all 8 scan phases (the OSV/npm/PyPI dependency lookups run only for `sigil scan`; run `sigil scan ~/.sigil/quarantine/<id>` to get them)
+3. Applies the cloud threat signatures saved by `sigil fetch`, if any
+4. Prints the verdict and report to the terminal (or writes it to the file given by `-o`)
 
 **Example:**
 
@@ -220,7 +219,7 @@ sigil pip <package-name>
 1. Validates package name format (alphanumeric, hyphens, underscores, dots, scoped)
 2. Downloads the package via `pip download --no-deps`
 3. Extracts the wheel or tarball into quarantine
-4. Runs full scan
+4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` runs)
 5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
 
 **Example:**
@@ -251,7 +250,7 @@ sigil npm <package-name>
 1. Validates package name format (supports scoped packages like `@scope/name`)
 2. Downloads via `npm pack` (creates a `.tgz` archive)
 3. Extracts into quarantine
-4. Runs full scan
+4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` runs)
 5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
 
 **Example:**
@@ -625,19 +624,21 @@ sigil scan https://example.com/agent-tool.tar.gz        # scan a URL (see sigil 
 
 ### sigil list
 
-Show all quarantined and approved items with their status, size, and verdict.
+Show quarantined items (pending, approved and rejected) with their status.
 
 ```bash
 sigil list
+sigil list -d              # also the path, created/updated times and any approve/reject reason
+sigil list -s pending      # one status only: pending, approved or rejected
 ```
 
 **Output includes:**
 
+- Status (`PENDING`, `APPROVED` or `REJECTED`)
 - Quarantine ID
-- Source (URL, package name, or path)
-- Size on disk
-- Scan verdict (if scanned)
-- Date quarantined
+- Source (URL, package name, or path) and its type (`git`, `pip`, `npm`, …)
+
+The verdict is not stored: to see it again, run `sigil scan ~/.sigil/quarantine/<id>`.
 
 ---
 
@@ -841,15 +842,14 @@ sigil login                       # browser-based device authorization flow
 
 1. Authenticates against the Sigil API (device flow, or validates the provided token)
 2. Stores the token to `~/.sigil/token`
-3. Subsequent scans include threat intelligence enrichment
+3. Changes nothing else: a plain `sigil scan` makes no Sigil API call, logged in or not
 
-**What authentication enables:**
+**What the token is used for** (each is an explicit option or command):
 
-- Threat intelligence lookups (known malicious hash database)
-- Publisher reputation scores
-- Community threat signatures (delta sync)
-- Scan history in the web dashboard
-- Team policies and alerts
+- Threat intelligence lookups against the known-malicious hash database (`sigil scan --enrich`)
+- Community threat signatures, delta-synced by `sigil fetch` and applied by later scans
+- Scan history in the web dashboard, for results you send with `sigil scan --submit`
+- Pro LLM analysis (`sigil scan --enhanced`) and threat reports (`sigil report`), which require it
 
 ---
 
@@ -861,13 +861,13 @@ There is no `logout` subcommand. To clear stored credentials, delete the token f
 rm ~/.sigil/token
 ```
 
-Scans return to offline-only mode.
+`sigil fetch`, `--enrich` and `--submit` then send no token, and `--enhanced` and `sigil report` refuse to run.
 
 ---
 
 ## Scan Phases
 
-Every audit command runs these eight phases. Each phase has a severity weight that multiplies the number of findings.
+Every audit command runs these eight phases. Each phase has a weight that multiplies the severity score of each of its findings (see [Verdicts and Scoring](#verdicts-and-scoring)).
 
 | Phase | Name | Weight | What It Detects |
 |-------|------|--------|-----------------|
@@ -896,12 +896,21 @@ contribution to the score saturates. Without that cap, one Unicode conformance
 table that matches a single rule 1,680 times outscores a genuine backdoor, and
 the verdict measures file size rather than risk.
 
-| Score / Evidence | Verdict | Meaning | Recommended Action |
+| Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
-| 0-9 | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
-| 10+, below the HIGH gate | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
+| None of the below: no findings, or Low findings only | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
+| A Medium-or-above finding in the code the package runs, a High or Critical finding anywhere (tests and docs included), or a signal score of 10 or more | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
 | HIGH gate (see below) | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
 | Critical evidence (see below) | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
+
+The verdict is not read off the printed score, which is informational. Low
+findings are observations: they count toward the printed
+score but never raise the verdict, so ten files that each read an API key from
+the environment score 20 and are LOW RISK. The *signal score* is the same sum
+over Medium-and-above findings only. "The code the package runs" excludes its
+own `tests/`, `docs/`, `examples/`, vendored trees and `.min.js`/`.map` build
+products; one High network finding in a ten-file package scores 9 and is
+MEDIUM RISK.
 
 HIGH is not a score threshold. It was one — `score >= 25` — and a sum does not
 separate the two populations: measured over 844 malicious samples and 450 clean
@@ -909,21 +918,29 @@ packages, the clean packages sit at median 70 and p75 295 against a malicious
 median of 148. A large clean package accumulates score by being large, which is
 why 16 of the 20 most-downloaded packages on npm and PyPI came back HIGH RISK.
 
-HIGH now asks three questions, and one "yes" is enough:
+HIGH first needs attack-shaped evidence: a High or Critical finding in the code
+the package runs. Without one, no amount of Medium findings reaches HIGH — a
+single file holding 30 points of Medium findings is MEDIUM RISK. With one, any
+of four questions answered "yes" is enough:
 
 - **first-party score >= 200** — enough weighted evidence in the code the package
-  actually ships. Findings under a package's own `tests/`, `docs/`, `examples/`,
-  a vendored tree, or a `.min.js`/`.map` build product still appear in the
+  actually ships. The first-party score is the signal score (Medium and above)
+  without findings under a package's own `tests/`, `docs/`, `examples/`, a
+  vendored tree, or a `.min.js`/`.map` build product; those still appear in the
   report, but do not count toward this number. Markdown is deliberately
   first-party: for an agent skill, `SKILL.md` *is* the payload.
-- **score >= 4 x files scanned** — concentration. A malicious package is usually
-  small and mostly payload; this is what catches it when the absolute score is
-  low because there is barely any code to score.
+- **first-party score >= 3.5 x files scanned** — density. A malicious package is
+  usually small and mostly payload; this is what catches it when the absolute
+  score is low because there is barely any code to score.
+- **at least one scanned file in 8 carries High or Critical first-party
+  evidence** — concentration: the attack-shaped code is a real part of the
+  package rather than one line lost in a large one, whichever phase caught it.
 - **an action behaviour, corroborated by a first-party score >= 50** — the
   package runs at install time, ships an exfiltration endpoint, installs
-  persistence, or builds code at runtime, *and* there is other evidence in its
-  own code. Any one of those alone is ordinary: 111 of 450 clean packages
-  execute something at install time.
+  persistence, builds code at runtime, or (in an agent skill) tells the agent to
+  download and run an installer, *and* there is other evidence in its own code.
+  Any one of those alone is ordinary: 111 of 450 clean packages execute
+  something at install time.
 
 ```text
 Data Source: Datadog malicious-software-packages-dataset (fingerprint
@@ -965,7 +982,8 @@ CRITICAL is evidence-gated, not score-based. It requires either:
 
 A corroborating Critical is still reported as Critical, still contributes its full
 weight to the score, and still fails `--fail-on critical`; findings that do not gate
-simply leave the verdict to the score thresholds. In `--format json` such a finding
+simply leave the verdict to the HIGH and MEDIUM rules above (a lone corroborating
+Critical is attack-shaped evidence, so it is at least MEDIUM). In `--format json` such a finding
 carries `"evidence": "corroborate"`; the key is absent on everything else.
 
 ---
@@ -1014,9 +1032,13 @@ Use exit codes in scripts and CI pipelines to gate on scan results:
 
 ```bash
 sigil scan ./vendor/
-if [ $? -ge 2 ]; then
-  echo "High-risk findings detected — blocking deployment"
+rc=$?
+if [ "$rc" -eq 1 ]; then
+  echo "Findings at or above the --fail-on threshold — blocking deployment"
   exit 1
+elif [ "$rc" -ne 0 ]; then
+  echo "Scan error (exit $rc) — blocking until it is fixed"
+  exit "$rc"
 fi
 ```
 

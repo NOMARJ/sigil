@@ -335,7 +335,7 @@ See the [MCP Integration Guide](mcp.md) for detailed setup instructions.
 
 ### Does Sigil send my source code to the cloud?
 
-No. Sigil never transmits source code. When authenticated, it sends only metadata: which scan rules triggered, file type distribution, risk scores, and package identifiers. See [Configuration Guide — Authentication](configuration.md#authentication) for details.
+Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups. Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `--enhanced` (Pro) uploads the contents of up to 50 scanned files; and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
 
 ### Can I use Sigil without an internet connection?
 
@@ -367,11 +367,11 @@ This removes all quarantined and approved code, the trust ledger, cached results
 
 ### What languages does Sigil scan?
 
-Sigil scans Python (`.py`), JavaScript (`.js`, `.mjs`, `.jsx`), TypeScript (`.ts`, `.tsx`), Shell (`.sh`), and config files (`.yaml`, `.yml`, `.json`, `.toml`). Support for Go, Rust, and Ruby is planned.
+Every text file is content-scanned, whatever its language or extension: a `.go` or `.rb` file is scanned like a `.py` one, and so are markdown, agent instruction files, manifests and configuration. Some checks are scoped by file name (install hooks key on `setup.py` and `package.json`, for example). See [File Types Scanned](cli.md#file-types-scanned).
 
 ### How is the risk score calculated?
 
-The score is the sum of `(findings_in_phase * phase_weight)` across all phases. Phase weights range from 2x (credentials) to 10x (install hooks). See [Scan Phases](cli.md#scan-phases) for the full breakdown.
+Each finding scores its severity (Low 1, Medium 2, High 3, Critical 5) times its phase weight, and the score is the sum, counting at most three findings per (rule, file) pair. Phase weights run from 1x (provenance) to 10x (install hooks, prompt injection). The [Getting Started](getting-started.md#scanning-a-git-repository) example scores 3×5 (a High code pattern) + 1×3 (a Low network call) + 1×2 (a Low credential read) = 20. The verdict is not a score threshold: see [Verdicts and Scoring](cli.md#verdicts-and-scoring).
 
 ---
 
