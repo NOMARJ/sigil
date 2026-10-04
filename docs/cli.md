@@ -898,18 +898,18 @@ the verdict measures file size rather than risk.
 
 | Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
-| None of the below: no findings, or Low findings only | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
+| None of the below (typically no findings, or Low findings only) | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
 | A Medium-or-above finding in the code the package runs, a High or Critical finding anywhere (tests and docs included), or a signal score of 10 or more | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
 | HIGH gate (see below) | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
 | Critical evidence (see below) | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
 
 The verdict is not read off the printed score, which is informational. Low
-findings are observations: they count toward the printed
-score but never raise the verdict, so ten files that each read an API key from
+findings are observations: they count toward the printed score but never raise
+the verdict, so ten files that each read an API key from
 the environment score 20 and are LOW RISK. The *signal score* is the same sum
 over Medium-and-above findings only. "The code the package runs" excludes its
-own `tests/`, `docs/`, `examples/`, vendored trees and `.min.js`/`.map` build
-products; one High network finding in a ten-file package scores 9 and is
+own `tests/`, `docs/`, `examples/`, vendored trees, `.min.js`/`.map` build
+products and code examples in reference documentation; one High network finding in a ten-file package scores 9 and is
 MEDIUM RISK.
 
 HIGH is not a score threshold. It was one — `score >= 25` — and a sum does not
