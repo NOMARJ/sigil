@@ -5,14 +5,9 @@ Sigil is an automated security auditing CLI for AI agent code. It scans reposito
 ## Prerequisites
 
 - **Operating system:** macOS or Linux (Windows via WSL)
-- **Shell:** Bash 4+ or Zsh
-- **Required tools:** `grep`, `find`, `file` (pre-installed on most systems)
+- **Shell:** Bash or Zsh, only for the optional `sigil setup shell` aliases
 - **Git:** Required for `sigil clone` and provenance analysis
-- **Optional tools for enhanced scanning:**
-  - `semgrep` -- advanced pattern matching
-  - `bandit` -- Python security linting
-  - `trufflehog` -- secret detection
-  - `safety` -- Python CVE scanning
+- **pip / npm:** Required only for `sigil pip` / `sigil npm`
 
 ## Installation
 
@@ -23,7 +18,7 @@ curl -fsSLO https://raw.githubusercontent.com/NOMARJ/sigil/main/install.sh
 sh install.sh
 ```
 
-Detects your platform, downloads a pre-built binary from the latest GitHub release if one exists for your OS/arch, falls back to the bash script otherwise. Installs to `/usr/local/bin` and runs `sigil install` to set up shell aliases.
+Detects your platform (Linux or macOS, x64 or arm64), downloads the pre-built binary from the latest GitHub release and checks it against the release's `SHA256SUMS.txt`. If it cannot download or run a release binary it stops and suggests `cargo install sigil-cli`. Installs to `/usr/local/bin` (set `INSTALL_DIR` to change it) and sets up the Claude Code plugin when the `claude` CLI is on your PATH (skip with `--no-integrations`). Shell aliases are added only with `sh install.sh --with-aliases`.
 
 ### Option 2: Homebrew
 
@@ -42,29 +37,27 @@ npm install -g @nomarj/sigil
 ```bash
 # Clone the repository
 git clone https://github.com/NOMARJ/sigil.git
-cd sigil
+cd sigil/cli
 
-# Make the CLI executable and copy to PATH
-chmod +x bin/sigil
-sudo cp bin/sigil /usr/local/bin/sigil
-
-# Initialize directories
-sigil config --init
+# Build the Rust CLI (needs a Rust toolchain) and copy it to /usr/local/bin
+cargo build --release
+sudo ./target/release/sigil install
 ```
 
-### Option 5: Full Interactive Install
+`sigil install` only copies the binary (`--path <dir>` picks another existing directory). There is no directory initialization step: Sigil creates what it needs under `~/.sigil/` the first time a command uses it.
+
+### Option 5: Full Setup
 
 ```bash
-# After cloning or downloading
-./bin/sigil install
+# After installing with any option above
+sigil setup all
 ```
 
-This runs the full installer which:
+This wires Sigil into your tools in one step:
 
-1. Copies the binary to `/usr/local/bin`
-2. Creates `~/.sigil/{quarantine,approved,logs,reports}`
-3. Installs shell aliases in your `.bashrc` or `.zshrc`
-4. Optionally installs recommended security scanners
+1. Registers the Sigil Claude Code plugin, if the `claude` CLI is on your PATH (`sigil setup claude`)
+2. Installs shell aliases in your `.bashrc` or `.zshrc` (`sigil setup shell`)
+3. Installs a git pre-commit hook, when run from the root of a git repository (`sigil setup git`)
 
 ### Verify Installation
 
@@ -76,26 +69,7 @@ You should see the Sigil help menu listing all available commands.
 
 ## Installing Optional Security Scanners
 
-Sigil's built-in scanner runs all eight phases without any external tools. However, installing additional scanners improves detection quality:
-
-```bash
-# Python security scanners
-pip install semgrep bandit safety
-
-# Secret detection (macOS)
-brew install trufflehog
-
-# Secret detection (Linux)
-# See https://github.com/trufflesecurity/trufflehog for Linux install options
-```
-
-Check which scanners are available:
-
-```bash
-sigil config
-```
-
-This displays the status of each scanner (installed or not installed).
+Sigil's built-in scanner runs all eight phases without any external tools. The CLI does not call `semgrep`, `bandit`, `trufflehog` or `safety`, so installing them does not change its results.
 
 ## First Scan Walkthrough
 
@@ -111,58 +85,57 @@ What happens:
 
 1. Sigil clones the repository into `~/.sigil/quarantine/<id>/` (shallow clone, depth 1)
 2. The eight scan phases run against the quarantined copy
-3. External scanners run if available
-4. A risk score and verdict are displayed
-5. A detailed report is saved to `~/.sigil/reports/`
+3. A risk score and verdict are displayed
+4. The report is printed to the terminal; nothing is saved unless you pass `-o FILE` (see [Reading the Report](#reading-the-report))
 
-Example output:
+Example output for a small repository with an `eval()` call, an outbound `requests.post` and an `API_KEY` read (the clone progress lines are omitted and the `fix:` advice is shortened):
 
 ```
-[sigil] Cloning https://github.com/someone/interesting-mcp-server into quarantine...
-[sigil] Cloned to: /home/user/.sigil/quarantine/20260215_143000_interesting_mcp_server
+  sigil Scan complete in 745ms
+  3 files scanned
+  Platform: generic
+  3 findings
+  Risk score: 20
+  Grade: D
+  Breakdown: 0 critical, 1 high, 0 medium, 2 low
 
-+----------------------------------------------+
-|               S I G I L                      |
-|      Automated Security Analysis             |
-|              by NOMARK                       |
-+----------------------------------------------+
+  >> Code Patterns (1 finding)
+  --------------------------------------------------------
+  HIGH     [CODE-001] src/parser.py:2
+       eval() call — arbitrary code execution: result = eval(expression)
+       fix: eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. ...
 
-=== Phase 1: Install Hook Analysis ===
-[PASS] No suspicious setup.py hooks
-[PASS] No npm install hooks
+  >> Network/Exfil (1 finding)
+  --------------------------------------------------------
+  LOW      [NET-001] src/api.py:4
+       HTTP request via requests library: requests.post(endpoint, json=data)
 
-=== Phase 2: Code Pattern Analysis ===
-[warn] Found 'eval(':
-  src/parser.py:42: result = eval(expression)
+  >> Credentials (1 finding)
+  --------------------------------------------------------
+  LOW      [CRED-001] src/config.py:3
+       Sensitive environment variable read (Python): api_key = os.environ.get('API_KEY')
 
-=== Phase 3: Network & Exfiltration Analysis ===
-[warn] Outbound network call 'requests.post':
-  src/api.py:18: requests.post(endpoint, json=data)
+  Behaviour profile: dynamic_execution, network_outbound, reads_credentials
+  Key risks:
+    > HIGH: eval() call — arbitrary code execution (CODE-001) — src/parser.py:2
 
-=== Phase 4: Credential & Secret Access ===
-[warn] Potential credential access 'API_KEY':
-  src/config.py:5: api_key = os.environ.get('API_KEY')
+============================================================
+  HIGH RISK -- Dangerous patterns found; review before use
+============================================================
+  Grade: D
 
-=== Phase 5: Obfuscation Detection ===
-[PASS] No obfuscation patterns detected
+  These patterns also appear in legitimate code (network calls,
+  base64, env access). If you trust this package after review:
+    sigil scan <path> -f json > scan.json
+    sigil explain scan.json   why a finding fired
+    sigil approve <id>        trust it — suppresses these findings
 
-=== Phase 6: Provenance & Metadata ===
-[info] Git history: 47 commits, 3 authors
-[PASS] No binary executables found
-
-+--------------------------------------+
-|  VERDICT: MEDIUM RISK                |
-|  Risk Score: 12                      |
-|  Manual review recommended.          |
-+--------------------------------------+
-
-Quarantine ID: 20260215_143000_interesting_mcp_server
-Full report:   /home/user/.sigil/reports/20260215_143000_interesting_mcp_server_report.txt
-
-Actions:
-  sigil approve 20260215_143000_interesting_mcp_server  -- Move to working directory
-  sigil reject  20260215_143000_interesting_mcp_server  -- Delete from quarantine
+  Note: Sigil scans detect known malicious patterns through static analysis.
+  A low risk result does not guarantee the absence of all threats.
+  Always review code before use. See sigilsec.ai/terms for full terms.
 ```
+
+`sigil list` shows the quarantine ID (eight hex characters) to pass to `sigil approve` or `sigil reject`.
 
 ### Scanning a pip Package
 
@@ -186,7 +159,7 @@ Same quarantine-and-scan workflow for npm packages.
 sigil scan ./some-downloaded-code/
 ```
 
-Copies the directory into quarantine and scans the copy.
+Scans the directory in place; it is not copied into quarantine.
 
 ## Understanding Verdicts
 
@@ -206,11 +179,11 @@ individually inconclusive (a private key in a test fixture, for instance). See
 
 ### Reading the Report
 
-The full report is saved as a text file. View it with:
+The report is printed to the terminal and is not saved by default. To keep a copy, pass the global `-o` flag, which writes the report to that file instead (`-f` picks the format: text, json, sarif, html, markdown or junit):
 
 ```bash
-# The path is shown in the scan output
-cat ~/.sigil/reports/<quarantine-id>_report.txt
+sigil -o report.txt clone https://github.com/someone/interesting-mcp-server
+cat report.txt
 ```
 
 The report lists every finding from every phase, with file names and line numbers. Review each finding to determine whether it is a true positive or a false positive.
@@ -259,7 +232,7 @@ source ~/.bashrc   # or source ~/.zshrc
 Install a pre-commit hook that scans the repository before each commit:
 
 ```bash
-# Install in the current repository
+# Install in the current repository (run from its root)
 sigil setup git
 ```
 
@@ -280,7 +253,6 @@ This prompts for your email and password (or opens a browser for SSO). After aut
 | Feature                      | Offline | Authenticated   |
 | ---------------------------- | ------- | --------------- |
 | Eight scan phases            | Yes     | Yes             |
-| External scanner integration | Yes     | Yes             |
 | Threat intelligence lookups  | No      | Yes             |
 | Publisher reputation scores  | No      | Yes             |
 | Community threat signatures  | No      | Yes             |
@@ -302,25 +274,18 @@ This prompts for your email and password (or opens a browser for SSO). After aut
 
 ## Configuration
 
-View your current configuration:
+View the scan policy that applies to the current directory:
 
 ```bash
-sigil config
+sigil config --policy
 ```
 
-Initialize the directory structure:
+There is no initialization step: Sigil creates what it needs under `~/.sigil/` the first time a command uses it. See the [Configuration Guide](configuration.md#directory-structure) for the layout.
 
-```bash
-sigil config --init
-```
-
-Override directories via environment variables:
+Override the quarantine directory via an environment variable:
 
 ```bash
 export SIGIL_QUARANTINE_DIR=/custom/path/quarantine
-export SIGIL_APPROVED_DIR=/custom/path/approved
-export SIGIL_LOG_DIR=/custom/path/logs
-export SIGIL_REPORT_DIR=/custom/path/reports
 ```
 
 ## Next Steps

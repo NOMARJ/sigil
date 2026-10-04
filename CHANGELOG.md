@@ -103,6 +103,19 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
 - **The crate no longer ships `cli/.nomark/graph.json`**, the maintainers'
   traceability graph. `Cargo.toml` excludes `.nomark/`.
 
+### 📝 Documentation
+
+- **The install, getting-started and configuration guides describe the Rust
+  CLI, not the legacy bash one.** They said `sigil install` sets up shell
+  aliases and creates `~/.sigil/{quarantine,approved,logs,reports}`, and that
+  `install.sh` runs it or falls back to the bash script. `sigil install` only
+  copies the binary into a directory, aliases come from `sigil setup shell` (or
+  `install.sh --with-aliases`), and `~/.sigil/` paths are created on first use.
+  The manual installs now build `cli/` instead of copying `bin/sigil`, and
+  `sigil config --init`, `sigil version`, `~/.sigil/reports/`, the
+  `KEY=VALUE` `~/.sigil/config` and the environment variables only the bash CLI
+  read are replaced with what the current CLI does.
+
 ## [1.3.7] - 2026-09-27
 
 **Release measurement:** [`evaluation_results/honest_detection_eval.md`](evaluation_results/honest_detection_eval.md)

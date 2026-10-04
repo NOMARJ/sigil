@@ -6,28 +6,27 @@ Complete installation instructions for all platforms and package managers.
 
 ## 🚀 Current Installation Method
 
-### Manual Install (All Platforms)
+### Manual Install (macOS/Linux)
 
 ```bash
 # Clone the repository
 git clone https://github.com/NOMARJ/sigil.git
-cd sigil
+cd sigil/cli
 
-# Make the CLI executable and install
-chmod +x bin/sigil
-sudo cp bin/sigil /usr/local/bin/sigil
+# Build the Rust CLI (toolchain: see Build from Source below)
+cargo build --release
 
-# Initialize directories and aliases
-sigil install
+# Copy the binary to /usr/local/bin
+sudo ./target/release/sigil install
 ```
 
 **What it does:**
 
-- Downloads the bash-based CLI implementation
-- Copies to system PATH for global access
-- Creates `~/.sigil/{quarantine,approved,logs,reports}` directories
-- Installs helpful shell aliases (optional)
-- Sets up git hooks for auto-scanning (optional)
+- Builds the Rust CLI from `cli/`
+- `sigil install` copies the running binary to `/usr/local/bin/sigil` (`--path <dir>` installs into another directory, which must already exist)
+- Creates nothing under `~/.sigil/`: Sigil creates what it needs there the first time a command uses it (for example `~/.sigil/quarantine/` on the first `sigil clone`)
+- Installs no shell aliases: add them with `sigil setup shell` (optional)
+- Sets up no git hooks: add a pre-commit scan with `sigil setup git` (optional)
 
 ---
 
@@ -304,30 +303,26 @@ docker-compose up
 ### 1. Verify Installation
 
 ```bash
-sigil version
+sigil --version
 ```
 
-Expected output:
+Expected output (for the 1.3.7 release):
 
 ```
-Sigil 1.0.5
-Automated Security Auditing for AI Agent Code
-https://sigilsec.ai
+sigil 1.3.7
 ```
 
 ### 2. Set Up Shell Aliases
 
 ```bash
-sigil install
+sigil setup shell
 ```
 
-This installs convenient aliases:
+This adds three aliases to `~/.bashrc` or `~/.zshrc`, chosen from `$SHELL` (for any other shell it prints the aliases to add by hand):
 
 - `gclone` — Safe git clone with scanning
 - `safepip` — Safe pip install with scanning
 - `safenpm` — Safe npm install with scanning
-- `audithere` — Scan current directory
-- `qls` — List quarantine status
 
 **Restart your shell** or run:
 
@@ -506,13 +501,13 @@ sudo npm install -g @nomarj/sigil
 
 ### Download fails / Binary unavailable
 
-The installer fails closed when a platform binary or checksum is unavailable. You can also manually install:
+The installer fails closed when a platform binary or checksum is unavailable. When it cannot download or run a release binary, it points you to installing from source instead:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/bin/sigil -o sigil
-chmod +x sigil
-sudo mv sigil /usr/local/bin/
+cargo install sigil-cli
 ```
+
+Or build `cli/` yourself as shown under Build from Source.
 
 ### Docker permission issues on Linux
 

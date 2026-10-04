@@ -9,9 +9,10 @@ Everything that controls Sigil's behavior — environment variables, config file
 Configuration is resolved in this order (highest priority first):
 
 1. **Command-line flags** — override everything
-2. **Environment variables** — override config file and defaults
-3. **Config file** (`~/.sigil/config`) — overrides defaults
-4. **Built-in defaults** — used when nothing else is set
+2. **Environment variables** — override defaults
+3. **Built-in defaults** — used when nothing else is set
+
+There is no config-file layer: `sigil config` stores values in `~/.sigil/config.json` (see [Config File](#config-file)), but no other command reads them.
 
 What a *scan* enforces — the exit gate, disabled rules, ignored paths,
 baselines, custom rules — is set by the scan policy described next, which has
@@ -221,67 +222,60 @@ then written without colour). An unknown format is an error (exit `2`).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SIGIL_QUARANTINE_DIR` | `~/.sigil/quarantine` | Where quarantined code is stored |
-| `SIGIL_APPROVED_DIR` | `~/.sigil/approved` | Where approved code is moved |
-| `SIGIL_LOG_DIR` | `~/.sigil/logs` | Scan execution logs |
-| `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Detailed scan reports (text) |
-| `SIGIL_CONFIG` | `~/.sigil/config` | Path to the config file |
-| `SIGIL_TOKEN` | `~/.sigil/token` | Path to the authentication token file |
-| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
+
+The current CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`, `SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; those were read by the legacy bash CLI in `bin/`. The scan-policy variables (`SIGIL_POLICY_FILE`, `SIGIL_NO_PROJECT_CONFIG`, `SIGIL_LLM_*`) are described under [Scan policy](#scan-policy-sigilyml).
 
 **Example: custom quarantine location**
 
 ```bash
 export SIGIL_QUARANTINE_DIR=/opt/security/quarantine
-export SIGIL_APPROVED_DIR=/opt/security/approved
-```
-
-**Example: point to a self-hosted API**
-
-```bash
-export SIGIL_API_URL=https://sigil.internal.company.com
 ```
 
 ---
 
 ## Directory Structure
 
-After running `sigil config --init` or `sigil install`, Sigil creates:
+Nothing creates `~/.sigil/` up front: `sigil install` and `sigil setup` do not touch it, and there is no `sigil config --init`. Each path is created by the first command that writes it:
 
 ```
 ~/.sigil/
-├── quarantine/     # Untrusted code awaiting scan and review
-├── approved/       # Code that passed review
-├── logs/           # Scan execution logs
-├── reports/        # Detailed scan reports (text files)
-├── config          # User configuration file
-├── token           # JWT authentication token (after sigil login)
-└── signatures.json # Cached threat signatures (after first authenticated scan)
+├── quarantine/       # Untrusted code awaiting review: one <id>/ per entry, plus index.json
+├── ledger/index.json # Content pins recorded by sigil approve
+├── cache/            # Cached results of sigil scan <dir> (sigil clear-cache removes them)
+├── config.json       # Values set with sigil config KEY VALUE
+├── token             # JWT authentication token (after sigil login)
+├── signatures.json   # Cloud threat signatures (after sigil fetch)
+└── .disclaimer_shown # Marker: the full disclaimer has been shown once
 ```
+
+There is no `approved/`, `logs/` or `reports/` directory. Approved code stays in `quarantine/<id>/`, and reports go to the terminal or to the file named by `-o`. Some commands add their own paths: `providers/` (`sigil provider`), `known-good/` (`sigil known-good install`) and `backups/` (`sigil residue apply`), and the pip package caches its binary in `bin/`. Rule packs you place in `packs/` are read when present.
 
 ---
 
 ## Config File
 
-The config file at `~/.sigil/config` stores persistent settings. It uses a simple `KEY=VALUE` format.
+`sigil config` stores values in `~/.sigil/config.json`, a flat JSON object of strings. Setting a key creates the file (and `~/.sigil/`) if needed. No other command reads this file, so its values do not change how Sigil scans; scan settings belong in a [scan policy](#scan-policy-sigilyml).
 
 ```bash
-# ~/.sigil/config
-API_URL=https://api.sigilsec.ai
-AUTO_APPROVE_THRESHOLD=0
-DEFAULT_SEVERITY=low
+sigil config example_key example_value   # prints: sigil: example_key = example_value
+sigil config example_key                 # prints: "example_value"
 ```
 
 View current config:
 
 ```bash
-sigil config
+sigil config --list
 ```
 
-Initialize directories and create the config file:
-
-```bash
-sigil config --init
 ```
+{
+  "example_key": "example_value"
+}
+```
+
+Before any key is set it prints `sigil: no configuration file found`. There is no `sigil config --init`: the file is created the first time you set a key.
+
+One setting is read from a different file. A line reading exactly `disclaimer=false` (no spaces) in `~/.sigil/config`, a file with no extension that you write by hand, turns off the disclaimer after text verdicts. `sigil config disclaimer false` does not do this, because it writes `config.json`.
 
 ---
 
@@ -423,7 +417,6 @@ alias safenpm='sigil npm'      # npm install with scan first
 Useful extras you can add manually:
 
 ```bash
-alias safefetch='sigil fetch'
 alias audit='sigil scan'
 alias audithere='sigil scan .'
 alias qls='sigil list'
@@ -442,7 +435,7 @@ Aliases are added to your shell config file. To remove them, delete the block be
 Install a pre-commit hook that scans the repository before each commit:
 
 ```bash
-sigil setup git          # Install in the current repo
+sigil setup git          # Install in the current repo (run from its root)
 ```
 
 The hook runs `sigil scan . --fail-on high` — all eight scan phases, blocking the commit on HIGH or CRITICAL findings.
@@ -464,7 +457,7 @@ The hook is written to `.git/hooks/pre-commit`. An existing pre-commit hook not 
 
 ### Token Storage
 
-After `sigil login`, the JWT token is stored at `~/.sigil/token` (or the path specified by `SIGIL_TOKEN`). The file contains only the raw JWT string.
+After `sigil login`, the JWT token is stored at `~/.sigil/token`. The file contains only the raw JWT string.
 
 ### Token Lifecycle
 
