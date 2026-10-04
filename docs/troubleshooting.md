@@ -39,10 +39,9 @@ eval "$(brew shellenv)"
 # Option 1: Use sudo, naming this sigil by its full path so root runs the same build
 sudo "$(command -v sigil)" install
 
-# Option 2: Install to a user-writable directory
+# Option 2: Install to a user-writable directory (it must already exist)
 mkdir -p ~/bin
-cp bin/sigil ~/bin/sigil
-chmod +x ~/bin/sigil
+sigil install --path ~/bin
 export PATH="$HOME/bin:$PATH"
 ```
 
@@ -64,7 +63,7 @@ alias gclone
 If aliases still don't work, check that the alias block was added to the correct file:
 
 ```bash
-grep -n "SIGIL ALIASES" ~/.bashrc ~/.zshrc 2>/dev/null
+grep -n ">>> sigil aliases >>>" ~/.bashrc ~/.zshrc 2>/dev/null
 ```
 
 ### Homebrew formula not found
@@ -135,14 +134,10 @@ sigil scan . --severity high
 
 ### `sigil scan` exits with an error
 
-**Check required tools:**
+**Run it verbosely** to see which step failed (`grep`, `find`, `file` and external scanners are not needed):
 
 ```bash
-# These are required
-which grep find file
-
-# Run config to check scanner status
-sigil config
+sigil -v scan /path/you/are/scanning
 ```
 
 **Check the path exists:**
@@ -153,24 +148,7 @@ ls -la /path/you/are/scanning
 
 ### External scanner not detected
 
-Sigil reports "semgrep not found" or similar.
-
-**Fix:** Install the missing scanner:
-
-```bash
-pip install semgrep          # Advanced pattern matching
-pip install bandit           # Python security linting
-pip install safety           # Python CVE scanning
-brew install trufflehog      # Secret detection (macOS)
-```
-
-Verify installation:
-
-```bash
-sigil config    # Shows scanner status
-```
-
-External scanners are optional. All eight core scan phases run without them.
+A "semgrep not found" message came from the legacy bash CLI (`bin/sigil`). The current CLI does not call `semgrep`, `bandit`, `trufflehog` or `safety` and never reports them missing: all eight scan phases are built in, so there is nothing to install.
 
 ### Scan shows no findings but I expect some
 
@@ -202,11 +180,10 @@ sigil scan /full/path/to/directory
 curl -s https://api.sigilsec.ai/health
 ```
 
-**Check API URL:** If using a custom API URL, verify it:
+**Check the endpoint:** `sigil login` uses `https://api.sigilsec.ai` unless you pass `--endpoint <url>` (the CLI does not read `SIGIL_API_URL`). If you pass one, check that URL instead:
 
 ```bash
-echo $SIGIL_API_URL
-curl -s "$SIGIL_API_URL/health"
+curl -s "https://api.yourcompany.com/health"
 ```
 
 **Check credentials:** Ensure you are using the correct email and password.
@@ -228,7 +205,7 @@ After login, scans should show a "Cloud threat enrichment" section. If missing:
 1. **Check authentication status:**
 
 ```bash
-sigil config    # Shows whether a token is stored
+ls -l ~/.sigil/token    # Exists once sigil login has succeeded
 ```
 
 2. **Check token is valid:**
@@ -237,10 +214,10 @@ sigil config    # Shows whether a token is stored
 cat ~/.sigil/token    # Should contain a JWT string
 ```
 
-3. **Re-authenticate:**
+3. **Re-authenticate** (there is no `sigil logout`; delete the token file instead):
 
 ```bash
-sigil logout
+rm ~/.sigil/token
 sigil login
 ```
 
@@ -362,7 +339,7 @@ No. Sigil never transmits source code. When authenticated, it sends only metadat
 
 ### Can I use Sigil without an internet connection?
 
-Yes. All eight scan phases run locally with no network calls. The CLI is fully functional offline. Cloud features (threat intelligence, scan history, team management) require authentication and network access.
+Yes, for local scans. All eight scan phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry); offline, those lookups are skipped and the scan still completes. `sigil clone`, `sigil pip` and `sigil npm` need the network to fetch what they scan. Cloud features (threat intelligence, scan history, team management) require authentication and network access.
 
 ### Does Sigil replace Snyk or Dependabot?
 
@@ -370,24 +347,23 @@ No. Sigil and dependency scanners are complementary. Snyk and Dependabot check d
 
 ### What happens if I approve something that's actually malicious?
 
-Approved code is moved to `~/.sigil/approved/`. It is not installed or executed automatically. You still need to manually copy or use the code. Approval means "I reviewed it and accept the risk."
+Approved code stays in `~/.sigil/quarantine/<id>/`. It is not installed or executed automatically. You still need to manually copy or use the code. Approval means "I reviewed it and accept the risk." It also pins the code's content digest in `~/.sigil/ledger/index.json`, so later scans of identical content suppress its findings (`sigil scan --ignore-ledger` reports them anyway).
 
 ### Can I undo an approval?
 
-There is no built-in "unapprove" command. Approved code lives in `~/.sigil/approved/<id>/`. You can delete it manually:
+There is no built-in "unapprove" command, and `sigil reject` refuses an item that is already approved. Approved code lives in `~/.sigil/quarantine/<id>/`. You can delete it manually, and remove the pin by deleting the entry with that `"id"` from `~/.sigil/ledger/index.json` (`sigil ledger show <id>` prints it until then):
 
 ```bash
-rm -rf ~/.sigil/approved/<quarantine-id>
+rm -rf ~/.sigil/quarantine/<quarantine-id>
 ```
 
 ### How do I reset Sigil completely?
 
 ```bash
 rm -rf ~/.sigil
-sigil config --init
 ```
 
-This removes all quarantined code, approved code, reports, logs, tokens, and configuration.
+This removes all quarantined and approved code, the trust ledger, cached results, the stored token and `sigil config` values. There is no initialization step: Sigil recreates what it needs the first time a command uses it. (If you set `SIGIL_QUARANTINE_DIR`, quarantined code lives there instead.)
 
 ### What languages does Sigil scan?
 
@@ -395,7 +371,7 @@ Sigil scans Python (`.py`), JavaScript (`.js`, `.mjs`, `.jsx`), TypeScript (`.ts
 
 ### How is the risk score calculated?
 
-The score is the sum of `(findings_in_phase * phase_weight)` across all phases. Phase weights range from 2x (credentials) to 10x (install hooks). See [Scan Phases Reference](scan-rules.md) for the full breakdown.
+The score is the sum of `(findings_in_phase * phase_weight)` across all phases. Phase weights range from 2x (credentials) to 10x (install hooks). See [Scan Phases](cli.md#scan-phases) for the full breakdown.
 
 ---
 

@@ -21,7 +21,7 @@
 |----------|-------------|
 | [**Architecture**](./architecture.md) | System design and component overview |
 | [**Detection Patterns**](./detection-patterns.md) | What Sigil scans for and how it works |
-| [**Scan Rules**](./scan-rules.md) | Pattern matching rules and severity weights |
+| [**Scan Phases**](./cli.md#scan-phases) | The eight scan phases and their severity weights |
 | [**Threat Model**](./threat-model.md) | Security threats Sigil is designed to prevent |
 
 ### Advanced Usage

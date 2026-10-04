@@ -44,13 +44,13 @@ sigil login --email user@example.com --password "$SIGIL_PASSWORD"
 
 ### 2. Verify Authentication
 
-Check your connection status:
+Check that a token is stored:
 
 ```bash
-sigil config
+ls -l ~/.sigil/token
 ```
 
-Look for the authentication section showing your stored token location.
+The file exists (mode `600`) once `sigil login` has succeeded.
 
 ### 3. Run Scans
 
@@ -64,10 +64,10 @@ safepip untrusted-package
 
 ### 4. Logout
 
-Remove your stored credentials:
+Remove your stored credentials (there is no `sigil logout`; delete the token file):
 
 ```bash
-sigil logout
+rm ~/.sigil/token
 ```
 
 ---
@@ -207,7 +207,7 @@ These patterns catch:
 
 ### Token Storage
 
-- **Location**: `~/.sigil/token` (configurable via `$SIGIL_TOKEN`)
+- **Location**: `~/.sigil/token` (fixed; the CLI does not read `$SIGIL_TOKEN`)
 - **Permissions**: `600` (owner read/write only)
 - **Format**: JWT (JSON Web Token)
 - **Expiry**: 60 minutes
@@ -244,34 +244,29 @@ The CLI is designed for **privacy-first** threat detection. Only metadata (hashe
 
 Default: `https://api.sigilsec.ai`
 
-Override with environment variable:
+Log in against another endpoint with `--endpoint` (the CLI does not read `SIGIL_API_URL`):
 
 ```bash
-export SIGIL_API_URL=https://api.custom.example.com
-sigil login
+sigil login --endpoint https://api.custom.example.com
 ```
+
+The endpoint applies to that login only and is not saved. `sigil fetch`, `sigil report` and the cloud options of `sigil scan` (`--enrich`, `--submit`, `--enhanced`) always use `https://api.sigilsec.ai`; `sigil explain` takes its own `--endpoint`.
 
 ### Token Location
 
-Default: `~/.sigil/token`
-
-Override with environment variable:
-
-```bash
-export SIGIL_TOKEN=/secure/path/sigil-token
-sigil login
-```
+Always `~/.sigil/token`. There is no override: the CLI does not read `SIGIL_TOKEN`.
 
 ### Self-Hosted API
 
 To use a self-hosted Sigil API:
 
 1. Deploy the Sigil API service (see [api/README.md](../api/README.md))
-2. Point your CLI to it:
+2. Log in against it:
    ```bash
-   export SIGIL_API_URL=https://api.yourcompany.com
-   sigil login
+   sigil login --endpoint https://api.yourcompany.com
    ```
+
+   Only the login uses that endpoint. The CLI has no setting that sends `sigil fetch`, `sigil report` or `sigil scan --enrich`/`--submit`/`--enhanced` to a self-hosted API: they go to `https://api.sigilsec.ai`, with the stored token.
 
 ---
 
@@ -303,7 +298,7 @@ cat ~/.sigil/token
 JWT tokens expire after 60 minutes. Re-login:
 
 ```bash
-sigil logout
+rm ~/.sigil/token
 sigil login
 ```
 
@@ -366,9 +361,9 @@ RUN --mount=type=secret,id=sigil_token \
 
 ### ✅ Do
 
-- **Logout on shared machines**
+- **Logout on shared machines** (delete the token file)
   ```bash
-  sigil logout
+  rm ~/.sigil/token
   ```
 
 - **Use environment variables in CI/CD**

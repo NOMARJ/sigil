@@ -115,6 +115,16 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   `sigil config --init`, `sigil version`, `~/.sigil/reports/`, the
   `KEY=VALUE` `~/.sigil/config` and the environment variables only the bash CLI
   read are replaced with what the current CLI does.
+- **The README, CLI reference, troubleshooting, authentication and
+  architecture pages now agree with them.** They dropped the bash-only
+  environment variables (`SIGIL_TOKEN` and `SIGIL_API_URL` included: use
+  `sigil login --endpoint`), `~/.sigil/approved/`, `~/.sigil/reports/`,
+  `sigil config --init`, `sigil logout`, external-scanner integration and the
+  aliases only the bash CLI defined. `safepip`/`safenpm` download and scan but do not
+  install, `sigil scan` looks lockfile dependencies up in OSV and npm/PyPI
+  rather than running "entirely offline", building from source needs Rust 1.89+
+  (CI pins 1.90), and the `~/.sigil/` layout lists the feed caches. Links to the
+  missing `scan-rules.md` point to the CLI reference.
 
 ## [1.3.7] - 2026-09-27
 

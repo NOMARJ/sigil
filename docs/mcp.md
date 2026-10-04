@@ -501,5 +501,5 @@ If `sigil_scan` returns no findings but you expect some:
 
 - [CLI Command Reference](cli.md) — Full reference for the `sigil` CLI
 - [IDE Plugin Guide](ide-plugins.md) — VS Code, JetBrains, and GitHub Actions integrations
-- [Scan Phases Reference](scan-rules.md) — Detailed patterns and examples for each phase
+- [Scan Phases](cli.md#scan-phases) — The eight phases and their weights
 - [Getting Started](getting-started.md) — Installation and first scan walkthrough

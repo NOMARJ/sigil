@@ -13,9 +13,9 @@ The system is organized into three layers that can operate independently or in c
 |                          DEVELOPER MACHINE                            |
 |                                                                       |
 |  +-------------------------+                                          |
-|  |      CLI (bin/sigil)    |   Bash today, Rust (cli/) in future      |
+|  |      CLI (cli/, Rust)   |   bin/sigil is the legacy bash CLI       |
 |  |  - quarantine manager   |                                          |
-|  |  - 8-phase scanner      |   Runs fully offline. No account needed. |
+|  |  - 8-phase scanner      |   Runs locally. No account needed.       |
 |  |  - verdict engine       |                                          |
 |  +----------+--------------+                                          |
 |             |                                                         |
@@ -47,7 +47,7 @@ The system is organized into three layers that can operate independently or in c
 
 ### 1. CLI -- Developer Layer
 
-**Location:** `bin/sigil` (Bash), `cli/` (future Rust binary)
+**Location:** `cli/` (Rust). `bin/sigil` is the legacy bash CLI it superseded.
 
 The CLI is the primary interface for developers. It manages the quarantine directory, runs all eight scan phases locally, and produces a risk score and verdict. Key responsibilities:
 
@@ -55,18 +55,17 @@ The CLI is the primary interface for developers. It manages the quarantine direc
 - Eight-phase security analysis with weighted scoring
 - Shell alias installation for transparent protection (`gclone`, `safepip`, `safenpm`)
 - Git pre-commit hook installation
-- Integration with external scanners (semgrep, bandit, trufflehog, safety)
+- Dependency lookups for lockfiles (OSV advisories, npm/PyPI provenance)
 - Optional authenticated mode for cloud threat intelligence
 
-The CLI stores all state under `~/.sigil/`:
+The CLI keeps its state under `~/.sigil/`, creating each path on first use (the full layout is in [Directory Structure](configuration.md#directory-structure)):
 
 ```
 ~/.sigil/
-  quarantine/    # Untrusted code awaiting scan
-  approved/      # Code that passed review
-  logs/          # Scan execution logs
-  reports/       # Detailed scan reports (text)
-  config         # User configuration
+  quarantine/    # Untrusted code awaiting review; approved code stays here too
+  ledger/        # Content pins recorded by sigil approve
+  cache/         # Cached scan results
+  config.json    # Values set with sigil config
 ```
 
 ### 2. API Service -- Intelligence Layer
@@ -113,7 +112,7 @@ A Next.js web application that provides a visual interface for scan history, tea
        | Quarantine | | Scanner   |
        | Manager    | | Engine    |
        | (copy to   | | (8 phases |
-       |  ~/.sigil/ | |  + ext)   |
+       |  ~/.sigil/ | |  + deps)  |
        |  quarantine)|            |
        +-----+------+ +----+-----+
              |              |
@@ -127,8 +126,8 @@ A Next.js web application that provides a visual interface for scan history, tea
      |                 |
      v                 v
   approve           reject
-  (move to          (delete from
-   approved/)        quarantine/)
+  (pin digest       (delete from
+   in ledger/)       quarantine/)
 
                         |
             (if authenticated)
@@ -178,7 +177,6 @@ A Next.js web application that provides a visual interface for scan history, tea
    Phase 7: Prompt Injection Scanner (weight 10x)
    Phase 8: Skill Security Scanner   (weight 5x)
         |
-        + External scanners (semgrep, bandit, trufflehog, safety)
         + Dependency analysis
         + Permission/scope analysis
         |
@@ -197,7 +195,7 @@ A Next.js web application that provides a visual interface for scan history, tea
         |
         v
 6. ACTION
-   User runs: sigil approve <id>  -- moves to ~/.sigil/approved/
+   User runs: sigil approve <id>  -- pins its digest in ~/.sigil/ledger/ (code stays in quarantine)
           or: sigil reject <id>   -- deletes from quarantine
 ```
 
@@ -222,14 +220,14 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 | Component | Current | Future / Planned |
 |-----------|---------|-----------------|
-| **CLI** | Bash (`bin/sigil`) | Rust (`cli/`) via clap, walkdir, regex |
+| **CLI** | Rust (`cli/`) via clap, walkdir, regex; `bin/sigil` is the legacy bash CLI | -- |
 | **API** | Python 3.11+ with FastAPI | -- |
 | **Dashboard** | Next.js 14, React 18, Tailwind CSS | -- |
 | **Database** | PostgreSQL via Supabase | -- |
 | **Cache** | Redis | -- |
 | **Auth** | JWT (python-jose, passlib/bcrypt) | -- |
 | **HTTP Client** | httpx (API), reqwest (Rust CLI) | -- |
-| **External Scanners** | semgrep, bandit, trufflehog, safety | npm audit, pip-audit |
+| **External Scanners** | None called by the CLI (the legacy bash CLI used semgrep, bandit, trufflehog, safety) | npm audit, pip-audit |
 | **CI/CD** | GitHub Actions | -- |
 
 ### Key Dependencies
@@ -261,11 +259,10 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 ### Offline Mode (Default)
 
-All eight scan phases run locally without any network calls. This is the default behavior and requires no account or internet connection. The CLI uses built-in pattern matching and any locally installed external scanners.
+All eight scan phases run locally. This is the default behavior and requires no account. The CLI uses built-in pattern matching; `sigil scan` of a directory with a lockfile also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), and skips those lookups when there is no connection.
 
 What works offline:
 - All eight scan phases with full scoring
-- External scanner integration (semgrep, bandit, trufflehog, safety)
 - Quarantine management (approve, reject, list)
 - Shell aliases and git hooks
 - Report generation
