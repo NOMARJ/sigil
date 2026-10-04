@@ -253,7 +253,11 @@ Sigil needs no account, and the eight scan phases run locally. `sigil scan` does
 sigil login
 ```
 
+<<<<<<< HEAD
 This opens a browser sign-in: the CLI prints a URL and a code to confirm there, waits while you sign in, then stores the token in `~/.sigil/token` (`sigil login --token <token>` stores a token you already have). Logging in does not change a plain scan; the token is sent only by the cloud options below.
+=======
+The CLI prints a verification URL and code. Open the URL, confirm the code, and finish signing in in your browser while the CLI waits. After authentication, the CLI stores the access token in `~/.sigil/token` and includes it in API calls. For non-interactive use, pass an existing token with `sigil login --token "$SIGIL_API_TOKEN"`.
+>>>>>>> origin/claude/sigil-skillspector-comparison-jz4v68
 
 **The cloud options** (each is something you run explicitly):
 
