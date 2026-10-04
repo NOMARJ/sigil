@@ -142,7 +142,10 @@ class TestWebhookProcessing:
     def webhook_headers(self):
         """Stripe webhook signature headers"""
         with (
-            patch("api.routers.billing.settings.stripe_webhook_secret", "whsec_test_secret"),
+            patch(
+                "api.routers.billing.settings.stripe_webhook_secret",
+                "whsec_test_secret",
+            ),
             patch("api.routers.billing.settings.stripe_test_webhook_secret", None),
         ):
             yield {
