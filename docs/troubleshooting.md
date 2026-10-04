@@ -16,12 +16,11 @@ The `sigil` binary is not in your `$PATH`.
 # Check where sigil is installed
 ls /usr/local/bin/sigil
 
-# If it's not there, copy it
-sudo cp bin/sigil /usr/local/bin/sigil
-chmod +x /usr/local/bin/sigil
+# If it's not there, install it (see the Installation Guide); from a source build in cli/:
+sudo ./target/release/sigil install
 
-# Or add the bin directory to your PATH
-export PATH="/path/to/sigil/bin:$PATH"
+# Or add the directory that holds the binary to your PATH
+export PATH="/path/to/sigil/cli/target/release:$PATH"
 ```
 
 If you installed via Homebrew, ensure your Homebrew bin directory is in your PATH:

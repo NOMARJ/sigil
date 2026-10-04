@@ -1146,23 +1146,9 @@ Custom exclusions can be added via a `.sigilignore` file (see [Configuration Gui
 
 ## External Scanner Integration
 
-Sigil integrates with these security scanners when they are installed:
-
-| Scanner | Install | What It Adds |
-|---------|---------|-------------|
-| [semgrep](https://semgrep.dev) | `pip install semgrep` | Advanced multi-language pattern matching |
-| [bandit](https://bandit.readthedocs.io) | `pip install bandit` | Python-specific security linting |
-| [trufflehog](https://github.com/trufflesecurity/trufflehog) | `brew install trufflehog` | Deep secret detection across git history |
-| [safety](https://pyup.io/safety/) | `pip install safety` | Python CVE scanning against known vulnerabilities |
-| npm audit | Bundled with npm | JavaScript dependency vulnerability scanning |
-
-Check which scanners are available:
-
-```bash
-sigil config
-```
-
-All eight core scan phases run without any external scanners. External scanners add depth but are not required.
+The CLI does not call `semgrep`, `bandit`, `trufflehog`, `safety` or `npm audit`,
+so installing them does not change its results; the legacy bash CLI
+(`bin/sigil`) used them. All eight scan phases are built in.
 
 ---
 
@@ -1170,6 +1156,6 @@ All eight core scan phases run without any external scanners. External scanners 
 
 - [Getting Started](getting-started.md) — Installation walkthrough and first scan
 - [Configuration Guide](configuration.md) — Environment variables, .sigilignore, policies
-- [Scan Phases Reference](scan-rules.md) — Detailed patterns and examples for each phase
+- [`sigil rules`](#sigil-rules) — List and inspect every detection rule, by phase
 - [CI/CD Integration](cicd.md) — Using Sigil in GitHub Actions, GitLab CI, and other pipelines
 - [MCP Integration](mcp.md) — Connecting Sigil to AI agents via MCP
