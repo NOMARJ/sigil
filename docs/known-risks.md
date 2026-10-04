@@ -72,8 +72,8 @@ Reassessed: 2026-06-25. Items below cleared after June 9 baseline and confirmed 
 4. Live-mode Stripe webhook (F-009 STORY-101) — CLEARED.
    - Evidence: `we_1T2AXKFhPhxEz27fCYP53mKc` confirmed at 6/6 required events: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`. See `evidence/F-003/US-101-fix-applied.md`.
 
-5. Auth0 v4 migration (F-009) — CLEARED.
-   - Evidence: Auth0 v4 client deployed to `sigil-api--0000108` (image tag `2eff98f`). Domain remains `auth.sigilsec.ai` (verified in `.nomark/resources.json`).
+5. Auth0 v4 migration (F-009) — dashboard deployment verification PENDING.
+   - Source migration and local verification are recorded in `progress.md` (2026-06-09). `sigil-api--0000108` (image tag `2eff98f`) is an API revision and does not establish that the dashboard Auth0 client was deployed. Capture the corresponding Vercel/dashboard deployment and credentialed authentication evidence before clearing deployment risk. Domain remains `auth.sigilsec.ai` (verified in `.nomark/resources.json`).
 
 6. Pro/Team billing plans deployed (F-009) — CLEARED.
    - Evidence: `/v1/billing/plans` pricing matches public pricing page. Pro $29/mo, Team $99/mo, 14-day trial. Revision `sigil-api--0000108`.

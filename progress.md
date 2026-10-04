@@ -1218,12 +1218,13 @@
 - **Evidence (2026-06-25):** `docs/known-risks.md` updated with F-008/F-009/F-010 cleared items and a clarified billing risk entry: live-mode webhook `we_1T2AXKFhPhxEz27fCYP53mKc` verified (6/6 events), test-mode still operator-gated (NOM-884 runbook at `evidence/F-003/US-105a-test-mode-webhook-audit.md`). Each remaining open item lists severity, required approval, and evidence. Done condition met.
 
 ### LAUNCH-004: Browser and journey validation
-- **Status:** DONE (2026-06-25)
+- **Status:** PARTIAL — credentialed journeys and missing route coverage remain open.
 - **Goal:** Validate core user journeys with browser evidence against the available local or deployed surface.
 - **Done when:** `docs/browser-test-results.md` records personas, routes, console/network findings, screenshots where possible, and pass/fail status.
 - **Files:** `docs/browser-test-results.md`
 - **Notes:** Use Playwright if Vercel Agent Browser remains unavailable. June 9 Playwright probe: pricing copy and signup no-404 pass; full credentialed login/dashboard/billing journey not completed.
-- **Evidence (2026-06-25):** `docs/browser-test-results.md` exists and records public-route personas (anonymous, signed-in), tested routes (`/`, `/pricing`, `/login`, `/signup`, app redirect, API `/health`, `/v1/billing/plans`, unauthenticated `/v1/interactive/investigate`), console/network findings (all public routes HTTP 200, signup 200, API 200, unauthenticated protected route 401), and pass/fail status per route. Done condition met.
+- **Evidence correction (2026-10-05):** `docs/browser-test-results.md` records public pricing and signup no-404 checks, but signup/account creation and login remain PARTIAL, mobile was not rerun, and full checkout was not executed. It contains no results for `/`, `/health`, or `/v1/billing/plans`. Complete the missing browser/network checks and credentialed journeys before marking DONE.
+
 
 ### LAUNCH-005: Deployment and rollback readiness docs
 - **Status:** DONE (2026-06-27, claude/admiring-hopper-rgo06o)
