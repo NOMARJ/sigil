@@ -1398,3 +1398,53 @@ fn a_command_of_thousands_of_stages_is_judged_quickly() {
         start.elapsed()
     );
 }
+
+/// The opt-in that lets pip or npm run package code before the scan is the
+/// user's decision, not an agent's: it is asked, wherever it appears.
+#[test]
+fn asks_before_sigil_lets_package_code_run() {
+    for cmd in [
+        "sigil pip evil --allow-build-scripts",
+        "sigil pip --allow-build-scripts ./evil",
+        "sigil npm github:owner/repo --allow-build-scripts",
+        "sigil --format json npm evil --allow-build-scripts",
+        "sigil npm evil --allow-build-scripts && npm install evil",
+        "bash -c 'sigil pip evil --allow-build-scripts'",
+        "/usr/local/bin/sigil pip evil --allow-build-scripts",
+        // However the shell is told to run it.
+        "env sigil pip evil --allow-build-scripts",
+        "env -i PATH=/usr/bin sigil npm ./evil --allow-build-scripts",
+        "sudo sigil pip evil --allow-build-scripts",
+        "nohup sigil npm evil --allow-build-scripts",
+        "timeout 60 sigil npm evil --allow-build-scripts",
+        "command sigil pip evil --allow-build-scripts",
+        "FOO=1 sigil pip evil --allow-build-scripts",
+        "echo evil | xargs sigil pip --allow-build-scripts",
+        "sigil pip evil \"--allow-build-scripts\"",
+        "sigil pip evil --allow-build-script\\s",
+        "sig''il npm evil --allow-build-scripts",
+        "cd /tmp && sigil npm evil --allow-build-scripts",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd}");
+        assert!(reason(cmd).contains("--allow-build-scripts"), "{cmd}");
+    }
+    // Without it (or with it only as the package spec after `--`), the
+    // download runs no package code and is allowed as before.
+    for cmd in [
+        "sigil pip requests",
+        "sigil npm left-pad@1.3.0",
+        "sigil npm -- --allow-build-scripts",
+        "sigil npm evil && npm install evil",
+        // Named, not passed to sigil.
+        "sigil pip evil # --allow-build-scripts",
+        "echo sigil pip evil --allow-build-scripts",
+        "grep -- --allow-build-scripts docs/cli.md",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
+    }
+    // It never softens a deny elsewhere in the command.
+    assert_eq!(
+        decision("sigil pip x --allow-build-scripts; npm install evil"),
+        "deny"
+    );
+}

@@ -114,10 +114,12 @@ remediation text and references; a reviewed finding can be silenced in place wit
 # Clone a repo into quarantine, scan it, get a verdict
 sigil clone https://github.com/someone/cool-mcp-server
 
-# Download and scan a pip package before installing
+# Download and scan a pip package before installing (prebuilt wheels only:
+# no package code runs before the scan)
 sigil pip some-agent-toolkit
 
-# Download and scan an npm package before installing
+# Download and scan an npm package before installing (registry tarball,
+# packed with --ignore-scripts)
 sigil npm langchain-community-plugin
 
 # Scan a directory or file already on disk — or a git URL (quarantined first)

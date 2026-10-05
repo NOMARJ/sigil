@@ -141,6 +141,24 @@ check allow "sigil npm"                    "sigil npm express"
 check allow "chained sigil"                "cd /tmp && sigil clone https://github.com/foo/bar.git"
 check allow "inline SIGIL_BYPASS prefix"   "SIGIL_BYPASS=1 npm install express"
 
+# ── ASK: sigil pip|npm --allow-build-scripts (package code runs first) ─────
+# The flag is the user's decision, not an agent's. A deny elsewhere wins.
+
+check ask   "sigil pip opt-in"             "sigil pip evil --allow-build-scripts"
+check ask   "sigil npm opt-in, git spec"   "sigil npm github:owner/repo --allow-build-scripts"
+check ask   "opt-in before the spec"       "sigil pip --allow-build-scripts ./evil"
+check ask   "opt-in, sigil by path"        "/usr/local/bin/sigil npm evil --allow-build-scripts"
+check ask   "opt-in, env sigil"            "env sigil pip evil --allow-build-scripts"
+check ask   "opt-in, sudo sigil"           "sudo sigil npm evil --allow-build-scripts"
+check ask   "opt-in, timeout sigil"        "timeout 60 sigil npm evil --allow-build-scripts"
+check ask   "opt-in, quoted flag"          'sigil pip evil "--allow-build-scripts"'
+check ask   "opt-in, in bash -c"           "bash -c 'sigil npm ./evil --allow-build-scripts'"
+check ask   "opt-in, then vetted install"  "sigil npm evil --allow-build-scripts && npm install evil"
+check deny  "opt-in, then unvetted"        "sigil pip x --allow-build-scripts; npm install evil"
+check allow "spec after --, not the flag"  "sigil npm -- --allow-build-scripts"
+check allow "flag in a comment"            "sigil pip evil # --allow-build-scripts"
+check allow "flag only echoed"             "echo sigil pip evil --allow-build-scripts"
+
 # ── DENY: a download piped or substituted into an interpreter ──────────────
 # Never gated by a sigil call: the server decides per request what it serves.
 

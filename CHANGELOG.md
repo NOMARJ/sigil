@@ -6,6 +6,51 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 
 ## [Unreleased]
 
+### 🔒 Security
+
+- **`sigil pip` and `sigil npm` no longer let pip or npm run package code
+  before the scan.** Both commands exist to look at a package before any of
+  its code runs, but in 1.3.7 `sigil pip` ran `pip download --no-deps <spec>`,
+  which builds a source distribution (running its `setup.py` or build backend)
+  to read its metadata, and accepted local paths too; `sigil npm` ran
+  `npm pack <spec>`, which runs a local directory's prepack/prepare/postpack
+  scripts and clones, installs and prepares a git spec (`github:owner/repo`,
+  `owner/repo`, git URLs). All of that happened on the host, before the scan
+  and before any approval.
+  - `sigil pip` now runs `pip download --no-deps --only-binary=:all: --dest
+    <quarantine> -- <spec>` from the quarantine directory: prebuilt wheels
+    only. A package (or version) published only as a source distribution now
+    fails to download, and the error says why. `--only-binary` does not cover
+    a requirement that is a local path, URL or VCS reference (pip 24.0 built
+    a local directory, a local sdist, a `file://` URL and a `git+file://`
+    reference with it set, in testing with a marker file), so those are
+    refused before pip runs, as is a name pip would read as an archive file
+    in the working directory (`pkg.tar.gz`, `pkg.whl`). A `no-binary`
+    setting in the user's pip config or `PIP_NO_BINARY` does not override
+    the command-line option (also tested).
+  - `sigil npm` now runs `npm pack --ignore-scripts -- <spec>`. On npm 10.9.7
+    `--ignore-scripts` still runs a local directory's or git checkout's
+    `prepare` script (tested with a marker file; pacote's directory fetcher
+    does not consult the flag), so anything other than a registry package by
+    name is refused before npm runs: directories, tarballs, URLs, `file:`
+    specs, git specs including the `owner/repo` shorthand, and `npm:` aliases.
+  - The spec is checked first. pip: a package name with optional `[extras]`
+    and version specifiers (`requests`, `requests[socks]`,
+    `"requests>=2,<3"`). npm: a name (scoped allowed) with an optional
+    `@version`, `@tag` or `@range`. A refused spec is a usage error (exit 2)
+    and creates no quarantine entry. A spec starting with `-` is always
+    refused, and the spec is passed after `--`, so it can never be read as an
+    option.
+  - `--allow-build-scripts` (on both commands) restores the old behaviour for
+    code you already trust: any spec, no `--only-binary` / `--ignore-scripts`,
+    and pip run from your working directory so a relative path means what you
+    typed. It prints a warning that the package's own code may run on this
+    machine before the scan. The Claude Code PreToolUse hook (`sigil hook
+    pretooluse`, its shell fallback, and the MCP server's `check_command`)
+    asks before running a `sigil pip`/`sigil npm` command that carries the
+    flag, however it is prefixed (`env`, `sudo`, `timeout`, …). The MCP
+    servers' package-scan tools never pass it.
+
 ### 🐛 Fixed
 
 - **`sigil install` can no longer empty its own binary.** It copied the running

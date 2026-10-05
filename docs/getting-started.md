@@ -144,7 +144,7 @@ Example output for a small repository with an `eval()` call, an outbound `reques
 sigil pip some-agent-toolkit
 ```
 
-Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It downloads with `pip download`, so when pip picks the package's source distribution (no wheel for your platform and Python in the version it selects), pip runs the package's `setup.py` on your machine to read its metadata, before the scan.
+Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It asks pip for prebuilt wheels only, so none of the package's code runs before the scan; a package published only as a source distribution fails to download, with a message explaining why. Local paths, URLs and VCS references are refused. `--allow-build-scripts` accepts them for code you already trust, with a warning that pip may then run the package's setup code on your machine before the scan.
 
 ### Scanning an npm Package
 
@@ -152,7 +152,7 @@ Sigil downloads the package (without installing it), extracts it into quarantine
 sigil npm langchain-community-plugin
 ```
 
-Same quarantine-and-scan workflow for npm packages.
+Same quarantine-and-scan workflow for npm registry packages, packed with `--ignore-scripts`. Directories, tarballs, URLs and git specs (including the `owner/repo` shorthand) are refused, because npm runs their `prepare` script while packing them even with `--ignore-scripts`. `--allow-build-scripts` accepts them for code you already trust, with a warning.
 
 ### Scanning a Local Directory
 

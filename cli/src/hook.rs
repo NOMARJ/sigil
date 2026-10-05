@@ -845,6 +845,34 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
     )
 }
 
+/// `sigil pip|npm … --allow-build-scripts` lets pip or npm run the
+/// package's own setup or lifecycle scripts on this machine before the scan.
+/// The flag is meant as the user's own decision; a command an agent runs is
+/// not that, so it is put to the user. The command is read as the shell
+/// runs it (quotes removed; `env`, `sudo`, `nohup`, `timeout`, `xargs` and
+/// `VAR=value` prefixes skipped), up to a `--`, after which every word is
+/// the package spec.
+fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
+    let words = cmdline::command_words(stage).words;
+    let (head, args) = words.split_first()?;
+    let name = head.rsplit('/').next().unwrap_or(head);
+    if name.trim_end_matches(".exe") != "sigil" {
+        return None;
+    }
+    let opted_in = args
+        .iter()
+        .take_while(|t| *t != "--")
+        .any(|t| t == "--allow-build-scripts" || t.starts_with("--allow-build-scripts="));
+    opted_in.then(|| {
+        Decision::Ask(
+            "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts \
+             on this machine before Sigil scans it. Confirm the package is trusted; without the flag \
+             sigil pip/npm downloads only what needs no build."
+                .into(),
+        )
+    })
+}
+
 /// A stage after `sigil … &&` is gated when *every* thing it acquires was
 /// vetted by the chain, as the same kind of thing: `sigil npm a && npm
 /// install a b` still installs an unvetted `b`, and `sigil npm a && pip
@@ -2689,6 +2717,15 @@ impl Walk {
         last_in: &mut bool,
         last_out: &mut bool,
     ) {
+        // What the stage runs is read without its `# comment`
+        // (`curl … | python3 -E # install`); the classifiers still see the
+        // whole text.
+        let text = uncommented(stage, at, q);
+        // A sigil call that lets package code run before its scan is asked
+        // about however it is written (`env sigil …`, `sudo sigil …`).
+        if let Some(d) = build_scripts_opt_in(&text) {
+            self.judge(d);
+        }
         // The command is going through sigil: that stage is allowed, and a
         // vetting call gates what follows it with `&&` — when it is the real
         // sigil, outside quotes and substitutions, and the pipeline's exit
@@ -2707,10 +2744,7 @@ impl Walk {
             }
             return;
         }
-        // What the stage runs is read without its `# comment`
-        // (`curl … | python3 -E # install`); the classifiers still see the
-        // whole text.
-        let w = cmdline::command_words(&uncommented(stage, at, q));
+        let w = cmdline::command_words(&text);
         let fed_in = pipe.fed && w.stdin == cmdline::Stdin::Inherit;
         let reads_code = inner_full.reads_code.contains(&at);
         self.stage(stage, &p.text, &w, k, pipe, executed, reads_code);

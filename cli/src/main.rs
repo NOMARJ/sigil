@@ -1,3 +1,4 @@
+mod acquire;
 mod api;
 mod baseline;
 mod cache;
@@ -100,9 +101,13 @@ enum Commands {
         auto_approve: bool,
     },
 
-    /// Download and scan a pip package
+    /// Download and scan a pip package (prebuilt wheels only: no package
+    /// code runs before the scan)
     Pip {
-        /// Package name (optionally with version, e.g. package==1.0.0)
+        /// Package name from the index, optionally with [extras] and a
+        /// version specifier (e.g. requests, requests[socks],
+        /// requests==2.32.3). Paths, URLs and VCS references are refused
+        /// unless --allow-build-scripts is given
         package: String,
 
         /// Specific version to download
@@ -112,11 +117,23 @@ enum Commands {
         /// Automatically approve if scan passes
         #[arg(long)]
         auto_approve: bool,
+
+        /// Also accept source distributions, local paths, URLs and VCS
+        /// references, which pip builds by running the package's own setup
+        /// code on this machine BEFORE the scan. Only for code you already
+        /// trust
+        #[arg(long)]
+        allow_build_scripts: bool,
     },
 
-    /// Download and scan an npm package
+    /// Download and scan an npm package (registry tarball, packed with
+    /// --ignore-scripts: no package code runs before the scan)
     Npm {
-        /// Package name (optionally with version, e.g. package@1.0.0)
+        /// Registry package name (scoped allowed), optionally with
+        /// @version, @tag or @range (e.g. left-pad, @types/node,
+        /// left-pad@1.3.0). Directories, tarballs, URLs, git specs
+        /// (including owner/repo) and npm: aliases are refused unless
+        /// --allow-build-scripts is given
         package: String,
 
         /// Specific version to download
@@ -126,6 +143,12 @@ enum Commands {
         /// Automatically approve if scan passes
         #[arg(long)]
         auto_approve: bool,
+
+        /// Also accept directories, tarballs, URLs, git specs and aliases,
+        /// and let npm run the package's lifecycle scripts while packing it,
+        /// on this machine, BEFORE the scan. Only for code you already trust
+        #[arg(long)]
+        allow_build_scripts: bool,
     },
 
     /// Scan an existing directory or file
@@ -688,10 +711,12 @@ async fn main() {
             package,
             version,
             auto_approve,
+            allow_build_scripts,
         } => {
             cmd_pip(
                 &package,
                 version.as_deref(),
+                allow_build_scripts,
                 auto_approve,
                 &cli.format,
                 cli.verbose,
@@ -703,10 +728,12 @@ async fn main() {
             package,
             version,
             auto_approve,
+            allow_build_scripts,
         } => {
             cmd_npm(
                 &package,
                 version.as_deref(),
+                allow_build_scripts,
                 auto_approve,
                 &cli.format,
                 cli.verbose,
@@ -1708,17 +1735,45 @@ async fn cmd_clone(
     acquisition_exit_code(result.verdict)
 }
 
+/// Refuse a spec that pip or npm would build or run scripts for (a usage
+/// error, exit 2), before any quarantine entry exists or anything runs; warn
+/// loudly when the user opted in with `--allow-build-scripts`. `None` means
+/// go ahead.
+fn gate_package_spec(
+    manager: acquire::Manager,
+    spec: &str,
+    allow_build_scripts: bool,
+) -> Option<i32> {
+    if let Err(err) = acquire::check_spec(manager, spec, allow_build_scripts) {
+        eprintln!(
+            "{} {}",
+            "error:".bold().red(),
+            acquire::refusal(manager, spec, &err)
+        );
+        return Some(EXIT_ERROR);
+    }
+    if allow_build_scripts {
+        eprintln!(
+            "{} {}",
+            "warning:".bold().yellow(),
+            acquire::opt_in_warning(manager, spec)
+        );
+    }
+    None
+}
+
 async fn cmd_pip(
     package: &str,
     version: Option<&str>,
+    allow_build_scripts: bool,
     auto_approve: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
-    let pkg_spec = match version {
-        Some(v) => format!("{}=={}", package, v),
-        None => package.to_string(),
-    };
+    let pkg_spec = acquire::pip_spec(package, version);
+    if let Some(code) = gate_package_spec(acquire::Manager::Pip, &pkg_spec, allow_build_scripts) {
+        return code;
+    }
 
     print_progress(
         format,
@@ -1745,19 +1800,29 @@ async fn cmd_pip(
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    // Download pip package into quarantine
-    let status = std::process::Command::new("pip")
-        .arg("download")
-        .arg("--no-deps")
-        .arg("--dest")
-        .arg(&entry.path)
-        .arg(&pkg_spec)
-        .status();
+    // Download pip package into quarantine: wheels only, run from the
+    // (empty) quarantine directory so nothing in the caller's directory can
+    // be read as a local archive. With --allow-build-scripts, as before:
+    // any spec, from the caller's directory, so a relative path means what
+    // the user typed.
+    let mut pip = std::process::Command::new("pip");
+    pip.args(acquire::pip_download_args(
+        &entry.path,
+        &pkg_spec,
+        allow_build_scripts,
+    ));
+    if !allow_build_scripts {
+        pip.current_dir(&entry.path);
+    }
+    let status = pip.status();
 
     match status {
         Ok(s) if s.success() => {}
         _ => {
             eprintln!("{} pip download failed", "error:".bold().red());
+            if !allow_build_scripts {
+                eprintln!("  {}", acquire::pip_wheel_only_hint(&pkg_spec));
+            }
             return EXIT_ERROR;
         }
     }
@@ -1803,14 +1868,15 @@ async fn cmd_pip(
 async fn cmd_npm(
     package: &str,
     version: Option<&str>,
+    allow_build_scripts: bool,
     auto_approve: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
-    let pkg_spec = match version {
-        Some(v) => format!("{}@{}", package, v),
-        None => package.to_string(),
-    };
+    let pkg_spec = acquire::npm_spec(package, version);
+    if let Some(code) = gate_package_spec(acquire::Manager::Npm, &pkg_spec, allow_build_scripts) {
+        return code;
+    }
 
     print_progress(
         format,
@@ -1837,10 +1903,10 @@ async fn cmd_npm(
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    // Download npm package into quarantine
+    // Download npm package into quarantine, with --ignore-scripts unless the
+    // user opted in.
     let status = std::process::Command::new("npm")
-        .arg("pack")
-        .arg(&pkg_spec)
+        .args(acquire::npm_pack_args(&pkg_spec, allow_build_scripts))
         .current_dir(&entry.path)
         .status();
 

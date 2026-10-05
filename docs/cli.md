@@ -80,6 +80,7 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
+| `sigil pip … --allow-build-scripts`, `sigil npm … --allow-build-scripts` | ask | the flag lets the package's own code run before the scan |
 | `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
 | `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
 | downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
@@ -204,63 +205,114 @@ sigil clone git@github.com:org/agent-toolkit.git
 
 ### sigil pip
 
-Download a pip package without installing it, extract into quarantine, and scan.
+Download a PyPI package into quarantine without installing it, extract it, and
+scan it. By default nothing in the package runs before the scan.
 
 ```bash
-sigil pip <package-name>
+sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `package-name` | Yes | PyPI package name (e.g., `requests`, `langchain`) |
+| `package` | Yes | A package name from the index, with optional `[extras]` and version specifiers: `requests`, `requests[socks]`, `requests==2.32.3`, `"requests>=2,<3"` |
+| `-V`, `--version` | No | Version to download; `sigil pip requests -V 2.32.3` downloads `requests==2.32.3` |
+| `--auto-approve` | No | Approve the quarantine entry when the verdict is LOW RISK |
+| `--allow-build-scripts` | No | Accept a spec or package pip has to build (see below). Only for code you already trust |
 
 **Behavior:**
 
-1. Passes the name to pip as given: Sigil does not validate it, so anything `pip download` accepts (a local archive path, for example) is used
-2. Downloads the package via `pip download --no-deps`. When pip picks a source distribution (there is no compatible wheel), it runs the package's `setup.py` to read its metadata: that code runs on your machine during the download, before the scan
-3. Extracts the wheel or tarball into quarantine
-4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
-5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
+1. Checks the spec. A local path, URL, VCS reference (`git+https://…`), direct
+   reference (`name @ url`), a name pip would read as an archive file in the
+   working directory (`pkg.tar.gz`, `pkg.whl`), environment markers, and
+   anything starting with `-` are refused with exit 2, before anything is
+   downloaded or added to quarantine.
+2. Runs `pip download --no-deps --only-binary=:all: --dest <quarantine> -- <spec>`
+   in the quarantine directory: prebuilt wheels only. pip prepares a source
+   distribution's metadata by running its `setup.py` or build backend, so a
+   package (or version) published only as a source distribution fails to
+   download (exit 2) and the error says so.
+3. Extracts the wheel into quarantine and runs the full scan.
+4. Nothing is installed. Exit 0 for LOW RISK, 1 for anything worse, 2 when
+   the download or scan failed.
+
+**`--allow-build-scripts`** drops `--only-binary=:all:` and the spec check
+(only an empty spec, control characters, and a spec starting with `-` are
+still refused), and runs pip from your working directory, so a relative path
+(`./my-project`) means what you typed. pip may then build the package from
+source, which runs its own setup code on this machine, with your privileges,
+before Sigil scans anything; quarantine does not contain that. Sigil prints a
+warning saying so. `--only-binary` alone would not be enough without the spec
+check: pip 24.0 built a local directory, a local sdist, a `file://` URL and a
+`git+file://` reference with it set.
 
 **Example:**
 
 ```bash
 sigil pip requests
-sigil pip some-agent-toolkit
+sigil pip requests -V 2.32.3
+sigil pip "requests[socks]>=2,<3"
 ```
 
 ---
 
 ### sigil npm
 
-Download an npm package, extract into quarantine, and scan.
+Download an npm registry package into quarantine, extract it, and scan it. By
+default nothing in the package runs before the scan.
 
 ```bash
-sigil npm <package-name>
+sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `package-name` | Yes | npm package name (e.g., `leftpad`, `@scope/pkg`) |
+| `package` | Yes | A registry package name (scoped allowed) with an optional `@version`, `@tag` or `@range`: `left-pad`, `@types/node`, `left-pad@1.3.0`, `left-pad@latest`, `"left-pad@^1.3"` |
+| `-V`, `--version` | No | Version, tag or range; `sigil npm left-pad -V 1.3.0` downloads `left-pad@1.3.0` |
+| `--auto-approve` | No | Approve the quarantine entry when the verdict is LOW RISK |
+| `--allow-build-scripts` | No | Accept a spec npm would build or run scripts for (see below). Only for code you already trust |
 
 **Behavior:**
 
-1. Passes the name to `npm pack` as given: Sigil does not validate it, and `npm pack` also accepts a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one); for those it runs the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`)
-2. Downloads via `npm pack` (creates a `.tgz` archive)
-3. Extracts into quarantine
-4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
-5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
+1. Checks the spec. Anything npm would treat as a directory (`./dir`, `.`),
+   a tarball (`pkg.tgz`, a tarball URL), a `file:` spec, a URL, a git spec
+   (`github:owner/repo`, the `owner/repo` shorthand, `git+https://…`,
+   `git@host:owner/repo`, `name#branch`), or an `npm:` alias, and anything
+   starting with `-`, is refused with exit 2, before anything is downloaded
+   or added to quarantine.
+2. Runs `npm pack --ignore-scripts -- <spec>` in the quarantine directory,
+   which writes the registry tarball there.
+3. Extracts the tarball and runs the full scan.
+4. Nothing is installed. Exit 0 for LOW RISK, 1 for anything worse, 2 when
+   the download or scan failed.
+
+Why the spec check is needed: npm runs a local directory's `prepare` script
+while packing it, and for a git spec it clones the repository, installs its
+dependencies and runs its `prepare` script. On npm 10.9.7 (Node 22) the
+`prepare` script ran even with `--ignore-scripts`.
+
+**`--allow-build-scripts`** drops `--ignore-scripts` and the spec check (only
+an empty spec, control characters, and a spec starting with `-` are still
+refused). npm then runs the package's lifecycle scripts while packing it
+(prepare, prepack, postpack; for a git spec it also installs the checkout's
+dependencies and runs their install scripts) on this machine, before Sigil
+scans anything. Sigil prints a warning saying so.
 
 **Example:**
 
 ```bash
-sigil npm leftpad
+sigil npm left-pad
+sigil npm left-pad -V 1.3.0
 sigil npm @langchain/community
 ```
+
+In the Claude Code PreToolUse hook (and the MCP server's `check_command`), a
+`sigil pip` or `sigil npm` command carrying `--allow-build-scripts` is asked
+about rather than allowed: the flag is meant to be your decision, not an
+agent's.
 
 ---
 

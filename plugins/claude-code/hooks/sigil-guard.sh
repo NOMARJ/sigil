@@ -2497,6 +2497,23 @@ for REC in $LEX; do
 done
 IFS=$IFS_DEFAULT
 
+# ── ASK: a sigil call that lets package code run before its scan ──────────
+# `sigil pip|npm … --allow-build-scripts` lets pip or npm run the package's
+# own setup or lifecycle scripts on this machine before the scan: the
+# user's decision, not an agent's (hook.rs build_scripts_opt_in). Read at
+# a command position (after env/sudo/nohup/timeout/xargs and VAR=value
+# words), up to a `--` or a `# comment`. Every allow below becomes this ask;
+# a deny still wins.
+OPTIN=0
+OPTIN_PRE='(^|[;&|(`"'\''])[[:space:]]*(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|sudo|doas|nohup|command|exec|nice|time|timeout|setsid|xargs|-[^[:space:]]+|[0-9][^[:space:]]*)[[:space:]]+)*'
+OPTIN_ARG='(-|-?[^-#[:space:];&|][^[:space:];&|]*|--[^[:space:];&|]+)'
+has "${OPTIN_PRE}([^[:space:];&|]*/)?sigil(\\.exe)?([[:space:]]+${OPTIN_ARG})*[[:space:]]+--allow-build-scripts([=[:space:];&|)\"']|\$)" \
+  && OPTIN=1
+allow_unless_opt_in() {
+  [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it. Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."
+  emit allow "$1"
+}
+
 # ── A sigil call: the rules below judge only what it does not vet ───────────
 
 # With the lexer, the rules below read only the stages that are not sigil
@@ -2512,11 +2529,11 @@ while :; do case $AR_HEAD in [[:space:]]*) AR_HEAD=${AR_HEAD#?} ;; *) break ;; e
 has_in "${AR_HEAD%%"$NL"*}" "$SIGIL_RE" && ALLOW_REASON="Command uses sigil"
 if [ "$SIGIL_SEEN" = 1 ] && [ "$RESID_ON" = 1 ]; then
   CMD=${RESID#"$NL"}
-  [ -n "$CMD" ] || emit allow "${GATED_REASON:-$ALLOW_REASON}"
+  [ -n "$CMD" ] || allow_unless_opt_in "${GATED_REASON:-$ALLOW_REASON}"
   dequote_cmd "$CMD"; DCMD=$R
 elif [ -z "$LEX" ]; then
   has '(^[[:space:]]*|[;&|][[:space:]]*)sigil[[:space:]]' \
-    && emit allow "${GATED_REASON:-Command uses sigil}"
+    && allow_unless_opt_in "${GATED_REASON:-Command uses sigil}"
 fi
 
 # ── DENY: cloning repositories ─────────────────────────────────────────────
@@ -2595,4 +2612,4 @@ has "${WB}(uvx|pipx[[:space:]]+run)[[:space:]]" \
 
 # ── Default ────────────────────────────────────────────────────────────────
 
-emit allow "${GATED_REASON:-$ALLOW_REASON}"
+allow_unless_opt_in "${GATED_REASON:-$ALLOW_REASON}"

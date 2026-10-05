@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- The PreToolUse gate asks before a `sigil pip` or `sigil npm` command that carries `--allow-build-scripts` (a sigil CLI flag added after 1.3.7): the flag lets pip or npm run the package's own code before the scan. The native `sigil hook pretooluse` reads the command as the shell runs it (`env`/`sudo`/`nohup`/`timeout`/`xargs` prefixes, quoting); the shell fallback asks for the same shapes. A deny elsewhere in the command still wins. The scan-package skill tells the agent to name registry packages and never to add the flag itself.
 - The PreToolUse gate now also runs on Write, Edit and MultiEdit (matcher `Bash|Write|Edit|MultiEdit`). The native `sigil hook pretooluse` denies edits that plant a download-to-shell or an exfiltrating command in agent tooling (hooks, MCP configs, skills), and asks before hook or MCP-config edits.
 - The shell fallback (`hooks/sigil-guard.sh`, used when the binary is not on PATH) now denies remote runners (`npx`, `bunx`, `uvx`, `pipx run`, `pnpm dlx`, `yarn dlx`) instead of asking, matching the native hook.
 - The shell fallback now also has the native hook's remote-execution denies, with the same reasons:

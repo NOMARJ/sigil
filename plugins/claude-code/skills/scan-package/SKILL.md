@@ -12,6 +12,12 @@ Scan a package before installation:
 2. Run appropriate Sigil scan:
    - `sigil pip <package>` for Python packages
    - `sigil npm <package>` for Node packages
+
+   Name a registry package (`requests==2.32.3`, `left-pad@1.3.0`). Sigil
+   refuses paths, URLs and git specs, and a PyPI package with no prebuilt
+   wheel fails to download, because fetching those would run the package's
+   own code before the scan. Report that to the user; never add
+   `--allow-build-scripts` yourself (the hook asks the user before it runs).
 3. Review quarantine findings
 4. Recommend approve/reject based on risk score
 

@@ -228,6 +228,7 @@ The plugin enforces the quarantine-first workflow, it doesn't just suggest it. A
 | `curl … > ~/.claude/skills/…`, `-o .mcp.json` (downloads into agent tooling) | **deny** | Use `sigil scan <url>` — quarantine + scan first       |
 | `pipx install`, `uv tool install`, `deno run npm:…` / `https://…`       | **deny** | Prefix `sigil pip <pkg> &&` / `sigil npm <pkg> &&`; download and `sigil scan` a URL module |
 | Bare lockfile restores (`npm install`, `npm ci`, `pip install -r req.txt` with no package beside it, `bundle install`) | **ask**  | Lockfile deps can still run install scripts — confirm trust  |
+| `sigil pip … --allow-build-scripts`, `sigil npm … --allow-build-scripts` | **ask**  | The flag lets pip or npm run the package's own code before the scan — your decision, not the agent's |
 | One-shot runners (`npx`, `bunx`, `dlx`, `uvx`, `pipx run`, `npm exec`, `bun x`, `uv tool run`) | **deny** | Downloads and executes in one step with no scan |
 | Everything else                                                         | allow    |                                                              |
 
