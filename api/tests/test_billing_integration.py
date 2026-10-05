@@ -141,10 +141,17 @@ class TestWebhookProcessing:
     @pytest.fixture
     def webhook_headers(self):
         """Stripe webhook signature headers"""
-        return {
-            "stripe-signature": "t=1677123456,v1=test_signature_123",
-            "content-type": "application/json",
-        }
+        with (
+            patch(
+                "api.routers.billing.settings.stripe_webhook_secret",
+                "whsec_test_secret",
+            ),
+            patch("api.routers.billing.settings.stripe_test_webhook_secret", None),
+        ):
+            yield {
+                "stripe-signature": "t=1677123456,v1=test_signature_123",
+                "content-type": "application/json",
+            }
 
     @pytest.mark.asyncio
     async def test_checkout_completed_webhook(
@@ -367,7 +374,14 @@ class TestPaymentFailureHandling:
             mock_get_stripe.return_value = mock_stripe
             mock_stripe.Webhook.construct_event.return_value = webhook_payload
 
-            with patch("api.routers.billing.logger") as mock_logger:
+            with (
+                patch(
+                    "api.routers.billing.settings.stripe_webhook_secret",
+                    "whsec_test_secret",
+                ),
+                patch("api.routers.billing.settings.stripe_test_webhook_secret", None),
+                patch("api.routers.billing.logger") as mock_logger,
+            ):
                 response = client.post(
                     "/v1/billing/webhook", json=webhook_payload, headers=webhook_headers
                 )
@@ -400,7 +414,14 @@ class TestPaymentFailureHandling:
             mock_get_stripe.return_value = mock_stripe
             mock_stripe.Webhook.construct_event.return_value = webhook_payload
 
-            with patch("api.routers.billing.logger") as mock_logger:
+            with (
+                patch(
+                    "api.routers.billing.settings.stripe_webhook_secret",
+                    "whsec_test_secret",
+                ),
+                patch("api.routers.billing.settings.stripe_test_webhook_secret", None),
+                patch("api.routers.billing.logger") as mock_logger,
+            ):
                 response = client.post(
                     "/v1/billing/webhook", json=webhook_payload, headers=webhook_headers
                 )
@@ -409,9 +430,48 @@ class TestPaymentFailureHandling:
 
                 # Verify payment success was logged
                 mock_logger.info.assert_called()
-                log_call = mock_logger.info.call_args[0][0]
-                assert "Payment succeeded" in log_call
-                assert "cus_payment_success" in log_call
+                info_logs = [call.args[0] for call in mock_logger.info.call_args_list]
+                assert any("Payment succeeded" in log for log in info_logs)
+                assert any("cus_payment_success" in log for log in info_logs)
+
+    def test_invoice_paid_webhook(
+        self, client: TestClient, webhook_headers: dict[str, str]
+    ):
+        """Test invoice.paid event (modern Stripe API name for invoice payment success)"""
+
+        webhook_payload = {
+            "type": "invoice.paid",
+            "data": {
+                "object": {
+                    "customer": "cus_invoice_paid",
+                    "amount_paid": 2900,
+                }
+            },
+        }
+
+        with patch("api.routers.billing._get_stripe") as mock_get_stripe:
+            mock_stripe = MagicMock()
+            mock_get_stripe.return_value = mock_stripe
+            mock_stripe.Webhook.construct_event.return_value = webhook_payload
+
+            with (
+                patch(
+                    "api.routers.billing.settings.stripe_webhook_secret",
+                    "whsec_test_secret",
+                ),
+                patch("api.routers.billing.settings.stripe_test_webhook_secret", None),
+                patch("api.routers.billing.logger") as mock_logger,
+            ):
+                response = client.post(
+                    "/v1/billing/webhook", json=webhook_payload, headers=webhook_headers
+                )
+
+                assert response.status_code == 200
+
+                mock_logger.info.assert_called()
+                info_logs = [call.args[0] for call in mock_logger.info.call_args_list]
+                assert any("Payment succeeded" in log for log in info_logs)
+                assert any("cus_invoice_paid" in log for log in info_logs)
 
 
 class TestSubscriptionManagement:
