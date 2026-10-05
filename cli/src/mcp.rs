@@ -160,8 +160,8 @@ fn tool_definitions() -> Value {
             "title": "Scan a package before install",
             "description": "Download an npm or PyPI package into quarantine (without running any of its \
     install scripts) and scan it. Returns the verdict and safe_to_install. Registry packages by name \
-    only: a path, URL or git spec is refused, and a PyPI package with no prebuilt wheel fails, \
-    because fetching those would run the package's own code.",
+    only: a path, URL or git spec is refused, and a PyPI release with no prebuilt wheel for this \
+    platform fails, because fetching those would run the package's own code.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

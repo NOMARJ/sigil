@@ -848,29 +848,112 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 /// `sigil pip|npm … --allow-build-scripts` lets pip or npm run the
 /// package's own setup or lifecycle scripts on this machine before the scan.
 /// The flag is meant as the user's own decision; a command an agent runs is
-/// not that, so it is put to the user. The command is read as the shell
-/// runs it (quotes removed; `env`, `sudo`, `nohup`, `timeout`, `xargs` and
-/// `VAR=value` prefixes skipped), up to a `--`, after which every word is
-/// the package spec.
+/// not that, so it is put to the user.
+///
+/// Read from the words of the stage's text, as written and with quoting
+/// removed, wherever a `sigil` word appears (also in a quoted string that a
+/// shell, `find -exec`, `coproc` or a here-string runs, and in text that
+/// only mentions it, as the install rules read `npm install` anywhere): a
+/// `sigil` word (or a command word that is an expansion, such as
+/// `$(command -v sigil)`), then `pip` or `npm`, then, before a `--`, a `# comment` or
+/// a `;`/`&`/`|`, a word starting with `--allow-build-scripts` (a glued
+/// redirection such as `--allow-build-scripts>log` included) or a word
+/// with a `$` or backtick, whose expansion could be the flag. A sigil
+/// pip/npm call behind `xargs` is asked about too: xargs appends words it
+/// reads. The shell fallback (`sigil-guard.sh`) reads the same shapes.
 fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
-    let words = cmdline::command_words(stage).words;
-    let (head, args) = words.split_first()?;
-    let name = head.rsplit('/').next().unwrap_or(head);
-    if name.trim_end_matches(".exe") != "sigil" {
-        return None;
-    }
-    let opted_in = args
-        .iter()
-        .take_while(|t| *t != "--")
-        .any(|t| t == "--allow-build-scripts" || t.starts_with("--allow-build-scripts="));
+    let dq = cmdline::dequote(stage);
+    let opted_in = opt_in_words(stage) || opt_in_words(&dq);
     opted_in.then(|| {
         Decision::Ask(
-            "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts \
-             on this machine before Sigil scans it. Confirm the package is trusted; without the flag \
-             sigil pip/npm downloads only what needs no build."
+            "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle \
+                 scripts on this machine before Sigil scans it (or a word here may expand to it, \
+                 or xargs may append it). Confirm the package is trusted; without the flag sigil \
+                 pip/npm downloads only what needs no build."
                 .into(),
         )
     })
+}
+
+/// The trailing run of name characters of a word (`/usr/bin/sigil` and
+/// `"sigil` end in `sigil`; `my-sigil` does not).
+fn name_tail(word: &str) -> &str {
+    word.rsplit(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')))
+        .next()
+        .unwrap_or(word)
+}
+
+fn opt_in_words(text: &str) -> bool {
+    // Words, with `;`, `&`, `|` and line ends as tokens of their own
+    // (`None`).
+    let mut toks: Vec<Option<&str>> = Vec::new();
+    for line in text.lines() {
+        for w in line.split_whitespace() {
+            for (k, piece) in w.split([';', '&', '|']).enumerate() {
+                if k > 0 {
+                    toks.push(None);
+                }
+                if !piece.is_empty() {
+                    toks.push(Some(piece));
+                }
+            }
+        }
+        toks.push(None);
+    }
+    let quotes = |c: char| c == '"' || c == '\'';
+    // A word of this call: not a separator, a `--` or a `# comment`.
+    fn arg(t: Option<&str>) -> Option<&str> {
+        t.filter(|a| *a != "--" && !a.starts_with('#'))
+    }
+    let mut xargs = false;
+    for (i, t) in toks.iter().enumerate() {
+        let Some(w) = arg(*t) else {
+            xargs = false;
+            continue;
+        };
+        let tail = name_tail(w);
+        if tail == "xargs" {
+            xargs = true;
+            continue;
+        }
+        // `sigil`, `/usr/bin/sigil`, `$(command -v sigil)`, or a command
+        // word that is an expansion right before `pip`/`npm` (`$SIGIL pip`).
+        let closed = w.trim_end_matches([')', '`', '"', '\'']);
+        let named = matches!(name_tail(closed), "sigil" | "sigil.exe");
+        let expansion = w.trim_start_matches(quotes).starts_with(['$', '`']);
+        if !named && !expansion {
+            continue;
+        }
+        // `sigil [global options] pip|npm …`
+        let mut j = i + 1;
+        let mut sub = false;
+        while let Some(a) = toks.get(j).copied().and_then(arg) {
+            j += 1;
+            if matches!(a.trim_matches(quotes), "pip" | "npm") {
+                sub = true;
+                break;
+            }
+            if !named {
+                break;
+            }
+        }
+        if !sub {
+            continue;
+        }
+        if xargs {
+            return true;
+        }
+        while let Some(a) = toks.get(j).copied().and_then(arg) {
+            j += 1;
+            if a.trim_start_matches(quotes)
+                .starts_with("--allow-build-scripts")
+                || a.contains(['$', '`'])
+            {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// A stage after `sigil … &&` is gated when *every* thing it acquires was
@@ -2145,13 +2228,22 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
         unsettled: Vec::new(),
     };
     walk.run(&cmd, false, 0);
-    let decision = walk.decision;
+    let mut decision = walk.decision;
     if let Decision::Allow(r) = &decision {
         if r == NO_MATCH && is_sigil(&cmd) {
-            return Decision::Allow("Command uses sigil".into());
+            decision = Decision::Allow("Command uses sigil".into());
         }
     }
-    decision
+    // A sigil call that lets package code run before its scan is asked
+    // about however it is written: read from the whole command without its
+    // comments, so a substitution (`$(…)`) and a string another command runs
+    // are read with the words around them.
+    let chars: Vec<char> = cmd.chars().collect();
+    let q = quote_map(&chars);
+    match build_scripts_opt_in(&uncommented(&cmd, 0, &q)) {
+        Some(ask) => worse(decision, ask),
+        None => decision,
+    }
 }
 
 /// The deny for a download that an interpreter runs from a pipe or a
@@ -2721,11 +2813,6 @@ impl Walk {
         // (`curl … | python3 -E # install`); the classifiers still see the
         // whole text.
         let text = uncommented(stage, at, q);
-        // A sigil call that lets package code run before its scan is asked
-        // about however it is written (`env sigil …`, `sudo sigil …`).
-        if let Some(d) = build_scripts_opt_in(&text) {
-            self.judge(d);
-        }
         // The command is going through sigil: that stage is allowed, and a
         // vetting call gates what follows it with `&&` — when it is the real
         // sigil, outside quotes and substitutions, and the pipeline's exit

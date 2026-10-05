@@ -131,6 +131,16 @@ sigil scan . --phases install_hooks,code_patterns
 
 `--severity` does not make a scan faster: it drops findings below that level from the report, the score, the verdict and the exit code, so it can turn a failing gate into a pass (see [False positives](#false-positives)).
 
+### `sigil pip` or `sigil npm` refuses a package or fails to download it
+
+By default `sigil pip` and `sigil npm` fetch only what needs no build, so the package's own code cannot run before the scan. The error says which case you hit:
+
+- **`will not download …: it is a local path` (or a URL, VCS reference, git spec, `owner/repo` shorthand, tarball)**: pip builds these and npm runs their `prepare` script while packing them. Name a registry package instead (`sigil pip requests`, `sigil npm left-pad`). For code you already trust, `--allow-build-scripts` accepts them; a relative path is then read from your current directory.
+- **`… is the release pip install … would install here, and pip found no prebuilt wheel of it`**: that release is published only as a source distribution (or has no wheel for your platform and Python). Sigil does not scan an older release in its place, because `pip install` would not install that one. Pin a version that has a wheel (`sigil pip <name>==<version>`) and install that same version.
+- **`will not run pip with this configuration: download.requirement …`**: a pip config file adds a requirement, constraint or editable to every `pip download`, and pip builds what those name. Remove the setting, or run with `PIP_CONFIG_FILE=/dev/null` (this skips every pip config file, index settings included). `PIP_REQUIREMENT`, `PIP_CONSTRAINT` and `PIP_EDITABLE` in the environment are left out of pip's environment for the download, with a note.
+- **`pip listed no release of …`**: unpinned and ranged specs are resolved with `pip index versions`, which needs pip 21.2 or later. Upgrade pip or pin a version with `==`.
+- **`will not download name@version: the registry gives … as the tarball`**: the npm registry you use points that release at a git repository or a local path, which npm would clone or pack by running its `prepare` script. Check `npm config get registry`.
+
 ### `sigil scan` exits with an error
 
 **Run it verbosely** to see which step failed (`grep`, `find`, `file`, `semgrep`, `bandit`, `trufflehog` and `safety` are not needed):

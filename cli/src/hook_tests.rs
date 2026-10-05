@@ -1424,6 +1424,41 @@ fn asks_before_sigil_lets_package_code_run() {
         "sigil pip evil --allow-build-script\\s",
         "sig''il npm evil --allow-build-scripts",
         "cd /tmp && sigil npm evil --allow-build-scripts",
+        // A redirection glued to the flag: sigil still gets the flag.
+        "sigil npm evil --allow-build-scripts>/dev/null",
+        "sigil npm evil --allow-build-scripts</dev/null",
+        "sigil npm evil --allow-build-scripts>>log",
+        "sigil npm evil \"--allow-build-scripts\">log",
+        "sigil npm --allow-build-scripts>log evil",
+        "sigil npm evil --allow-build-scripts&>log",
+        // A word that may expand to the flag.
+        "F=--allow-build-scripts; sigil pip evil $F",
+        "sigil pip evil $(echo --allow-build-scripts)",
+        "sigil pip evil --allow-build-$(echo scripts)",
+        "sigil pip evil `echo --allow-build-scripts`",
+        "for p in evil; do sigil pip $p; done",
+        // xargs appends what it reads.
+        "printf %s --allow-build-scripts | xargs sigil pip ./x",
+        // The command word from an expansion.
+        "$(command -v sigil) pip x --allow-build-scripts",
+        "`command -v sigil` pip x --allow-build-scripts",
+        "SIGIL=/usr/local/bin/sigil; $SIGIL pip x --allow-build-scripts",
+        // Run by a shell, find or coproc from a string or a word list.
+        "echo \"sigil pip ./x --allow-build-scripts\" | sh",
+        "bash <<< \"sigil pip ./x --allow-build-scripts\"",
+        "find . -maxdepth 0 -exec sigil pip ./x --allow-build-scripts \\;",
+        "coproc sigil pip ./x --allow-build-scripts",
+        // Prefixes with option values, groups, negation, redirections.
+        "timeout -s KILL 60 sigil pip evil --allow-build-scripts",
+        "sudo -u nobody sigil pip evil --allow-build-scripts",
+        "{ sigil pip evil --allow-build-scripts; }",
+        "if true; then sigil pip evil --allow-build-scripts; fi",
+        "! sigil pip evil --allow-build-scripts",
+        ">/dev/null sigil pip evil --allow-build-scripts",
+        // Text that only mentions it is asked about too, as `echo npm
+        // install x` is denied: the words are read wherever they are.
+        "echo sigil pip evil --allow-build-scripts",
+        "git commit -m \"sigil pip x --allow-build-scripts\"",
     ] {
         assert_eq!(decision(cmd), "ask", "expected ask: {cmd}");
         assert!(reason(cmd).contains("--allow-build-scripts"), "{cmd}");
@@ -1437,8 +1472,12 @@ fn asks_before_sigil_lets_package_code_run() {
         "sigil npm evil && npm install evil",
         // Named, not passed to sigil.
         "sigil pip evil # --allow-build-scripts",
-        "echo sigil pip evil --allow-build-scripts",
         "grep -- --allow-build-scripts docs/cli.md",
+        // An expansion that is not an argument of sigil pip/npm.
+        "sigil pip requests && echo $HOME",
+        "sigil scan $DIR",
+        "$PY -m pip download x",
+        "sigil pip \"requests>=2,<3\" >/dev/null 2>&1 | tee log",
     ] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
     }

@@ -1,6 +1,6 @@
 # Getting Started with Sigil
 
-Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it, with two exceptions: `sigil pip` lets pip run a package's `setup.py` while downloading it when pip picks its source distribution (no wheel for your platform and Python in the version it selects; see [Scanning a pip Package](#scanning-a-pip-package)), and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts (see [`sigil npm`](cli.md#sigil-npm)).
+Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it. `sigil pip` fetches only prebuilt wheels and `sigil npm` only registry tarballs, packed with scripts off, so a package's own code does not run while it is downloaded (see [Scanning a pip Package](#scanning-a-pip-package) and [`sigil npm`](cli.md#sigil-npm)); up to 1.3.7, pip could run a source distribution's `setup.py`, and `npm pack` a local directory's or git spec's lifecycle scripts, before the scan.
 
 ## Prerequisites
 
@@ -144,7 +144,7 @@ Example output for a small repository with an `eval()` call, an outbound `reques
 sigil pip some-agent-toolkit
 ```
 
-Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It asks pip for prebuilt wheels only, so none of the package's code runs before the scan; a package published only as a source distribution fails to download, with a message explaining why. Local paths, URLs and VCS references are refused. `--allow-build-scripts` accepts them for code you already trust, with a warning that pip may then run the package's setup code on your machine before the scan.
+Sigil downloads the package (without installing it), extracts it into quarantine, and scans it (all eight phases; the lockfile dependency lookups of `sigil scan` are not run). It first asks the index which release `pip install some-agent-toolkit` would pick and prints it (`some-agent-toolkit resolves to some-agent-toolkit==<version>`), then downloads only that release's prebuilt wheel, so none of the package's code runs before the scan. When that release has no wheel for your platform (it is published only as a source distribution), the command fails and says why, rather than scanning an older release that `pip install` would not install; install the version Sigil printed. Local paths, URLs and VCS references are refused, and so is a pip config file that adds requirements or constraints to every download. `--allow-build-scripts` accepts them for code you already trust, with a warning that pip may then run the package's setup code on your machine before the scan. The command exits `0` for LOW RISK, `1` for anything worse and `2` when it could not download or scan; `--auto-approve` approves a LOW RISK result.
 
 ### Scanning an npm Package
 
@@ -152,7 +152,7 @@ Sigil downloads the package (without installing it), extracts it into quarantine
 sigil npm langchain-community-plugin
 ```
 
-Same quarantine-and-scan workflow for npm registry packages, packed with `--ignore-scripts`. Directories, tarballs, URLs and git specs (including the `owner/repo` shorthand) are refused, because npm runs their `prepare` script while packing them even with `--ignore-scripts`. `--allow-build-scripts` accepts them for code you already trust, with a warning.
+Same quarantine-and-scan workflow for npm registry packages: Sigil asks the registry which release the name resolves to, then packs that release's tarball with `--ignore-scripts`. Directories, tarballs, URLs and git specs (including the `owner/repo` shorthand; a scoped name typed without its `@`, like `langchain/community`, is one) are refused, because npm runs their `prepare` script while packing them even with `--ignore-scripts`, and so is a registry entry whose tarball points at a git repository. `--allow-build-scripts` accepts them for code you already trust, with a warning.
 
 ### Scanning a Local Directory
 

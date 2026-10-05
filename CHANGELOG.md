@@ -17,39 +17,76 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   scripts and clones, installs and prepares a git spec (`github:owner/repo`,
   `owner/repo`, git URLs). All of that happened on the host, before the scan
   and before any approval.
-  - `sigil pip` now runs `pip download --no-deps --only-binary=:all: --dest
-    <quarantine> -- <spec>` from the quarantine directory: prebuilt wheels
-    only. A package (or version) published only as a source distribution now
-    fails to download, and the error says why. `--only-binary` does not cover
-    a requirement that is a local path, URL or VCS reference (pip 24.0 built
-    a local directory, a local sdist, a `file://` URL and a `git+file://`
-    reference with it set, in testing with a marker file), so those are
-    refused before pip runs, as is a name pip would read as an archive file
-    in the working directory (`pkg.tar.gz`, `pkg.whl`). A `no-binary`
-    setting in the user's pip config or `PIP_NO_BINARY` does not override
-    the command-line option (also tested).
-  - `sigil npm` now runs `npm pack --ignore-scripts -- <spec>`. On npm 10.9.7
-    `--ignore-scripts` still runs a local directory's or git checkout's
-    `prepare` script (tested with a marker file; pacote's directory fetcher
-    does not consult the flag), so anything other than a registry package by
-    name is refused before npm runs: directories, tarballs, URLs, `file:`
-    specs, git specs including the `owner/repo` shorthand, and `npm:` aliases.
+  - `sigil pip` now downloads with `pip download --no-deps --only-binary=:all:
+    --dest <quarantine> -- <name>==<version>` from the quarantine directory:
+    prebuilt wheels only. For a spec that does not pin a version, it first
+    asks the index which versions exist (`pip index versions --pre`, which
+    builds nothing; pip 21.2 or later), picks the one `pip install <spec>`
+    would pick (PEP 440 matching, as pip's `packaging` does it) and prints
+    it. When that release has no wheel for the platform, the command fails
+    (exit 2) and says why: a wheel-only download of the unpinned spec would
+    otherwise have scanned an older release that has a wheel while `pip
+    install` builds the newer one (tested with real pip 24.0 against a local
+    index holding a 1.0 wheel and a 2.0 sdist). `--only-binary` does not
+    cover a requirement that is a local path, URL or VCS reference (pip 24.0
+    built a local directory, a local sdist, a `file://` URL and a
+    `git+file://` reference with it set, in testing with a marker file), so
+    those are refused before pip runs, as is a name pip would read as an
+    archive file in the working directory (`pkg.tar.gz`, `pkg.whl`). pip also
+    builds what a requirement, constraint or editable setting names: those
+    settings are left out of pip's environment (`PIP_REQUIREMENT`,
+    `PIP_CONSTRAINT`, `PIP_EDITABLE`, however spelled), and a pip config file
+    that sets one for downloads is refused (read with `pip config list`). A
+    `no-binary` setting in pip's config or `PIP_NO_BINARY` does not override
+    the command-line option (tested).
+  - `sigil npm` now asks the registry what the spec resolves to (`npm view`),
+    checks that the release's tarball URL is a plain `http(s)` download, and
+    runs `npm pack --ignore-scripts -- <tarball URL>`. A registry whose
+    metadata points a version's tarball at a git repository (or a `file:`
+    path, or a URL on a host npm reads as a git host) is refused: npm would
+    clone or pack it and run its `prepare` script (tested with a local mock
+    registry and a `git+file:` tarball). On npm 10.9.7 `--ignore-scripts`
+    still runs a local directory's or git checkout's `prepare` script (tested
+    with a marker file; pacote's directory fetcher does not consult the
+    flag), so anything other than a registry package by name is refused
+    before npm runs: directories, tarballs, URLs, `file:` specs, git specs
+    including the `owner/repo` shorthand, and `npm:` aliases (the refusal
+    names the aliased package to scan instead).
   - The spec is checked first. pip: a package name with optional `[extras]`
     and version specifiers (`requests`, `requests[socks]`,
-    `"requests>=2,<3"`). npm: a name (scoped allowed) with an optional
+    `"requests>=2,<3"`, `"requests (>=2)"`), each version starting with a
+    letter or digit. npm: a name (scoped allowed) with an optional
     `@version`, `@tag` or `@range`. A refused spec is a usage error (exit 2)
     and creates no quarantine entry. A spec starting with `-` is always
     refused, and the spec is passed after `--`, so it can never be read as an
     option.
   - `--allow-build-scripts` (on both commands) restores the old behaviour for
     code you already trust: any spec, no `--only-binary` / `--ignore-scripts`,
-    and pip run from your working directory so a relative path means what you
-    typed. It prints a warning that the package's own code may run on this
-    machine before the scan. The Claude Code PreToolUse hook (`sigil hook
-    pretooluse`, its shell fallback, and the MCP server's `check_command`)
-    asks before running a `sigil pip`/`sigil npm` command that carries the
-    flag, however it is prefixed (`env`, `sudo`, `timeout`, …). The MCP
-    servers' package-scan tools never pass it.
+    no configuration check or registry lookup, and pip and npm run from your
+    working directory so a relative path means what you typed (npm writes
+    the tarball to quarantine with `--pack-destination`). It prints a warning
+    that the package's own code may run on this machine before the scan.
+  - The Claude Code PreToolUse hook (`sigil hook pretooluse`, its shell
+    fallback, and the MCP server's `check_command`) asks before a command
+    that passes the flag to `sigil pip`/`sigil npm`. Both read it wherever a
+    `sigil … pip|npm` call appears: with a redirection glued to it, inside a
+    string a shell, `find -exec` or a here-string runs, and in text that only
+    mentions it. They also ask when a word after `pip`/`npm` is a `$` or
+    backtick expansion, when `xargs` feeds the call, and when the command
+    word before `pip`/`npm` is an expansion (`$(command -v sigil) pip …`).
+    It is not a hard boundary: a subcommand taken from a variable (`sigil
+    $CMD`) is not read, and the hook still allows `npm pack <dir or git
+    spec>` and `pip download <path, URL or package>` run directly. The MCP
+    servers' package-scan tools never pass the flag.
+- **The package crawler no longer runs package code on the API host.**
+  `api/services/crawler.py` downloaded PyPI packages with `pip download
+  --no-binary :all:`, which builds every source distribution (running its
+  `setup.py` or build backend) to read its metadata, and npm packages with
+  `npm pack <name>`, which runs the lifecycle scripts of a name that is a
+  directory or git spec. It now takes the release's sdist (or, without one,
+  its wheel) from PyPI's JSON API as a file, checks its sha256 and only
+  unpacks it, and packs npm packages with `npm pack --ignore-scripts --
+  <name>[@<version>]`, refusing anything but a registry name.
 
 ### 🐛 Fixed
 
@@ -194,10 +231,7 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   `sigil clear-cache`; `sigil scan` of a repository URL runs the clone workflow,
   which ignores the cloud options and `--fail-on`; and an organisation policy can turn on LLM
   review. The CLI reference explains where a CI token comes from
-  and that it expires, and that `sigil pip`/`npm` can run package code while
-  downloading (an sdist's `setup.py`, or the lifecycle scripts of a local
-  directory or git spec, `owner/repo` shorthands included, given to
-  `sigil npm`). `--enhanced` sends the scan result as well as the files. The
+  and that it expires. `--enhanced` sends the scan result as well as the files. The
   docs no longer promise scan history for `--submit`: the current API rejects
   its payload (HTTP 422), rejects `sigil report`'s, and rejects an `--enhanced`
   request when the scan has any finding. They also say that an `--enrich` match

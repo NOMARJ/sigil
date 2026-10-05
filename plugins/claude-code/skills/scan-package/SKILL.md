@@ -14,10 +14,11 @@ Scan a package before installation:
    - `sigil npm <package>` for Node packages
 
    Name a registry package (`requests==2.32.3`, `left-pad@1.3.0`). Sigil
-   refuses paths, URLs and git specs, and a PyPI package with no prebuilt
-   wheel fails to download, because fetching those would run the package's
-   own code before the scan. Report that to the user; never add
-   `--allow-build-scripts` yourself (the hook asks the user before it runs).
+   refuses paths, URLs and git specs, and fails when the PyPI release `pip
+   install` would pick has no prebuilt wheel, because fetching those would
+   run the package's own code before the scan. Report that to the user;
+   never add `--allow-build-scripts` yourself (the hook asks the user before
+   it runs). Sigil prints the version it scanned: install that version.
 3. Review quarantine findings
 4. Recommend approve/reject based on risk score
 

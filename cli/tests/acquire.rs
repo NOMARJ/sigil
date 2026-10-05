@@ -2,11 +2,13 @@
 //! default: end-to-end tests of what the real binary hands to pip and npm.
 //!
 //! Most tests put test-double `pip` and `npm` executables first on PATH. They
-//! only record their argv and working directory and exit; nothing touches a
-//! network. `real_pip_never_builds_a_local_sdist_by_default` uses the real
-//! pip, offline, against a local source distribution whose build backend
-//! would create an empty marker file; it is skipped when pip is not
-//! installed. Every run gets its own HOME, so the quarantine is temporary.
+//! only record their argv, working directory and environment, print canned
+//! output for the lookups Sigil makes first (`pip config list`, `pip index
+//! versions`, `npm view`) and exit; nothing touches a network. The
+//! `real_pip_*` tests use the real pip, offline, against local fixtures
+//! whose only side effect, should pip run their code, is an empty marker
+//! file; they are skipped when pip is not installed. Every run gets its own
+//! HOME, so the quarantine is temporary.
 
 #![cfg(unix)]
 
@@ -14,12 +16,22 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-/// Records how it was run, writes nothing else, and exits with
-/// `$SIGIL_TEST_FAKE_EXIT` (default 0).
+/// Records how it was run (per subcommand), prints canned output for the
+/// lookups, writes nothing else, and exits with `$SIGIL_TEST_FAKE_EXIT`
+/// (default 0) for a download or pack, after printing
+/// `$SIGIL_TEST_FAKE_STDERR` to stderr.
 const FAKE_TOOL: &str = r#"#!/bin/sh
 tool=$(basename "$0")
-for a in "$@"; do printf '%s\n' "$a"; done > "$SIGIL_TEST_LOG_DIR/$tool.argv"
-pwd -P > "$SIGIL_TEST_LOG_DIR/$tool.cwd"
+sub=$1
+for a in "$@"; do printf '%s\n' "$a"; done > "$SIGIL_TEST_LOG_DIR/$tool-$sub.argv"
+pwd -P > "$SIGIL_TEST_LOG_DIR/$tool-$sub.cwd"
+env > "$SIGIL_TEST_LOG_DIR/$tool-$sub.env"
+case "$tool $sub" in
+  "pip config") printf '%s' "${SIGIL_TEST_PIP_CONFIG:-}"; exit 0 ;;
+  "pip index") printf '%s\n' "${SIGIL_TEST_PIP_INDEX:-}"; exit 0 ;;
+  "npm view") printf '%s\n' "${SIGIL_TEST_NPM_VIEW:-}"; exit 0 ;;
+esac
+if [ -n "${SIGIL_TEST_FAKE_STDERR:-}" ]; then printf '%s\n' "$SIGIL_TEST_FAKE_STDERR" >&2; fi
 exit "${SIGIL_TEST_FAKE_EXIT:-0}"
 "#;
 
@@ -76,6 +88,12 @@ fn run_sigil(fx: &Fixture, args: &[&str], path: &str, env: &[(&str, &str)]) -> O
         .env_remove("SIGIL_POLICY_FILE")
         .env_remove("SIGIL_PACK_PUBLIC_KEY")
         .env_remove("SIGIL_NO_PROJECT_CONFIG");
+    // The caller's own pip settings must not leak into the tests.
+    for (k, _) in std::env::vars_os() {
+        if k.to_string_lossy().starts_with("PIP_") {
+            cmd.env_remove(k);
+        }
+    }
     for (k, v) in env {
         cmd.env(k, v);
     }
@@ -90,14 +108,40 @@ fn stderr(o: &Output) -> String {
     String::from_utf8_lossy(&o.stderr).to_string()
 }
 
-/// The argv and working directory a test double recorded, if it ran.
-fn recorded(fx: &Fixture, tool: &str) -> Option<(Vec<String>, PathBuf)> {
-    let argv = std::fs::read_to_string(fx.logs.join(format!("{tool}.argv"))).ok()?;
-    let cwd = std::fs::read_to_string(fx.logs.join(format!("{tool}.cwd"))).ok()?;
+fn stdout(o: &Output) -> String {
+    String::from_utf8_lossy(&o.stdout).to_string()
+}
+
+/// The argv and working directory a test double recorded for one
+/// subcommand (`pip-download`, `pip-index`, `npm-view`, ...), if it ran.
+fn recorded(fx: &Fixture, call: &str) -> Option<(Vec<String>, PathBuf)> {
+    let argv = std::fs::read_to_string(fx.logs.join(format!("{call}.argv"))).ok()?;
+    let cwd = std::fs::read_to_string(fx.logs.join(format!("{call}.cwd"))).ok()?;
     Some((
         argv.lines().map(str::to_string).collect(),
         PathBuf::from(cwd.trim_end()),
     ))
+}
+
+/// The environment variable names a test double saw for one subcommand.
+fn recorded_env(fx: &Fixture, call: &str) -> Vec<String> {
+    std::fs::read_to_string(fx.logs.join(format!("{call}.env")))
+        .unwrap_or_default()
+        .lines()
+        .filter_map(|l| l.split_once('=').map(|(k, _)| k.to_string()))
+        .collect()
+}
+
+/// Nothing of this tool ran.
+fn ran_nothing(fx: &Fixture, tool: &str) -> bool {
+    std::fs::read_dir(&fx.logs)
+        .unwrap()
+        .filter_map(Result::ok)
+        .all(|e| {
+            !e.file_name()
+                .to_string_lossy()
+                .starts_with(&format!("{tool}-"))
+        })
 }
 
 fn quarantine_root(fx: &Fixture) -> PathBuf {
@@ -133,7 +177,7 @@ fn pip_downloads_wheels_only_from_the_quarantine_directory() {
     let out = sigil(&fx, &["pip", "requests", "-V", "2.32.3"], &[]);
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
     let q = only_item(&fx);
-    let (argv, cwd) = recorded(&fx, "pip").expect("pip ran");
+    let (argv, cwd) = recorded(&fx, "pip-download").expect("pip ran");
     assert_eq!(
         argv,
         [
@@ -147,7 +191,190 @@ fn pip_downloads_wheels_only_from_the_quarantine_directory() {
         ]
     );
     assert_eq!(cwd, q, "pip must run in the quarantine directory");
+    // A pinned spec needs no lookup; pip's config is read first.
+    assert!(recorded(&fx, "pip-index").is_none());
+    let (config, _) = recorded(&fx, "pip-config").expect("pip config list ran");
+    assert_eq!(config, ["config", "list"]);
     assert!(!stderr(&out).contains("--allow-build-scripts"));
+}
+
+#[test]
+fn pip_resolves_an_unpinned_spec_to_the_release_pip_install_picks() {
+    let index = "markerpkg (2.0)\nAvailable versions: 2.0, 1.0, 3.0b1";
+    for (spec, pinned) in [
+        ("markerpkg", "markerpkg==2.0"),
+        ("markerpkg[extra]", "markerpkg==2.0"),
+        ("markerpkg<2", "markerpkg==1.0"),
+        ("markerpkg (>=1, <2)", "markerpkg==1.0"),
+        ("markerpkg>=3.0b1", "markerpkg==3.0b1"),
+    ] {
+        let fx = fixture();
+        let out = sigil(&fx, &["pip", spec], &[("SIGIL_TEST_PIP_INDEX", index)]);
+        assert_eq!(code(&out), 0, "{spec}: {}", stderr(&out));
+        let q = only_item(&fx);
+        let (argv, cwd) = recorded(&fx, "pip-index").expect("pip index ran");
+        assert_eq!(argv, ["index", "versions", "--pre", "--", "markerpkg"]);
+        assert_eq!(cwd, q);
+        let (argv, _) = recorded(&fx, "pip-download").expect("pip download ran");
+        assert_eq!(argv.last().map(String::as_str), Some(pinned), "{spec}");
+        assert!(argv.iter().any(|a| a == "--only-binary=:all:"));
+        assert!(
+            stdout(&out).contains("resolves to"),
+            "{spec}: {}",
+            stdout(&out)
+        );
+    }
+}
+
+#[test]
+fn pip_resolution_failures_download_nothing() {
+    for (spec, index, says) in [
+        (
+            "markerpkg>5",
+            "markerpkg (2.0)\nAvailable versions: 2.0, 1.0",
+            "no release of `markerpkg`",
+        ),
+        ("markerpkg", "", "pin a version"),
+    ] {
+        let fx = fixture();
+        let out = sigil(&fx, &["pip", spec], &[("SIGIL_TEST_PIP_INDEX", index)]);
+        assert_eq!(code(&out), 2, "{spec}: {}", stderr(&out));
+        assert!(stderr(&out).contains(says), "{spec}: {}", stderr(&out));
+        assert!(recorded(&fx, "pip-download").is_none(), "{spec} downloaded");
+    }
+}
+
+#[test]
+fn a_release_without_a_wheel_fails_instead_of_an_older_one_being_scanned() {
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "sdist-only-pkg"],
+        &[
+            (
+                "SIGIL_TEST_PIP_INDEX",
+                "sdist-only-pkg (2.0)\nAvailable versions: 2.0, 1.0",
+            ),
+            ("SIGIL_TEST_FAKE_EXIT", "1"),
+            (
+                "SIGIL_TEST_FAKE_STDERR",
+                "ERROR: No matching distribution found for sdist-only-pkg==2.0",
+            ),
+        ],
+    );
+    assert_eq!(code(&out), 2);
+    let err = stderr(&out);
+    assert!(err.contains("pip download failed"), "{err}");
+    assert!(
+        err.contains("`sdist-only-pkg==2.0` is the release"),
+        "{err}"
+    );
+    assert!(err.contains("--only-binary=:all:"), "{err}");
+    assert!(err.contains("--allow-build-scripts"), "{err}");
+    let (argv, _) = recorded(&fx, "pip-download").unwrap();
+    assert_eq!(argv.last().map(String::as_str), Some("sdist-only-pkg==2.0"));
+}
+
+#[test]
+fn the_wheel_hint_follows_only_a_missing_distribution() {
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "requests==2.32.3"],
+        &[
+            ("SIGIL_TEST_FAKE_EXIT", "1"),
+            (
+                "SIGIL_TEST_FAKE_STDERR",
+                "ERROR: Could not install packages due to an OSError: no space left",
+            ),
+        ],
+    );
+    assert_eq!(code(&out), 2);
+    let err = stderr(&out);
+    assert!(err.contains("pip download failed"), "{err}");
+    assert!(!err.contains("--only-binary"), "{err}");
+
+    let out = sigil(
+        &fx,
+        &["pip", "docopt==0.6.2"],
+        &[
+            ("SIGIL_TEST_FAKE_EXIT", "1"),
+            (
+                "SIGIL_TEST_FAKE_STDERR",
+                "ERROR: No matching distribution found for docopt==0.6.2",
+            ),
+        ],
+    );
+    let err = stderr(&out);
+    assert!(err.contains("If `docopt==0.6.2` exists"), "{err}");
+}
+
+#[test]
+fn pip_env_requirement_settings_are_left_out_of_pips_environment() {
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "requests==2.32.3"],
+        &[
+            ("PIP_CONSTRAINT", "/x/constraints.txt"),
+            ("PIP_Requirement", "/x/requirements.txt"),
+            ("PIP_EDITABLE", "/x/project"),
+            ("PIP_INDEX_URL", "https://example.invalid/simple"),
+        ],
+    );
+    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+    for call in ["pip-config", "pip-download"] {
+        let env = recorded_env(&fx, call);
+        for k in ["PIP_CONSTRAINT", "PIP_Requirement", "PIP_EDITABLE"] {
+            assert!(!env.iter().any(|e| e == k), "{call} saw {k}");
+        }
+        assert!(env.iter().any(|e| e == "PIP_INDEX_URL"), "{call}: {env:?}");
+    }
+    let err = stderr(&out);
+    assert!(err.contains("PIP_CONSTRAINT is left out"), "{err}");
+}
+
+#[test]
+fn pip_config_requirement_settings_are_refused() {
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "requests"],
+        &[(
+            "SIGIL_TEST_PIP_CONFIG",
+            "global.index-url='https://example.invalid/simple'\ndownload.requirement='/x/r.txt'\n",
+        )],
+    );
+    assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
+    let err = stderr(&out);
+    assert!(err.contains("download.requirement"), "{err}");
+    assert!(recorded(&fx, "pip-download").is_none());
+    assert!(recorded(&fx, "pip-index").is_none());
+    assert!(quarantine_items(&fx).is_empty());
+    // An install-only setting is not what `pip download` reads.
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "requests==2.32.3"],
+        &[("SIGIL_TEST_PIP_CONFIG", "install.constraint='/x/c.txt'\n")],
+    );
+    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+}
+
+#[test]
+fn a_relative_quarantine_dir_is_used_as_one_absolute_path() {
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "requests==2.32.3"],
+        &[("SIGIL_QUARANTINE_DIR", "relq")],
+    );
+    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+    let (argv, cwd) = recorded(&fx, "pip-download").unwrap();
+    let dest = PathBuf::from(&argv[4]);
+    assert!(dest.is_absolute(), "{argv:?}");
+    assert_eq!(dest, cwd, "--dest and the working directory are one place");
+    assert_eq!(dest.parent(), Some(fx.root.join("relq").as_path()));
 }
 
 #[test]
@@ -156,13 +383,13 @@ fn pip_opt_in_drops_only_binary_and_warns() {
     let out = sigil(
         &fx,
         &["pip", "--allow-build-scripts", "./local-project"],
-        &[],
+        &[("PIP_CONSTRAINT", "/x/constraints.txt")],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
     let q = only_item(&fx);
-    let (argv, cwd) = recorded(&fx, "pip").expect("pip ran");
+    let (argv, cwd) = recorded(&fx, "pip-download").expect("pip ran");
     // As in 1.3.7: from the caller's directory, so `./local-project` is the
-    // one the user meant.
+    // one the user meant, with the caller's pip settings.
     assert_eq!(cwd, fx.root, "opted-in pip runs in the caller's directory");
     assert_eq!(
         argv,
@@ -175,6 +402,11 @@ fn pip_opt_in_drops_only_binary_and_warns() {
             "./local-project",
         ]
     );
+    assert!(recorded_env(&fx, "pip-download")
+        .iter()
+        .any(|k| k == "PIP_CONSTRAINT"));
+    assert!(recorded(&fx, "pip-config").is_none());
+    assert!(recorded(&fx, "pip-index").is_none());
     let err = stderr(&out);
     assert!(err.contains("warning:"), "{err}");
     assert!(err.contains("BEFORE Sigil scans"), "{err}");
@@ -190,6 +422,7 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
         vec!["pip", "git+https://example.invalid/owner/repo"],
         vec!["pip", "pkg @ https://example.invalid/pkg-1.0.tar.gz"],
         vec!["pip", "markerpkg.tgz"],
+        vec!["pip", "x==1.zip "],
         vec!["pip", "requests>=2", "-V", "2.32.3"],
         vec![
             "pip",
@@ -197,6 +430,7 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
             "-V",
             "2 @ https://example.invalid/x.tar.gz",
         ],
+        vec!["pip", "x", "--version=--allow-build-scripts"],
         // Only reachable after `--`: clap reads a bare `-r` as an option.
         vec!["pip", "--", "-r"],
         vec!["pip", "--allow-build-scripts", "--", "--index-url=x"],
@@ -208,7 +442,7 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
             "{args:?}: {}",
             stderr(&out)
         );
-        assert!(recorded(&fx, "pip").is_none(), "{args:?} ran pip");
+        assert!(ran_nothing(&fx, "pip"), "{args:?} ran pip");
         assert!(
             quarantine_items(&fx).is_empty(),
             "{args:?} created a quarantine entry"
@@ -222,53 +456,130 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
     );
 }
 
-#[test]
-fn a_failed_wheel_only_download_explains_the_opt_in() {
-    let fx = fixture();
-    let out = sigil(
-        &fx,
-        &["pip", "sdist-only-pkg"],
-        &[("SIGIL_TEST_FAKE_EXIT", "1")],
-    );
-    assert_eq!(code(&out), 2);
-    let err = stderr(&out);
-    assert!(err.contains("pip download failed"), "{err}");
-    assert!(err.contains("--only-binary=:all:"), "{err}");
-    assert!(err.contains("--allow-build-scripts"), "{err}");
-}
-
 // ---------------------------------------------------------------------------
 // npm
 // ---------------------------------------------------------------------------
 
+const TYPES_NODE: &str = r#"{"name":"@types/node","version":"20.1.0","dist.tarball":"https://registry.npmjs.org/@types/node/-/node-20.1.0.tgz","dist-tags.latest":"22.0.0"}"#;
+
 #[test]
-fn npm_packs_registry_tarballs_with_scripts_off() {
+fn npm_packs_the_resolved_registry_tarball_with_scripts_off() {
     let fx = fixture();
-    let out = sigil(&fx, &["npm", "@types/node", "-V", "20.1.0"], &[]);
+    let out = sigil(
+        &fx,
+        &["npm", "@types/node", "-V", "20.1.0"],
+        &[("SIGIL_TEST_NPM_VIEW", TYPES_NODE)],
+    );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
     let q = only_item(&fx);
-    let (argv, cwd) = recorded(&fx, "npm").expect("npm ran");
+    let (argv, cwd) = recorded(&fx, "npm-view").expect("npm view ran");
     assert_eq!(
         argv,
-        ["pack", "--ignore-scripts", "--", "@types/node@20.1.0"]
+        [
+            "view",
+            "--json",
+            "--",
+            "@types/node@20.1.0",
+            "name",
+            "version",
+            "dist.tarball",
+            "deprecated",
+            "dist-tags.latest",
+        ]
+    );
+    assert_eq!(cwd, q, "npm view runs where npm pack does");
+    let (argv, cwd) = recorded(&fx, "npm-pack").expect("npm pack ran");
+    assert_eq!(
+        argv,
+        [
+            "pack",
+            "--ignore-scripts",
+            "--",
+            "https://registry.npmjs.org/@types/node/-/node-20.1.0.tgz"
+        ]
     );
     assert_eq!(cwd, q, "npm must run in the quarantine directory");
 }
 
 #[test]
-fn npm_opt_in_drops_ignore_scripts_and_warns() {
+fn npm_says_which_release_a_range_resolves_to() {
     let fx = fixture();
+    let view = r#"[
+      {"name":"left-pad","version":"1.2.0","dist.tarball":"https://registry.npmjs.org/left-pad/-/left-pad-1.2.0.tgz","dist-tags.latest":"1.3.0"},
+      {"name":"left-pad","version":"1.3.0","dist.tarball":"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz","dist-tags.latest":"1.3.0"}
+    ]"#;
     let out = sigil(
         &fx,
-        &["npm", "github:owner/repo", "--allow-build-scripts"],
-        &[],
+        &["npm", "left-pad@^1.2"],
+        &[("SIGIL_TEST_NPM_VIEW", view)],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
-    let (argv, _) = recorded(&fx, "npm").expect("npm ran");
-    assert_eq!(argv, ["pack", "--", "github:owner/repo"]);
-    let err = stderr(&out);
-    assert!(err.contains("warning:"), "{err}");
-    assert!(err.contains("lifecycle scripts"), "{err}");
+    assert!(
+        stdout(&out).contains("resolves to left-pad@1.3.0"),
+        "{}",
+        stdout(&out)
+    );
+    let (argv, _) = recorded(&fx, "npm-pack").unwrap();
+    assert_eq!(
+        argv.last().map(String::as_str),
+        Some("https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz")
+    );
+}
+
+#[test]
+fn npm_refuses_a_registry_tarball_that_is_not_a_plain_download() {
+    for tarball in [
+        "git+file:///tmp/repo",
+        "git+https://github.com/owner/repo.git",
+        "https://github.com/owner/repo.tgz",
+        "file:/tmp/dir",
+    ] {
+        let fx = fixture();
+        let view = format!(
+            r#"{{"name":"markreg","version":"1.0.0","dist.tarball":"{tarball}","dist-tags.latest":"1.0.0"}}"#
+        );
+        let out = sigil(&fx, &["npm", "markreg"], &[("SIGIL_TEST_NPM_VIEW", &view)]);
+        assert_eq!(code(&out), 2, "{tarball}: {}", stderr(&out));
+        let err = stderr(&out);
+        assert!(err.contains("will not download `markreg@1.0.0`"), "{err}");
+        assert!(recorded(&fx, "npm-pack").is_none(), "{tarball} was packed");
+    }
+}
+
+#[test]
+fn npm_view_failures_pack_nothing() {
+    for view in ["", "not json", r#"{"error":{"code":"E404"}}"#] {
+        let fx = fixture();
+        let out = sigil(&fx, &["npm", "left-pad"], &[("SIGIL_TEST_NPM_VIEW", view)]);
+        assert_eq!(code(&out), 2, "{view}: {}", stderr(&out));
+        assert!(recorded(&fx, "npm-pack").is_none(), "{view}");
+    }
+}
+
+#[test]
+fn npm_opt_in_runs_from_the_callers_directory_and_packs_into_quarantine() {
+    for spec in ["github:owner/repo", "./local-dir", "file:../pkg", "pkg.tgz"] {
+        let fx = fixture();
+        let out = sigil(&fx, &["npm", spec, "--allow-build-scripts"], &[]);
+        assert_eq!(code(&out), 0, "{spec}: {}", stderr(&out));
+        let q = only_item(&fx);
+        let (argv, cwd) = recorded(&fx, "npm-pack").expect("npm ran");
+        assert_eq!(
+            argv,
+            [
+                "pack",
+                "--pack-destination",
+                &q.to_string_lossy(),
+                "--",
+                spec
+            ]
+        );
+        assert_eq!(cwd, fx.root, "a relative spec means what the user typed");
+        assert!(recorded(&fx, "npm-view").is_none());
+        let err = stderr(&out);
+        assert!(err.contains("warning:"), "{err}");
+        assert!(err.contains("lifecycle scripts"), "{err}");
+    }
 }
 
 #[test]
@@ -279,6 +590,7 @@ fn npm_refusals_run_nothing_and_quarantine_nothing() {
         "../local-dir",
         "/abs/dir",
         "owner/repo",
+        "npmdir/",
         "github:owner/repo",
         "git+https://example.invalid/owner/repo.git",
         "git+file:///tmp/repo",
@@ -286,7 +598,6 @@ fn npm_refusals_run_nothing_and_quarantine_nothing() {
         "https://example.invalid/pkg-1.0.0.tgz",
         "file:../pkg",
         "pkg.tgz",
-        "foo@npm:bar",
         "foo@owner/repo",
         "foo#main",
         "@scope/name/sub",
@@ -296,15 +607,18 @@ fn npm_refusals_run_nothing_and_quarantine_nothing() {
         let err = stderr(&out);
         assert!(err.contains("will not download"), "{spec}: {err}");
         assert!(err.contains("--allow-build-scripts"), "{spec}: {err}");
-        assert!(recorded(&fx, "npm").is_none(), "{spec} ran npm");
+        assert!(ran_nothing(&fx, "npm"), "{spec} ran npm");
         assert!(
             quarantine_items(&fx).is_empty(),
             "{spec} created a quarantine entry"
         );
     }
+    let out = sigil(&fx, &["npm", "foo@npm:bar"], &[]);
+    assert_eq!(code(&out), 2);
+    assert!(stderr(&out).contains("`sigil npm bar`"), "{}", stderr(&out));
     let out = sigil(&fx, &["npm", "--", "-g"], &[]);
     assert_eq!(code(&out), 2);
-    assert!(recorded(&fx, "npm").is_none());
+    assert!(ran_nothing(&fx, "npm"));
 }
 
 // ---------------------------------------------------------------------------
@@ -371,8 +685,8 @@ fn mcp_scan_package_gets_the_same_defaults() {
             text.contains("will not download"),
             "{ecosystem} {name}: {text}"
         );
-        assert!(recorded(&fx, "npm").is_none(), "{name} ran npm");
-        assert!(recorded(&fx, "pip").is_none(), "{name} ran pip");
+        assert!(ran_nothing(&fx, "npm"), "{name} ran npm");
+        assert!(ran_nothing(&fx, "pip"), "{name} ran pip");
     }
     // A registry package goes through the wheel-only download.
     let result = mcp_scan_package(
@@ -380,19 +694,19 @@ fn mcp_scan_package_gets_the_same_defaults() {
         serde_json::json!({ "ecosystem": "pypi", "name": "requests", "version": "2.32.3" }),
     );
     assert_eq!(result["isError"], false, "{result}");
-    let (argv, _) = recorded(&fx, "pip").expect("pip ran");
+    let (argv, _) = recorded(&fx, "pip-download").expect("pip ran");
     assert!(argv.iter().any(|a| a == "--only-binary=:all:"), "{argv:?}");
     assert_eq!(argv.last().map(String::as_str), Some("requests==2.32.3"));
 }
 
 // ---------------------------------------------------------------------------
-// The real pip, offline, against a local source distribution
+// The real pip, offline, against local fixtures
 // ---------------------------------------------------------------------------
 
-/// A source distribution whose in-tree build backend creates `marker` when
-/// pip imports it, i.e. when pip prepares the sdist's metadata. `requires =
-/// []` and `backend-path` mean pip needs no network to get that far.
-fn write_marker_sdist(links: &Path, marker: &Path) {
+/// The files of a project whose in-tree build backend creates `marker` when
+/// pip imports it, i.e. when pip prepares its metadata. `requires = []` and
+/// `backend-path` mean pip needs no network to get that far.
+fn marker_project(version: &str, marker: &Path) -> [(&'static str, String); 3] {
     let backend = format!(
         "# Test fixture: its only side effect is an empty marker file.\n\
          open({marker:?}, \"w\").close()\n\
@@ -401,17 +715,17 @@ fn write_marker_sdist(links: &Path, marker: &Path) {
          \n\
          def prepare_metadata_for_build_wheel(metadata_directory, config_settings=None):\n\
          \x20   import os\n\
-         \x20   d = os.path.join(metadata_directory, \"markerpkg-1.0.dist-info\")\n\
+         \x20   d = os.path.join(metadata_directory, \"markerpkg-{version}.dist-info\")\n\
          \x20   os.makedirs(d, exist_ok=True)\n\
          \x20   with open(os.path.join(d, \"METADATA\"), \"w\") as f:\n\
-         \x20       f.write(\"Metadata-Version: 2.1\\nName: markerpkg\\nVersion: 1.0\\n\")\n\
-         \x20   return \"markerpkg-1.0.dist-info\"\n\
+         \x20       f.write(\"Metadata-Version: 2.1\\nName: markerpkg\\nVersion: {version}\\n\")\n\
+         \x20   return \"markerpkg-{version}.dist-info\"\n\
          \n\
          def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):\n\
          \x20   raise RuntimeError(\"fixture builds no wheels\")\n",
         marker = marker.to_string_lossy()
     );
-    let files: [(&str, String); 3] = [
+    [
         (
             "pyproject.toml",
             "[build-system]\nrequires = []\nbuild-backend = \"backend\"\nbackend-path = [\".\"]\n"
@@ -420,50 +734,110 @@ fn write_marker_sdist(links: &Path, marker: &Path) {
         ("backend.py", backend),
         (
             "PKG-INFO",
-            "Metadata-Version: 2.1\nName: markerpkg\nVersion: 1.0\n".to_string(),
+            format!("Metadata-Version: 2.1\nName: markerpkg\nVersion: {version}\n"),
         ),
-    ];
-    let f = std::fs::File::create(links.join("markerpkg-1.0.tar.gz")).unwrap();
+    ]
+}
+
+/// `markerpkg-<version>.tar.gz` in `links`: a source distribution of
+/// [`marker_project`].
+fn write_marker_sdist(links: &Path, version: &str, marker: &Path) {
+    let f = std::fs::File::create(links.join(format!("markerpkg-{version}.tar.gz"))).unwrap();
     let gz = flate2::write::GzEncoder::new(f, flate2::Compression::default());
     let mut tar = tar::Builder::new(gz);
-    for (name, body) in files {
+    for (name, body) in marker_project(version, marker) {
         let mut h = tar::Header::new_gnu();
         h.set_size(body.len() as u64);
         h.set_mode(0o644);
         h.set_cksum();
-        tar.append_data(&mut h, format!("markerpkg-1.0/{name}"), body.as_bytes())
-            .unwrap();
+        tar.append_data(
+            &mut h,
+            format!("markerpkg-{version}/{name}"),
+            body.as_bytes(),
+        )
+        .unwrap();
     }
     tar.into_inner().unwrap().finish().unwrap();
 }
 
-#[test]
-fn real_pip_never_builds_a_local_sdist_by_default() {
+/// `markerpkg-<version>-py3-none-any.whl` in `links`: a plain module,
+/// nothing in it runs when it is downloaded.
+fn write_plain_wheel(links: &Path, version: &str) {
+    use std::io::Write;
+    let f =
+        std::fs::File::create(links.join(format!("markerpkg-{version}-py3-none-any.whl"))).unwrap();
+    let mut z = zip::ZipWriter::new(f);
+    let opts = zip::write::FileOptions::default();
+    let info = format!("markerpkg-{version}.dist-info");
+    for (name, body) in [
+        (
+            "markerpkg/__init__.py".to_string(),
+            "VALUE = 1\n".to_string(),
+        ),
+        (
+            format!("{info}/METADATA"),
+            format!("Metadata-Version: 2.1\nName: markerpkg\nVersion: {version}\n"),
+        ),
+        (
+            format!("{info}/WHEEL"),
+            "Wheel-Version: 1.0\nGenerator: sigil-test\nRoot-Is-Purelib: true\nTag: py3-none-any\n"
+                .to_string(),
+        ),
+        (format!("{info}/RECORD"), String::new()),
+    ] {
+        z.start_file(name, opts).unwrap();
+        z.write_all(body.as_bytes()).unwrap();
+    }
+    z.finish().unwrap();
+}
+
+fn real_pip_available() -> bool {
     let available = Command::new("pip")
         .arg("--version")
         .output()
         .is_ok_and(|o| o.status.success());
     if !available {
         eprintln!("skipped: pip is not installed");
+    }
+    available
+}
+
+/// pip offline against `links`, with no config file.
+fn offline(links: &Path) -> Vec<(&'static str, String)> {
+    vec![
+        ("PIP_CONFIG_FILE", "/dev/null".into()),
+        ("PIP_NO_INDEX", "1".into()),
+        ("PIP_FIND_LINKS", links.to_string_lossy().into_owned()),
+        ("PIP_DISABLE_PIP_VERSION_CHECK", "1".into()),
+        ("PIP_NO_CACHE_DIR", "1".into()),
+    ]
+}
+
+fn with<'a>(
+    base: &'a [(&'static str, String)],
+    extra: &[(&'a str, &'a str)],
+) -> Vec<(&'a str, &'a str)> {
+    base.iter()
+        .map(|(k, v)| (*k, v.as_str()))
+        .chain(extra.iter().copied())
+        .collect()
+}
+
+#[test]
+fn real_pip_never_builds_a_local_sdist_by_default() {
+    if !real_pip_available() {
         return;
     }
     let fx = fixture();
     let links = fx.root.join("links");
     std::fs::create_dir_all(&links).unwrap();
     let marker = fx.root.join("marker-backend-ran");
-    write_marker_sdist(&links, &marker);
+    write_marker_sdist(&links, "1.0", &marker);
     let path = std::env::var("PATH").unwrap_or_default();
-    let links_s = links.to_string_lossy().to_string();
-    let offline: [(&str, &str); 5] = [
-        ("PIP_CONFIG_FILE", "/dev/null"),
-        ("PIP_NO_INDEX", "1"),
-        ("PIP_FIND_LINKS", &links_s),
-        ("PIP_DISABLE_PIP_VERSION_CHECK", "1"),
-        ("PIP_NO_CACHE_DIR", "1"),
-    ];
+    let env = offline(&links);
 
     // The index (here: the local find-links directory) has only an sdist.
-    let out = run_sigil(&fx, &["pip", "markerpkg"], &path, &offline);
+    let out = run_sigil(&fx, &["pip", "markerpkg"], &path, &with(&env, &[]));
     assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
     assert!(!marker.exists(), "the sdist's build backend ran by default");
     assert!(
@@ -474,7 +848,12 @@ fn real_pip_never_builds_a_local_sdist_by_default() {
 
     // The same sdist as a local path is refused before pip runs.
     let sdist = links.join("markerpkg-1.0.tar.gz");
-    let out = run_sigil(&fx, &["pip", &sdist.to_string_lossy()], &path, &offline);
+    let out = run_sigil(
+        &fx,
+        &["pip", &sdist.to_string_lossy()],
+        &path,
+        &with(&env, &[]),
+    );
     assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
     assert!(!marker.exists(), "a local sdist path was built");
 
@@ -483,11 +862,139 @@ fn real_pip_never_builds_a_local_sdist_by_default() {
         &fx,
         &["pip", "markerpkg", "--allow-build-scripts"],
         &path,
-        &offline,
+        &with(&env, &[]),
     );
     assert!(
         marker.exists(),
         "with --allow-build-scripts pip should have prepared the sdist; stderr: {}",
+        stderr(&out)
+    );
+}
+
+/// The newest release has only an sdist and an older one has a wheel: a
+/// wheel-only download of `markerpkg` would quietly fetch 1.0 while `pip
+/// install markerpkg` builds and installs 2.0. Sigil resolves 2.0 and
+/// fails instead; a range that excludes 2.0 gets the 1.0 wheel.
+#[test]
+fn real_pip_does_not_scan_an_older_wheel_in_place_of_the_newest_release() {
+    if !real_pip_available() {
+        return;
+    }
+    let fx = fixture();
+    let links = fx.root.join("links");
+    std::fs::create_dir_all(&links).unwrap();
+    let marker = fx.root.join("marker-sdist2-ran");
+    write_plain_wheel(&links, "1.0");
+    write_marker_sdist(&links, "2.0", &marker);
+    let path = std::env::var("PATH").unwrap_or_default();
+    let env = offline(&links);
+
+    let out = run_sigil(&fx, &["pip", "markerpkg"], &path, &with(&env, &[]));
+    assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
+    assert!(stdout(&out).contains("markerpkg==2.0"), "{}", stdout(&out));
+    assert!(
+        stderr(&out).contains("`markerpkg==2.0` is the release"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(!marker.exists(), "the 2.0 sdist's backend ran");
+
+    let out = run_sigil(&fx, &["pip", "markerpkg<2"], &path, &with(&env, &[]));
+    assert!(matches!(code(&out), 0 | 1), "stderr: {}", stderr(&out));
+    assert!(stdout(&out).contains("markerpkg==1.0"), "{}", stdout(&out));
+    let wheel_dirs: Vec<PathBuf> = quarantine_items(&fx)
+        .into_iter()
+        .filter(|q| {
+            q.join("markerpkg-1.0-py3-none-any.whl").exists()
+                || q.join("markerpkg-1.0-py3-none-any")
+                    .join("markerpkg")
+                    .is_dir()
+        })
+        .collect();
+    assert_eq!(wheel_dirs.len(), 1, "the 1.0 wheel was downloaded once");
+    assert!(!marker.exists());
+}
+
+/// A constraint from the environment that names a local project, and a
+/// requirement in a pip config file: pip builds both, whatever the spec.
+#[test]
+fn real_pip_ignores_env_constraints_and_refuses_config_requirements() {
+    if !real_pip_available() {
+        return;
+    }
+    let fx = fixture();
+    let links = fx.root.join("links");
+    std::fs::create_dir_all(&links).unwrap();
+    write_plain_wheel(&links, "1.0");
+    let marker = fx.root.join("marker-project-ran");
+    let project = fx.root.join("project");
+    std::fs::create_dir_all(&project).unwrap();
+    for (name, body) in marker_project("1.0", &marker) {
+        std::fs::write(project.join(name), body).unwrap();
+    }
+    let constraints = fx.root.join("constraints.txt");
+    std::fs::write(
+        &constraints,
+        format!("markerpkg @ file://{}\n", project.display()),
+    )
+    .unwrap();
+    let path = std::env::var("PATH").unwrap_or_default();
+    let env = offline(&links);
+    let constraints_s = constraints.to_string_lossy().to_string();
+
+    let out = run_sigil(
+        &fx,
+        &["pip", "markerpkg==1.0"],
+        &path,
+        &with(&env, &[("PIP_CONSTRAINT", &constraints_s)]),
+    );
+    assert!(matches!(code(&out), 0 | 1), "stderr: {}", stderr(&out));
+    assert!(
+        !marker.exists(),
+        "pip built the project PIP_CONSTRAINT names"
+    );
+    assert!(
+        stderr(&out).contains("PIP_CONSTRAINT is left out"),
+        "{}",
+        stderr(&out)
+    );
+
+    let requirements = fx.root.join("requirements.txt");
+    std::fs::write(&requirements, format!("{}\n", project.display())).unwrap();
+    let conf = fx.root.join("pip.conf");
+    std::fs::write(
+        &conf,
+        format!("[download]\nrequirement = {}\n", requirements.display()),
+    )
+    .unwrap();
+    let conf_s = conf.to_string_lossy().to_string();
+    let env: Vec<(&str, &str)> = with(&env, &[])
+        .into_iter()
+        .filter(|(k, _)| *k != "PIP_CONFIG_FILE")
+        .chain([("PIP_CONFIG_FILE", conf_s.as_str())])
+        .collect();
+    let items_before = quarantine_items(&fx).len();
+    let out = run_sigil(&fx, &["pip", "markerpkg==1.0"], &path, &env);
+    assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
+    assert!(
+        stderr(&out).contains("download.requirement"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(!marker.exists(), "pip built the project pip.conf names");
+    assert_eq!(quarantine_items(&fx).len(), items_before);
+
+    // The fixture is live: with the opt-in, pip reads the constraint and
+    // builds the project.
+    let out = run_sigil(
+        &fx,
+        &["pip", "markerpkg==1.0", "--allow-build-scripts"],
+        &path,
+        &with(&offline(&links), &[("PIP_CONSTRAINT", &constraints_s)]),
+    );
+    assert!(
+        marker.exists(),
+        "with --allow-build-scripts pip should have built the constrained project; stderr: {}",
         stderr(&out)
     );
 }

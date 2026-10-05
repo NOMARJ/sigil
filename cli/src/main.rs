@@ -18,6 +18,7 @@ mod llm_review;
 mod mcp;
 mod mcp_registry;
 mod output;
+mod pep440;
 mod policy;
 mod project_config;
 mod provenance;
@@ -1762,6 +1763,63 @@ fn gate_package_spec(
     None
 }
 
+/// Run a package tool with its stderr passed through and also kept (the
+/// last 64 KiB), so a failure can be explained. Its stdout is inherited.
+fn run_keeping_stderr(
+    cmd: &mut std::process::Command,
+) -> std::io::Result<(std::process::ExitStatus, String)> {
+    use std::io::{Read, Write};
+    const KEEP: usize = 64 * 1024;
+    let mut child = cmd.stderr(std::process::Stdio::piped()).spawn()?;
+    let mut kept = Vec::new();
+    if let Some(mut err) = child.stderr.take() {
+        let mut buf = [0u8; 8192];
+        let mut out = std::io::stderr();
+        loop {
+            match err.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let _ = out.write_all(&buf[..n]);
+                    kept.extend_from_slice(&buf[..n]);
+                    if kept.len() > KEEP {
+                        kept.drain(..kept.len() - KEEP);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(_) => break,
+            }
+        }
+    }
+    let status = child.wait()?;
+    Ok((status, String::from_utf8_lossy(&kept).into_owned()))
+}
+
+/// Run a package tool for what it prints. Its stderr is shown only when it
+/// fails (`pip index` warns that it is experimental on every run, npm prints
+/// update notices). `None` (after saying why) when it could not run or
+/// failed.
+fn run_for_output(cmd: &mut std::process::Command, what: &str) -> Option<String> {
+    match cmd.output() {
+        Ok(out) if out.status.success() => Some(String::from_utf8_lossy(&out.stdout).into_owned()),
+        Ok(out) => {
+            eprint!("{}", String::from_utf8_lossy(&out.stderr));
+            eprintln!("{} `{what}` failed", "error:".bold().red());
+            None
+        }
+        Err(e) => {
+            eprintln!("{} could not run `{what}`: {e}", "error:".bold().red());
+            None
+        }
+    }
+}
+
+/// A new quarantine entry's directory as an absolute path. pip and npm run
+/// inside it and are also told where to write: with a relative
+/// SIGIL_QUARANTINE_DIR, a relative path would be applied twice.
+fn absolute_entry_path(path: &Path) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
 async fn cmd_pip(
     package: &str,
     version: Option<&str>,
@@ -1773,6 +1831,59 @@ async fn cmd_pip(
     let pkg_spec = acquire::pip_spec(package, version);
     if let Some(code) = gate_package_spec(acquire::Manager::Pip, &pkg_spec, allow_build_scripts) {
         return code;
+    }
+
+    // By default, what pip's environment and config would add to the
+    // download: a requirement, constraint or editable entry is built
+    // whatever --only-binary says. The variables are left out of pip's
+    // environment; a config file that sets one is refused.
+    let mut requirement = None;
+    let mut env_removed: Vec<std::ffi::OsString> = Vec::new();
+    let mut allow_prereleases = false;
+    if !allow_build_scripts {
+        requirement = match acquire::pip_requirement(&pkg_spec) {
+            Ok(r) => Some(r),
+            Err(err) => {
+                eprintln!(
+                    "{} {}",
+                    "error:".bold().red(),
+                    acquire::refusal(acquire::Manager::Pip, &pkg_spec, &err)
+                );
+                return EXIT_ERROR;
+            }
+        };
+        env_removed = acquire::pip_env_to_remove(std::env::vars_os());
+        for k in &env_removed {
+            eprintln!(
+                "{} {} is left out of pip's environment for this download: a requirement, \
+                 constraint or editable entry can name a path or URL that pip would build \
+                 before Sigil scans it",
+                "note:".bold(),
+                k.to_string_lossy()
+            );
+        }
+        let mut config = std::process::Command::new("pip");
+        config.args(["config", "list"]);
+        for k in &env_removed {
+            config.env_remove(k);
+        }
+        let Some(list) = run_for_output(&mut config, "pip config list") else {
+            eprintln!(
+                "  Sigil reads pip's configuration before downloading, to refuse a requirement, \
+                 constraint or editable setting that pip would build before the scan."
+            );
+            return EXIT_ERROR;
+        };
+        let added = acquire::pip_config_added_requirements(&list);
+        if !added.is_empty() {
+            eprintln!(
+                "{} {}",
+                "error:".bold().red(),
+                acquire::pip_config_refusal(&added)
+            );
+            return EXIT_ERROR;
+        }
+        allow_prereleases = acquire::pip_config_allows_prereleases(&list);
     }
 
     print_progress(
@@ -1795,40 +1906,102 @@ async fn cmd_pip(
             return EXIT_ERROR;
         }
     };
+    let qdir = absolute_entry_path(&entry.path);
 
     if verbose {
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    // Download pip package into quarantine: wheels only, run from the
-    // (empty) quarantine directory so nothing in the caller's directory can
-    // be read as a local archive. With --allow-build-scripts, as before:
-    // any spec, from the caller's directory, so a relative path means what
-    // the user typed.
+    // An unpinned or ranged spec: the release `pip install` would pick,
+    // whatever its format, so a release with no wheel fails here instead of
+    // the download quietly falling back to an older one that has a wheel.
+    let mut download_spec = pkg_spec.clone();
+    let mut resolved: Option<String> = None;
+    if let Some(req) = requirement.as_ref().filter(|r| !r.is_pinned()) {
+        let mut index = std::process::Command::new("pip");
+        index
+            .args(acquire::pip_index_args(&req.name))
+            .current_dir(&qdir);
+        for k in &env_removed {
+            index.env_remove(k);
+        }
+        let listed = run_for_output(&mut index, "pip index versions")
+            .and_then(|out| acquire::parse_pip_index_versions(&out));
+        let Some(versions) = listed else {
+            eprintln!(
+                "  Sigil asks the index which release `pip install {pkg_spec}` would install, \
+                 then downloads only that release's wheel, and pip listed no release of `{}`. \
+                 With a pip older than 21.2 (no `pip index`), pin a version: \
+                 `sigil pip {}==<version>`.",
+                req.name, req.name
+            );
+            return EXIT_ERROR;
+        };
+        let Some(best) = req.best_match(&versions, allow_prereleases) else {
+            let shown: Vec<&str> = versions.iter().take(12).map(String::as_str).collect();
+            eprintln!(
+                "{} no release of `{}` on the index matches `{pkg_spec}` (it lists {}{})",
+                "error:".bold().red(),
+                req.name,
+                shown.join(", "),
+                if versions.len() > shown.len() {
+                    ", …"
+                } else {
+                    ""
+                }
+            );
+            return EXIT_ERROR;
+        };
+        download_spec = format!("{}=={best}", req.name);
+        print_progress(
+            format,
+            format!(
+                "{} {} resolves to {} (the release `pip install` picks here)",
+                "sigil:".bold().cyan(),
+                pkg_spec.bold(),
+                download_spec.bold()
+            ),
+        );
+        resolved = Some(download_spec.clone());
+    }
+
+    // Download into quarantine: wheels only, run from the (empty)
+    // quarantine directory so nothing in the caller's directory can be read
+    // as a local archive. With --allow-build-scripts, as before: any spec,
+    // from the caller's directory, so a relative path means what the user
+    // typed.
     let mut pip = std::process::Command::new("pip");
     pip.args(acquire::pip_download_args(
-        &entry.path,
-        &pkg_spec,
+        &qdir,
+        &download_spec,
         allow_build_scripts,
     ));
     if !allow_build_scripts {
-        pip.current_dir(&entry.path);
+        pip.current_dir(&qdir);
+        for k in &env_removed {
+            pip.env_remove(k);
+        }
     }
-    let status = pip.status();
-
-    match status {
-        Ok(s) if s.success() => {}
-        _ => {
+    match run_keeping_stderr(&mut pip) {
+        Ok((s, _)) if s.success() => {}
+        Ok((_, err)) => {
             eprintln!("{} pip download failed", "error:".bold().red());
-            if !allow_build_scripts {
-                eprintln!("  {}", acquire::pip_wheel_only_hint(&pkg_spec));
+            if !allow_build_scripts && acquire::pip_found_no_distribution(&err) {
+                eprintln!(
+                    "  {}",
+                    acquire::pip_wheel_only_hint(&pkg_spec, resolved.as_deref())
+                );
             }
+            return EXIT_ERROR;
+        }
+        Err(e) => {
+            eprintln!("{} could not run pip: {e}", "error:".bold().red());
             return EXIT_ERROR;
         }
     }
 
     // Extract .whl (zip) and .tar.gz files so the scanner sees actual source
-    let extraction = match extract_archives(&entry.path) {
+    let extraction = match extract_archives(&qdir) {
         Ok(report) => report,
         Err(err) => {
             eprintln!(
@@ -1840,10 +2013,10 @@ async fn cmd_pip(
         }
     };
 
-    let mut result = scanner::run_scan(&entry.path, None, None);
-    apply_extraction_report(&mut result, &extraction, &pkg_spec);
-    apply_container_locator(&mut result, "pip", &pkg_spec);
-    if !print_scan_output(&result, &entry.path, format) {
+    let mut result = scanner::run_scan(&qdir, None, None);
+    apply_extraction_report(&mut result, &extraction, &download_spec);
+    apply_container_locator(&mut result, "pip", &download_spec);
+    if !print_scan_output(&result, &qdir, format) {
         return EXIT_ERROR;
     }
 
@@ -1898,28 +2071,88 @@ async fn cmd_npm(
             return EXIT_ERROR;
         }
     };
+    let qdir = absolute_entry_path(&entry.path);
 
     if verbose {
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    // Download npm package into quarantine, with --ignore-scripts unless the
-    // user opted in.
-    let status = std::process::Command::new("npm")
-        .args(acquire::npm_pack_args(&pkg_spec, allow_build_scripts))
-        .current_dir(&entry.path)
-        .status();
+    let mut npm = std::process::Command::new("npm");
+    let mut scanned = pkg_spec.clone();
+    if allow_build_scripts {
+        // As typed, from the caller's directory, so a relative path means
+        // what the user typed; the tarball is written to quarantine.
+        npm.args(acquire::npm_pack_args(&pkg_spec, true, Some(&qdir)));
+    } else {
+        // Ask the registry what the spec resolves to and pack that tarball
+        // URL: a registry's metadata can point a version's tarball at a git
+        // repository, which npm would clone and prepare. Run from the
+        // quarantine directory, as the pack is, so both read the same npm
+        // config.
+        let mut view = std::process::Command::new("npm");
+        view.args(acquire::npm_view_args(&pkg_spec))
+            .current_dir(&qdir);
+        let Some(out) = run_for_output(&mut view, "npm view") else {
+            eprintln!(
+                "  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it."
+            );
+            return EXIT_ERROR;
+        };
+        let releases = match acquire::parse_npm_view(&out) {
+            Ok(r) => r,
+            Err(why) => {
+                eprintln!(
+                    "{} could not read what npm resolves `{pkg_spec}` to: {why}",
+                    "error:".bold().red()
+                );
+                return EXIT_ERROR;
+            }
+        };
+        let Some(release) = acquire::pick_npm_release(&releases) else {
+            eprintln!(
+                "{} npm resolved `{pkg_spec}` to no release",
+                "error:".bold().red()
+            );
+            return EXIT_ERROR;
+        };
+        if let Err(why) = acquire::check_npm_tarball_url(&release.tarball) {
+            eprintln!(
+                "{} {}",
+                "error:".bold().red(),
+                acquire::npm_tarball_refusal(&release.id(), &why)
+            );
+            return EXIT_ERROR;
+        }
+        scanned = release.id();
+        if scanned != pkg_spec {
+            print_progress(
+                format,
+                format!(
+                    "{} {} resolves to {}",
+                    "sigil:".bold().cyan(),
+                    pkg_spec.bold(),
+                    scanned.bold()
+                ),
+            );
+        }
+        npm.args(acquire::npm_pack_args(&release.tarball, false, None))
+            .current_dir(&qdir);
+    }
 
-    match status {
+    match npm.status() {
         Ok(s) if s.success() => {}
-        _ => {
+        Ok(_) => {
             eprintln!("{} npm pack failed", "error:".bold().red());
+            return EXIT_ERROR;
+        }
+        Err(e) => {
+            eprintln!("{} could not run npm: {e}", "error:".bold().red());
             return EXIT_ERROR;
         }
     }
 
     // Extract .tgz files so the scanner sees actual source
-    let extraction = match extract_archives(&entry.path) {
+    let extraction = match extract_archives(&qdir) {
         Ok(report) => report,
         Err(err) => {
             eprintln!(
@@ -1931,10 +2164,10 @@ async fn cmd_npm(
         }
     };
 
-    let mut result = scanner::run_scan(&entry.path, None, None);
-    apply_extraction_report(&mut result, &extraction, &pkg_spec);
-    apply_container_locator(&mut result, "npm", &pkg_spec);
-    if !print_scan_output(&result, &entry.path, format) {
+    let mut result = scanner::run_scan(&qdir, None, None);
+    apply_extraction_report(&mut result, &extraction, &scanned);
+    apply_container_locator(&mut result, "npm", &scanned);
+    if !print_scan_output(&result, &qdir, format) {
         return EXIT_ERROR;
     }
 

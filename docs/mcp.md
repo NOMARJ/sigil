@@ -63,7 +63,7 @@ It exposes three tools:
 | Tool | Arguments | Returns |
 |------|-----------|---------|
 | `scan` | `target` (path or git URL), optional `min_severity` | `verdict`, `decision` (`allow` / `review` / `block`), `safe_to_install`, `policy_gate`, `score`, `grade`, `platform`, `behaviors`, and the 25 most severe findings |
-| `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` | the same summary for a registry package downloaded into quarantine without running any of its code (see `sigil pip` / `sigil npm` in the [CLI reference](cli.md)); a path, URL or git spec is refused |
+| `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` | the same summary for a registry package downloaded into quarantine without running any of its code (see `sigil pip` / `sigil npm` in the [CLI reference](cli.md)); a path, URL or git spec is refused, and so is a PyPI release with no prebuilt wheel |
 | `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook |
 
 `safe_to_install` is `true` only for a `LOW RISK` verdict that no active scan

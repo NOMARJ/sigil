@@ -2500,14 +2500,21 @@ IFS=$IFS_DEFAULT
 # ── ASK: a sigil call that lets package code run before its scan ──────────
 # `sigil pip|npm … --allow-build-scripts` lets pip or npm run the package's
 # own setup or lifecycle scripts on this machine before the scan: the
-# user's decision, not an agent's (hook.rs build_scripts_opt_in). Read at
-# a command position (after env/sudo/nohup/timeout/xargs and VAR=value
-# words), up to a `--` or a `# comment`. Every allow below becomes this ask;
-# a deny still wins.
+# user's decision, not an agent's (hook.rs build_scripts_opt_in, which
+# reads the same shapes). Wherever a `sigil` word, or a command word that
+# is an expansion (`$(command -v sigil)`, `$SIGIL`), appears (also inside a
+# quoted string a shell, `find -exec` or a here-string runs, and in text
+# that only mentions it): `sigil`, then `pip` or `npm`, then, before a
+# `--`, a `# comment` or a `;`/`&`/`|`, a word starting with
+# --allow-build-scripts (a glued redirection included) or a word with a `$`
+# or backtick, which could expand to it. A sigil pip/npm call behind xargs
+# counts too. Every allow below becomes this ask; a deny still wins.
 OPTIN=0
-OPTIN_PRE='(^|[;&|(`"'\''])[[:space:]]*(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*|env|sudo|doas|nohup|command|exec|nice|time|timeout|setsid|xargs|-[^[:space:]]+|[0-9][^[:space:]]*)[[:space:]]+)*'
-OPTIN_ARG='(-|-?[^-#[:space:];&|][^[:space:];&|]*|--[^[:space:];&|]+)'
-has "${OPTIN_PRE}([^[:space:];&|]*/)?sigil(\\.exe)?([[:space:]]+${OPTIN_ARG})*[[:space:]]+--allow-build-scripts([=[:space:];&|)\"']|\$)" \
+OPTIN_W='(-|-?[^-#[:space:];&|][^[:space:];&|]*|--[^[:space:];&|]+)'
+OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*([[:space:]]+${OPTIN_W})*|[\$\`][^[:space:];&|]*)[[:space:]]+[\"']?(pip|npm)[\"']?"
+has "${OPTIN_SUB}([[:space:]]+${OPTIN_W})*[[:space:]]+([\"']*--allow-build-scripts|[^[:space:];&|]*[\$\`])" \
+  && OPTIN=1
+has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([[:space:];&|]|\$)" \
   && OPTIN=1
 allow_unless_opt_in() {
   [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it. Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."

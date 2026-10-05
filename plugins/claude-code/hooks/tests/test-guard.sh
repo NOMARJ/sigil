@@ -157,7 +157,38 @@ check ask   "opt-in, then vetted install"  "sigil npm evil --allow-build-scripts
 check deny  "opt-in, then unvetted"        "sigil pip x --allow-build-scripts; npm install evil"
 check allow "spec after --, not the flag"  "sigil npm -- --allow-build-scripts"
 check allow "flag in a comment"            "sigil pip evil # --allow-build-scripts"
-check allow "flag only echoed"             "echo sigil pip evil --allow-build-scripts"
+check ask   "opt-in, redirection glued"    "sigil npm evil --allow-build-scripts>/dev/null"
+check ask   "opt-in, input glued"          "sigil npm evil --allow-build-scripts</dev/null"
+check ask   "opt-in, quoted + glued"       'sigil npm evil "--allow-build-scripts">log'
+check ask   "opt-in, glued before spec"    "sigil npm --allow-build-scripts>log evil"
+check ask   "opt-in, &> glued"             "sigil npm evil --allow-build-scripts&>log"
+check ask   "opt-in via variable"          'F=--allow-build-scripts; sigil pip evil $F'
+check ask   "opt-in via substitution"      'sigil pip evil $(echo --allow-build-scripts)'
+check ask   "opt-in, half substituted"     'sigil pip evil --allow-build-$(echo scripts)'
+check ask   "opt-in via backticks"         'sigil pip evil `echo --allow-build-scripts`'
+check ask   "spec from a loop variable"    'for p in evil; do sigil pip $p; done'
+check ask   "xargs feeds sigil pip"        "printf %s --allow-build-scripts | xargs sigil pip ./x"
+check ask   "sigil from a substitution"    '$(command -v sigil) pip x --allow-build-scripts'
+check ask   "sigil from backticks"         '`command -v sigil` pip x --allow-build-scripts'
+check ask   "sigil from a variable"        'SIGIL=/usr/local/bin/sigil; $SIGIL pip x --allow-build-scripts'
+check ask   "opt-in piped to sh"           'echo "sigil pip ./x --allow-build-scripts" | sh'
+check ask   "opt-in in a here-string"      'bash <<< "sigil pip ./x --allow-build-scripts"'
+check ask   "opt-in via find -exec"        'find . -maxdepth 0 -exec sigil pip ./x --allow-build-scripts \;'
+check ask   "opt-in via coproc"            "coproc sigil pip ./x --allow-build-scripts"
+check ask   "opt-in, timeout -s KILL"      "timeout -s KILL 60 sigil pip evil --allow-build-scripts"
+check ask   "opt-in, sudo -u"              "sudo -u nobody sigil pip evil --allow-build-scripts"
+check ask   "opt-in in a group"            "{ sigil pip evil --allow-build-scripts; }"
+check ask   "opt-in after then"            "if true; then sigil pip evil --allow-build-scripts; fi"
+check ask   "opt-in negated"               "! sigil pip evil --allow-build-scripts"
+check ask   "opt-in after a redirection"   ">/dev/null sigil pip evil --allow-build-scripts"
+# Text that only mentions it is asked about too, as `echo npm install x` is
+# denied: both modes read the words wherever they are.
+check ask   "opt-in only echoed"           "echo sigil pip evil --allow-build-scripts"
+check ask   "opt-in in a commit message"   'git commit -m "sigil pip x --allow-build-scripts"'
+check allow "expansion in a later stage"   'sigil pip requests && echo $HOME'
+check allow "expansion, not pip/npm"       'sigil scan $DIR'
+check allow "expanded interpreter, pip"    '$PY -m pip download x'
+check allow "quoted range, redirections"   'sigil pip "requests>=2,<3" >/dev/null 2>&1 | tee log'
 
 # ── DENY: a download piped or substituted into an interpreter ──────────────
 # Never gated by a sigil call: the server decides per request what it serves.
