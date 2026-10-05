@@ -1,6 +1,7 @@
 import type * as Api from '@/lib/api';
 
 // [MOCK] Deterministic HTTP fixtures; no live credentials, billing or network calls.
+// One-character token sentinels exercise selection/header forwarding, not real credentials.
 const backend = 'https://api.example.invalid';
 const fetchMock = jest.fn();
 const originalFetch = global.fetch;
@@ -21,7 +22,7 @@ beforeEach(() => {
   global.fetch = fetchMock;
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (url: string) =>
-    url === '/api/auth/token' ? response({ accessToken: 'mock-access-token' }) : response({ id: 'mock-result' }));
+    url === '/api/auth/token' ? response({ accessToken: 'A' }) : response({ id: 'mock-result' }));
 });
 afterAll(() => {
   global.fetch = originalFetch;
@@ -34,12 +35,12 @@ describe('HTTP authentication and failures', () => {
     await expect(api.getCurrentUser()).resolves.toEqual({ id: 'mock-result' });
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/auth/token', { credentials: 'include', cache: 'no-store' });
     expect(fetchMock).toHaveBeenNthCalledWith(2, `${backend}/auth/me`, {
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer mock-access-token' },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer A' },
     });
   });
   it.each([
-    [{ token: 'mock-legacy-token' }, 'Bearer mock-legacy-token'],
-    [{ accessToken: 'mock-current', token: 'mock-legacy' }, 'Bearer mock-current'],
+    [{ token: 'B' }, 'Bearer B'],
+    [{ accessToken: 'C', token: 'D' }, 'Bearer C'],
     [{}, undefined],
   ])('supports token response %j', async (tokens, authorization) => {
     fetchMock.mockResolvedValueOnce(response(tokens));
