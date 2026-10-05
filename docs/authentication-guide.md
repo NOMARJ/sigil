@@ -51,7 +51,7 @@ sigil fetch
 - Plain scanning runs the local detection phases. Dependency advisory and registry lookups may still access the network; lack of authentication is not a network isolation setting.
 - `--enrich` looks up a directory hash in the cloud threat database.
 - `--submit` uploads the scan result, including findings, their metadata and each finding's flagged source line, which can contain a secret.
-- `--enhanced` requires authentication and sends collected source file contents and the scan result for server-side LLM analysis. Review the files before selecting this option.
+- `--enhanced` requires authentication and sends collected source file contents and the scan result for server-side LLM analysis. Review the files before selecting this option. The API does not yet return LLM findings for it: it stores the scan and the files and answers with its static analysis, and the CLI says so.
 - `sigil fetch` downloads cloud signatures. Logging in alone does not fetch them.
 - `sigil explain <scan.json>` requires authentication and uploads every finding in that saved scan report, flagged source lines included, so the server can have a model adjudicate one finding.
 

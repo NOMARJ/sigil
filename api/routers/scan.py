@@ -747,11 +747,12 @@ async def submit_enhanced_scan(
 
     except Exception as e:
         logger.exception(f"Enhanced scan failed for Pro user {current_user.id}: {e}")
-        # Return basic response with error information
+        # Return basic response with error information. Only the exception
+        # type reaches the client; the message is in the server log.
         basic_response.metadata = {
             "pro_features_used": False,
             "llm_analysis_performed": False,
-            "llm_error": str(e),
+            "llm_error": type(e).__name__,
             "fallback_to_static": True,
             "user_tier": current_tier.value,
         }

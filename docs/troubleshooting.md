@@ -193,7 +193,7 @@ The endpoint applies to that login only and is not saved: `sigil fetch`, `sigil 
 
 ### Token expired
 
-The access token the `sigil login` browser sign-in stores expires, and the CLI neither checks nor refreshes it. Once the API rejects it, `sigil fetch`, `sigil report` and `sigil explain` fail with an API error, `sigil scan --submit` and `--enhanced` print a warning and keep the local result, and `--enrich` reports the failure only with `-v`.
+The access token the `sigil login` browser sign-in stores expires, and the CLI neither checks nor refreshes it. Once the API rejects it, `sigil fetch`, `sigil report` and `sigil explain` fail with an API error, and `sigil scan --submit`, `--enhanced` and `--enrich` print a warning (HTTP 401, with a hint to run `sigil login`) and keep the local result. CLI 1.3.7 reports a failed `--enrich` lookup only with `-v`.
 
 **Fix:** Re-authenticate:
 
@@ -209,7 +209,7 @@ Logging in does not change a plain `sigil scan`. The hash lookup runs only with 
 sigil -v scan . --enrich --no-cache
 ```
 
-`--enrich` prints `THREAT INTEL: <path> is a known threat` when the API reports a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. No output therefore does not mean the target is not a known threat. The threat database needs a Pro plan; the API refuses the lookup otherwise. If it fails:
+`--enrich` prints `THREAT INTEL: <path> is a known threat` with the entry's details when the API reports a match, `no threat-intel match for this directory's hash` when it does not, and `warning: threat-intel lookup failed:` with the HTTP status when the lookup fails. The threat database needs a Pro plan; the API refuses the lookup otherwise (HTTP 403). The lookup key is a hash of the directory's file paths and sizes, while the database is keyed by package-artifact hashes, so a match needs an entry recorded for that exact directory: no match does not mean the target is not a known threat. CLI 1.3.7 prints nothing for no match and shows a failure only with `-v` (as `cloud enrichment unavailable: ...`); it shows a match only once the Sigil API update that adds the fields it needs is deployed, and before that the match appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. If the lookup fails:
 
 1. **Check authentication status:**
 

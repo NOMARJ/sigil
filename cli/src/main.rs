@@ -2664,30 +2664,23 @@ async fn cmd_scan(
 
         let client = api::SigilClient::new(None);
         match client.lookup_threat(&dir_hash).await {
-            Ok(info) => {
-                if info.known_malicious {
-                    println!(
-                        "\n  {} {} is a known threat: {}",
-                        "THREAT INTEL:".bold().red(),
-                        path.display(),
-                        info.description.as_deref().unwrap_or("no description")
-                    );
-                    if let Some(threat_type) = &info.threat_type {
-                        println!("  Type: {}", threat_type);
-                    }
-                } else if verbose {
-                    eprintln!("no threat intel match for this target");
-                }
+            Ok(info) if info.known_malicious => {
+                print_progress(format, threat_intel_lines(path, &info));
             }
-            Err(err) => {
-                if verbose {
-                    eprintln!(
-                        "{} cloud enrichment unavailable: {}",
-                        "warning:".bold().yellow(),
-                        err
-                    );
-                }
-            }
+            Ok(_) => print_progress(
+                format,
+                format!(
+                    "{} no threat-intel match for this directory's hash",
+                    "sigil:".bold().cyan()
+                ),
+            ),
+            // Asked for explicitly, so a failed lookup is always reported:
+            // silence would read as "no match".
+            Err(err) => eprintln!(
+                "{} threat-intel lookup failed: {}",
+                "warning:".bold().yellow(),
+                err
+            ),
         }
     }
 
@@ -2726,18 +2719,7 @@ async fn cmd_scan(
             }
 
             match client.submit_enhanced_scan(&result, file_contents).await {
-                Ok(response) => {
-                    println!(
-                        "\n{} Enhanced LLM analysis completed",
-                        "sigil:".bold().green()
-                    );
-                    if verbose {
-                        eprintln!("  Scan ID: {}", response.id);
-                        if let Some(msg) = response.message {
-                            eprintln!("  Message: {}", msg);
-                        }
-                    }
-                }
+                Ok(response) => report_enhanced_outcome(&response, format),
                 Err(err) => {
                     eprintln!(
                         "{} Enhanced analysis failed: {}",
@@ -2756,9 +2738,13 @@ async fn cmd_scan(
         }
         let client = api::SigilClient::new(None);
         match client.submit_scan(&result).await {
-            Ok(_) => println!(
-                "{} results submitted to Sigil cloud",
-                "sigil:".bold().green()
+            Ok(response) => print_progress(
+                format,
+                format!(
+                    "{} results submitted to Sigil cloud (scan id: {})",
+                    "sigil:".bold().green(),
+                    api::terminal_text(response.scan_id().unwrap_or("not returned"))
+                ),
             ),
             Err(err) => eprintln!(
                 "{} failed to submit results: {} (continuing offline)",
@@ -2769,6 +2755,86 @@ async fn cmd_scan(
     }
 
     scan_exit_code(&policy, &result)
+}
+
+/// The `--enrich` match message: the threat entry's description, then the
+/// package, severity and source when the API gives them.
+fn threat_intel_lines(path: &Path, info: &api::ThreatInfo) -> String {
+    fn nonempty(v: &Option<String>) -> Option<String> {
+        v.as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(api::terminal_text)
+    }
+    let mut out = format!(
+        "\n  {} {} is a known threat: {}",
+        "THREAT INTEL:".bold().red(),
+        path.display(),
+        nonempty(&info.description).unwrap_or_else(|| "no description".to_string())
+    );
+    if let Some(name) = nonempty(&info.package_name) {
+        match nonempty(&info.version) {
+            Some(v) => out.push_str(&format!("\n  Package: {} {}", name, v)),
+            None => out.push_str(&format!("\n  Package: {}", name)),
+        }
+    }
+    if let Some(t) = nonempty(&info.threat_type) {
+        out.push_str(&format!("\n  Type: {}", t));
+    }
+    if let Some(s) = nonempty(&info.severity) {
+        out.push_str(&format!("\n  Severity: {}", s));
+    }
+    if let Some(s) = nonempty(&info.source) {
+        out.push_str(&format!("\n  Source: {}", s));
+    }
+    out
+}
+
+/// Say what `--enhanced` actually got back. The API answers 200 with the
+/// static result when its LLM step does not run, so "completed" is printed
+/// only when the response says LLM analysis was performed.
+fn report_enhanced_outcome(response: &api::ScanResponse, format: &str) {
+    let scan_id = api::terminal_text(response.scan_id().unwrap_or("not returned"));
+    match api::EnhancedOutcome::from_response(response) {
+        api::EnhancedOutcome::Analysed { llm_findings } => {
+            let mut msg = format!(
+                "\n{} enhanced LLM analysis completed: {} LLM finding(s) (scan id: {})",
+                "sigil:".bold().green(),
+                llm_findings.len(),
+                scan_id
+            );
+            for f in &llm_findings {
+                let field =
+                    |k: &str| api::terminal_text(f.get(k).and_then(|v| v.as_str()).unwrap_or(""));
+                let line = f
+                    .get("line")
+                    .and_then(|v| v.as_u64())
+                    .map(|l| format!(":{l}"))
+                    .unwrap_or_default();
+                msg.push_str(&format!(
+                    "\n  [{}] {} {}{} {}",
+                    field("severity"),
+                    field("rule"),
+                    field("file"),
+                    line,
+                    field("description")
+                ));
+            }
+            print_progress(format, msg);
+        }
+        api::EnhancedOutcome::UpgradeRequired => eprintln!(
+            "{} LLM analysis needs a Pro plan: the API stored the scan and the uploaded \
+             files but returned only its static analysis (scan id: {})",
+            "warning:".bold().yellow(),
+            scan_id
+        ),
+        api::EnhancedOutcome::NotRun(reason) => eprintln!(
+            "{} the API did not run LLM analysis ({}); it returned only its static \
+             analysis (scan id: {})",
+            "warning:".bold().yellow(),
+            reason,
+            scan_id
+        ),
+    }
 }
 
 /// Exit code for `sigil scan` under ADR-0010: 1 when an active finding is at
@@ -4032,9 +4098,10 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
     match client.report_threat(hash, threat_type, description).await {
         Ok(response) => {
             println!(
-                "{} threat reported successfully (id: {})",
+                "{} threat reported successfully (id: {}, status: {})",
                 "sigil:".bold().green(),
-                response.id
+                api::terminal_text(response.report_id().unwrap_or("not returned")),
+                api::terminal_text(response.status.as_deref().unwrap_or("not returned"))
             );
             0
         }

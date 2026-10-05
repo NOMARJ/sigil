@@ -341,7 +341,9 @@ async def reload_signatures_from_json(json_path: str) -> dict[str, Any]:
 
 async def submit_report(report: ThreatReport) -> ThreatReportResponse:
     """Persist a user-submitted threat report and return an acknowledgement."""
-    report_id = uuid4().hex[:12]
+    # Full GUID: threat_reports.id is UNIQUEIDENTIFIER (schema.sql), and a
+    # truncated hex does not convert (the same failure scans.id had).
+    report_id = str(uuid4())
 
     row = {
         "id": report_id,

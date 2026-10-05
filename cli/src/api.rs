@@ -1,11 +1,20 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Map, Value};
 use std::fs;
 use std::path::PathBuf;
 
 use crate::scanner::cloud_sigs::{self, SignatureResponse as CloudSigResponse};
-use crate::scanner::ScanResult;
+use crate::scanner::{Phase, ScanResult};
 
 const DEFAULT_ENDPOINT: &str = "https://api.sigilsec.ai";
+
+/// The `target` that `sigil scan --submit` and `--enhanced` send.
+///
+/// The API requires one. A fixed label is sent instead of the scanned path:
+/// a path, or even its last component, can carry a user or project name, and
+/// `docs/data-handling.md` does not list the path among what is sent. The API
+/// records the same label for a CLI 1.3.7 submission, which has no target.
+pub const CLI_SCAN_TARGET: &str = "cli-scan";
 
 /// API client for the Sigil cloud service.
 pub struct SigilClient {
@@ -14,24 +23,122 @@ pub struct SigilClient {
     token: Option<String>,
 }
 
-/// Response from a scan submission.
-#[derive(Debug, Serialize, Deserialize)]
+/// Response from `POST /v1/scan` and `POST /v1/scan-enhanced`: the API's
+/// `ScanResponse`. Only the fields the CLI reads are modelled, and every one
+/// is optional so an older or newer API still parses.
+#[derive(Debug, Default, Deserialize)]
 pub struct ScanResponse {
-    pub id: String,
-    pub status: String,
-    pub message: Option<String>,
+    #[serde(default)]
+    pub scan_id: Option<String>,
+    /// Alias of `scan_id` the API adds for CLI 1.3.7. Kept as its own field:
+    /// a serde alias would reject a body that carries both keys.
+    #[serde(default)]
+    pub id: Option<String>,
+    /// Every finding the API holds for the scan; `--enhanced` adds its LLM
+    /// findings (phase `llm_analysis`) to the submitted ones.
+    #[serde(default)]
+    pub findings: Vec<Value>,
+    /// Endpoint notes: `/v1/scan-enhanced` says here whether LLM analysis ran.
+    #[serde(default)]
+    pub metadata: Map<String, Value>,
 }
 
-/// Response from a threat lookup.
+impl ScanResponse {
+    /// The scan's id, whichever key carried it.
+    pub fn scan_id(&self) -> Option<&str> {
+        self.scan_id
+            .as_deref()
+            .or(self.id.as_deref())
+            .filter(|id| !id.is_empty())
+    }
+}
+
+/// What `/v1/scan-enhanced` did with the uploaded files, read from the
+/// response metadata. Only an explicit `llm_analysis_performed: true` counts
+/// as analysis: the endpoint answers 200 with the static result whenever the
+/// LLM step does not run.
+#[derive(Debug, PartialEq)]
+pub enum EnhancedOutcome {
+    /// LLM analysis ran; these are the findings it added.
+    Analysed { llm_findings: Vec<Value> },
+    /// The account's plan does not include LLM analysis.
+    UpgradeRequired,
+    /// LLM analysis did not run, for the reason given.
+    NotRun(String),
+}
+
+impl EnhancedOutcome {
+    pub fn from_response(response: &ScanResponse) -> Self {
+        let m = &response.metadata;
+        let flag = |key: &str| m.get(key).and_then(Value::as_bool) == Some(true);
+        if flag("llm_analysis_performed") {
+            let llm_findings = response
+                .findings
+                .iter()
+                .filter(|f| f.get("phase").and_then(Value::as_str) == Some("llm_analysis"))
+                .cloned()
+                .collect();
+            return EnhancedOutcome::Analysed { llm_findings };
+        }
+        if flag("upgrade_required") {
+            return EnhancedOutcome::UpgradeRequired;
+        }
+        let reason = ["llm_error", "reason"]
+            .iter()
+            .find_map(|k| m.get(*k).and_then(Value::as_str))
+            .map(|r| format!("server reported: {}", terminal_text(r)))
+            .unwrap_or_else(|| "the response does not say it ran".to_string());
+        EnhancedOutcome::NotRun(reason)
+    }
+}
+
+/// Response from `GET /v1/threat/{hash}`: the API's threat entry. The API
+/// answers 404 for an unknown hash, so a parsed body is a match unless it
+/// says otherwise; the API adds `known_malicious` and `references` for CLI
+/// 1.3.7, and an API without them still parses.
 #[derive(Debug, Serialize, Deserialize)]
-#[allow(dead_code)]
 pub struct ThreatInfo {
+    #[serde(default)]
     pub hash: String,
+    #[serde(default = "matched")]
     pub known_malicious: bool,
+    #[serde(default)]
+    pub package_name: Option<String>,
+    #[serde(default)]
+    pub version: Option<String>,
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub confirmed_at: Option<String>,
+    #[serde(default)]
     pub threat_type: Option<String>,
+    #[serde(default)]
     pub description: Option<String>,
-    pub first_seen: Option<String>,
+    #[serde(default)]
     pub references: Vec<String>,
+}
+
+fn matched() -> bool {
+    true
+}
+
+impl ThreatInfo {
+    fn no_match(hash: &str) -> Self {
+        ThreatInfo {
+            hash: hash.to_string(),
+            known_malicious: false,
+            package_name: None,
+            version: None,
+            severity: None,
+            source: None,
+            confirmed_at: None,
+            threat_type: None,
+            description: None,
+            references: vec![],
+        }
+    }
 }
 
 /// A threat detection signature from the cloud.
@@ -45,11 +152,148 @@ pub struct Signature {
     pub description: String,
 }
 
-/// Response from a threat report submission.
-#[derive(Debug, Serialize, Deserialize)]
+/// Response from `POST /v1/report`: the API's `ThreatReportResponse`.
+#[derive(Debug, Default, Deserialize)]
 pub struct ReportResponse {
-    pub id: String,
-    pub status: String,
+    #[serde(default)]
+    pub report_id: Option<String>,
+    /// Alias of `report_id` the API adds for CLI 1.3.7 (see `ScanResponse::id`).
+    #[serde(default)]
+    pub id: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+}
+
+impl ReportResponse {
+    pub fn report_id(&self) -> Option<&str> {
+        self.report_id
+            .as_deref()
+            .or(self.id.as_deref())
+            .filter(|id| !id.is_empty())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Request bodies (the API's pydantic models: api/models.py)
+// ---------------------------------------------------------------------------
+
+/// The API's `ScanPhase` value for a phase name in any spelling the CLI
+/// writes: serde `InstallHooks` (scan JSON), `install_hooks`, and so on.
+pub fn api_phase(name: &str) -> String {
+    if let Some(phase) = Phase::from_name(name) {
+        return phase.canonical_name().to_string();
+    }
+    let key: String = name
+        .chars()
+        .filter(|c| !matches!(c, '_' | '-' | ' '))
+        .flat_map(char::to_lowercase)
+        .collect();
+    if key == "llmanalysis" {
+        "llm_analysis".to_string()
+    } else {
+        name.to_lowercase()
+    }
+}
+
+/// Normalise one CLI finding to the API's `Finding` schema: phase in
+/// `snake_case`, severity upper-case. Other keys pass through untouched; the
+/// API ignores the ones it does not model.
+pub fn api_finding(finding: &Value) -> Value {
+    let mut out = finding.clone();
+    if let Some(obj) = out.as_object_mut() {
+        if let Some(phase) = obj.get("phase").and_then(Value::as_str) {
+            let normalized = api_phase(phase);
+            obj.insert("phase".into(), Value::String(normalized));
+        }
+        if let Some(sev) = obj.get("severity").and_then(Value::as_str) {
+            let upper = sev.to_uppercase();
+            obj.insert("severity".into(), Value::String(upper));
+        }
+    }
+    out
+}
+
+/// Body of `POST /v1/scan` and `POST /v1/scan-enhanced` (the API's
+/// `ScanRequest`): the fixed [`CLI_SCAN_TARGET`], the number of files
+/// scanned, every active finding (snippet included) and `metadata` holding
+/// the CLI's own score and verdict plus `extra_metadata`. Suppressed findings
+/// are not sent.
+pub fn scan_request_body(
+    result: &ScanResult,
+    source: &str,
+    extra_metadata: Map<String, Value>,
+) -> Result<Value, String> {
+    let findings = result
+        .findings
+        .iter()
+        .map(|f| serde_json::to_value(f).map(|v| api_finding(&v)))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| format!("failed to serialize findings: {}", e))?;
+    let mut metadata = Map::new();
+    metadata.insert("source".into(), json!(source));
+    metadata.insert("cli_score".into(), json!(result.score));
+    metadata.insert(
+        "cli_verdict".into(),
+        json!(result.verdict.to_string().replace(' ', "_")),
+    );
+    metadata.extend(extra_metadata);
+    Ok(json!({
+        "target": CLI_SCAN_TARGET,
+        "target_type": "directory",
+        "files_scanned": result.files_scanned,
+        "findings": findings,
+        "metadata": metadata,
+    }))
+}
+
+/// Body of `POST /v1/report` (the API's `ThreatReport`). The API identifies a
+/// report by package, so a hash report is filed as package `sha256:<hash>`
+/// with the description as the reason and the threat type and hash as
+/// evidence: the same record the API makes of CLI 1.3.7's
+/// `{hash, threat_type, description}` body.
+pub fn report_request_body(hash: &str, threat_type: &str, description: &str) -> Value {
+    let digest = hash.trim().to_lowercase();
+    let mut evidence = Vec::new();
+    if !threat_type.trim().is_empty() {
+        evidence.push(format!("Threat type: {}", threat_type.trim()));
+    }
+    evidence.push(format!("SHA-256: {}", digest));
+    json!({
+        "package_name": format!("sha256:{}", digest),
+        "reason": description,
+        "evidence": evidence.join("\n"),
+    })
+}
+
+/// Text from an API response, made safe to print: control characters
+/// (terminal escapes included) become spaces. A threat entry's description
+/// can come from a community report, and none of it is ours to emit raw.
+pub fn terminal_text(s: &str) -> String {
+    s.chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect()
+}
+
+/// An API error as one line: the status, a hint for the statuses with a
+/// known cause, and the start of the body.
+fn api_error(status: reqwest::StatusCode, body: &str, forbidden_hint: &str) -> String {
+    let hint = match status.as_u16() {
+        401 => " (not signed in, or the token expired: run `sigil login`)",
+        402 => " (this needs a paid plan)",
+        403 if !forbidden_hint.is_empty() => forbidden_hint,
+        429 => " (rate limit or monthly scan quota reached)",
+        _ => "",
+    };
+    let body = terminal_text(body.trim());
+    let mut excerpt: String = body.chars().take(600).collect();
+    if excerpt.len() < body.len() {
+        excerpt.push('…');
+    }
+    if excerpt.is_empty() {
+        format!("API error: {}{}", status, hint)
+    } else {
+        format!("API error: {}{}: {}", status, hint, excerpt)
+    }
 }
 
 /// Authentication response.
@@ -148,8 +392,9 @@ impl SigilClient {
     /// POST /v1/scan
     pub async fn submit_scan(&self, result: &ScanResult) -> Result<ScanResponse, String> {
         let url = format!("{}/v1/scan", self.endpoint);
+        let body = scan_request_body(result, "sigil-scan", Map::new())?;
 
-        let mut request = self.client.post(&url).json(result);
+        let mut request = self.client.post(&url).json(&body);
         if let Some(ref token) = self.token {
             request = request.bearer_auth(token);
         }
@@ -159,12 +404,10 @@ impl SigilClient {
             .await
             .map_err(|e| offline_fallback_message(&e))?;
 
-        if !response.status().is_success() {
-            return Err(format!(
-                "API error: {} {}",
-                response.status(),
-                response.text().await.unwrap_or_default()
-            ));
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(api_error(status, &text, ""));
         }
 
         response
@@ -173,10 +416,9 @@ impl SigilClient {
             .map_err(|e| format!("failed to parse response: {}", e))
     }
 
-    /// Look up a file hash in the threat intelligence database.
+    /// Look up a hash in the threat intelligence database.
     ///
-    /// GET /v1/threat/{hash}
-    #[allow(dead_code)]
+    /// GET /v1/threat/{hash}. A 404 is "no match", not an error.
     pub async fn lookup_threat(&self, hash: &str) -> Result<ThreatInfo, String> {
         let url = format!("{}/v1/threat/{}", self.endpoint, hash);
 
@@ -190,25 +432,25 @@ impl SigilClient {
             .await
             .map_err(|e| offline_fallback_message(&e))?;
 
-        if response.status().as_u16() == 404 {
-            return Ok(ThreatInfo {
-                hash: hash.to_string(),
-                known_malicious: false,
-                threat_type: None,
-                description: None,
-                first_seen: None,
-                references: vec![],
-            });
+        let status = response.status();
+        if status.as_u16() == 404 {
+            return Ok(ThreatInfo::no_match(hash));
         }
 
-        if !response.status().is_success() {
-            return Err(format!("API error: {}", response.status()));
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(api_error(
+                status,
+                &text,
+                " (the threat database needs a Pro plan)",
+            ));
         }
 
-        response
-            .json::<ThreatInfo>()
+        let text = response
+            .text()
             .await
-            .map_err(|e| format!("failed to parse response: {}", e))
+            .map_err(|e| format!("failed to read response: {}", e))?;
+        parse_threat_info(&text, hash)
     }
 
     /// Fetch the latest threat detection signatures.
@@ -306,12 +548,7 @@ impl SigilClient {
         description: &str,
     ) -> Result<ReportResponse, String> {
         let url = format!("{}/v1/report", self.endpoint);
-
-        let body = serde_json::json!({
-            "hash": hash,
-            "threat_type": threat_type,
-            "description": description,
-        });
+        let body = report_request_body(hash, threat_type, description);
 
         let mut request = self.client.post(&url).json(&body);
         if let Some(ref token) = self.token {
@@ -323,8 +560,10 @@ impl SigilClient {
             .await
             .map_err(|e| offline_fallback_message(&e))?;
 
-        if !response.status().is_success() {
-            return Err(format!("API error: {}", response.status()));
+        let status = response.status();
+        if !status.is_success() {
+            let text = response.text().await.unwrap_or_default();
+            return Err(api_error(status, &text, ""));
         }
 
         response
@@ -373,21 +612,14 @@ impl SigilClient {
     ) -> Result<ScanResponse, String> {
         let url = format!("{}/v1/scan-enhanced", self.endpoint);
 
-        // Build enhanced request with file contents for LLM analysis
-        let mut metadata = serde_json::Map::new();
-        metadata.insert(
+        // The scan request, with the collected file contents for LLM analysis.
+        let mut extra = Map::new();
+        extra.insert(
             "file_contents".to_string(),
             serde_json::to_value(&file_contents)
                 .map_err(|e| format!("failed to serialize file contents: {}", e))?,
         );
-
-        let request_body = serde_json::json!({
-            "target": "cli-scan",
-            "target_type": "directory",
-            "files_scanned": result.files_scanned,
-            "findings": result.findings,
-            "metadata": metadata,
-        });
+        let request_body = scan_request_body(result, "sigil-scan-enhanced", extra)?;
 
         let mut request = self.client.post(&url).json(&request_body);
         if let Some(ref token) = self.token {
@@ -412,11 +644,8 @@ impl SigilClient {
         }
 
         if !status.is_success() {
-            return Err(format!(
-                "API error: {} {}",
-                status,
-                response.text().await.unwrap_or_default()
-            ));
+            let text = response.text().await.unwrap_or_default();
+            return Err(api_error(status, &text, ""));
         }
 
         response
@@ -552,6 +781,17 @@ impl SigilClient {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/// Parse a `GET /v1/threat/{hash}` success body. `hash` fills in a body
+/// that omits it.
+pub fn parse_threat_info(body: &str, hash: &str) -> Result<ThreatInfo, String> {
+    let mut info: ThreatInfo =
+        serde_json::from_str(body).map_err(|e| format!("failed to parse response: {}", e))?;
+    if info.hash.is_empty() {
+        info.hash = hash.to_string();
+    }
+    Ok(info)
+}
+
 /// Produce a user-friendly error message when the API is unreachable.
 fn offline_fallback_message(err: &reqwest::Error) -> String {
     if err.is_connect() || err.is_timeout() {
@@ -561,5 +801,481 @@ fn offline_fallback_message(err: &reqwest::Error) -> String {
             .to_string()
     } else {
         format!("network error: {}", err)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{Read, Write};
+
+    /// A scan result as the scanner produces it, with one finding per shape
+    /// that matters to the API: a Phase 10 finding (absent from the API's
+    /// enum before), a finding with no line, and suppressed findings that
+    /// must not be sent.
+    fn sample_result() -> ScanResult {
+        let finding = |phase: &str, rule: &str, severity: &str, line: Value| {
+            json!({"phase": phase, "rule": rule, "severity": severity, "file": "src/a.py",
+                   "line": line, "snippet": "x", "weight": 5, "fingerprint": "f"})
+        };
+        serde_json::from_value(json!({
+            "findings": [
+                finding("InstallHooks", "INSTALL-001", "Critical", json!(3)),
+                finding("InferenceSecurity", "INFER-001", "High", json!(2)),
+                finding("Provenance", "PROV-001", "Low", Value::Null),
+            ],
+            "score": 42,
+            "verdict": "HighRisk",
+            "files_scanned": 7,
+            "duration_ms": 12,
+            "suppressed_findings": [finding("CodePatterns", "CODE-001", "High", json!(1))],
+            "suppressed_by": "ledger:example",
+            "inline_suppressed": [finding("Credentials", "CRED-001", "Medium", json!(4))],
+            "inline_suppressions": ["src/a.py:4 CRED-001 — test"],
+            "platform": "pypi",
+        }))
+        .expect("sample ScanResult")
+    }
+
+    #[test]
+    fn api_phase_maps_every_cli_spelling_to_the_api_value() {
+        for phase in Phase::ALL {
+            let serde_name = serde_json::to_value(phase).unwrap();
+            let serde_name = serde_name.as_str().unwrap();
+            assert_eq!(
+                api_phase(serde_name),
+                phase.canonical_name(),
+                "{serde_name}"
+            );
+            assert_eq!(api_phase(phase.canonical_name()), phase.canonical_name());
+        }
+        // `sigil explain` 1.3.7 sent the concatenated form.
+        assert_eq!(api_phase("inferencesecurity"), "inference_security");
+        assert_eq!(api_phase("LlmAnalysis"), "llm_analysis");
+        // An unknown name is passed on (lower-cased) for the API to refuse.
+        assert_eq!(api_phase("Mystery"), "mystery");
+    }
+
+    #[test]
+    fn scan_request_body_has_the_api_scan_request_shape() {
+        let body = scan_request_body(&sample_result(), "sigil-scan", Map::new()).unwrap();
+        let keys: Vec<&str> = body
+            .as_object()
+            .unwrap()
+            .keys()
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            keys,
+            [
+                "files_scanned",
+                "findings",
+                "metadata",
+                "target",
+                "target_type"
+            ]
+        );
+        assert_eq!(body["target"], CLI_SCAN_TARGET);
+        assert_eq!(body["target_type"], "directory");
+        assert_eq!(body["files_scanned"], 7);
+        assert_eq!(
+            body["metadata"],
+            json!({"source": "sigil-scan", "cli_score": 42, "cli_verdict": "HIGH_RISK"})
+        );
+
+        // Active findings only, in the API's enum spellings.
+        let findings = body["findings"].as_array().unwrap();
+        let summary: Vec<(String, String, String)> = findings
+            .iter()
+            .map(|f| {
+                (
+                    f["rule"].as_str().unwrap().to_string(),
+                    f["phase"].as_str().unwrap().to_string(),
+                    f["severity"].as_str().unwrap().to_string(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                (
+                    "INSTALL-001".into(),
+                    "install_hooks".into(),
+                    "CRITICAL".into()
+                ),
+                (
+                    "INFER-001".into(),
+                    "inference_security".into(),
+                    "HIGH".into()
+                ),
+                ("PROV-001".into(), "provenance".into(), "LOW".into()),
+            ]
+        );
+        assert!(findings[2]["line"].is_null());
+        assert_eq!(findings[0]["snippet"], "x");
+    }
+
+    #[test]
+    fn enhanced_body_adds_file_contents_to_the_same_request() {
+        let mut extra = Map::new();
+        extra.insert("file_contents".into(), json!({"src/a.py": "print(1)"}));
+        let body = scan_request_body(&sample_result(), "sigil-scan-enhanced", extra).unwrap();
+        assert_eq!(body["target"], CLI_SCAN_TARGET);
+        assert_eq!(body["metadata"]["source"], "sigil-scan-enhanced");
+        assert_eq!(body["metadata"]["file_contents"]["src/a.py"], "print(1)");
+        assert_eq!(body["findings"].as_array().unwrap().len(), 3);
+    }
+
+    #[test]
+    fn report_body_has_the_api_threat_report_shape() {
+        let body = report_request_body("  ABCDEF01 ", "malware", "steals tokens");
+        assert_eq!(
+            body,
+            json!({
+                "package_name": "sha256:abcdef01",
+                "reason": "steals tokens",
+                "evidence": "Threat type: malware\nSHA-256: abcdef01",
+            })
+        );
+        let body = report_request_body("ab", " ", "d");
+        assert_eq!(body["evidence"], "SHA-256: ab");
+    }
+
+    #[test]
+    fn scan_response_reads_the_id_from_either_key() {
+        let both: ScanResponse =
+            serde_json::from_str(r#"{"scan_id":"s-1","id":"s-1","status":"completed"}"#).unwrap();
+        assert_eq!(both.scan_id(), Some("s-1"));
+        let scan_id_only: ScanResponse = serde_json::from_str(r#"{"scan_id":"s-2"}"#).unwrap();
+        assert_eq!(scan_id_only.scan_id(), Some("s-2"));
+        let id_only: ScanResponse = serde_json::from_str(r#"{"id":"s-3"}"#).unwrap();
+        assert_eq!(id_only.scan_id(), Some("s-3"));
+        let neither: ScanResponse = serde_json::from_str("{}").unwrap();
+        assert_eq!(neither.scan_id(), None);
+    }
+
+    #[test]
+    fn enhanced_outcome_claims_analysis_only_when_the_api_says_so() {
+        let parse = |s: &str| EnhancedOutcome::from_response(&serde_json::from_str(s).unwrap());
+        assert_eq!(
+            parse(
+                r#"{"scan_id":"s","findings":[{"phase":"llm_analysis","rule":"LLM-1"},
+                    {"phase":"code_patterns","rule":"CODE-1"}],
+                    "metadata":{"llm_analysis_performed":true}}"#
+            ),
+            EnhancedOutcome::Analysed {
+                llm_findings: vec![json!({"phase":"llm_analysis","rule":"LLM-1"})]
+            }
+        );
+        assert_eq!(
+            parse(r#"{"scan_id":"s","metadata":{"upgrade_required":true}}"#),
+            EnhancedOutcome::UpgradeRequired
+        );
+        assert_eq!(
+            parse(
+                r#"{"scan_id":"s","metadata":{"llm_analysis_performed":false,"llm_error":"ValueError"}}"#
+            ),
+            EnhancedOutcome::NotRun("server reported: ValueError".into())
+        );
+        // An API that says nothing about the LLM step did not run it.
+        assert_eq!(
+            parse(r#"{"scan_id":"s"}"#),
+            EnhancedOutcome::NotRun("the response does not say it ran".into())
+        );
+    }
+
+    #[test]
+    fn threat_info_parses_the_api_threat_entry() {
+        // The threat entry without the fields CLI 1.3.7 required: a 200 is a match.
+        let info = parse_threat_info(
+            r#"{"hash":"h1","package_name":"evil","version":"","severity":"CRITICAL",
+                "source":"community","confirmed_at":null,"description":"steals keys"}"#,
+            "h1",
+        )
+        .unwrap();
+        assert!(info.known_malicious);
+        assert_eq!(info.package_name.as_deref(), Some("evil"));
+        assert_eq!(info.description.as_deref(), Some("steals keys"));
+        assert!(info.references.is_empty());
+
+        let explicit = parse_threat_info(r#"{"known_malicious":false}"#, "h2").unwrap();
+        assert!(!explicit.known_malicious);
+        assert_eq!(explicit.hash, "h2");
+
+        assert!(parse_threat_info("not json", "h3").is_err());
+    }
+
+    #[test]
+    fn report_response_reads_either_id_key() {
+        let current: ReportResponse =
+            serde_json::from_str(r#"{"report_id":"r-1","status":"received","message":"m"}"#)
+                .unwrap();
+        assert_eq!(current.report_id(), Some("r-1"));
+        assert_eq!(current.status.as_deref(), Some("received"));
+        let legacy: ReportResponse = serde_json::from_str(r#"{"id":"r-2","status":"ok"}"#).unwrap();
+        assert_eq!(legacy.report_id(), Some("r-2"));
+    }
+
+    #[test]
+    fn api_error_names_the_cause_of_known_statuses() {
+        use reqwest::StatusCode;
+        let e = api_error(StatusCode::UNAUTHORIZED, "", "");
+        assert!(e.contains("401") && e.contains("sigil login"), "{e}");
+        let e = api_error(StatusCode::FORBIDDEN, "{}", " (needs Pro)");
+        assert!(e.contains("(needs Pro): {}"), "{e}");
+        let long = "x".repeat(2000);
+        let e = api_error(StatusCode::UNPROCESSABLE_ENTITY, &long, "");
+        assert!(e.ends_with('…') && e.len() < 700, "{}", e.len());
+    }
+
+    #[test]
+    fn api_text_is_printed_without_control_characters() {
+        let hostile = "evil\u{1b}]8;;https://x.invalid\u{7}pkg\r\n";
+        assert!(!terminal_text(hostile).chars().any(char::is_control));
+        let e = api_error(reqwest::StatusCode::BAD_REQUEST, hostile, "");
+        assert!(!e.chars().any(char::is_control), "{e:?}");
+        let resp: ScanResponse =
+            serde_json::from_value(json!({"scan_id": "s", "metadata": {"llm_error": hostile}}))
+                .unwrap();
+        match EnhancedOutcome::from_response(&resp) {
+            EnhancedOutcome::NotRun(reason) => {
+                assert!(!reason.chars().any(char::is_control), "{reason:?}")
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    // -- The request path, against a loopback server ----------------------
+
+    /// Answer one request with `status` and `body`; the raw request comes
+    /// back on the channel.
+    fn serve_once(status: &str, body: &str) -> (String, std::sync::mpsc::Receiver<String>) {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let response = format!(
+            "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        std::thread::spawn(move || {
+            let Ok((mut s, _)) = listener.accept() else {
+                return;
+            };
+            let (mut buf, mut tmp) = (Vec::new(), [0u8; 8192]);
+            let (mut header_end, mut len) = (0usize, 0usize);
+            loop {
+                let n = s.read(&mut tmp).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&tmp[..n]);
+                if header_end == 0 {
+                    if let Some(p) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                        header_end = p + 4;
+                        let head = String::from_utf8_lossy(&buf[..header_end]).to_lowercase();
+                        len = head
+                            .lines()
+                            .find_map(|l| l.strip_prefix("content-length:"))
+                            .and_then(|v| v.trim().parse().ok())
+                            .unwrap_or(0);
+                    }
+                }
+                if header_end > 0 && buf.len() >= header_end + len {
+                    break;
+                }
+            }
+            let _ = s.write_all(response.as_bytes());
+            let _ = tx.send(String::from_utf8_lossy(&buf).to_string());
+        });
+        (format!("http://{addr}"), rx)
+    }
+
+    fn test_client(endpoint: String) -> SigilClient {
+        SigilClient {
+            endpoint,
+            client: reqwest::Client::builder().no_proxy().build().unwrap(),
+            token: Some("test-token".into()),
+        }
+    }
+
+    fn request_body(raw: &str) -> Value {
+        let (_, body) = raw.split_once("\r\n\r\n").expect("http request");
+        serde_json::from_str(body).expect("json body")
+    }
+
+    #[tokio::test]
+    async fn submit_scan_posts_the_scan_request_and_reads_scan_id() {
+        let (url, rx) = serve_once(
+            "200 OK",
+            r#"{"scan_id":"s-9","id":"s-9","status":"completed","verdict":"HIGH_RISK"}"#,
+        );
+        let result = sample_result();
+        let resp = test_client(url).submit_scan(&result).await.unwrap();
+        assert_eq!(resp.scan_id(), Some("s-9"));
+        let raw = rx.recv().unwrap();
+        assert!(raw.starts_with("POST /v1/scan HTTP/1.1"), "{raw}");
+        assert!(raw
+            .to_lowercase()
+            .contains("authorization: bearer test-token"));
+        assert_eq!(
+            request_body(&raw),
+            scan_request_body(&result, "sigil-scan", Map::new()).unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn submit_scan_reports_a_rejection_with_its_status() {
+        let (url, _rx) = serve_once(
+            "422 Unprocessable Entity",
+            r#"{"detail":"Validation error"}"#,
+        );
+        let err = test_client(url)
+            .submit_scan(&sample_result())
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("422") && err.contains("Validation error"),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn report_threat_posts_the_threat_report() {
+        let (url, rx) = serve_once(
+            "201 Created",
+            r#"{"report_id":"r-1","id":"r-1","status":"received","message":"thanks"}"#,
+        );
+        let resp = test_client(url)
+            .report_threat("AB12", "backdoor", "opens a port")
+            .await
+            .unwrap();
+        assert_eq!(resp.report_id(), Some("r-1"));
+        let raw = rx.recv().unwrap();
+        assert!(raw.starts_with("POST /v1/report HTTP/1.1"), "{raw}");
+        assert_eq!(
+            request_body(&raw),
+            report_request_body("AB12", "backdoor", "opens a port")
+        );
+    }
+
+    #[tokio::test]
+    async fn lookup_threat_reads_a_match_a_miss_and_a_refusal() {
+        let (url, rx) = serve_once(
+            "200 OK",
+            r#"{"hash":"h","package_name":"evil","severity":"HIGH","description":"bad"}"#,
+        );
+        let hit = test_client(url).lookup_threat("h").await.unwrap();
+        assert!(hit.known_malicious);
+        assert!(rx.recv().unwrap().starts_with("GET /v1/threat/h HTTP/1.1"));
+
+        let (url, _rx) = serve_once("404 Not Found", r#"{"detail":"No threat entry"}"#);
+        let miss = test_client(url).lookup_threat("h").await.unwrap();
+        assert!(!miss.known_malicious);
+
+        let (url, _rx) = serve_once("403 Forbidden", r#"{"detail":"requires the pro plan"}"#);
+        let err = test_client(url).lookup_threat("h").await.unwrap_err();
+        assert!(err.contains("403") && err.contains("Pro plan"), "{err}");
+    }
+}
+
+/// The golden contract shared with the API's tests: `tests/fixtures/api_contract`
+/// at the repository root (see its README for how it was captured).
+#[cfg(test)]
+mod contract_fixture_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn fixture(rel: &str) -> Value {
+        let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../tests/fixtures/api_contract")
+            .join(rel);
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("parse {}: {e}", path.display()))
+    }
+
+    /// CLI 1.3.7 posted the raw ScanResult, so its body is the scan itself.
+    fn scan_from_released_cli() -> ScanResult {
+        serde_json::from_value(fixture("cli-1.3.7/scan_submit.json")).expect("ScanResult")
+    }
+
+    #[test]
+    fn submit_body_is_the_captured_one() {
+        let body = scan_request_body(&scan_from_released_cli(), "sigil-scan", Map::new()).unwrap();
+        assert_eq!(body, fixture("cli-current/scan_submit.json"));
+    }
+
+    #[test]
+    fn enhanced_body_is_the_captured_one() {
+        let released = fixture("cli-1.3.7/scan_enhanced.json");
+        let mut extra = Map::new();
+        extra.insert(
+            "file_contents".into(),
+            released["metadata"]["file_contents"].clone(),
+        );
+        let body =
+            scan_request_body(&scan_from_released_cli(), "sigil-scan-enhanced", extra).unwrap();
+        assert_eq!(body, fixture("cli-current/scan_enhanced.json"));
+    }
+
+    #[test]
+    fn report_body_is_the_captured_one() {
+        let released = fixture("cli-1.3.7/report.json");
+        let body = report_request_body(
+            released["hash"].as_str().unwrap(),
+            released["threat_type"].as_str().unwrap(),
+            released["description"].as_str().unwrap(),
+        );
+        assert_eq!(body, fixture("cli-current/report.json"));
+    }
+
+    #[test]
+    fn explain_findings_are_the_captured_ones() {
+        // 1.3.7 normalised Phase 10 to "inferencesecurity"; the shared
+        // normaliser repairs that spelling and yields today's body.
+        let released = fixture("cli-1.3.7/explain_scan.json");
+        let current = fixture("cli-current/explain_scan.json");
+        let renormalised: Vec<Value> = released["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(api_finding)
+            .collect();
+        assert_eq!(Value::Array(renormalised), current["findings"]);
+    }
+
+    #[test]
+    fn responses_from_both_apis_parse() {
+        for api in ["api-patched", "api-deployed"] {
+            let scan: ScanResponse =
+                serde_json::from_value(fixture(&format!("{api}/scan_response.json"))).unwrap();
+            assert!(scan.scan_id().is_some(), "{api}");
+
+            let enhanced: ScanResponse = serde_json::from_value(fixture(&format!(
+                "{api}/scan_enhanced_response_free_plan.json"
+            )))
+            .unwrap();
+            let outcome = EnhancedOutcome::from_response(&enhanced);
+            assert!(
+                !matches!(outcome, EnhancedOutcome::Analysed { .. }),
+                "{api}: a Free plan response must not read as LLM analysis"
+            );
+
+            let report: ReportResponse =
+                serde_json::from_value(fixture(&format!("{api}/report_response.json"))).unwrap();
+            assert!(report.report_id().is_some(), "{api}");
+
+            let lookup = fixture(&format!("{api}/threat_lookup_response.json"));
+            let info = parse_threat_info(&lookup.to_string(), "unused").unwrap();
+            assert!(info.known_malicious, "{api}");
+            assert_eq!(info.package_name.as_deref(), Some("contract-test-pkg"));
+        }
+        let enhanced: ScanResponse =
+            serde_json::from_value(fixture("api-patched/scan_enhanced_response_free_plan.json"))
+                .unwrap();
+        assert_eq!(
+            EnhancedOutcome::from_response(&enhanced),
+            EnhancedOutcome::UpgradeRequired
+        );
     }
 }

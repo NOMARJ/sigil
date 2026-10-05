@@ -48,13 +48,24 @@ it.
 
 With `--submit` (normally after `sigil login`, whose token it sends), the CLI
 submits scan results to the Sigil API (`SigilClient::submit_scan`,
-`cli/src/api.rs`). The submitted `ScanResult`
-contains each `Finding`, and a `Finding` includes:
+`scan_request_body`, `cli/src/api.rs`). The request carries the number of
+files scanned, the CLI's own score and verdict, the fixed target name
+`cli-scan` (not the scanned path), and each active `Finding` (findings
+suppressed by a policy, a trust-ledger approval or a `sigil:ignore` marker
+are not sent). A `Finding` includes:
 
 - `rule`, `phase`, `severity`, `weight` — pattern metadata
 - `file`, `line` — the path and line number of the match
 - `snippet` — **the flagged source line itself** (`cli/src/scanner/mod.rs`,
   `Finding.snippet`)
+- `fingerprint`, and where they apply the advisory's `kev` and `epss`
+  values, the `locator` inside an archive, and the rule's `evidence` class
+
+CLI 1.3.7 posted its whole `ScanResult` instead: the same findings, score
+and verdict, plus any ledger- or inline-suppressed findings (snippets included), the scan
+duration, the platform it detected, and the engine version, corpus digest
+and rule IDs. The API keeps only the active findings and the file count
+from such a request.
 
 So authenticated submissions transmit *excerpts of your source code*: the
 specific lines that triggered a rule, exactly as they appear in your scan
@@ -79,10 +90,13 @@ transmit source code by design:
   collects up to 50 eligible text files under the target directory; this
   collection does not apply scanner exclusions such as `.sigilignore`.
   Ignored files can therefore be uploaded. Review the target directory
-  before requesting enhanced analysis. The same request carries the scan
-  result's `findings`, each with its `snippet` (the flagged source line),
-  including findings in files outside the uploaded ones (a secret flagged in
-  `.env`, for example).
+  before requesting enhanced analysis. The same request carries what
+  `--submit` sends (section 2): the active `findings`, each with its
+  `snippet` (the flagged source line), including findings in files outside
+  the uploaded ones (a secret flagged in `.env`, for example). The API stores
+  the request, files included, with the scan record. Its LLM step does not
+  currently run for this endpoint, so it answers with its static analysis;
+  the CLI reports that rather than an analysis.
 - The investigation service (`api/services/finding_investigator.py`) builds
   LLM prompts containing the finding's `code_snippet` plus surrounding
   context lines.

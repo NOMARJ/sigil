@@ -36,6 +36,56 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 - **The unknown-phase warning for cloud signatures no longer suggests
   `sigil install --update`**, a flag that does not exist. It now says to update
   sigil to the latest release.
+- **`sigil scan --submit`, `--enhanced`, `--enrich` and `sigil report` work
+  with the Sigil API: the CLI and the API now agree on what is sent.** The API
+  refused each request, or the CLI could not read its answer. Both sides
+  changed, and the API stays compatible with CLI 1.3.7, which needs only the
+  API update deployed.
+  The request and response bodies of both CLI versions are kept as shared
+  test fixtures (`tests/fixtures/api_contract/`), checked by
+  `cli/src/api.rs` and `api/tests/test_cli_contract.py`.
+  - `--submit` posted the raw scan result: no `target`, and phases and
+    severities in the Rust spellings (`InstallHooks`, `High`), so the API
+    answered HTTP 422. The CLI now sends the API's scan request: the active
+    findings in the API's spellings (the normalisation `sigil explain` used),
+    the file count, its own score and verdict, and the fixed target name
+    `cli-scan` rather than the scanned path. It prints the scan id. The API
+    accepts both spellings and files a 1.3.7 body, which has no target, under
+    `cli-scan`; its scan response also carries the `id` and `status` that
+    1.3.7 reads.
+  - The API had no value for the Inference Security phase (`INFER-*` rules),
+    so any scan with such a finding was refused, from `--submit`,
+    `--enhanced` and `sigil explain` alike (1.3.7's `explain` sent
+    `inferencesecurity`). The API now has `inference_security`.
+  - `--enhanced` sent the same raw findings (HTTP 422 whenever the scan had
+    one). It now sends the `--submit` request plus the files. Its scan
+    response now includes the `metadata` that says whether LLM analysis ran,
+    which the API's response model used to drop, so the CLI prints
+    `enhanced LLM analysis completed` only when it did and otherwise says the
+    API returned static analysis only, and why. The API's LLM step does not
+    run for this endpoint yet, so that is what it says for now. When the LLM
+    step fails, the API returns the exception type, not its message.
+  - `sigil report` posted `{hash, threat_type, description}`, but the API
+    expects a package name and a reason (HTTP 422), and the CLI expected an
+    `id` the API does not return. The CLI now files the hash as package
+    `sha256:<hash>`, with the description as the reason and the threat type
+    and hash as evidence; the API files a 1.3.7 body the same way and adds
+    `id` to its response. The dashboard's reports are unchanged. Report ids are
+    now full GUIDs: `threat_reports.id` is a `UNIQUEIDENTIFIER` in
+    `schema.sql`, which a 12-character id does not convert to (not tested
+    against MSSQL).
+  - `--enrich` could not parse a match: the CLI required `known_malicious` and
+    `references`, which the API's threat entry does not have, and printed the
+    failure only with `-v`. The CLI now reads the threat entry and prints its
+    description, package, severity and source; it says when there is no
+    match, and warns whenever the lookup fails (HTTP 403 on a Free plan, 401
+    for an expired token). The API's lookup response adds
+    `known_malicious: true` and `references: []` for 1.3.7. The lookup key is
+    unchanged: a hash of the directory's file paths and sizes, which matches
+    only an entry recorded for that exact directory, since the database is
+    keyed by package-artifact hashes.
+  - With `-f json`, the CLI writes these cloud messages to stderr, keeping
+    stdout to the JSON report.
 
 ### 🔧 CI
 
@@ -152,11 +202,11 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   and that it expires, and that `sigil pip`/`npm` can run package code while
   downloading (an sdist's `setup.py`, or the lifecycle scripts of a local
   directory or git spec, `owner/repo` shorthands included, given to
-  `sigil npm`). `--enhanced` sends the scan result as well as the files. The
-  docs no longer promise scan history for `--submit`: the current API rejects
-  its payload (HTTP 422), rejects `sigil report`'s, and rejects an `--enhanced`
-  request when the scan has any finding. They also say that an `--enrich` match
-  is not shown, because the CLI cannot parse the current API's match response.
+  `sigil npm`). `--enhanced` sends the scan result as well as the files. They
+  describe `--submit`, `--enhanced`, `--enrich` and `sigil report` as they
+  work after the CLI and API fix above, including what CLI 1.3.7 gets before
+  the API update is deployed, that `--enhanced` returns no LLM findings yet,
+  and that `--enrich` matches only an entry recorded for the exact directory.
 - **Smaller corrections:** `.gitignore` exclusion, `fail_on_incomplete`, the
   Claude Code MCP config location, v1.3.7 version pins and the Docker tag, the
   roadmap, the real supplementary checks, HIGH-gate figures labelled as

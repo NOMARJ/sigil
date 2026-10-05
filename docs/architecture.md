@@ -208,16 +208,15 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 ```
 1. CLI authenticates via sigil login (token stored in ~/.sigil/token)
-2. With sigil scan --submit, CLI sends the scan result to POST /v1/scan:
-   - Each finding: rule, severity, file path, line, flagged source line
-   - Risk score and verdict
-   The current API rejects the --submit payload (HTTP 422), so step 3 does
-   not yet happen for it, but the data is still sent. sigil explain also
-   posts a saved report's findings there (without the score and verdict)
-3. API enriches the scan with threat intelligence:
-   - Known malicious hash lookups
-   - Publisher reputation scores
-   - Community-reported threats
+2. With sigil scan --submit, CLI sends the scan to POST /v1/scan:
+   - Each active finding: rule, phase, severity, file path, line,
+     flagged source line
+   - Files scanned, the CLI's score and verdict, target name "cli-scan"
+   sigil explain also posts a saved report's findings there (without the
+   score and verdict, under the report file's name)
+3. API scores the findings, stores the scan for the dashboard's scan
+   history and returns its id. It also looks up package hashes and a
+   publisher named in the request metadata, which the CLI does not send
 4. sigil fetch (Pro plan) downloads updated threat signatures via GET /v1/signatures (delta sync)
 5. Signatures are cached locally for offline use; content scanned before the
    fetch (in any directory) keeps its cached result until sigil clear-cache
@@ -285,13 +284,13 @@ What is unavailable offline:
 
 `sigil login` stores a token; a plain scan does not change and sends nothing to the Sigil API. The cloud options use the token:
 
-- **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
+- **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages. That hash covers the directory's file paths and sizes, while the database is keyed by package-artifact hashes, so it matches only an entry recorded for that exact directory: no match does not mean the code is safe
 - **Signature updates (Pro plan):** `sigil fetch` downloads new detection patterns, which later fresh scans apply (content scanned before the fetch, in that directory or a copy of it, needs `sigil clear-cache` or `--no-cache`)
-- **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the Sigil API for the web dashboard's scan history. The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent
-- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent
+- **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the Sigil API for the web dashboard's scan history
+- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The API does not yet return LLM findings for it: it stores the scan and the files and answers with its static analysis, and the CLI says so
 - **Finding adjudication:** `sigil explain <scan.json>` uploads every finding in the saved scan result, flagged source lines included, and asks the server to adjudicate one with an LLM
 
-The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan of unchanged content served from the cache skips them without a message, so add `--no-cache`.
+The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan of unchanged content served from the cache skips them without a message, so add `--no-cache`. CLI 1.3.7 sends `--submit`, `--enhanced` and `sigil report` in shapes the API accepts only from the update that added CLI compatibility (`api/models.py`), and shows an `--enrich` match only from that update; a scan with an Inference Security (`INFER-*`) finding needs it from any CLI version.
 
 ## Threat Intelligence Pipeline
 

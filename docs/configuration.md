@@ -480,10 +480,10 @@ After `sigil login`, the JWT token is stored at `~/.sigil/token`. The file conta
 Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a `sigil scan` of a tree with a lockfile does look its dependencies' names and versions up in OSV and npm/PyPI and, for CVE-numbered advisories, sends those CVE IDs to FIRST EPSS and downloads the CISA KEV catalogue). What each option sends, per [Data Handling](data-handling.md):
 
 - `sigil scan --enrich`: a SHA-256 hash of the paths and sizes of every file under the directory
-- `sigil scan --submit`: the scan result, including each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. Flagged lines are source code, and can include a secret the line contains
+- `sigil scan --submit`: the scan's active findings, each with its rule, phase, severity, file path, line and the flagged source line, plus the number of files scanned and the score and verdict, under the target name `cli-scan` rather than the scanned path. Flagged lines are source code, and can include a secret the line contains
 - `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example)
 - `sigil explain <scan.json>`: every finding in that saved scan report, including each flagged source line, so the server can have a model adjudicate one of them
-- `sigil report <hash>`: the hash, threat type and description you give it. The current API rejects this payload (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
+- `sigil report <hash>`: the hash, threat type and description you give it, filed for review under the package name `sha256:<hash>`. CLI 1.3.7's report is rejected (HTTP 422) until the Sigil API update that accepts it is deployed
 
 ---
 

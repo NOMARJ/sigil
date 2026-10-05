@@ -37,38 +37,6 @@ pub fn parse_scan_findings(content: &str) -> Result<Vec<Value>, String> {
     }
 }
 
-/// Map a CLI phase name (serde CamelCase) to the API's snake_case value.
-fn normalize_phase(phase: &str) -> String {
-    match phase {
-        "InstallHooks" => "install_hooks".into(),
-        "CodePatterns" => "code_patterns".into(),
-        "NetworkExfil" => "network_exfil".into(),
-        "Credentials" => "credentials".into(),
-        "Obfuscation" => "obfuscation".into(),
-        "Provenance" => "provenance".into(),
-        "PromptInjection" => "prompt_injection".into(),
-        "SkillSecurity" => "skill_security".into(),
-        "LlmAnalysis" => "llm_analysis".into(),
-        other => other.to_lowercase(),
-    }
-}
-
-/// Normalize one CLI finding to the API's Finding schema (phase snake_case,
-/// severity uppercase). Unknown keys pass through untouched.
-pub fn normalize_finding(finding: &Value) -> Value {
-    let mut out = finding.clone();
-    if let Some(obj) = out.as_object_mut() {
-        if let Some(phase) = obj.get("phase").and_then(|p| p.as_str()) {
-            let normalized = normalize_phase(phase);
-            obj.insert("phase".into(), Value::String(normalized));
-        }
-        if let Some(sev) = obj.get("severity").and_then(|s| s.as_str()) {
-            obj.insert("severity".into(), Value::String(sev.to_uppercase()));
-        }
-    }
-    out
-}
-
 /// Render a successful adjudication verdict.
 fn render_verdict(adjudication: &Value) {
     let classification = adjudication
@@ -180,7 +148,7 @@ pub async fn cmd_explain(
     };
 
     // 1. Submit the scan so the server holds the findings to adjudicate.
-    let normalized: Vec<Value> = findings.iter().map(normalize_finding).collect();
+    let normalized: Vec<Value> = findings.iter().map(crate::api::api_finding).collect();
     let target = scan_json
         .file_stem()
         .and_then(|s| s.to_str())
@@ -402,9 +370,21 @@ mod tests {
         let finding = serde_json::json!({
             "phase": "NetworkExfil", "severity": "High", "rule": "NET-006", "file": "a.js"
         });
-        let n = normalize_finding(&finding);
+        let n = crate::api::api_finding(&finding);
         assert_eq!(n["phase"], "network_exfil");
         assert_eq!(n["severity"], "HIGH");
         assert_eq!(n["rule"], "NET-006");
+    }
+
+    #[test]
+    fn normalizes_inference_security_to_the_api_value() {
+        // 1.3.7 sent "inferencesecurity", which the API's enum rejects.
+        let finding = serde_json::json!({
+            "phase": "InferenceSecurity", "severity": "High", "rule": "INFER-001", "file": "c.py"
+        });
+        assert_eq!(
+            crate::api::api_finding(&finding)["phase"],
+            "inference_security"
+        );
     }
 }
