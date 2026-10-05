@@ -189,4 +189,4 @@ cat ~/.sigil/reports/<id>_report.txt
 
 ---
 
-_Learn more: [Scan Phases Reference](https://github.com/NOMARJ/sigil/blob/main/docs/scan-rules.md) | Install: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`_
+_Learn more: [Scan Phases Reference](https://github.com/NOMARJ/sigil/blob/main/docs/cli.md#scan-phases) | Install: `curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh`_

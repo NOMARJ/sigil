@@ -18,6 +18,8 @@ sigil login --token "$SIGIL_API_TOKEN"
 
 `SIGIL_API_TOKEN` here is a shell variable that you pass explicitly; the CLI does not read it automatically. The CLI validates the token with `GET /v1/auth/verify` before saving it. Keep the variable in your CI secret store and avoid logging the command with shell tracing enabled.
 
+There is currently no way to generate an API token from the dashboard. The token you can supply is the access token a browser sign-in saved to `~/.sigil/token`. It expires and the CLI does not refresh it, so sign in again and replace the stored secret when it does.
+
 ## Token storage
 
 The fixed token path is `~/.sigil/token`. Login creates the parent directory as needed and attempts to set owner-only permissions (`600`) on Unix. Check storage without displaying the token:
@@ -48,11 +50,14 @@ sigil fetch
 
 - Plain scanning runs the local detection phases. Dependency advisory and registry lookups may still access the network; lack of authentication is not a network isolation setting.
 - `--enrich` looks up a directory hash in the cloud threat database.
-- `--submit` uploads the scan result, including findings and their metadata.
+- `--submit` uploads the scan result, including findings, their metadata and each finding's flagged source line, which can contain a secret.
 - `--enhanced` requires authentication and sends collected source file contents and the scan result for server-side LLM analysis. Review the files before selecting this option.
 - `sigil fetch` downloads cloud signatures. Logging in alone does not fetch them.
+- `sigil explain <scan.json>` requires authentication and uploads every finding in that saved scan report, flagged source lines included, so the server can have a model adjudicate one finding.
 
 Cloud feature access depends on the server and account plan. Local scanning remains available when cloud enrichment cannot be reached; an explicitly requested enhanced scan without authentication returns an error.
+
+The `sigil scan` cloud options run only on a fresh scan. When `sigil scan` reuses the cached result of an unchanged directory (it prints `sigil: using cached result`), `--enrich`, `--submit` and `--enhanced` are skipped without a message, and an unauthenticated `--enhanced` returns no error. Add `--no-cache` when you request them. Signatures from `sigil fetch` likewise reach a directory scanned before the fetch only after `sigil clear-cache` or with `--no-cache`.
 
 ## API endpoint
 
@@ -94,7 +99,7 @@ Authenticated API requests use an `Authorization: Bearer` header. Password authe
   run: sigil scan ./ --fail-on high
 ```
 
-Use the CI system's secret store for the token. A plain scan does not require this authentication step; authenticate when your workflow requests cloud operations that need it.
+Use the CI system's secret store for the token (the access token from `~/.sigil/token`, see [Sign in](#sign-in); replace it when it expires). A plain scan does not require this authentication step; authenticate when your workflow requests cloud operations that need it.
 
 ## Further reading
 

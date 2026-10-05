@@ -14,7 +14,7 @@
 
 ---
 
-Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing runs until it's been scanned, scored, and explicitly approved.
+Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing is installed or run before it has been scanned and scored, and you decide what to approve (one exception: `sigil pip` lets pip run a source-only package's `setup.py` while downloading it).
 
 The AI tooling ecosystem moves fast. Developers clone repos from tutorials, install MCP servers with 12 GitHub stars, and pull agent skills from Discord — all of which get direct access to API keys, databases, and cloud credentials. Traditional dependency scanners catch known CVEs but miss the real threat: **intentionally malicious code** designed to exfiltrate credentials, establish backdoors, or execute arbitrary commands via install hooks.
 
@@ -56,7 +56,7 @@ curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 
 **Coming Soon:**
 
-- **Docker**: `docker pull nomark/sigil`
+- **Docker**: `docker pull nomark/sigil:<version>` (images will carry only version tags, no `latest`; see [installation](docs/installation.md))
 
 > **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. Install the Rust CLI with `cargo install sigil-cli`.
 
@@ -135,6 +135,7 @@ sigil residue apply       # apply with a backup of every target; undo with `sigi
 sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
+# (cloud options run only on a fresh scan: add --no-cache if ./code was scanned before)
 
 # Download and scan any URL: archives, single files, GitHub /tree/ links
 sigil scan https://example.com/agent-tool.tar.gz
@@ -224,22 +225,25 @@ Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tool
 
 ## Threat Intelligence
 
-Sigil can connect to a **community-powered threat intelligence database**, on request: `sigil scan --enrich` looks the scanned directory's hash up in it, and `sigil fetch` downloads its threat signatures, which later scans apply. Logging in (`sigil login`) stores the token these send; it does not change a plain scan. Scans you send with `sigil scan --submit` contribute their findings (see below for what that includes). New signatures reach your CLI only when you run `sigil fetch`; nothing is synced automatically.
+Sigil can connect to a **community-powered threat intelligence database**, on request and with a Pro plan: `sigil scan --enrich` looks the scanned directory's hash up in it, and `sigil fetch` downloads its threat signatures, which later fresh scans apply (a directory scanned before the fetch is re-checked only after `sigil clear-cache` or with `--no-cache`). Logging in (`sigil login`) stores the token these send; it does not change a plain scan. Scans you send with `sigil scan --submit` contribute their findings (see below for what that includes). New signatures reach your CLI only when you run `sigil fetch`; nothing is synced automatically.
 
 **What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
 
 - **Offline / unauthenticated (default):** no source code, no account. All eight phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), which sends their names and versions; for advisories numbered `CVE-…` it also downloads the CISA KEV catalogue and sends those CVE IDs to FIRST's EPSS API.
 - **Scan submission (`sigil scan --submit`, after `sigil login`):** submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
-- **Pro AI investigation:** the relevant source files for a finding are uploaded and shared with an LLM provider to produce the analysis. This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
+- **AI explanation (`sigil explain scan.json`, after `sigil login`):** every finding in that saved report, flagged source lines included, goes to the Sigil API, which has an LLM provider adjudicate one of them.
+- **Pro AI investigation:** source files are uploaded and shared with an LLM provider to produce the analysis (`sigil scan --enhanced` uploads up to 50 eligible text files under the target directory, collected independently of scan exclusions). This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
 
 **Offline mode:** All eight scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
 
 ```bash
-# Authenticate, then use threat intel explicitly
+# Authenticate, then use threat intel explicitly (Pro plan)
 sigil login
-sigil fetch                    # download threat signatures
-sigil scan . --enrich          # hash lookup in the threat database
+sigil fetch                       # download threat signatures
+sigil scan . --enrich --no-cache  # hash lookup in the threat database
 ```
+
+The cloud options of `sigil scan` (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan that reuses a cached result skips them without a message, hence `--no-cache`.
 
 **[Learn more about authentication →](docs/authentication-guide.md)**
 
@@ -472,11 +476,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 See [ROADMAP.md](ROADMAP.md) for the full roadmap.
 
-**Today:** Quarantine-first scanning for pip, npm, and git repos. Eight-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
+**Today:** Quarantine-first scanning for pip, npm, and git repos. Eight-phase behavioral detection. Custom scan rules in YAML or JSON. Dependency advisory lookups for `requirements.txt`, `package-lock.json`, `Cargo.lock` and `go.mod`. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
 
 **Now:** Hosted cloud — sign up and scan without running infrastructure.
 
-**Next:** Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
+**Next:** Docker image. VS Code Marketplace and JetBrains Marketplace listings. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
 
 ## Contributing
 

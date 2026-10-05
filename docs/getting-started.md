@@ -1,6 +1,6 @@
 # Getting Started with Sigil
 
-Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing executes until you explicitly approve it.
+Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it, with one exception: `sigil pip` lets pip run a source-only package's `setup.py` (see [Scanning a pip Package](#scanning-a-pip-package)).
 
 ## Prerequisites
 
@@ -144,7 +144,7 @@ Example output for a small repository with an `eval()` call, an outbound `reques
 sigil pip some-agent-toolkit
 ```
 
-Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan.
+Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It downloads with `pip download`, so for a package published only as a source distribution, pip runs the package's `setup.py` on your machine to read its metadata, before the scan.
 
 ### Scanning an npm Package
 
@@ -253,18 +253,21 @@ Sigil needs no account, and the eight scan phases run locally. `sigil scan` does
 sigil login
 ```
 
-The CLI prints a verification URL and code. Open the URL, confirm the code, and finish signing in in your browser while the CLI waits. After authentication, the CLI stores the access token in `~/.sigil/token`. For non-interactive use, pass an existing token with `sigil login --token "$SIGIL_API_TOKEN"`. Logging in does not change a plain scan; the token is sent only by the cloud options below.
+The CLI prints a verification URL and code. Open the URL, confirm the code, and finish signing in in your browser while the CLI waits. After authentication, the CLI stores the access token in `~/.sigil/token`. For non-interactive use, pass an existing token with `sigil login --token "$SIGIL_API_TOKEN"`. There is currently no way to generate an API token from the dashboard: the token to pass is the one a browser sign-in saved in `~/.sigil/token`, and it expires (the CLI does not refresh it), so sign in again and replace it when it does. Logging in does not change a plain scan; the token is sent only by the cloud options below.
 
 **The cloud options** (each is something you run explicitly):
 
-| Option                       | What it does                                                    |
-| ---------------------------- | --------------------------------------------------------------- |
-| `sigil scan --enrich`        | Looks the scanned directory's hash up in the threat database   |
-| `sigil fetch`                | Downloads community threat signatures, which later scans apply |
-| `sigil scan --submit`        | Sends the scan result to the Sigil API (scan history)          |
-| `sigil scan --enhanced`      | Pro: uploads file contents for LLM analysis (requires login)   |
+| Option                    | What it does                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------- |
+| `sigil scan --enrich`     | Pro: looks the scanned directory's hash up in the threat database                |
+| `sigil fetch`             | Pro: downloads community threat signatures, which later fresh scans apply        |
+| `sigil scan --submit`     | Sends the scan result to the Sigil API (scan history)                            |
+| `sigil scan --enhanced`   | Pro: uploads file contents for LLM analysis (requires login)                     |
+| `sigil explain scan.json` | Sends a saved scan report's findings for AI adjudication of one (requires login) |
 
-**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the scanned files' paths and sizes. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
+The `sigil scan` options run only on a fresh scan. Re-scanning an unchanged directory reuses the cached result (`sigil: using cached result`) and skips them without a message, so add `--no-cache`, for example `sigil scan . --enrich --no-cache`. Signatures from `sigil fetch` likewise reach a directory scanned before the fetch only after `sigil clear-cache` or with `--no-cache`.
+
+**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the scanned files' paths and sizes. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions. `sigil explain` sends every finding in the scan report it reads, flagged source lines included. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
 
 ## Configuration
 

@@ -100,6 +100,12 @@ docs/
 *.spec.py
 ```
 
+**Hide lower-severity findings:** `--severity` drops findings below a level from the report:
+
+```bash
+sigil scan . --severity high
+```
+
 **Report false positives:** If you believe a pattern should not be flagged, file an issue at [github.com/NOMARJ/sigil/issues](https://github.com/NOMARJ/sigil/issues) with the label `false-positive`.
 
 ### Scan takes too long
@@ -108,16 +114,13 @@ Large directories with many files slow down scanning.
 
 **Fix:**
 
-1. Add a `.sigilignore` file to skip large directories:
+1. Add a `.sigilignore` file to skip large directories (`node_modules/`, `.next/`, `__pycache__/` and virtualenvs are already skipped):
 
 ```bash
 # .sigilignore
-node_modules/
 vendor/
 dist/
 build/
-.next/
-__pycache__/
 ```
 
 2. Scan only specific phases:
@@ -126,11 +129,7 @@ __pycache__/
 sigil scan . --phases install_hooks,code_patterns
 ```
 
-3. Raise the severity threshold:
-
-```bash
-sigil scan . --severity high
-```
+`--severity` does not make a scan faster: it only hides findings below that level from the report (see [False positives](#false-positives)).
 
 ### `sigil scan` exits with an error
 
@@ -154,7 +153,7 @@ A "semgrep not found" message came from the legacy bash CLI (`bin/sigil`). The c
 
 ### Scan shows no findings but I expect some
 
-1. **Check file types:** every text file is content-scanned, whatever its extension. Binary files get only the structural checks, and `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches are never content-scanned (see [File Types Scanned](cli.md#file-types-scanned)).
+1. **Check file types:** every text file is content-scanned, whatever its extension. Binary files get only the structural checks, and `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches are never content-scanned (see [File Types Scanned](cli.md#file-types-scanned)). Inside a git repository, files the repository's `.gitignore` excludes are not scanned at all: check with `git check-ignore -v <file>`, or scan a copy outside the repository.
 
 2. **Check .sigilignore:** Your ignore file may be excluding the relevant files.
 
@@ -188,11 +187,13 @@ curl -s https://api.sigilsec.ai/health
 curl -s "https://api.yourcompany.com/health"
 ```
 
-**Check how you log in:** `sigil login` has no email or password option. Without flags it opens a browser sign-in (it prints a URL and a code to confirm); `sigil login --token <token>` checks a token you already have against the API before storing it.
+The endpoint applies to that login only and is not saved: `sigil fetch`, `sigil report` and the cloud options of `sigil scan` always use `https://api.sigilsec.ai`.
+
+**Check how you log in:** `sigil login` has no email or password option. Without flags it runs a browser sign-in: it prints a URL and a code for you to open and confirm; `sigil login --token <token>` checks a token you already have against the API before storing it.
 
 ### Token expired
 
-JWT tokens have an expiration time. When the token expires, Sigil falls back to offline mode silently.
+The access token the `sigil login` browser sign-in stores expires, and the CLI neither checks nor refreshes it. Once the API rejects it, `sigil fetch`, `sigil report` and `sigil explain` fail with an API error, `sigil scan --submit` and `--enhanced` print a warning and keep the local result, and `--enrich` reports the failure only with `-v`.
 
 **Fix:** Re-authenticate:
 
@@ -202,7 +203,13 @@ sigil login
 
 ### Threat intelligence not loading
 
-Logging in does not change a plain `sigil scan`. The hash lookup runs only with `sigil scan --enrich`, which prints `THREAT INTEL: <path> is a known threat` on a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. If it fails:
+Logging in does not change a plain `sigil scan`. The hash lookup runs only with `sigil scan --enrich`, and only on a fresh scan: when the scan reuses a cached result (it prints `sigil: using cached result`, the default when you re-scan an unchanged directory), `--enrich`, `--submit` and `--enhanced` are skipped without a message, so add `--no-cache`:
+
+```bash
+sigil -v scan . --enrich --no-cache
+```
+
+`--enrich` prints `THREAT INTEL: <path> is a known threat` on a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. The threat database needs a Pro plan; the API refuses the lookup otherwise. If it fails:
 
 1. **Check authentication status:**
 
@@ -256,6 +263,8 @@ cat results.sarif | python -m json.tool    # Check it's valid JSON
 
 ### Exit code mapping in CI
 
+For `sigil scan`:
+
 | Exit Code | Meaning | Suggested CI Action |
 |-----------|---------|-------------------|
 | `0` | No finding at or above `--fail-on` (default `high`) | Pass |
@@ -263,6 +272,8 @@ cat results.sarif | python -m json.tool    # Check it's valid JSON
 | `2` | Scan error: invalid path or flags, or the scan could not run | Fail, and fix the job |
 
 The exit code follows the findings, not the verdict: with the default `--fail-on high`, a MEDIUM RISK result exits `0` when none of its findings is High or Critical, and `1` when one is. To gate on the verdict as well, add `--fail-on-verdict` (see [Exit Codes](cli.md#exit-codes)).
+
+`sigil clone`, `sigil pip` and `sigil npm` have no `--fail-on`: they exit `0` for a LOW RISK verdict, `1` for any other verdict (MEDIUM RISK included), and `2` when the command itself fails.
 
 **Example gate script:**
 
@@ -302,12 +313,19 @@ The Sigil plugin requires JetBrains IDE version 2024.1 or later. Check your IDE 
 1. **Check the config file path:**
 
 ```bash
-# Claude Code
-cat ~/.claude/claude_desktop_config.json
+# Claude Code: list the servers it has registered. It keeps user- and
+# local-scope servers in ~/.claude.json and project servers in .mcp.json
+claude mcp list
+
+# Claude Desktop (not Claude Code) reads claude_desktop_config.json, in
+# ~/Library/Application Support/Claude/ (macOS), ~/.config/Claude/ (Linux)
+# or %APPDATA%\Claude\ (Windows)
 
 # Verify the path to index.js exists
 ls /path/to/sigil/plugins/mcp-server/dist/index.js
 ```
+
+The `sigil` binary also has a built-in MCP server that needs no Node.js build: `claude mcp add sigil -- sigil mcp` (see the [MCP Integration Guide](mcp.md#built-in-server-no-nodejs-nothing-else-to-install)).
 
 2. **Build the MCP server if not already built:**
 
@@ -335,7 +353,7 @@ See the [MCP Integration Guide](mcp.md) for detailed setup instructions.
 
 ### Does Sigil send my source code to the cloud?
 
-Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups. Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `--enhanced` (Pro) uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions; and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
+Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups, and, for CVE-numbered advisories, those CVE IDs to FIRST EPSS (plus a download of the CISA KEV catalogue). Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `sigil explain scan.json` sends every finding in that report, flagged source lines included, to the Sigil API for AI adjudication; `--enhanced` (Pro) uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions; and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
 
 ### Can I use Sigil without an internet connection?
 
@@ -367,11 +385,11 @@ This removes all quarantined and approved code, the trust ledger, cached results
 
 ### What languages does Sigil scan?
 
-Every text file is content-scanned, whatever its language or extension: a `.go` or `.rb` file is scanned like a `.py` one, and so are markdown, agent instruction files, manifests and configuration. Some checks are scoped by file name (install hooks key on `setup.py` and `package.json`, for example). See [File Types Scanned](cli.md#file-types-scanned).
+Every text file is content-scanned, whatever its language or extension, including markdown, agent instruction files, manifests and configuration (inside a git repository, files its `.gitignore` excludes are not scanned). Some rules apply only to certain file names or extensions (install hooks key on `setup.py` and `package.json`, for example), and more of them cover Python and JavaScript than Go or Ruby. See [File Types Scanned](cli.md#file-types-scanned).
 
 ### How is the risk score calculated?
 
-Each finding scores its severity (Low 1, Medium 2, High 3, Critical 5) times its phase weight, and the score is the sum, counting at most three findings per (rule, file) pair. Phase weights run from 1x (provenance) to 10x (install hooks, prompt injection). The [Getting Started](getting-started.md#scanning-a-git-repository) example scores 3×5 (a High code pattern) + 1×3 (a Low network call) + 1×2 (a Low credential read) = 20. The verdict is not a score threshold: see [Verdicts and Scoring](cli.md#verdicts-and-scoring).
+Each finding scores its severity (Low 1, Medium 2, High 3, Critical 5) times its weight, which is its phase's weight unless the rule sets its own, and the score is the sum, counting at most three findings per (rule, file) pair. Phase weights run from 1x (provenance) to 10x (install hooks, prompt injection). The [Getting Started](getting-started.md#scanning-a-git-repository) example scores 3×5 (a High code pattern) + 1×3 (a Low network call) + 1×2 (a Low credential read) = 20. The verdict is not a score threshold: see [Verdicts and Scoring](cli.md#verdicts-and-scoring).
 
 ---
 

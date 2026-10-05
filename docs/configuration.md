@@ -42,6 +42,7 @@ lists under `locked:` can afterwards only be made stricter.
 version: 1                          # optional; the only version is 1
 fail_on: high                       # exit 1 on a finding at or above this (default high)
 fail_on_verdict: HIGH               # also exit 1 when the verdict is at or above this
+fail_on_incomplete: false           # also exit 1 when part of the target could not be fully inspected
 min_severity: low                   # hide findings below this (same as --severity)
 disable_rules: [NET-012, "PROV-*"]  # rule ids or globs (* and ?), case-insensitive
 severity_overrides:                 # rule id or glob -> severity
@@ -67,6 +68,7 @@ allow_project_policy: true          # false = project files may only tighten
 |---|---|---|
 | `fail_on` | `low`/`medium`/`high`/`critical` | exit 1 when an active finding is at or above it |
 | `fail_on_verdict` | `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` | exit 1 when the verdict is at or above it |
+| `fail_on_incomplete` | bool | exit 1 when part of the target could not be fully inspected (as `--fail-on-incomplete`); see [Incomplete coverage](cli.md#incomplete-coverage) |
 | `min_severity` | severity | findings below it are dropped from the report and the score (counted in `policy.hidden_below_min_severity`) |
 | `disable_rules` | list of ids/globs | matching findings move to `policy.suppressed` |
 | `severity_overrides` | map id/glob → severity | rewrites a finding's severity before everything else; later entries win |
@@ -132,7 +134,8 @@ reporting on it by shipping a broken one; your own policy file, or one named
 with `--config`, still fails the run with exit `2`.
 Pass `--config <file>` to vouch for it. `sigil clone`/`pip`/`npm` never read
 a policy from quarantined content; they apply only the organisation and
-`--config` rule packs.
+`--config` rule packs. Their exit code does not follow `fail_on`: it is `1`
+for any verdict above LOW RISK (see [Exit Codes](cli.md#exit-codes)).
 
 **Sigil's own files.** Findings in the trusted policy file and in the
 baselines in use (for example the hidden-file rule firing on `.sigil.yml`, or
@@ -469,7 +472,7 @@ After `sigil login`, the JWT token is stored at `~/.sigil/token`. The file conta
 
 - Tokens are issued by the Sigil API with an expiration time
 - The CLI reads the token on each authenticated request
-- Logging in does not change a plain `sigil scan`; only the cloud options (`--enrich`, `--submit`, `--enhanced`, `sigil fetch`, `sigil report`) send the token
+- Logging in does not change a plain `sigil scan`; only the cloud options (`--enrich`, `--submit`, `--enhanced`, `sigil fetch`, `sigil report`, `sigil explain`) send the token. The `sigil scan` options run only on a fresh scan: a re-scan that reuses a cached result skips them, so add `--no-cache`
 - Run `sigil login` again to refresh an expired token
 
 ### What Data Is Sent
@@ -479,6 +482,7 @@ Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a
 - `sigil scan --enrich`: a SHA-256 hash of the scanned files' paths and sizes
 - `sigil scan --submit`: the scan result, including each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. Flagged lines are source code, and can include a secret the line contains
 - `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis
+- `sigil explain <scan.json>`: every finding in that saved scan report, including each flagged source line, so the server can have a model adjudicate one of them
 
 ---
 

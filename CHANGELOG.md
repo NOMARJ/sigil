@@ -117,8 +117,9 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   read are replaced with what the current CLI does.
 - **The README, CLI reference, troubleshooting, authentication and
   architecture pages now agree with them.** They dropped the bash-only
-  environment variables (`SIGIL_TOKEN` and `SIGIL_API_URL` included: use
-  `sigil login --endpoint`), `~/.sigil/approved/`, `~/.sigil/reports/`,
+  environment variables (`SIGIL_TOKEN` and `SIGIL_API_URL` included; there is
+  no endpoint setting, and `sigil login --endpoint` applies to that login only
+  and is not saved), `~/.sigil/approved/`, `~/.sigil/reports/`,
   `sigil config --init`, `sigil logout`, external-scanner integration and the
   aliases only the bash CLI defined. `safepip`/`safenpm` download and scan but do not
   install, `sigil scan` looks lockfile dependencies up in OSV and npm/PyPI
@@ -128,14 +129,28 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
 - **Verdicts, exit codes and cloud features are described as the CLI behaves**
   (README, CLI reference, getting started, troubleshooting, configuration,
   architecture, data handling). The verdict follows the evidence, not score
-  bands; the score is severity times phase weight; exit codes are 0/1/2 by
-  `--fail-on`. Logging in changes no scan: `--enrich`, `--submit`,
+  bands; the score is severity times weight (the phase's, unless the rule sets
+  its own); `sigil scan` exits by `--fail-on` (and `--fail-on-verdict` or
+  `--fail-on-incomplete` when given), while `clone`/`pip`/`npm` exit 1 for any
+  verdict above LOW RISK. Logging in changes no scan: `--enrich`, `--submit`,
   `--enhanced` and `sigil fetch` are explicit, and `--submit` sends flagged
   source lines. A default `sigil scan` sends lockfile dependency names and
   versions to OSV and npm/PyPI (and CVE IDs to EPSS); `clone`/`pip`/`npm` skip
   those lookups. Every text file is scanned, `sigil list` shows no verdict,
   Linux source builds need a C compiler, make and perl, `sigilsec` is on PyPI,
   and the Docker images are not published yet.
+- **The docs now say what each command sends to the Sigil API**, including
+  `sigil explain`, which uploads every finding in the scan JSON, flagged source
+  lines included. `--enrich` and `sigil fetch` are marked Pro; a cached scan
+  skips the cloud options and fetched signatures, so both need `--no-cache` or
+  `sigil clear-cache`. The CLI reference explains where a CI token comes from
+  and that it expires, and that `sigil pip`/`npm` can run package code while
+  downloading (an sdist's `setup.py`).
+- **Smaller corrections:** `.gitignore` exclusion, `fail_on_incomplete`, the
+  Claude Code MCP config location, v1.3.7 version pins and the Docker tag, the
+  roadmap, the real supplementary checks, HIGH-gate figures labelled as
+  measurements of the earlier gate, Azure SQL (MSSQL) instead of Supabase in the
+  architecture page, and the install guide leading with the install script.
 
 ## [1.3.7] - 2026-09-27
 

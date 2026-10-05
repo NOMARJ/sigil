@@ -13,6 +13,7 @@
 | --- | --- | --- | --- |
 | Default CLI, logged in or not | **No** | For `sigil scan` of a tree with a lockfile: the listed dependencies' names and versions, and the IDs of any `CVE-` advisories found | OSV (`api.osv.dev`), the npm and PyPI registries, and FIRST EPSS (`api.first.org`); the CISA KEV catalogue is downloaded from `www.cisa.gov` |
 | Scan submission (`sigil scan --submit`, after `sigil login`) | **Flagged lines only** | Finding metadata + the source-line excerpts shown in scan output | Sigil API |
+| AI explanation (`sigil explain <scan.json>`, after `sigil login`) | **Flagged lines only** | Every finding in that saved scan report: metadata + the flagged source line | Sigil API → LLM provider (the finding being adjudicated) |
 | Pro enhanced scan / AI investigation | **Yes — collected text files** | For CLI `--enhanced`, up to 50 eligible text files under the target directory, collected independently of scan exclusions; investigation sends finding context | Sigil API → LLM provider |
 | Optional LLM review (`sigil scan --llm-review`, off by default) | **Yes — masked excerpts** | Per finding at Medium or above: rule, title, path, masked matched line and up to 6 masked lines on each side | The model endpoint you configure (Anthropic, or an OpenAI-compatible endpoint), directly, not via Sigil |
 
@@ -56,6 +57,14 @@ So authenticated submissions transmit *excerpts of your source code*: the
 specific lines that triggered a rule, exactly as they appear in your scan
 output. Full files are **not** uploaded on this path. Do not describe this
 tier as "metadata only" without also disclosing the flagged-line excerpts.
+
+`sigil explain <scan.json>` (`cmd_explain`, `cli/src/explain.rs`) sends the
+same kind of data, read from a saved `-f json` report: with the stored token
+it posts every finding in that report, `snippet` included, to
+`POST /v1/scan`, then asks the API to adjudicate one finding (`--finding`,
+default the first) at `POST /v1/scans/{id}/findings/{n}/adjudicate`
+(`api/routers/scan.py`). The API passes that finding and its flagged line to
+the configured LLM provider (`api/services/fp_adjudicator.py`).
 
 ## 3. Pro enhanced scan and AI investigation
 
@@ -111,9 +120,10 @@ provider's data-usage terms. Full detail: [llm-review.md](llm-review.md).
 ## Rules for copy and docs (enforced by review)
 
 1. "No code leaves your machine" / "no source code is transmitted" — only
-   when explicitly scoped to the CLI without `--submit`, `--enhanced` or
-   `--llm-review`. Never "fully offline" without qualification: by default
-   `sigil scan` looks lockfile dependencies up online (section 1).
+   when explicitly scoped to the CLI without `--submit`, `--enhanced`,
+   `--llm-review` or `sigil explain`. Never "fully offline" without
+   qualification: by default `sigil scan` looks lockfile dependencies up
+   online (section 1).
 2. Any surface that sells or enables Pro must disclose that Pro uploads
    relevant source files for AI analysis.
 3. Statements about scan submission (`--submit`) must mention flagged-line

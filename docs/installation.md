@@ -4,34 +4,16 @@ Complete installation instructions for all platforms and package managers.
 
 ---
 
-## 🚀 Current Installation Method
+## 🚀 Install Script & Package Managers
 
-### Manual Install (macOS/Linux)
+### Quick Install Script (macOS/Linux)
 
 ```bash
-# Clone the repository
-git clone https://github.com/NOMARJ/sigil.git
-cd sigil/cli
-
-# Build the Rust CLI (needs Rust 1.89 or newer and, on Linux, a C compiler,
-# make and perl; see Build from Source below)
-cargo build --release
-
-# Copy the binary to /usr/local/bin
-sudo ./target/release/sigil install
+curl -fsSLO https://www.sigilsec.ai/install.sh
+sh install.sh
 ```
 
-**What it does:**
-
-- Builds the Rust CLI from `cli/`
-- `sigil install` copies the running binary to `/usr/local/bin/sigil` (`--path <dir>` installs into another directory, which must already exist)
-- Creates nothing under `~/.sigil/`: Sigil creates what it needs there the first time a command uses it (for example `~/.sigil/quarantine/` on the first `sigil clone`)
-- Installs no shell aliases: add them with `sigil setup shell` (optional)
-- Sets up no git hooks: add a pre-commit scan with `sigil setup git` (optional)
-
----
-
-## Package Managers & Install Script
+Downloads the prebuilt release binary for your platform; see the [Getting Started guide](getting-started.md#option-1-quick-install-recommended) for what it checks and installs. To build the CLI yourself instead, see Build from Source below.
 
 ### Homebrew (macOS/Linux)
 
@@ -67,17 +49,10 @@ package: on first run it downloads the prebuilt binary for your platform
 against the release's `SHA256SUMS.txt`, caches it under
 `~/.sigil/bin/sigil-<version>`, and then forwards every invocation to it.
 
-- `SIGIL_VERSION=v1.3.6 sigil ...` — fetch a specific release (same as `install.sh`)
+- `SIGIL_VERSION=v1.3.7 sigil ...` — fetch a specific release (same as `install.sh`)
 - `SIGIL_BINARY=/path/to/sigil sigil ...` — use an existing binary, no download
 - Upgrade with `pip install --upgrade sigilsec`; remove with `pip uninstall sigilsec`
   (the cached binaries in `~/.sigil/bin/` can be deleted by hand)
-
-### Quick Install Script
-
-```bash
-curl -fsSLO https://www.sigilsec.ai/install.sh
-sh install.sh
-```
 
 ---
 
@@ -273,7 +248,7 @@ a derived image).
 - **Git**
 - **On Linux: a C compiler, `make` and `perl`** (for example `sudo apt install build-essential perl`). The HTTP client is built with `native-tls-vendored`, so the build compiles OpenSSL from source (`openssl-src`); `Dockerfile.cli` installs the same tools for that reason.
 
-### Build the CLI
+### Build the CLI (macOS/Linux)
 
 ```bash
 git clone https://github.com/NOMARJ/sigil
@@ -281,6 +256,14 @@ cd sigil/cli
 cargo build --release
 sudo ./target/release/sigil install    # copies the binary to /usr/local/bin
 ```
+
+**What it does:**
+
+- Builds the Rust CLI from `cli/`
+- `sigil install` copies the running binary to `/usr/local/bin/sigil` (`--path <dir>` installs into another directory, which must already exist)
+- Creates nothing under `~/.sigil/`: Sigil creates what it needs there the first time a command uses it (for example `~/.sigil/quarantine/` on the first `sigil clone`)
+- Installs no shell aliases: add them with `sigil setup shell` (optional)
+- Sets up no git hooks: add a pre-commit scan with `sigil setup git` (optional)
 
 ### Build the Full Stack
 
@@ -352,8 +335,8 @@ sigil login
 
 Stores a token for the cloud options; a plain `sigil scan` does not change. You then opt in explicitly:
 
-- Hash-based malware lookup: `sigil scan --enrich`
-- Threat signature updates: `sigil fetch` (signatures do not update on their own)
+- Hash-based malware lookup (Pro plan): `sigil scan --enrich`, on a fresh scan (add `--no-cache` if the directory was scanned before)
+- Threat signature updates (Pro plan): `sigil fetch` (signatures do not update on their own; run `sigil clear-cache` afterwards to re-check directories already scanned)
 - Reporting a threat: `sigil report`
 
 See [Authentication Guide](./authentication-guide.md) for details.
@@ -374,7 +357,7 @@ pip install pre-commit    # then add the hooks below to .pre-commit-config.yaml
 ```yaml
 repos:
   - repo: https://github.com/NOMARJ/sigil
-    rev: v1.3.6
+    rev: v1.3.7
     hooks:
       - id: sigil-scan
       - id: sigil-scan-skills
