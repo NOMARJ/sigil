@@ -208,12 +208,12 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 ```
 1. CLI authenticates via sigil login (token stored in ~/.sigil/token)
-2. With sigil scan --submit, CLI sends the scan result to POST /v1/scan
-   (sigil explain also posts a saved report's findings there):
+2. With sigil scan --submit, CLI sends the scan result to POST /v1/scan:
    - Each finding: rule, severity, file path, line, flagged source line
    - Risk score and verdict
    The current API rejects the --submit payload (HTTP 422), so step 3 does
-   not yet happen for it, but the data is still sent
+   not yet happen for it, but the data is still sent. sigil explain also
+   posts a saved report's findings there (without the score and verdict)
 3. API enriches the scan with threat intelligence:
    - Known malicious hash lookups
    - Publisher reputation scores

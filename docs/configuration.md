@@ -12,7 +12,7 @@ Configuration is resolved in this order (highest priority first):
 2. **Environment variables** — override defaults
 3. **Built-in defaults** — used when nothing else is set
 
-The values `sigil config` stores in `~/.sigil/config.json` are not read by any other command, so they form no layer here (see [Config File](#config-file)). Besides the scan policy files (next section) and `~/.sigil/residue-allow` (the `sigil residue` allowlist), the only other file under `~/.sigil/` the CLI reads as a setting is `~/.sigil/config`, for `disclaimer=false` only.
+The values `sigil config` stores in `~/.sigil/config.json` are not read by any other command, so they form no layer here (see [Config File](#config-file)). Apart from the scan policy files (next section), the settings the CLI reads from `~/.sigil/` are `residue-allow` (the `sigil residue` allowlist), `providers/` (for `sigil run --providers`) and `config` (for `disclaimer=false` only).
 
 What a *scan* enforces — the exit gate, disabled rules, ignored paths,
 baselines, custom rules — is set by the scan policy described next, which has
