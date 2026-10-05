@@ -143,8 +143,11 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
 - **The docs now say what each command sends to the Sigil API**, including
   `sigil explain`, which uploads every finding in the scan JSON, flagged source
   lines included. `--enrich` and `sigil fetch` are marked Pro; a cached scan
+  (the cache is keyed on file content, so a copy of scanned content counts)
   skips the cloud options and fetched signatures, so both need `--no-cache` or
-  `sigil clear-cache`. The CLI reference explains where a CI token comes from
+  `sigil clear-cache`; `sigil scan` of a repository URL runs the clone workflow,
+  which ignores them and `--fail-on`; and an organisation policy can turn on LLM
+  review. The CLI reference explains where a CI token comes from
   and that it expires, and that `sigil pip`/`npm` can run package code while
   downloading (an sdist's `setup.py`, or the lifecycle scripts of a local
   directory or git spec, `owner/repo` shorthands included, given to

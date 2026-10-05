@@ -135,7 +135,7 @@ sigil residue apply       # apply with a backup of every target; undo with `sigi
 sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
-# (cloud options run only on a fresh scan: add --no-cache if ./code was scanned before)
+# (cloud options run only on a fresh scan: add --no-cache if ./code, or a copy of it, was scanned before)
 
 # Download and scan any URL: archives, single files, GitHub /tree/ links
 sigil scan https://example.com/agent-tool.tar.gz
@@ -225,7 +225,7 @@ Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tool
 
 ## Threat Intelligence
 
-Sigil can connect to a **community-powered threat intelligence database**, on request and with a Pro plan: `sigil scan --enrich` looks the scanned directory's hash up in it, and `sigil fetch` downloads its threat signatures, which later fresh scans apply (a directory scanned before the fetch is re-checked only after `sigil clear-cache` or with `--no-cache`). The current API answers an `--enrich` match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. Logging in (`sigil login`) stores the token these send; it does not change a plain scan. `sigil scan --submit` sends a scan's findings to the Sigil API (see below for what that includes); the current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history or the community data, but the data is still sent. New signatures reach your CLI only when you run `sigil fetch`; nothing is synced automatically.
+Sigil can connect to a **community-powered threat intelligence database**, on request and with a Pro plan: `sigil scan --enrich` looks the scanned directory's hash up in it, and `sigil fetch` downloads its threat signatures, which later fresh scans apply (content scanned before the fetch, in that directory or a copy of it, is re-checked only after `sigil clear-cache` or with `--no-cache`). The current API answers an `--enrich` match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. Logging in (`sigil login`) stores the token these send; it does not change a plain scan. `sigil scan --submit` sends a scan's findings to the Sigil API (see below for what that includes); the current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history or the community data, but the data is still sent. New signatures reach your CLI only when you run `sigil fetch`; nothing is synced automatically.
 
 **What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
 
@@ -243,7 +243,7 @@ sigil fetch                       # download threat signatures
 sigil scan . --enrich --no-cache  # hash lookup in the threat database
 ```
 
-The cloud options of `sigil scan` (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan that reuses a cached result skips them without a message, hence `--no-cache`.
+The cloud options of `sigil scan` (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan that reuses a cached result skips them without a message, hence `--no-cache`. For a repository URL, `sigil scan` runs the `sigil clone` workflow, which ignores them (and `--fail-on`) without a message.
 
 **[Learn more about authentication →](docs/authentication-guide.md)**
 

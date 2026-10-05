@@ -57,7 +57,7 @@ sigil fetch
 
 Cloud feature access depends on the server and account plan. Local scanning remains available when cloud enrichment cannot be reached; an explicitly requested enhanced scan without authentication returns an error.
 
-The `sigil scan` cloud options run only on a fresh scan. When `sigil scan` reuses the cached result of an unchanged directory (it prints `sigil: using cached result`), `--enrich`, `--submit` and `--enhanced` are skipped without a message, and an unauthenticated `--enhanced` returns no error. Add `--no-cache` when you request them. Signatures from `sigil fetch` likewise reach a directory scanned before the fetch only after `sigil clear-cache` or with `--no-cache`.
+The `sigil scan` cloud options run only on a fresh scan. When `sigil scan` reuses a cached result (it prints `sigil: using cached result`; the cache is keyed on file content, so an unchanged directory or a copy of content scanned before reuses it), `--enrich`, `--submit` and `--enhanced` are skipped without a message, and an unauthenticated `--enhanced` returns no error. Add `--no-cache` when you request them. Signatures from `sigil fetch` likewise reach content scanned before the fetch, in that directory or a copy of it, only after `sigil clear-cache` or with `--no-cache`. For a repository URL, `sigil scan` runs the `sigil clone` workflow, which ignores these options without a message, cache or not; clone first, then scan `~/.sigil/quarantine/<id>`.
 
 ## API endpoint
 

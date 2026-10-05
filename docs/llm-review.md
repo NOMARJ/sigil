@@ -1,6 +1,8 @@
 # Optional LLM review (`sigil scan --llm-review`)
 
-Sigil's scanner runs offline, and by default nothing leaves the machine.
+Sigil's scan phases run locally, and by default no source code leaves the
+machine (a `sigil scan` of a tree with a lockfile does look its dependencies up
+in OSV and npm/PyPI).
 `--llm-review` adds an optional second opinion: each finding at Medium or
 above goes to a language model that you choose, and the model answers
 `confirm`, `dismiss` or `escalate` with a one-line reason. The stage is

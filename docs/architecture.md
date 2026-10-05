@@ -208,18 +208,20 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 ```
 1. CLI authenticates via sigil login (token stored in ~/.sigil/token)
-2. Only with sigil scan --submit, CLI sends the scan result to POST /v1/scan:
+2. With sigil scan --submit, CLI sends the scan result to POST /v1/scan
+   (sigil explain also posts a saved report's findings there):
    - Each finding: rule, severity, file path, line, flagged source line
    - Risk score and verdict
-   The current API rejects this payload (HTTP 422), so step 3 does not yet
-   happen for it, but the data is still sent
+   The current API rejects the --submit payload (HTTP 422), so step 3 does
+   not yet happen for it, but the data is still sent
 3. API enriches the scan with threat intelligence:
    - Known malicious hash lookups
    - Publisher reputation scores
    - Community-reported threats
 4. sigil fetch (Pro plan) downloads updated threat signatures via GET /v1/signatures (delta sync)
-5. Signatures are cached locally for offline use; a directory scanned before the
-   fetch keeps its cached result until sigil clear-cache or --no-cache
+5. Signatures are cached locally for offline use; content scanned before the
+   fetch (in any directory) keeps its cached result until sigil clear-cache
+   or --no-cache
 ```
 
 ## Technology Stack
@@ -284,7 +286,7 @@ What is unavailable offline:
 `sigil login` stores a token; a plain scan does not change and sends nothing to the Sigil API. The cloud options use the token:
 
 - **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
-- **Signature updates (Pro plan):** `sigil fetch` downloads new detection patterns, which later fresh scans apply (a directory scanned before the fetch needs `sigil clear-cache` or `--no-cache`)
+- **Signature updates (Pro plan):** `sigil fetch` downloads new detection patterns, which later fresh scans apply (content scanned before the fetch, in that directory or a copy of it, needs `sigil clear-cache` or `--no-cache`)
 - **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the Sigil API for the web dashboard's scan history. The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent
 - **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent
 - **Finding adjudication:** `sigil explain <scan.json>` uploads every finding in the saved scan result, flagged source lines included, and asks the server to adjudicate one with an LLM
@@ -322,4 +324,4 @@ The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only o
   +------------------------------------------------+
 ```
 
-The pipeline ensures that when any user in the community encounters a malicious package, the detection pattern is available to every CLI that next runs `sigil fetch` (a directory scanned before that fetch is re-checked only after `sigil clear-cache` or with `--no-cache`). Scan submissions carry finding metadata (rule IDs, severities, file paths) plus the flagged source-line excerpts (`Finding.snippet`), as does `sigil explain`; full source files are transmitted only by the Pro enhanced-scan path, which uploads up to 50 text files from the scanned directory, collected without the scan's exclusions, for LLM analysis. See `docs/data-handling.md` for the complete per-tier data flow.
+The pipeline ensures that when any user in the community encounters a malicious package, the detection pattern is available to every CLI that next runs `sigil fetch` (content scanned before that fetch, in any directory, is re-checked only after `sigil clear-cache` or with `--no-cache`). Scan submissions carry finding metadata (rule IDs, severities, file paths) plus the flagged source-line excerpts (`Finding.snippet`), as does `sigil explain`; full source files are transmitted only by the Pro enhanced-scan path, which uploads up to 50 text files from the scanned directory, collected without the scan's exclusions, for LLM analysis. See `docs/data-handling.md` for the complete per-tier data flow.

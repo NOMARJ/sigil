@@ -90,7 +90,7 @@ claude plugin install sigil-security@sigil-marketplace
 
 #### Claude Code (Manual)
 
-Run `claude mcp add sigil -- npx -y @nomark/sigil-mcp-server`, or add this entry to the `mcpServers` object in `~/.claude.json`, where Claude Code keeps user-scope servers (`claude_desktop_config.json` is Claude Desktop's file, which Claude Code does not read):
+Run `claude mcp add --scope user sigil -- npx -y @nomark/sigil-mcp-server` (without `--scope user` the server is registered for the current project only), or add this entry to the `mcpServers` object in `~/.claude.json`, where Claude Code keeps user-scope servers (`claude_desktop_config.json` is Claude Desktop's file, which Claude Code does not read):
 
 ```json
 {
