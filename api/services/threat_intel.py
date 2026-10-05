@@ -24,6 +24,7 @@ from api.models import (
     ThreatEntry,
     ThreatReport,
     ThreatReportResponse,
+    reported_sha256,
 )
 
 logger = logging.getLogger(__name__)
@@ -561,11 +562,21 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     ecosystem = report.get("ecosystem", "unknown")
     now = _utcnow()
 
-    # Create a synthetic hash from the package identity
-    pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
-    pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
+    # A `sigil report <hash>` report (package `sha256:<hash>`) is keyed by the
+    # reported hash itself, so lookups of that hash match it. Any other report
+    # gets a synthetic hash of its package identity.
+    reported_hash = reported_sha256(package_name)
+    if reported_hash is not None:
+        pkg_hash = reported_hash
+    else:
+        pkg_identity = (
+            f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
+        )
+        pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
 
-    threat_id = uuid4().hex[:16]
+    # Full GUID: threats.id is UNIQUEIDENTIFIER (schema.sql), and a truncated
+    # hex does not convert.
+    threat_id = str(uuid4())
     threat_row = {
         "id": threat_id,
         "hash": pkg_hash,
@@ -584,9 +595,11 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     except Exception:
         logger.exception("Failed to create threat entry for %s", package_name)
 
-    # Create a detection signature from the report evidence
+    # Create a detection signature from the report evidence. A hash report
+    # names no package to match imports of, and its evidence is text the CLI
+    # composed (threat type and hash), not a pattern, so it gets none.
     evidence = report.get("evidence", "")
-    if evidence:
+    if evidence and reported_hash is None:
         sig_id = f"sig-community-{threat_id}"
         sig_row = {
             "id": sig_id,

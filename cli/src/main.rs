@@ -2822,8 +2822,8 @@ fn report_enhanced_outcome(response: &api::ScanResponse, format: &str) {
             print_progress(format, msg);
         }
         api::EnhancedOutcome::UpgradeRequired => eprintln!(
-            "{} LLM analysis needs a Pro plan: the API stored the scan and the uploaded \
-             files but returned only its static analysis (scan id: {})",
+            "{} LLM analysis needs a Pro plan: the files were sent, but the API returned \
+             only its static analysis (scan id: {})",
             "warning:".bold().yellow(),
             scan_id
         ),
@@ -4081,8 +4081,15 @@ async fn cmd_login(token: Option<&str>, endpoint: &str, verbose: bool) -> i32 {
 }
 
 async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: bool) -> i32 {
+    let digest = match api::report_digest(hash) {
+        Ok(digest) => digest,
+        Err(err) => {
+            eprintln!("{} {}", "error:".bold().red(), err);
+            return 1;
+        }
+    };
     if verbose {
-        eprintln!("reporting threat: hash={}", hash);
+        eprintln!("reporting threat: hash={}", digest);
     }
 
     let client = api::SigilClient::new(None);
@@ -4095,7 +4102,10 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
         return 1;
     }
 
-    match client.report_threat(hash, threat_type, description).await {
+    match client
+        .report_threat(&digest, threat_type, description)
+        .await
+    {
         Ok(response) => {
             println!(
                 "{} threat reported successfully (id: {}, status: {})",

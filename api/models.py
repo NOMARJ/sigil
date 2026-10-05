@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import enum
 import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
@@ -247,6 +248,15 @@ class ThreatEntry(BaseModel):
     description: str = Field("", description="Human-readable description of the threat")
 
 
+def without_control_characters(text: str) -> str:
+    """*text* with every control character (Unicode category Cc) as a space.
+
+    Covers terminal escapes (ESC, BEL), carriage returns and newlines: the
+    same set the CLI's `terminal_text` replaces before printing.
+    """
+    return "".join(" " if unicodedata.category(c) == "Cc" else c for c in text)
+
+
 class ThreatLookupResponse(ThreatEntry):
     """Response for GET /v1/threat/{hash}: a match in the threat database.
 
@@ -254,6 +264,9 @@ class ThreatLookupResponse(ThreatEntry):
     a confirmed threat. `known_malicious` and `references` are the fields CLI
     1.3.7 requires before it will show a match; references are not recorded,
     so the list is empty.
+
+    Text fields carry no control characters. CLI 1.3.7 prints the description
+    raw, and a community entry's description is the reporter's own text.
     """
 
     known_malicious: bool = Field(
@@ -262,6 +275,11 @@ class ThreatLookupResponse(ThreatEntry):
     references: List[str] = Field(
         default_factory=list, description="External references (none recorded)"
     )
+
+    @field_validator("hash", "package_name", "version", "source", "description")
+    @classmethod
+    def _printable_text(cls, value: str) -> str:
+        return without_control_characters(value)
 
 
 class SignatureEntry(BaseModel):
@@ -313,6 +331,19 @@ class PublisherReputation(BaseModel):
 # Threat Report
 # ---------------------------------------------------------------------------
 
+_SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+# Package-name prefix of a `sigil report <hash>` report.
+HASH_REPORT_PREFIX = "sha256:"
+
+
+def reported_sha256(package_name: str) -> Optional[str]:
+    """The digest of a hash report's package name (`sha256:<64 hex>`), else None."""
+    if not package_name.startswith(HASH_REPORT_PREFIX):
+        return None
+    digest = package_name[len(HASH_REPORT_PREFIX) :]
+    return digest if _SHA256_HEX.fullmatch(digest) else None
+
 
 class ThreatReport(BaseModel):
     """User-submitted threat report for a package."""
@@ -331,7 +362,8 @@ class ThreatReport(BaseModel):
 
         CLI 1.3.7 and earlier post that shape. It is stored the way current
         CLIs send it: package_name `sha256:<hash>`, the description as the
-        reason, and the threat type and hash as evidence.
+        reason, and the threat type and hash as evidence. A hash that is not
+        a SHA-256 digest (64 hex characters, any case) is refused.
         """
         if not isinstance(data, dict) or "package_name" in data:
             return data
@@ -339,12 +371,14 @@ class ThreatReport(BaseModel):
         if not isinstance(raw_hash, str) or not raw_hash.strip():
             return data
         digest = raw_hash.strip().lower()
+        if not _SHA256_HEX.fullmatch(digest):
+            raise ValueError("hash must be a SHA-256 digest: 64 hexadecimal characters")
         evidence = []
         threat_type = data.get("threat_type")
         if isinstance(threat_type, str) and threat_type.strip():
             evidence.append(f"Threat type: {threat_type.strip()}")
         evidence.append(f"SHA-256: {digest}")
-        mapped = {**data, "package_name": f"sha256:{digest}"}
+        mapped = {**data, "package_name": f"{HASH_REPORT_PREFIX}{digest}"}
         if "reason" not in data and "description" in data:
             mapped["reason"] = data["description"]
         mapped.setdefault("evidence", "\n".join(evidence))

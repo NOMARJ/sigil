@@ -116,6 +116,6 @@
   "metadata": {
     "source": "sigil-explain"
   },
-  "target": "scan-new",
+  "target": "sigil-explain",
   "target_type": "directory"
 }

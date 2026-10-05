@@ -12,6 +12,7 @@ against the same files in cli/src/api.rs.
 from __future__ import annotations
 
 import json
+import unicodedata
 import uuid
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ from fastapi.testclient import TestClient
 
 from api.database import db
 from api.models import Finding, ScanPhase, Severity
+from api.services.scanner import _RUST_PHASE_MAP, _map_rust_finding
 
 CONTRACT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "api_contract"
 
@@ -84,6 +86,49 @@ class TestScanSubmission:
         assert resp.json()["target"] == "cli-scan"
         assert resp.json()["files_scanned"] == body["files_scanned"]
 
+    def test_released_cli_suppressions_and_provenance_are_not_stored(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        # CLI 1.3.7 posts its whole ScanResult. Beyond the fixture's `scanner`
+        # and `platform`, a result with suppressions also carries the
+        # suppressed findings and their attributions, one of them a reason
+        # the user wrote. The API keeps only the active findings.
+        body = fixture("cli-1.3.7/scan_submit.json")
+        assert "scanner" in body and "platform" in body
+        suppressed = {
+            **body["findings"][0],
+            "rule": "SUPPRESSED-CANARY-1",
+            "snippet": "suppressed-snippet-canary",
+        }
+        inline = {**suppressed, "rule": "SUPPRESSED-CANARY-2"}
+        body = {
+            **body,
+            "suppressed_findings": [suppressed],
+            "suppressed_by": "ledger:approved-source-canary#ab12 approved 2026-10-01",
+            "inline_suppressed": [inline],
+            "inline_suppressions": [
+                "src/app.js:2 SUPPRESSED-CANARY-2 — user-reason-canary"
+            ],
+        }
+        resp = client.post("/v1/scan", json=body, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+
+        row = db._memory_store["scans"][resp.json()["scan_id"]]
+        assert row["metadata_json"] == {}
+        assert [f["rule"] for f in row["findings_json"]] == [
+            f["rule"] for f in fixture("cli-1.3.7/scan_submit.json")["findings"]
+        ]
+        stored = json.dumps(row, default=str)
+        for canary in (
+            "SUPPRESSED-CANARY",
+            "suppressed-snippet-canary",
+            "approved-source-canary",
+            "user-reason-canary",
+            body["scanner"]["corpus_digest"],
+        ):
+            assert canary not in stored, canary
+        assert "canary" not in resp.text
+
     def test_current_cli_sends_the_fixed_target_and_its_own_verdict(self) -> None:
         body = fixture("cli-current/scan_submit.json")
         assert body["target"] == "cli-scan"
@@ -135,6 +180,42 @@ class TestFindingSpellings:
         assert finding.severity is Severity.HIGH
 
 
+# Every phase the CLI has (`Phase::ALL`), in both spellings it sends. The Rust
+# test `phases_fixture_lists_every_cli_phase` (cli/src/api.rs) fails when the
+# CLI gains a phase this file does not list, so a new CLI phase reaches these
+# tests before it can reach the API as an HTTP 422.
+CLI_PHASES = fixture("cli-current/phases.json")["phases"]
+
+
+class TestCliPhaseCoverage:
+    @pytest.mark.parametrize("phase", CLI_PHASES, ids=lambda p: p["api"])
+    def test_every_cli_phase_is_an_api_phase(self, phase: dict[str, str]) -> None:
+        for spelling in (phase["serde"], phase["api"]):
+            finding = Finding(phase=spelling, rule="R", severity="High", file="a")
+            assert finding.phase.value == phase["api"], spelling
+
+    @pytest.mark.parametrize("phase", CLI_PHASES, ids=lambda p: p["api"])
+    def test_rust_engine_path_files_a_finding_under_the_same_phase(
+        self, phase: dict[str, str]
+    ) -> None:
+        # The API's own Rust-engine scans (SIGIL_RUST_ENGINE) and CLI
+        # submissions must not file one rule under two phases.
+        raw = {"phase": phase["serde"], "rule": "R-1", "severity": "High", "file": "a"}
+        assert _map_rust_finding(raw).phase is Finding(**raw).phase
+
+    def test_inference_security_is_not_filed_as_llm_analysis(self) -> None:
+        raw = {
+            "phase": "InferenceSecurity",
+            "rule": "INFER-001",
+            "severity": "High",
+            "file": "c.py",
+        }
+        assert _map_rust_finding(raw).phase is ScanPhase.INFERENCE_SECURITY
+
+    def test_rust_engine_map_covers_every_cli_phase(self) -> None:
+        assert set(_RUST_PHASE_MAP) == {p["serde"] for p in CLI_PHASES}
+
+
 # ---------------------------------------------------------------------------
 # POST /v1/scan-enhanced — `sigil scan --enhanced`
 # ---------------------------------------------------------------------------
@@ -153,6 +234,42 @@ class TestEnhancedScan:
         assert data["id"] == data["scan_id"]
         assert data["metadata"]["upgrade_required"] is True
         assert data["metadata"].get("llm_analysis_performed") is not True
+
+    @staticmethod
+    def _assert_files_not_kept(
+        client: TestClient,
+        headers: dict[str, str],
+        scan_id: str,
+        body: dict[str, Any],
+    ) -> None:
+        """The scan record, and the scan-detail API, hold no uploaded file."""
+        uploaded = body["metadata"]["file_contents"]
+        multi_line = [c for c in uploaded.values() if c.strip().count("\n") >= 1]
+        assert multi_line, "the fixture needs a multi-line file to look for"
+
+        row = db._memory_store["scans"][scan_id]
+        # Everything else the request's metadata held is still recorded.
+        assert row["metadata_json"] == {
+            k: v for k, v in body["metadata"].items() if k != "file_contents"
+        }
+
+        detail = client.get(f"/v1/scans/{scan_id}", headers=headers)
+        assert detail.status_code == 200, detail.text
+        assert "file_contents" not in detail.json()["metadata_json"]
+        for stored in (json.dumps(row, default=str), detail.text):
+            for content in multi_line:
+                assert json.dumps(content)[1:-1] not in stored
+
+    @pytest.mark.parametrize("body_path", ENHANCED_BODIES)
+    def test_uploaded_files_are_not_stored_with_the_scan(
+        self, client: TestClient, auth_headers: dict[str, str], body_path: str
+    ) -> None:
+        body = fixture(body_path)
+        resp = client.post("/v1/scan-enhanced", json=body, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        self._assert_files_not_kept(
+            client, auth_headers, resp.json()["scan_id"], body
+        )
 
     def _as_pro(self, client: TestClient) -> None:
         from api.middleware.tier_check import get_scan_capabilities
@@ -195,21 +312,19 @@ class TestEnhancedScan:
             line=2,
             description="contract-test LLM finding",
         )
+        llm_step = AsyncMock(return_value=[llm_finding])
+        body = fixture("cli-1.3.7/scan_enhanced.json")
         with (
             patch(
                 "api.routers.scan.scanner_engine.scan_with_pro_features",
-                new=AsyncMock(return_value=[llm_finding]),
+                new=llm_step,
             ),
             patch(
                 "api.routers.scan.subscription_service.track_pro_feature_usage",
                 new=AsyncMock(return_value=None),
             ),
         ):
-            resp = client.post(
-                "/v1/scan-enhanced",
-                json=fixture("cli-1.3.7/scan_enhanced.json"),
-                headers=auth_headers,
-            )
+            resp = client.post("/v1/scan-enhanced", json=body, headers=auth_headers)
         assert resp.status_code == 200, resp.text
         data = resp.json()
         # What the current CLI keys on before it reports LLM analysis.
@@ -217,6 +332,10 @@ class TestEnhancedScan:
         llm = [f for f in data["findings"] if f["phase"] == "llm_analysis"]
         assert [f["rule"] for f in llm] == ["LLM-TEST-1"]
         assert data["id"] == data["scan_id"]
+        # The LLM step still gets the uploaded files; the scan record does not.
+        context = llm_step.call_args.kwargs["repository_context"]
+        assert context["file_contents"] == body["metadata"]["file_contents"]
+        self._assert_files_not_kept(client, auth_headers, data["scan_id"], body)
 
 
 # ---------------------------------------------------------------------------
@@ -269,6 +388,86 @@ class TestThreatReportContract:
         resp = client.post("/v1/report", json={"hash": "ab", "threat_type": "x"})
         assert resp.status_code == 422
 
+    @pytest.mark.parametrize(
+        "bad_hash",
+        ["x" * 300, "x|.*", "ab", "0" * 63, "0" * 65, "g" * 64, "sha256:" + "0" * 64],
+    )
+    def test_hash_report_needs_a_sha256_digest(
+        self, client: TestClient, bad_hash: str
+    ) -> None:
+        resp = client.post(
+            "/v1/report",
+            json={"hash": bad_hash, "threat_type": "malware", "description": "d"},
+        )
+        assert resp.status_code == 422, resp.text
+        assert not db._memory_store.get("threat_reports")
+
+    def test_hash_report_digest_is_accepted_in_any_case(
+        self, client: TestClient
+    ) -> None:
+        digest = fixture("cli-1.3.7/report.json")["hash"]
+        resp = client.post(
+            "/v1/report",
+            json={"hash": f"  {digest.upper()} ", "description": "d"},
+        )
+        assert resp.status_code == 201, resp.text
+        row = db._memory_store["threat_reports"][resp.json()["report_id"]]
+        assert row["package_name"] == f"sha256:{digest}"
+
+
+class TestReportPromotion:
+    """Confirming a report creates a threat entry (POST /v1/report -> review)."""
+
+    @staticmethod
+    def _confirm(client: TestClient, headers: dict[str, str], report_id: str) -> None:
+        for new_status in ("under_review", "confirmed"):
+            resp = client.patch(
+                f"/v1/threat-reports/{report_id}",
+                json={"status": new_status},
+                headers=headers,
+            )
+            assert resp.status_code == 200, resp.text
+
+    @pytest.mark.parametrize("body_path", REPORT_BODIES)
+    def test_confirmed_hash_report_matches_lookups_of_that_hash(
+        self,
+        client: TestClient,
+        reviewer_auth_headers: dict[str, str],
+        body_path: str,
+    ) -> None:
+        digest = fixture("cli-1.3.7/report.json")["hash"]
+        report_id = client.post("/v1/report", json=fixture(body_path)).json()[
+            "report_id"
+        ]
+        self._confirm(client, reviewer_auth_headers, report_id)
+
+        threats = list(db._memory_store["threats"].values())
+        assert [t["hash"] for t in threats] == [digest]
+        # threats.id is UNIQUEIDENTIFIER: a full GUID, not a hex prefix.
+        assert str(uuid.UUID(threats[0]["id"])) == threats[0]["id"]
+
+        resp = client.get(f"/v1/threat/{digest}", headers=reviewer_auth_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["package_name"] == f"sha256:{digest}"
+        assert resp.json()["source"] == "community"
+        # No import-matching signature for a hash, and the CLI-composed
+        # evidence is never used as a regex.
+        assert not db._memory_store.get("signatures")
+
+    def test_confirmed_package_report_gets_a_guid_and_a_signature(
+        self, client: TestClient, reviewer_auth_headers: dict[str, str]
+    ) -> None:
+        report_id = client.post(
+            "/v1/report", json=fixture("dashboard/report.json")
+        ).json()["report_id"]
+        self._confirm(client, reviewer_auth_headers, report_id)
+
+        (threat,) = db._memory_store["threats"].values()
+        assert str(uuid.UUID(threat["id"])) == threat["id"]
+        assert threat["package_name"] == "contract-test-pkg"
+        (signature,) = db._memory_store["signatures"].values()
+        assert signature["id"] == f"sig-community-{threat['id']}"
+
 
 # ---------------------------------------------------------------------------
 # GET /v1/threat/{hash} — `sigil scan --enrich`
@@ -314,3 +513,32 @@ class TestThreatLookupContract:
     ) -> None:
         resp = client.get("/v1/threat/" + "0" * 64, headers=auth_headers)
         assert resp.status_code == 403
+        # The body the CLI's 403 handling is tested against (cli/src/api.rs).
+        assert resp.json() == fixture("api-patched/threat_lookup_403_free_plan.json")
+
+    def test_match_text_carries_no_control_characters(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
+        # CLI 1.3.7 prints the description raw; a community entry's
+        # description is the reporter's text.
+        hostile = "evil\x1b[2J\x1b]8;;https://x.invalid\x07click\x1b]8;;\x07\r\nfake\x85"
+        digest = "f" * 64
+        db._memory_store.setdefault("threats", {})["hostile"] = {
+            "id": "hostile",
+            "hash": digest,
+            "package_name": "pkg\x1b[31m",
+            "version": "1.0\r",
+            "severity": "HIGH",
+            "source": "community\x07",
+            "description": hostile,
+        }
+        resp = client.get(f"/v1/threat/{digest}", headers=pro_auth_headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        for key, value in data.items():
+            if isinstance(value, str):
+                assert not any(unicodedata.category(c) == "Cc" for c in value), key
+        assert data["description"].startswith("evil ")
+        assert data["description"].rstrip().endswith("fake")
+        assert data["package_name"] == "pkg [31m"
+        assert data["hash"] == digest

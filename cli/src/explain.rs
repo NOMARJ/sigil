@@ -37,6 +37,24 @@ pub fn parse_scan_findings(content: &str) -> Result<Vec<Value>, String> {
     }
 }
 
+/// The scan target `sigil explain` submits under. A fixed label, like the
+/// `cli-scan` that `sigil scan --submit` sends: the report file's name can
+/// carry a user, customer or project name.
+pub const EXPLAIN_SCAN_TARGET: &str = "sigil-explain";
+
+/// Body of the `POST /v1/scan` that `sigil explain` sends: every finding of
+/// the saved report in the API's spellings, under [`EXPLAIN_SCAN_TARGET`].
+pub fn explain_scan_body(findings: &[Value]) -> Value {
+    let normalized: Vec<Value> = findings.iter().map(crate::api::api_finding).collect();
+    json!({
+        "target": EXPLAIN_SCAN_TARGET,
+        "target_type": "directory",
+        "files_scanned": 0,
+        "findings": normalized,
+        "metadata": {"source": "sigil-explain"},
+    })
+}
+
 /// Render a successful adjudication verdict.
 fn render_verdict(adjudication: &Value) {
     let classification = adjudication
@@ -148,18 +166,7 @@ pub async fn cmd_explain(
     };
 
     // 1. Submit the scan so the server holds the findings to adjudicate.
-    let normalized: Vec<Value> = findings.iter().map(crate::api::api_finding).collect();
-    let target = scan_json
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("cli-scan");
-    let payload = json!({
-        "target": target,
-        "target_type": "directory",
-        "files_scanned": 0,
-        "findings": normalized,
-        "metadata": {"source": "sigil-explain"},
-    });
+    let payload = explain_scan_body(&findings);
 
     if verbose {
         eprintln!("submitting scan to {}", endpoint);
@@ -386,5 +393,20 @@ mod tests {
             crate::api::api_finding(&finding)["phase"],
             "inference_security"
         );
+    }
+
+    #[test]
+    fn explain_body_names_the_scan_with_the_fixed_target() {
+        let finding = serde_json::json!({
+            "phase": "CodePatterns", "severity": "High", "rule": "CODE-001", "file": "a.js"
+        });
+        let body = explain_scan_body(&[finding]);
+        assert_eq!(body["target"], EXPLAIN_SCAN_TARGET);
+        assert_eq!(
+            body["metadata"],
+            serde_json::json!({"source": "sigil-explain"})
+        );
+        assert_eq!(body["findings"][0]["phase"], "code_patterns");
+        assert_eq!(body["files_scanned"], 0);
     }
 }

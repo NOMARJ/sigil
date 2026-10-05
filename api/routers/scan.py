@@ -94,6 +94,9 @@ _USAGE_METER_TIMEOUT_SECONDS = 2.0
 _PUBLISHER_ENRICH_TIMEOUT_SECONDS = 2.0
 _ANALYTICS_TRACK_TIMEOUT_SECONDS = 2.0
 _ENHANCED_SCAN_LLM_TIMEOUT_SECONDS = 20.0
+# /v1/scan-enhanced metadata keys that carry uploaded source code: the CLI's
+# `file_contents` map and the single-file `content` form.
+_UPLOADED_SOURCE_KEYS = frozenset({"file_contents", "content"})
 
 
 # ---------------------------------------------------------------------------
@@ -609,8 +612,20 @@ async def submit_enhanced_scan(
     current_tier = await get_user_plan(current_user.id)
     await check_scan_quota(current_user.id, current_tier)
 
-    # Start with basic scan implementation
-    basic_response = await _submit_scan_impl(request, user_id=current_user.id)
+    # Start with basic scan implementation. The uploaded source files are
+    # kept out of the stored scan record (which the scan-detail API returns
+    # to the account and its team): only the LLM step below reads them, from
+    # `request`.
+    stored_request = request.model_copy(
+        update={
+            "metadata": {
+                k: v
+                for k, v in request.metadata.items()
+                if k not in _UPLOADED_SOURCE_KEYS
+            }
+        }
+    )
+    basic_response = await _submit_scan_impl(stored_request, user_id=current_user.id)
 
     # If user doesn't have Pro access, return basic response with upgrade message
     if not capabilities["llm_analysis"]:

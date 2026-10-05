@@ -246,6 +246,21 @@ pub fn scan_request_body(
     }))
 }
 
+/// The digest `sigil report` files: a SHA-256 hash of 64 hexadecimal
+/// characters in any case, trimmed and lower-cased. The API refuses anything
+/// else, so it is checked before anything is sent.
+pub fn report_digest(hash: &str) -> Result<String, String> {
+    let digest = hash.trim().to_ascii_lowercase();
+    if digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit()) {
+        Ok(digest)
+    } else {
+        Err(format!(
+            "the hash must be a SHA-256 digest: 64 hexadecimal characters (got {} characters)",
+            hash.trim().chars().count()
+        ))
+    }
+}
+
 /// Body of `POST /v1/report` (the API's `ThreatReport`). The API identifies a
 /// report by package, so a hash report is filed as package `sha256:<hash>`
 /// with the description as the reason and the threat type and hash as
@@ -540,7 +555,8 @@ impl SigilClient {
 
     /// Report a new threat to the Sigil cloud.
     ///
-    /// POST /v1/report
+    /// POST /v1/report. A `hash` that is not a SHA-256 digest is refused
+    /// before anything is sent (see [`report_digest`]).
     pub async fn report_threat(
         &self,
         hash: &str,
@@ -548,7 +564,8 @@ impl SigilClient {
         description: &str,
     ) -> Result<ReportResponse, String> {
         let url = format!("{}/v1/report", self.endpoint);
-        let body = report_request_body(hash, threat_type, description);
+        let digest = report_digest(hash)?;
+        let body = report_request_body(&digest, threat_type, description);
 
         let mut request = self.client.post(&url).json(&body);
         if let Some(ref token) = self.token {
@@ -1049,7 +1066,10 @@ mod tests {
 
     /// Answer one request with `status` and `body`; the raw request comes
     /// back on the channel.
-    fn serve_once(status: &str, body: &str) -> (String, std::sync::mpsc::Receiver<String>) {
+    pub(super) fn serve_once(
+        status: &str,
+        body: &str,
+    ) -> (String, std::sync::mpsc::Receiver<String>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap();
         let (tx, rx) = std::sync::mpsc::channel();
@@ -1090,7 +1110,7 @@ mod tests {
         (format!("http://{addr}"), rx)
     }
 
-    fn test_client(endpoint: String) -> SigilClient {
+    pub(super) fn test_client(endpoint: String) -> SigilClient {
         SigilClient {
             endpoint,
             client: reqwest::Client::builder().no_proxy().build().unwrap(),
@@ -1145,8 +1165,9 @@ mod tests {
             "201 Created",
             r#"{"report_id":"r-1","id":"r-1","status":"received","message":"thanks"}"#,
         );
+        let hash = "AB12".repeat(16);
         let resp = test_client(url)
-            .report_threat("AB12", "backdoor", "opens a port")
+            .report_threat(&hash, "backdoor", "opens a port")
             .await
             .unwrap();
         assert_eq!(resp.report_id(), Some("r-1"));
@@ -1154,8 +1175,42 @@ mod tests {
         assert!(raw.starts_with("POST /v1/report HTTP/1.1"), "{raw}");
         assert_eq!(
             request_body(&raw),
-            report_request_body("AB12", "backdoor", "opens a port")
+            report_request_body(&"ab12".repeat(16), "backdoor", "opens a port")
         );
+    }
+
+    #[test]
+    fn report_digest_accepts_only_a_sha256_hash() {
+        let hex = "0123456789abcdef".repeat(4);
+        assert_eq!(report_digest(&hex).unwrap(), hex);
+        assert_eq!(
+            report_digest(&format!("  {} ", hex.to_uppercase())).unwrap(),
+            hex
+        );
+        for bad in [
+            "",
+            "ab",
+            &hex[..63],
+            &format!("{hex}0"),
+            &"g".repeat(64),
+            "x|.*",
+            &format!("sha256:{hex}"),
+            &"x".repeat(300),
+        ] {
+            let err = report_digest(bad).unwrap_err();
+            assert!(err.contains("64 hexadecimal characters"), "{bad}: {err}");
+        }
+    }
+
+    #[tokio::test]
+    async fn report_threat_sends_nothing_for_an_invalid_hash() {
+        // An unroutable endpoint: the call must fail before any request.
+        let client = test_client("http://127.0.0.1:9".into());
+        let err = client
+            .report_threat("x|.*", "malware", "d")
+            .await
+            .unwrap_err();
+        assert!(err.contains("SHA-256"), "{err}");
     }
 
     #[tokio::test]
@@ -1230,18 +1285,48 @@ mod contract_fixture_tests {
     }
 
     #[test]
-    fn explain_findings_are_the_captured_ones() {
-        // 1.3.7 normalised Phase 10 to "inferencesecurity"; the shared
-        // normaliser repairs that spelling and yields today's body.
+    fn explain_body_is_the_captured_one() {
+        // 1.3.7 normalised Phase 10 to "inferencesecurity" and named the scan
+        // after the report file; the shared normaliser repairs that spelling,
+        // and today's body carries the fixed target.
         let released = fixture("cli-1.3.7/explain_scan.json");
-        let current = fixture("cli-current/explain_scan.json");
-        let renormalised: Vec<Value> = released["findings"]
-            .as_array()
-            .unwrap()
+        let body = crate::explain::explain_scan_body(released["findings"].as_array().unwrap());
+        assert_eq!(body, fixture("cli-current/explain_scan.json"));
+    }
+
+    #[test]
+    fn phases_fixture_lists_every_cli_phase() {
+        // api/tests/test_cli_contract.py checks each of these against the
+        // API's ScanPhase. A new CLI phase fails here until it is listed.
+        let actual: Vec<Value> = Phase::ALL
             .iter()
-            .map(api_finding)
+            .map(|p| {
+                let serde_name = serde_json::to_value(p).unwrap();
+                let api = api_phase(serde_name.as_str().unwrap());
+                json!({"serde": serde_name, "api": api})
+            })
             .collect();
-        assert_eq!(Value::Array(renormalised), current["findings"]);
+        assert_eq!(
+            Value::Array(actual),
+            fixture("cli-current/phases.json")["phases"],
+            "update tests/fixtures/api_contract/cli-current/phases.json and the \
+             API's ScanPhase (api/models.py)"
+        );
+    }
+
+    #[tokio::test]
+    async fn lookup_refusal_on_a_free_plan_names_the_plan() {
+        let body = fixture("api-patched/threat_lookup_403_free_plan.json").to_string();
+        let (url, _rx) = super::tests::serve_once("403 Forbidden", &body);
+        let err = super::tests::test_client(url)
+            .lookup_threat(&"0".repeat(64))
+            .await
+            .unwrap_err();
+        assert!(
+            err.contains("403") && err.contains("needs a Pro plan"),
+            "{err}"
+        );
+        assert!(err.contains("requires the pro plan"), "{err}");
     }
 
     #[test]
