@@ -193,7 +193,7 @@ The endpoint applies to that login only and is not saved: `sigil fetch`, `sigil 
 
 ### Token expired
 
-The access token the `sigil login` browser sign-in stores expires, and the CLI neither checks nor refreshes it. Once the API rejects it, `sigil fetch`, `sigil report` and `sigil explain` fail with an API error, and `sigil scan --submit`, `--enhanced` and `--enrich` print a warning (HTTP 401, with a hint to run `sigil login`) and keep the local result. CLI 1.3.7 reports a failed `--enrich` lookup only with `-v`.
+The access token the `sigil login` browser sign-in stores expires, and the CLI neither checks nor refreshes it. Once the API rejects it, `sigil fetch` and `sigil explain` fail with an API error, and `sigil scan --submit`, `--enhanced` and `--enrich` print a warning (HTTP 401, with a hint to run `sigil login`) and keep the local result. CLI 1.3.7 reports a failed `--enrich` lookup only with `-v`. `sigil report` is not affected: the CLI checks only that a token is stored, and the API files reports without checking the token, so an expired token does not stop a report.
 
 **Fix:** Re-authenticate:
 

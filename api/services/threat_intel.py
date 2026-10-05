@@ -569,9 +569,7 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     if reported_hash is not None:
         pkg_hash = reported_hash
     else:
-        pkg_identity = (
-            f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
-        )
+        pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
         pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
 
     # Full GUID: threats.id is UNIQUEIDENTIFIER (schema.sql), and a truncated

@@ -62,10 +62,14 @@ are not sent). A `Finding` includes:
   values, the `locator` inside an archive, and the rule's `evidence` class
 
 CLI 1.3.7 posted its whole `ScanResult` instead: the same findings, score
-and verdict, plus any ledger- or inline-suppressed findings (snippets included), the scan
-duration, the platform it detected, and the engine version, corpus digest
-and rule IDs. The API keeps only the active findings and the file count
-from such a request.
+and verdict, plus any ledger- or inline-suppressed findings (snippets
+included) with their attributions: the ledger approval (`suppressed_by`: the
+approved source, its ledger id and the approval date) and each inline
+suppression's `file:line RULE-ID — reason` note (`inline_suppressions`),
+whose reason is the text written in the `sigil:ignore` marker; and the scan
+duration, the platform it detected, and the engine version, corpus digest,
+rule count and rule IDs. The API keeps only the active findings and the
+file count from such a request.
 
 So authenticated submissions transmit *excerpts of your source code*: the
 specific lines that triggered a rule, exactly as they appear in your scan
@@ -75,7 +79,8 @@ tier as "metadata only" without also disclosing the flagged-line excerpts.
 `sigil explain <scan.json>` (`cmd_explain`, `cli/src/explain.rs`) sends the
 same kind of data, read from a saved `-f json` report: with the stored token
 it posts every finding in that report, `snippet` included, to
-`POST /v1/scan`, then asks the API to adjudicate one finding (`--finding`,
+`POST /v1/scan` under the fixed target name `sigil-explain` (CLI 1.3.7 named
+the scan after the report file, its name without the extension), then asks the API to adjudicate one finding (`--finding`,
 default the first) at `POST /v1/scans/{id}/findings/{n}/adjudicate`
 (`api/routers/scan.py`). The API passes that finding and its flagged line to
 the configured LLM provider (`api/services/fp_adjudicator.py`).
@@ -93,8 +98,14 @@ transmit source code by design:
   before requesting enhanced analysis. The same request carries what
   `--submit` sends (section 2): the active `findings`, each with its
   `snippet` (the flagged source line), including findings in files outside
-  the uploaded ones (a secret flagged in `.env`, for example). The API stores
-  the request, files included, with the scan record. Its LLM step does not
+  the uploaded ones (a secret flagged in `.env`, for example). The API holds
+  the uploaded files only while it handles the request, for its LLM step:
+  the scan record it stores keeps the findings and the rest of the request
+  but not the files (`submit_enhanced_scan`, `api/routers/scan.py`). The
+  API deployed before the update that added CLI compatibility stores the
+  request, files included, with the scan record, and its scan-detail
+  endpoint (`GET /v1/scans/{id}`) returns them to the account that sent the
+  scan and to its team for as long as the record is kept. Its LLM step does not
   currently run for this endpoint, so it answers with its static analysis;
   the CLI reports that rather than an analysis.
 - The investigation service (`api/services/finding_investigator.py`) builds

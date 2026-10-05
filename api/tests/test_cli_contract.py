@@ -267,9 +267,7 @@ class TestEnhancedScan:
         body = fixture(body_path)
         resp = client.post("/v1/scan-enhanced", json=body, headers=auth_headers)
         assert resp.status_code == 200, resp.text
-        self._assert_files_not_kept(
-            client, auth_headers, resp.json()["scan_id"], body
-        )
+        self._assert_files_not_kept(client, auth_headers, resp.json()["scan_id"], body)
 
     def _as_pro(self, client: TestClient) -> None:
         from api.middleware.tier_check import get_scan_capabilities
@@ -521,7 +519,9 @@ class TestThreatLookupContract:
     ) -> None:
         # CLI 1.3.7 prints the description raw; a community entry's
         # description is the reporter's text.
-        hostile = "evil\x1b[2J\x1b]8;;https://x.invalid\x07click\x1b]8;;\x07\r\nfake\x85"
+        hostile = (
+            "evil\x1b[2J\x1b]8;;https://x.invalid\x07click\x1b]8;;\x07\r\nfake\x85"
+        )
         digest = "f" * 64
         db._memory_store.setdefault("threats", {})["hostile"] = {
             "id": "hostile",

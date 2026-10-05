@@ -255,7 +255,8 @@ pub fn report_digest(hash: &str) -> Result<String, String> {
         Ok(digest)
     } else {
         Err(format!(
-            "the hash must be a SHA-256 digest: 64 hexadecimal characters (got {} characters)",
+            "the hash must be a SHA-256 digest: 64 hexadecimal characters (0-9, a-f); \
+             got {} characters",
             hash.trim().chars().count()
         ))
     }
@@ -1204,7 +1205,8 @@ mod tests {
 
     #[tokio::test]
     async fn report_threat_sends_nothing_for_an_invalid_hash() {
-        // An unroutable endpoint: the call must fail before any request.
+        // Nothing listens on this loopback port: an attempted request would
+        // fail with a connection error, not the hash error checked below.
         let client = test_client("http://127.0.0.1:9".into());
         let err = client
             .report_threat("x|.*", "malware", "d")

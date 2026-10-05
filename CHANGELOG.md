@@ -56,7 +56,15 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   - The API had no value for the Inference Security phase (`INFER-*` rules),
     so any scan with such a finding was refused, from `--submit`,
     `--enhanced` and `sigil explain` alike (1.3.7's `explain` sent
-    `inferencesecurity`). The API now has `inference_security`.
+    `inferencesecurity`). The API now has `inference_security`. Its own
+    Rust-engine scans (`SIGIL_RUST_ENGINE`) filed the same `INFER-*` findings
+    as `llm_analysis`, which `/v1/scan-enhanced` treats as new LLM results;
+    they now get `inference_security` too. A test fails when the CLI gains a
+    phase the API does not list. The dashboard's scan detail now groups
+    Inference Security findings, and the Prompt Injection, Skill Security and
+    LLM Analysis findings it already dropped, under their phase. (Its finding
+    rows still read `title`, `file_path` and `line_number`, which the API's
+    findings do not have; that is a separate fix.)
   - `--enhanced` sent the same raw findings (HTTP 422 whenever the scan had
     one). It now sends the `--submit` request plus the files. Its scan
     response now includes the `metadata` that says whether LLM analysis ran,
@@ -64,7 +72,10 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `enhanced LLM analysis completed` only when it did and otherwise says the
     API returned static analysis only, and why. The API's LLM step does not
     run for this endpoint yet, so that is what it says for now. When the LLM
-    step fails, the API returns the exception type, not its message.
+    step fails, the API returns the exception type, not its message. The API
+    no longer keeps the uploaded files: it stored them in the scan record,
+    which its scan-detail endpoint returns to the account and its team; now
+    only the LLM step sees them.
   - `sigil report` posted `{hash, threat_type, description}`, but the API
     expects a package name and a reason (HTTP 422), and the CLI expected an
     `id` the API does not return. The CLI now files the hash as package
@@ -73,7 +84,16 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `id` to its response. The dashboard's reports are unchanged. Report ids are
     now full GUIDs: `threat_reports.id` is a `UNIQUEIDENTIFIER` in
     `schema.sql`, which a 12-character id does not convert to (not tested
-    against MSSQL).
+    against MSSQL), so before this update a report from any CLI version can
+    fail with a server error on that database. The hash must be a SHA-256
+    digest (64 hex characters): the CLI refuses anything else before sending,
+    and the API refuses it in a 1.3.7 body. Confirming a report now creates
+    its threat entry with a full GUID as well (the 16-character id it used
+    does not fit `threats.id` either), keys a hash report by the reported
+    hash so a lookup of that hash matches it, and makes no detection
+    signature from a hash report, whose evidence the CLI composed and which
+    names no package. The API does not check the token on a report; the CLI
+    only requires one to be stored, so an expired token does not stop it.
   - `--enrich` could not parse a match: the CLI required `known_malicious` and
     `references`, which the API's threat entry does not have, and printed the
     failure only with `-v`. The CLI now reads the threat entry and prints its
@@ -83,7 +103,13 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `known_malicious: true` and `references: []` for 1.3.7. The lookup key is
     unchanged: a hash of the directory's file paths and sizes, which matches
     only an entry recorded for that exact directory, since the database is
-    keyed by package-artifact hashes.
+    keyed by package-artifact hashes. The lookup response carries no control
+    characters: 1.3.7 prints the description raw, and a community entry's
+    description is the reporter's text. A match, like an LLM finding from
+    `--enhanced`, is printed for information and does not change the
+    verdict, the exit code or the `-f` report.
+  - `sigil explain` named the scan after the report file, which can carry a
+    user or project name. It now sends the fixed target `sigil-explain`.
   - With `-f json`, the CLI writes these cloud messages to stderr, keeping
     stdout to the JSON report.
 

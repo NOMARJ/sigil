@@ -213,7 +213,7 @@ A Next.js web application that provides a visual interface for scan history, tea
      flagged source line
    - Files scanned, the CLI's score and verdict, target name "cli-scan"
    sigil explain also posts a saved report's findings there (without the
-   score and verdict, under the report file's name)
+   score and verdict, under the target name "sigil-explain")
 3. API scores the findings, stores the scan for the dashboard's scan
    history and returns its id. It also looks up package hashes and a
    publisher named in the request metadata, which the CLI does not send
@@ -287,10 +287,10 @@ What is unavailable offline:
 - **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages. That hash covers the directory's file paths and sizes, while the database is keyed by package-artifact hashes, so it matches only an entry recorded for that exact directory: no match does not mean the code is safe
 - **Signature updates (Pro plan):** `sigil fetch` downloads new detection patterns, which later fresh scans apply (content scanned before the fetch, in that directory or a copy of it, needs `sigil clear-cache` or `--no-cache`)
 - **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the Sigil API for the web dashboard's scan history
-- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The API does not yet return LLM findings for it: it stores the scan and the files and answers with its static analysis, and the CLI says so
+- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The API does not yet return LLM findings for it: it stores the scan, but not the uploaded files, and answers with its static analysis, and the CLI says so
 - **Finding adjudication:** `sigil explain <scan.json>` uploads every finding in the saved scan result, flagged source lines included, and asks the server to adjudicate one with an LLM
 
-The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan of unchanged content served from the cache skips them without a message, so add `--no-cache`. CLI 1.3.7 sends `--submit`, `--enhanced` and `sigil report` in shapes the API accepts only from the update that added CLI compatibility (`api/models.py`), and shows an `--enrich` match only from that update; a scan with an Inference Security (`INFER-*`) finding needs it from any CLI version.
+The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan of unchanged content served from the cache skips them without a message, so add `--no-cache`. CLI 1.3.7 sends `--submit`, `--enhanced` on a scan with findings, and `sigil report` in shapes the API accepts only from the update that added CLI compatibility (`api/models.py`), and shows an `--enrich` match only from that update; a scan with an Inference Security (`INFER-*`) finding needs it from any CLI version, and so does a reliable `sigil report` (the API before it gives a report a 12-character id, which the `UNIQUEIDENTIFIER` column in `schema.sql` does not accept). Cloud results are informational: an `--enrich` match or an LLM finding from `--enhanced` is printed, but does not change the verdict, the exit code or the `-f` report.
 
 ## Threat Intelligence Pipeline
 
