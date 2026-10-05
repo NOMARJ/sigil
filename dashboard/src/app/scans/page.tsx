@@ -154,7 +154,7 @@ export default function ScansPage() {
         <select
           value={source}
           onChange={(e) => { setSource(e.target.value); resetPage(); }}
-          className="rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-brand-500"
+          className="rounded-lg px-3 py-1.5 text-xs focus:outline-hidden focus:border-brand-500"
           style={{ 
             background: 'var(--color-bg-secondary)', 
             border: '1px solid var(--color-border-subtle)',

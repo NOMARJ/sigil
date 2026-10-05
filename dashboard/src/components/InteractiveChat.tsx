@@ -321,7 +321,7 @@ export default function InteractiveChat({
             onKeyPress={handleKeyPress}
             placeholder={canAfford ? "Ask about the security findings..." : "Insufficient credits"}
             disabled={isSending || !canAfford}
-            className="flex-1 text-sm bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
+            className="flex-1 text-sm bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-500 focus:outline-hidden focus:ring-2 focus:ring-brand-500 focus:border-transparent resize-none"
             rows={2}
           />
           <Button
