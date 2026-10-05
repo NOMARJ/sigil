@@ -1,6 +1,6 @@
 # Getting Started with Sigil
 
-Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it, with one exception: `sigil pip` lets pip run a source-only package's `setup.py` (see [Scanning a pip Package](#scanning-a-pip-package)).
+Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it, with two exceptions: `sigil pip` lets pip run a package's `setup.py` while downloading it when pip picks its source distribution (no wheel for your platform and Python in the version it selects; see [Scanning a pip Package](#scanning-a-pip-package)), and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts (see [`sigil npm`](cli.md#sigil-npm)).
 
 ## Prerequisites
 
@@ -144,7 +144,7 @@ Example output for a small repository with an `eval()` call, an outbound `reques
 sigil pip some-agent-toolkit
 ```
 
-Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It downloads with `pip download`, so for a package published only as a source distribution, pip runs the package's `setup.py` on your machine to read its metadata, before the scan.
+Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It downloads with `pip download`, so when pip picks the package's source distribution (no wheel for your platform and Python in the version it selects), pip runs the package's `setup.py` on your machine to read its metadata, before the scan.
 
 ### Scanning an npm Package
 
@@ -247,7 +247,7 @@ The pre-commit hook runs `sigil scan . --fail-on high` — all eight scan phases
 
 ## Connecting to Cloud (sigil login)
 
-Sigil needs no account, and the eight scan phases run locally. `sigil scan` does go online for one thing by default: when the scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, it looks the listed dependencies up in the OSV advisory database, and npm and PyPI packages on their registry; for CVE-numbered advisories it also fetches CISA KEV and FIRST EPSS data, sending those CVE IDs (without a connection these lookups are skipped and the scan still completes). For community threat intelligence and scan history, authenticate with the Sigil cloud:
+Sigil needs no account, and the eight scan phases run locally. `sigil scan` does go online for one thing by default: when the scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, it looks the listed dependencies up in the OSV advisory database, and npm and PyPI packages on their registry; for CVE-numbered advisories it also fetches CISA KEV and FIRST EPSS data, sending those CVE IDs (without a connection these lookups are skipped and the scan still completes). For community threat intelligence and the other cloud options below, authenticate with the Sigil cloud:
 
 ```bash
 sigil login
@@ -261,13 +261,14 @@ The CLI prints a verification URL and code. Open the URL, confirm the code, and 
 | ------------------------- | -------------------------------------------------------------------------------- |
 | `sigil scan --enrich`     | Pro: looks the scanned directory's hash up in the threat database                |
 | `sigil fetch`             | Pro: downloads community threat signatures, which later fresh scans apply        |
-| `sigil scan --submit`     | Sends the scan result to the Sigil API (scan history)                            |
+| `sigil scan --submit`     | Sends the scan result to the Sigil API                                           |
 | `sigil scan --enhanced`   | Pro: uploads file contents for LLM analysis (requires login)                     |
 | `sigil explain scan.json` | Sends a saved scan report's findings for AI adjudication of one (requires login) |
+| `sigil report <hash>`     | Reports a file hash as a threat (requires login)                                 |
 
-The `sigil scan` options run only on a fresh scan. Re-scanning an unchanged directory reuses the cached result (`sigil: using cached result`) and skips them without a message, so add `--no-cache`, for example `sigil scan . --enrich --no-cache`. Signatures from `sigil fetch` likewise reach a directory scanned before the fetch only after `sigil clear-cache` or with `--no-cache`.
+The `sigil scan` options run only on a fresh scan. Re-scanning an unchanged directory reuses the cached result (`sigil: using cached result`) and skips them without a message, so add `--no-cache`, for example `sigil scan . --enrich --no-cache`. Signatures from `sigil fetch` likewise reach a directory scanned before the fetch only after `sigil clear-cache` or with `--no-cache`. The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent. The current API rejects the payload `sigil report` sends (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent. For `--enrich`, the current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`.
 
-**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the scanned files' paths and sizes. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions. `sigil explain` sends every finding in the scan report it reads, flagged source lines included. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
+**What is sent to the cloud:** only what these options send. `--enrich` sends a SHA-256 hash of the paths and sizes of every file under the directory. `--submit` sends the scan result: each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. `--enhanced` uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example). `sigil explain` sends every finding in the scan report it reads, flagged source lines included. `sigil report` sends the hash, threat type and description you give it. Without them, nothing goes to the Sigil API. See [Data Handling](data-handling.md) for the full breakdown.
 
 ## Configuration
 

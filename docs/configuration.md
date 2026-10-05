@@ -12,7 +12,7 @@ Configuration is resolved in this order (highest priority first):
 2. **Environment variables** — override defaults
 3. **Built-in defaults** — used when nothing else is set
 
-The values `sigil config` stores in `~/.sigil/config.json` are not read by any other command, so they form no layer here (see [Config File](#config-file)). The one other settings file the CLI reads is `~/.sigil/config`, for `disclaimer=false` only.
+The values `sigil config` stores in `~/.sigil/config.json` are not read by any other command, so they form no layer here (see [Config File](#config-file)). Besides `~/.sigil/residue-allow` (the `sigil residue` allowlist), the one other settings file the CLI reads is `~/.sigil/config`, for `disclaimer=false` only.
 
 What a *scan* enforces — the exit gate, disabled rules, ignored paths,
 baselines, custom rules — is set by the scan policy described next, which has
@@ -255,7 +255,7 @@ Nothing creates `~/.sigil/` up front: `sigil install` and `sigil setup` do not t
 └── .disclaimer_shown    # Marker: the full disclaimer has been shown once
 ```
 
-There is no `approved/`, `logs/` or `reports/` directory. Approved code stays in `quarantine/<id>/`, and reports go to the terminal or to the file named by `-o`. `osv-cache/` is written when `sigil scan` or `sigil baseline` scans a tree with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` (plus `enrichment-cache/` when a finding is a CVE), and `provenance-ledger/` when the tree has a `requirements.txt` or `package-lock.json`. Some commands add their own paths: `providers/` (`sigil provider`), `known-good/` (`sigil known-good install`) and `backups/` (`sigil residue apply`), and the pip package caches its binary in `bin/`. Rule packs you place in `packs/` and a released corpus in `corpus/` are read when present.
+There is no `approved/`, `logs/` or `reports/` directory. Approved code stays in `quarantine/<id>/`, and reports go to the terminal or to the file named by `-o`. `osv-cache/` is written when `sigil scan` or `sigil baseline` scans a tree with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` (plus `enrichment-cache/` when a finding is a CVE), and `provenance-ledger/` when the tree has a `requirements.txt` or `package-lock.json`. Some commands add their own paths: `providers/` (`sigil provider`), `known-good/` (`sigil known-good install`) and `backups/` (`sigil residue apply`), and the pip package caches its binary in `bin/`. Rule packs you place in `packs/`, a released corpus in `corpus/` and the `sigil residue` allowlist `residue-allow` are read when present.
 
 ---
 
@@ -386,7 +386,7 @@ deprecated-unsafe-lib
 
 ### Policy Sync
 
-Policies are stored in the Sigil cloud and apply to the dashboard and API. The CLI does not fetch them, so they do not change `sigil scan`, `clone`, `pip` or `npm`: the CLI's only auto-approve is `--auto-approve` on `clone`, `pip` and `npm`, for a LOW RISK verdict, and what a CLI scan enforces comes from its [scan policy](#scan-policy-sigilyml).
+Policies are stored in the Sigil cloud and apply to the dashboard and API. The CLI does not fetch them, so they do not change `sigil scan`, `clone`, `pip` or `npm`: the CLI's only quarantine auto-approve is `--auto-approve` on `clone`, `pip` and `npm`, for a LOW RISK verdict (`sigil safe-run --auto-approve` only skips the confirmation prompt it shows for a HIGH RISK result before running a command in its sandbox), and what a CLI scan enforces comes from its [scan policy](#scan-policy-sigilyml).
 
 Configure policies via the web dashboard at **Settings > Scan Policies**, or via the API:
 
@@ -477,12 +477,13 @@ After `sigil login`, the JWT token is stored at `~/.sigil/token`. The file conta
 
 ### What Data Is Sent
 
-Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a `sigil scan` of a tree with a lockfile does look its dependencies' names and versions up in OSV and npm/PyPI). What each option sends, per [Data Handling](data-handling.md):
+Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a `sigil scan` of a tree with a lockfile does look its dependencies' names and versions up in OSV and npm/PyPI and, for CVE-numbered advisories, sends those CVE IDs to FIRST EPSS and downloads the CISA KEV catalogue). What each option sends, per [Data Handling](data-handling.md):
 
-- `sigil scan --enrich`: a SHA-256 hash of the scanned files' paths and sizes
+- `sigil scan --enrich`: a SHA-256 hash of the paths and sizes of every file under the directory
 - `sigil scan --submit`: the scan result, including each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. Flagged lines are source code, and can include a secret the line contains
-- `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis
+- `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example)
 - `sigil explain <scan.json>`: every finding in that saved scan report, including each flagged source line, so the server can have a model adjudicate one of them
+- `sigil report <hash>`: the hash, threat type and description you give it. The current API rejects this payload (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
 
 ---
 

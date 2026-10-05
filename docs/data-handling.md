@@ -14,7 +14,7 @@
 | Default CLI, logged in or not | **No** | For `sigil scan` of a tree with a lockfile: the listed dependencies' names and versions, and the IDs of any `CVE-` advisories found | OSV (`api.osv.dev`), the npm and PyPI registries, and FIRST EPSS (`api.first.org`); the CISA KEV catalogue is downloaded from `www.cisa.gov` |
 | Scan submission (`sigil scan --submit`, after `sigil login`) | **Flagged lines only** | Finding metadata + the source-line excerpts shown in scan output | Sigil API |
 | AI explanation (`sigil explain <scan.json>`, after `sigil login`) | **Flagged lines only** | Every finding in that saved scan report: metadata + the flagged source line | Sigil API → LLM provider (the finding being adjudicated) |
-| Pro enhanced scan / AI investigation | **Yes — collected text files** | For CLI `--enhanced`, up to 50 eligible text files under the target directory, collected independently of scan exclusions; investigation sends finding context | Sigil API → LLM provider |
+| Pro enhanced scan / AI investigation | **Yes — collected text files** | For CLI `--enhanced`, up to 50 eligible text files under the target directory, collected independently of scan exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50; investigation sends finding context | Sigil API → LLM provider |
 | Optional LLM review (`sigil scan --llm-review`, off by default) | **Yes — masked excerpts** | Per finding at Medium or above: rule, title, path, masked matched line and up to 6 masked lines on each side | The model endpoint you configure (Anthropic, or an OpenAI-compatible endpoint), directly, not via Sigil |
 
 ## 1. Default CLI, logged in or not (Open Source tier)
@@ -36,15 +36,18 @@ starting `CVE-`, the scan also downloads the CISA KEV catalogue from
 skipped. A `--phases` filter turns them off, and `sigil clone`, `pip` and
 `npm` do not run them.
 
-Optional network features the user explicitly invokes (signature updates
-via `sigil fetch`, `get_signatures`; the `sigil scan --enrich` hash lookup,
-which sends a SHA-256 of the scanned files' paths and sizes) download data or
-send a hash; they do not upload source code.
+Optional network features the user explicitly invokes download data or send
+a hash; they do not upload source code. They are signature updates via
+`sigil fetch` (`get_signatures`); the `sigil scan --enrich` hash lookup
+(`compute_directory_hash`, `cli/src/main.rs`), which sends a SHA-256 of the
+paths and sizes of every file under the directory; and `sigil report`
+(`report_threat`), which sends the hash, threat type and description you give
+it.
 
 ## 2. Scan submission (`sigil scan --submit`)
 
 With `--submit` (normally after `sigil login`, whose token it sends), the CLI
-submits scan results to the Sigil API (`ApiClient::submit_scan`,
+submits scan results to the Sigil API (`SigilClient::submit_scan`,
 `cli/src/api.rs`). The submitted `ScanResult`
 contains each `Finding`, and a `Finding` includes:
 
@@ -71,12 +74,15 @@ the configured LLM provider (`api/services/fp_adjudicator.py`).
 Pro features exist to have an AI read and reason about your code. They
 transmit source code by design:
 
-- `ApiClient::submit_enhanced_scan` (`cli/src/api.rs`) uploads a
+- `SigilClient::submit_enhanced_scan` (`cli/src/api.rs`) uploads a
   `file_contents` map to `POST /v1/scan-enhanced`. The CLI independently
   collects up to 50 eligible text files under the target directory; this
   collection does not apply scanner exclusions such as `.sigilignore`.
   Ignored files can therefore be uploaded. Review the target directory
-  before requesting enhanced analysis.
+  before requesting enhanced analysis. The same request carries the scan
+  result's `findings`, each with its `snippet` (the flagged source line),
+  including findings in files outside the uploaded ones (a secret flagged in
+  `.env`, for example).
 - The investigation service (`api/services/finding_investigator.py`) builds
   LLM prompts containing the finding's `code_snippet` plus surrounding
   context lines.

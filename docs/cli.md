@@ -6,10 +6,10 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 ## Global Behavior
 
-- All eight scan phases execute locally, and no account is needed. `sigil scan` of a directory with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry); without a connection those lookups are skipped. `sigil clone`, `pip` and `npm` need the network to fetch what they scan.
-- Logging in (`sigil login`) stores a token and does not change a plain scan. The cloud options send it: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch`, `sigil report` and `sigil explain` (`--enhanced`, `sigil report` and `sigil explain` refuse to run without it). `--enrich` and `sigil fetch` need a Pro plan, as does `--enhanced`. `sigil explain` uploads every finding in a scan JSON file, flagged source lines included, for server-side LLM adjudication. The `sigil scan` cloud options run only on a fresh scan: when a re-scan of unchanged content is served from the cache, they are skipped without a message, so add `--no-cache`.
-- Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/`. Sigil installs nothing and does not run it, before or after approval. The package tools it calls can, though: `pip download` runs a source distribution's `setup.py` to read its metadata, so `sigil pip` of a package with no compatible wheel runs that code on the host before the scan, and `sigil npm` of a local directory lets `npm pack` run its `prepack` script. `sigil scan <dir>` scans a local directory in place.
-- `sigil scan` exits by the findings' severity against `--fail-on`, by the verdict only with `--fail-on-verdict`, and by coverage only with `--fail-on-incomplete`. `sigil clone`, `pip` and `npm` have no `--fail-on`: they exit `1` for any verdict above LOW RISK (see [Exit Codes](#exit-codes) below).
+- All eight scan phases execute locally, and no account is needed. `sigil scan` of a directory with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry) and, for CVE-numbered advisories, sends those CVE IDs to FIRST EPSS and downloads the CISA KEV catalogue; without a connection those lookups are skipped. `sigil clone`, `pip` and `npm` need the network to fetch what they scan.
+- Logging in (`sigil login`) stores a token and does not change a plain scan. The cloud options send it: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch`, `sigil report` and `sigil explain` (`--enhanced`, `sigil report` and `sigil explain` refuse to run without it). `--enrich` and `sigil fetch` need a Pro plan. `--enhanced`'s LLM analysis is Pro-only, but the server checks the plan after the upload, so on a Free plan the files are still sent (and, when the request is accepted, kept with the scan record). `sigil explain` uploads every finding in a scan JSON file, flagged source lines included, for server-side LLM adjudication. The `sigil scan` cloud options run only on a fresh scan: when a re-scan of unchanged content is served from the cache, they are skipped without a message, so add `--no-cache`.
+- Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/`. Sigil installs nothing and does not run it, before or after approval. The package tools it calls can, though: `pip download` runs a source distribution's `setup.py` to read its metadata, so `sigil pip` of a package with no compatible wheel runs that code on the host before the scan, and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`). `sigil scan <dir>` scans a local directory in place.
+- `sigil scan` exits by the findings' severity against `--fail-on`, by the verdict only with `--fail-on-verdict` (or `fail_on_verdict` in a scan policy), and by coverage only with `--fail-on-incomplete` (or `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete` in a scan policy). `sigil clone`, `pip` and `npm` have no `--fail-on`: they exit `1` for any verdict above LOW RISK (see [Exit Codes](#exit-codes) below).
 
 ---
 
@@ -249,7 +249,7 @@ sigil npm <package-name>
 
 **Behavior:**
 
-1. Passes the name to `npm pack` as given: Sigil does not validate it, and `npm pack` also accepts a local directory, whose `prepack` script it then runs
+1. Passes the name to `npm pack` as given: Sigil does not validate it, and `npm pack` also accepts a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one); for those it runs the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`)
 2. Downloads via `npm pack` (creates a `.tgz` archive)
 3. Extracts into quarantine
 4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
@@ -836,7 +836,7 @@ severity rationale: [detection/ux.md](detection/ux.md#agentcfg--checks).
 
 ### sigil login
 
-Authenticate with the Sigil cloud API to enable threat intelligence, scan history, and team features.
+Authenticate with the Sigil cloud API and store a token for the cloud options: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch`, `sigil report` and `sigil explain`.
 
 ```bash
 sigil login                       # browser-based device authorization flow
@@ -857,10 +857,10 @@ sigil login                       # browser-based device authorization flow
 
 **What the token is used for** (each is an explicit option or command):
 
-- Threat intelligence lookups against the known-malicious hash database (`sigil scan --enrich`, Pro plan)
+- Threat intelligence lookups against the known-malicious hash database (`sigil scan --enrich`, Pro plan). The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
 - Community threat signatures, delta-synced by `sigil fetch` (Pro plan) and applied by later fresh scans (see [`sigil fetch`](#sigil-fetch))
-- Scan history in the web dashboard, for results you send with `sigil scan --submit` (each finding with its flagged source line)
-- Pro LLM analysis (`sigil scan --enhanced`, which uploads up to 50 text files from the directory, collected without the scan's exclusions) and threat reports (`sigil report`), which require it
+- Scan history in the web dashboard, for results you send with `sigil scan --submit` (each finding with its flagged source line). The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent
+- Pro LLM analysis (`sigil scan --enhanced`, which uploads up to 50 text files from the directory, collected without the scan's exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50) and threat reports (`sigil report`, which sends a hash, a threat type and a description), which require it. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent. It also rejects the payload `sigil report` sends (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
 - LLM adjudication of a finding (`sigil explain <scan.json>`), which requires it: it uploads every finding in the scan JSON file, flagged source lines included, to the API (`https://api.sigilsec.ai` unless you pass `--endpoint`) and asks the server to adjudicate one of them with an LLM. Free accounts draw on a monthly LLM allowance
 
 The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only
@@ -1193,7 +1193,7 @@ a NUL byte" as "binary":
 - An agent instruction file or markdown file whose bytes are not decodable text
   is reported as `PROV-INCOMPLETE-001` (see [Incomplete coverage](#incomplete-coverage)).
 
-**Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them; inside a git repository, any file its `.gitignore` excludes is not scanned at all.
+**Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them; when you scan a git repository from its root, files its `.gitignore` excludes are not scanned (scanning a subdirectory does not apply the root `.gitignore`).
 
 Custom exclusions can be added via a `.sigilignore` file (see [Configuration Guide](configuration.md)).
 

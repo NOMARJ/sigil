@@ -335,9 +335,10 @@ sigil login
 
 Stores a token for the cloud options; a plain `sigil scan` does not change. You then opt in explicitly:
 
-- Hash-based malware lookup (Pro plan): `sigil scan --enrich`, on a fresh scan (add `--no-cache` if the directory was scanned before)
+- Hash-based malware lookup (Pro plan): `sigil scan --enrich`, on a fresh scan (add `--no-cache` if the directory was scanned before). The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
 - Threat signature updates (Pro plan): `sigil fetch` (signatures do not update on their own; run `sigil clear-cache` afterwards to re-check directories already scanned)
-- Reporting a threat: `sigil report`
+- AI analysis of your code (Pro plan): `sigil scan --enhanced`, on a fresh scan, uploads up to 50 eligible text files under the target directory, collected independently of scan exclusions, to the Sigil API for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example). The server checks the plan after the upload, so on a Free plan the files are still sent (see [Data Handling](./data-handling.md))
+- Reporting a threat: `sigil report`, which sends a hash, a threat type and a description. The current API rejects the payload `sigil report` sends (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
 
 See [Authentication Guide](./authentication-guide.md) for details.
 

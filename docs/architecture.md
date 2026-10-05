@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sigil is an automated security auditing system for AI agent code, built around a **quarantine-first** workflow. Nothing executes, installs, or enters your working environment until it has been scanned, scored, and explicitly approved. The exception is code the package tools run while downloading: `sigil pip` of a package with no compatible wheel lets `pip download` run its `setup.py` before the scan, and `sigil npm` of a local directory lets `npm pack` run its `prepack` script (see [`sigil pip`](cli.md#sigil-pip) and [`sigil npm`](cli.md#sigil-npm)).
+Sigil is an automated security auditing system for AI agent code, built around a **quarantine-first** workflow. Nothing executes, installs, or enters your working environment until it has been scanned, scored, and explicitly approved. The exception is code the package tools run while downloading: `sigil pip` of a package with no compatible wheel lets `pip download` run its `setup.py` before the scan, and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts before the scan: `prepack`, `prepare` and `postpack` for a directory, and for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare` (see [`sigil pip`](cli.md#sigil-pip) and [`sigil npm`](cli.md#sigil-npm)).
 
 The system is organized into three layers that can operate independently or in concert.
 
@@ -211,6 +211,8 @@ A Next.js web application that provides a visual interface for scan history, tea
 2. Only with sigil scan --submit, CLI sends the scan result to POST /v1/scan:
    - Each finding: rule, severity, file path, line, flagged source line
    - Risk score and verdict
+   The current API rejects this payload (HTTP 422), so step 3 does not yet
+   happen for it, but the data is still sent
 3. API enriches the scan with threat intelligence:
    - Known malicious hash lookups
    - Publisher reputation scores
@@ -281,10 +283,10 @@ What is unavailable offline:
 
 `sigil login` stores a token; a plain scan does not change and sends nothing to the Sigil API. The cloud options use the token:
 
-- **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages
+- **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
 - **Signature updates (Pro plan):** `sigil fetch` downloads new detection patterns, which later fresh scans apply (a directory scanned before the fetch needs `sigil clear-cache` or `--no-cache`)
-- **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the web dashboard
-- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis
+- **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the Sigil API for the web dashboard's scan history. The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent
+- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent
 - **Finding adjudication:** `sigil explain <scan.json>` uploads every finding in the saved scan result, flagged source lines included, and asks the server to adjudicate one with an LLM
 
 The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan of unchanged content served from the cache skips them without a message, so add `--no-cache`.

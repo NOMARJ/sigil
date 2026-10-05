@@ -100,7 +100,7 @@ docs/
 *.spec.py
 ```
 
-**Hide lower-severity findings:** `--severity` drops findings below a level from the report:
+**Hide lower-severity findings:** `--severity` drops findings below a level from the report, the score, the verdict and the exit code, so it can turn a failing `--fail-on` or `--fail-on-verdict` gate into a pass:
 
 ```bash
 sigil scan . --severity high
@@ -129,7 +129,7 @@ build/
 sigil scan . --phases install_hooks,code_patterns
 ```
 
-`--severity` does not make a scan faster: it only hides findings below that level from the report (see [False positives](#false-positives)).
+`--severity` does not make a scan faster: it drops findings below that level from the report, the score, the verdict and the exit code, so it can turn a failing gate into a pass (see [False positives](#false-positives)).
 
 ### `sigil scan` exits with an error
 
@@ -153,7 +153,7 @@ A "semgrep not found" message came from the legacy bash CLI (`bin/sigil`). The c
 
 ### Scan shows no findings but I expect some
 
-1. **Check file types:** every text file is content-scanned, whatever its extension. Binary files get only the structural checks, and `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches are never content-scanned (see [File Types Scanned](cli.md#file-types-scanned)). Inside a git repository, files the repository's `.gitignore` excludes are not scanned at all: check with `git check-ignore -v <file>`, or scan a copy outside the repository.
+1. **Check file types:** every text file is content-scanned, whatever its extension. Binary files get only the structural checks, and `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches are never content-scanned (see [File Types Scanned](cli.md#file-types-scanned)). When you scan a git repository from its root, files its `.gitignore` excludes are not scanned (scanning a subdirectory does not apply the root `.gitignore`): check with `git check-ignore -v <file>`, or scan a copy outside the repository.
 
 2. **Check .sigilignore:** Your ignore file may be excluding the relevant files.
 
@@ -209,7 +209,7 @@ Logging in does not change a plain `sigil scan`. The hash lookup runs only with 
 sigil -v scan . --enrich --no-cache
 ```
 
-`--enrich` prints `THREAT INTEL: <path> is a known threat` on a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. The threat database needs a Pro plan; the API refuses the lookup otherwise. If it fails:
+`--enrich` prints `THREAT INTEL: <path> is a known threat` when the API reports a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. No output therefore does not mean the target is not a known threat. The threat database needs a Pro plan; the API refuses the lookup otherwise. If it fails:
 
 1. **Check authentication status:**
 
@@ -267,8 +267,8 @@ For `sigil scan`:
 
 | Exit Code | Meaning | Suggested CI Action |
 |-----------|---------|-------------------|
-| `0` | No finding at or above `--fail-on` (default `high`) | Pass |
-| `1` | A finding at or above `--fail-on`, or a verdict at or above `--fail-on-verdict` | Fail |
+| `0` | No finding at or above `--fail-on` (default `high`), and neither `--fail-on-verdict` nor `--fail-on-incomplete` applies | Pass |
+| `1` | A finding at or above `--fail-on`, a verdict at or above `--fail-on-verdict`, or, with `--fail-on-incomplete`, part of the target not fully inspected | Fail |
 | `2` | Scan error: invalid path or flags, or the scan could not run | Fail, and fix the job |
 
 The exit code follows the findings, not the verdict: with the default `--fail-on high`, a MEDIUM RISK result exits `0` when none of its findings is High or Critical, and `1` when one is. To gate on the verdict as well, add `--fail-on-verdict` (see [Exit Codes](cli.md#exit-codes)).
@@ -353,7 +353,7 @@ See the [MCP Integration Guide](mcp.md) for detailed setup instructions.
 
 ### Does Sigil send my source code to the cloud?
 
-Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups, and, for CVE-numbered advisories, those CVE IDs to FIRST EPSS (plus a download of the CISA KEV catalogue). Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `sigil explain scan.json` sends every finding in that report, flagged source lines included, to the Sigil API for AI adjudication; `--enhanced` (Pro) uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions; and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
+Not unless you ask it to. A plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups, and, for CVE-numbered advisories, those CVE IDs to FIRST EPSS (plus a download of the CISA KEV catalogue). Logging in does not change that. The options that do send code are explicit: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `sigil explain scan.json` sends every finding in that report, flagged source lines included, to the Sigil API for AI adjudication; `--enhanced` (Pro) uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example); and `--llm-review` sends masked excerpts to the model endpoint you configure. See [Data Handling](data-handling.md) for details.
 
 ### Can I use Sigil without an internet connection?
 
@@ -381,11 +381,11 @@ rm -rf ~/.sigil/quarantine/<quarantine-id>
 rm -rf ~/.sigil
 ```
 
-This removes all quarantined and approved code, the trust ledger, cached results, the stored token and `sigil config` values. There is no initialization step: Sigil recreates what it needs the first time a command uses it. (If you set `SIGIL_QUARANTINE_DIR`, quarantined code lives there instead.)
+This removes all quarantined and approved code, the trust ledger, cached results, the stored token and `sigil config` values. It also deletes residue backups (`~/.sigil/backups/`, so `sigil residue rollback` can no longer undo a `sigil residue apply`), fetched signatures, provider configs, known-good indexes, provenance baselines, any rule packs in `packs/` and the binary the PyPI package caches in `bin/`, along with everything else under `~/.sigil`; copy out what you need first. There is no initialization step: Sigil recreates what it needs the first time a command uses it. (If you set `SIGIL_QUARANTINE_DIR`, quarantined code lives there instead.)
 
 ### What languages does Sigil scan?
 
-Every text file is content-scanned, whatever its language or extension, including markdown, agent instruction files, manifests and configuration (inside a git repository, files its `.gitignore` excludes are not scanned). Some rules apply only to certain file names or extensions (install hooks key on `setup.py` and `package.json`, for example), and more of them cover Python and JavaScript than Go or Ruby. See [File Types Scanned](cli.md#file-types-scanned).
+Every text file is content-scanned, whatever its language or extension, including markdown, agent instruction files, manifests and configuration (when you scan a git repository from its root, files its `.gitignore` excludes are not scanned; scanning a subdirectory does not apply the root `.gitignore`). Some rules apply only to certain file names or extensions (install hooks key on `setup.py` and `package.json`, for example), and more of them cover Python and JavaScript than Go or Ruby. See [File Types Scanned](cli.md#file-types-scanned).
 
 ### How is the risk score calculated?
 

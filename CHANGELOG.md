@@ -131,10 +131,11 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   architecture, data handling). The verdict follows the evidence, not score
   bands; the score is severity times weight (the phase's, unless the rule sets
   its own); `sigil scan` exits by `--fail-on` (and `--fail-on-verdict` or
-  `--fail-on-incomplete` when given), while `clone`/`pip`/`npm` exit 1 for any
-  verdict above LOW RISK. Logging in changes no scan: `--enrich`, `--submit`,
-  `--enhanced` and `sigil fetch` are explicit, and `--submit` sends flagged
-  source lines. A default `sigil scan` sends lockfile dependency names and
+  `--fail-on-incomplete` when given or set in a policy), while
+  `clone`/`pip`/`npm` exit 1 for any verdict above LOW RISK, and `--severity`
+  drops findings from the score, verdict and exit code as well as the report.
+  Logging in changes no scan: `--enrich`, `--submit`, `--enhanced` and
+  `sigil fetch` are explicit, and `--submit` sends flagged source lines. A default `sigil scan` sends lockfile dependency names and
   versions to OSV and npm/PyPI (and CVE IDs to EPSS); `clone`/`pip`/`npm` skip
   those lookups. Every text file is scanned, `sigil list` shows no verdict,
   Linux source builds need a C compiler, make and perl, `sigilsec` is on PyPI,
@@ -145,7 +146,13 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   skips the cloud options and fetched signatures, so both need `--no-cache` or
   `sigil clear-cache`. The CLI reference explains where a CI token comes from
   and that it expires, and that `sigil pip`/`npm` can run package code while
-  downloading (an sdist's `setup.py`).
+  downloading (an sdist's `setup.py`, or the lifecycle scripts of a local
+  directory or git spec, `owner/repo` shorthands included, given to
+  `sigil npm`). `--enhanced` sends the scan result as well as the files. The
+  docs no longer promise scan history for `--submit`: the current API rejects
+  its payload (HTTP 422), rejects `sigil report`'s, and rejects an `--enhanced`
+  request when the scan has any finding. They also say that an `--enrich` match
+  is not shown, because the CLI cannot parse the current API's match response.
 - **Smaller corrections:** `.gitignore` exclusion, `fail_on_incomplete`, the
   Claude Code MCP config location, v1.3.7 version pins and the Docker tag, the
   roadmap, the real supplementary checks, HIGH-gate figures labelled as
