@@ -16,12 +16,11 @@ The `sigil` binary is not in your `$PATH`.
 # Check where sigil is installed
 ls /usr/local/bin/sigil
 
-# If it's not there, copy it
-sudo cp bin/sigil /usr/local/bin/sigil
-chmod +x /usr/local/bin/sigil
+# If it's not there, install it (see the Installation Guide); from a source build in cli/:
+sudo ./target/release/sigil install
 
-# Or add the bin directory to your PATH
-export PATH="/path/to/sigil/bin:$PATH"
+# Or add the directory that holds the binary to your PATH
+export PATH="/path/to/sigil/cli/target/release:$PATH"
 ```
 
 If you installed via Homebrew, ensure your Homebrew bin directory is in your PATH:
@@ -40,10 +39,9 @@ eval "$(brew shellenv)"
 # Option 1: Use sudo, naming this sigil by its full path so root runs the same build
 sudo "$(command -v sigil)" install
 
-# Option 2: Install to a user-writable directory
+# Option 2: Install to a user-writable directory (it must already exist)
 mkdir -p ~/bin
-cp bin/sigil ~/bin/sigil
-chmod +x ~/bin/sigil
+sigil install --path ~/bin
 export PATH="$HOME/bin:$PATH"
 ```
 
@@ -65,7 +63,7 @@ alias gclone
 If aliases still don't work, check that the alias block was added to the correct file:
 
 ```bash
-grep -n "SIGIL ALIASES" ~/.bashrc ~/.zshrc 2>/dev/null
+grep -n ">>> sigil aliases >>>" ~/.bashrc ~/.zshrc 2>/dev/null
 ```
 
 ### Homebrew formula not found
@@ -102,6 +100,12 @@ docs/
 *.spec.py
 ```
 
+**Hide lower-severity findings:** `--severity` drops findings below a level from the report, the score, the verdict and the exit code, so it can turn a failing `--fail-on` or `--fail-on-verdict` gate into a pass:
+
+```bash
+sigil scan . --severity high
+```
+
 **Report false positives:** If you believe a pattern should not be flagged, file an issue at [github.com/NOMARJ/sigil/issues](https://github.com/NOMARJ/sigil/issues) with the label `false-positive`.
 
 ### Scan takes too long
@@ -110,16 +114,13 @@ Large directories with many files slow down scanning.
 
 **Fix:**
 
-1. Add a `.sigilignore` file to skip large directories:
+1. Add a `.sigilignore` file to skip large directories (`node_modules/`, `.next/`, `__pycache__/` and virtualenvs are already skipped):
 
 ```bash
 # .sigilignore
-node_modules/
 vendor/
 dist/
 build/
-.next/
-__pycache__/
 ```
 
 2. Scan only specific phases:
@@ -128,22 +129,14 @@ __pycache__/
 sigil scan . --phases install_hooks,code_patterns
 ```
 
-3. Raise the severity threshold:
-
-```bash
-sigil scan . --severity high
-```
+`--severity` does not make a scan faster: it drops findings below that level from the report, the score, the verdict and the exit code, so it can turn a failing gate into a pass (see [False positives](#false-positives)).
 
 ### `sigil scan` exits with an error
 
-**Check required tools:**
+**Run it verbosely** to see which step failed (`grep`, `find`, `file`, `semgrep`, `bandit`, `trufflehog` and `safety` are not needed):
 
 ```bash
-# These are required
-which grep find file
-
-# Run config to check scanner status
-sigil config
+sigil -v scan /path/you/are/scanning
 ```
 
 **Check the path exists:**
@@ -152,30 +145,15 @@ sigil config
 ls -la /path/you/are/scanning
 ```
 
+**YARA rules that use modules:** a YARA file given with `--rules` or a policy that imports a module (`import "pe"`, for example) needs YARA-X (`yr`) or YARA (`yara`) on your PATH. Without either, the scan exits `2` and says so. Install one, or pass `--yara-engine best-effort` to load those rules unevaluated (the scan then reports incomplete coverage).
+
 ### External scanner not detected
 
-Sigil reports "semgrep not found" or similar.
-
-**Fix:** Install the missing scanner:
-
-```bash
-pip install semgrep          # Advanced pattern matching
-pip install bandit           # Python security linting
-pip install safety           # Python CVE scanning
-brew install trufflehog      # Secret detection (macOS)
-```
-
-Verify installation:
-
-```bash
-sigil config    # Shows scanner status
-```
-
-External scanners are optional. All eight core scan phases run without them.
+A "semgrep not found" message came from the legacy bash CLI (`bin/sigil`). The current CLI does not call `semgrep`, `bandit`, `trufflehog` or `safety` and never reports them missing: all eight scan phases are built in, so there is nothing to install.
 
 ### Scan shows no findings but I expect some
 
-1. **Check file types:** Sigil scans `.py`, `.js`, `.mjs`, `.ts`, `.tsx`, `.jsx`, `.sh`, `.yaml`, `.yml`, `.json`, `.toml`. Other file types are not scanned.
+1. **Check file types:** every text file is content-scanned, whatever its extension. Binary files get only the structural checks, and `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches are never content-scanned (see [File Types Scanned](cli.md#file-types-scanned)). When you scan a git repository from its root, files its `.gitignore` excludes are not scanned (scanning a subdirectory does not apply the root `.gitignore`): check with `git check-ignore -v <file>`, or scan a copy outside the repository.
 
 2. **Check .sigilignore:** Your ignore file may be excluding the relevant files.
 
@@ -203,18 +181,19 @@ sigil scan /full/path/to/directory
 curl -s https://api.sigilsec.ai/health
 ```
 
-**Check API URL:** If using a custom API URL, verify it:
+**Check the endpoint:** `sigil login` uses `https://api.sigilsec.ai` unless you pass `--endpoint <url>` (the CLI does not read `SIGIL_API_URL`). If you pass one, check that URL instead:
 
 ```bash
-echo $SIGIL_API_URL
-curl -s "$SIGIL_API_URL/health"
+curl -s "https://api.yourcompany.com/health"
 ```
 
-**Check credentials:** Ensure you are using the correct email and password.
+The endpoint applies to that login only and is not saved: `sigil fetch`, `sigil report` and the cloud options of `sigil scan` always use `https://api.sigilsec.ai`.
+
+**Check how you log in:** `sigil login` has no email or password option. Without flags it runs a browser sign-in: it prints a URL and a code for you to open and confirm; `sigil login --token <token>` checks a token you already have against the API before storing it.
 
 ### Token expired
 
-JWT tokens have an expiration time. When the token expires, Sigil falls back to offline mode silently.
+The access token the `sigil login` browser sign-in stores expires, and the CLI neither checks nor refreshes it. Once the API rejects it, `sigil fetch`, `sigil report` and `sigil explain` fail with an API error, `sigil scan --submit` and `--enhanced` print a warning and keep the local result, and `--enrich` reports the failure only with `-v`.
 
 **Fix:** Re-authenticate:
 
@@ -224,12 +203,18 @@ sigil login
 
 ### Threat intelligence not loading
 
-After login, scans should show a "Cloud threat enrichment" section. If missing:
+Logging in does not change a plain `sigil scan`. The hash lookup runs only with `sigil scan --enrich`, and only on a fresh scan: when the scan reuses a cached result (it prints `sigil: using cached result`, the default when you re-scan an unchanged directory or a copy of content scanned before), `--enrich`, `--submit` and `--enhanced` are skipped without a message, so add `--no-cache`:
+
+```bash
+sigil -v scan . --enrich --no-cache
+```
+
+`--enrich` prints `THREAT INTEL: <path> is a known threat` when the API reports a match and nothing otherwise; with `-v` it prints `no threat intel match for this target`, or why the lookup failed. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. No output therefore does not mean the target is not a known threat. The threat database needs a Pro plan; the API refuses the lookup otherwise. If it fails:
 
 1. **Check authentication status:**
 
 ```bash
-sigil config    # Shows whether a token is stored
+ls -l ~/.sigil/token    # Exists once sigil login has succeeded
 ```
 
 2. **Check token is valid:**
@@ -238,10 +223,10 @@ sigil config    # Shows whether a token is stored
 cat ~/.sigil/token    # Should contain a JWT string
 ```
 
-3. **Re-authenticate:**
+3. **Re-authenticate** (there is no `sigil logout`; delete the token file instead):
 
 ```bash
-sigil logout
+rm ~/.sigil/token
 sigil login
 ```
 
@@ -258,12 +243,12 @@ sigil login
 - uses: NOMARJ/sigil@main
 
 # Or pin to a specific version
-- uses: NOMARJ/sigil@v0.9.0
+- uses: NOMARJ/sigil@v1.3.7
 ```
 
 **Check runner has required tools:**
 
-The action runs on `ubuntu-latest` which includes all required tools. If using a custom runner, ensure `grep`, `find`, `file`, `git`, and `curl` are available.
+The action runs on `ubuntu-latest` which includes all required tools. If using a custom runner, ensure `curl`, `tar`, `sha256sum` (or `shasum`) and `jq` are available: the action installs the release binary with `install.sh` and reads the JSON report with `jq`.
 
 ### SARIF upload rejected by GitHub
 
@@ -278,24 +263,26 @@ cat results.sarif | python -m json.tool    # Check it's valid JSON
 
 ### Exit code mapping in CI
 
-| Exit Code | Verdict | Suggested CI Action |
+For `sigil scan`:
+
+| Exit Code | Meaning | Suggested CI Action |
 |-----------|---------|-------------------|
-| `0` | CLEAN | Pass |
-| `4` | LOW_RISK | Pass (with optional warning) |
-| `3` | MEDIUM_RISK | Pass or fail (configurable) |
-| `2` | HIGH_RISK | Fail |
-| `1` | CRITICAL / Error | Fail |
+| `0` | No finding at or above `--fail-on` (default `high`), and neither `--fail-on-verdict` nor `--fail-on-incomplete` applies | Pass |
+| `1` | A finding at or above `--fail-on`, a verdict at or above `--fail-on-verdict`, or, with `--fail-on-incomplete`, part of the target not fully inspected | Fail |
+| `2` | Scan error: invalid path or flags, or the scan could not run | Fail, and fix the job |
+
+The exit code follows the findings, not the verdict: with the default `--fail-on high`, a MEDIUM RISK result exits `0` when none of its findings is High or Critical, and `1` when one is. To gate on the verdict as well, add `--fail-on-verdict` (see [Exit Codes](cli.md#exit-codes)). `sigil scan` of a repository URL runs the `sigil clone` workflow instead: it exits `1` for any verdict above LOW RISK and ignores `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete`, so in CI clone first (allowing the clone step's own exit `1`), find the id with `sigil list`, and scan `~/.sigil/quarantine/<id>`.
+
+`sigil clone`, `sigil pip` and `sigil npm` have no `--fail-on`: they exit `0` for a LOW RISK verdict, `1` for any other verdict (MEDIUM RISK included), and `2` when the command itself fails.
 
 **Example gate script:**
 
 ```bash
-sigil scan .
+sigil scan . --fail-on-verdict medium
 case $? in
-  0) echo "CLEAN — pipeline passes" ;;
-  4) echo "LOW RISK — review recommended" ;;
-  3) echo "MEDIUM RISK — manual review required"; exit 1 ;;
-  2) echo "HIGH RISK — blocking"; exit 1 ;;
-  1) echo "CRITICAL — blocking"; exit 1 ;;
+  0) echo "Verdict below MEDIUM RISK, no High or Critical finding — pipeline passes" ;;
+  1) echo "MEDIUM RISK or worse, or a High or Critical finding — blocking"; exit 1 ;;
+  *) echo "Scan error — fix the job"; exit 2 ;;
 esac
 ```
 
@@ -326,12 +313,19 @@ The Sigil plugin requires JetBrains IDE version 2024.1 or later. Check your IDE 
 1. **Check the config file path:**
 
 ```bash
-# Claude Code
-cat ~/.claude/claude_desktop_config.json
+# Claude Code: list the servers it has registered. It keeps user- and
+# local-scope servers in ~/.claude.json and project servers in .mcp.json
+claude mcp list
+
+# Claude Desktop (not Claude Code) reads claude_desktop_config.json, in
+# ~/Library/Application Support/Claude/ (macOS), ~/.config/Claude/ (Linux)
+# or %APPDATA%\Claude\ (Windows)
 
 # Verify the path to index.js exists
 ls /path/to/sigil/plugins/mcp-server/dist/index.js
 ```
+
+The `sigil` binary also has a built-in MCP server that needs no Node.js build: `claude mcp add sigil -- sigil mcp` (see the [MCP Integration Guide](mcp.md#built-in-server-no-nodejs-nothing-else-to-install)).
 
 2. **Build the MCP server if not already built:**
 
@@ -359,11 +353,11 @@ See the [MCP Integration Guide](mcp.md) for detailed setup instructions.
 
 ### Does Sigil send my source code to the cloud?
 
-No. Sigil never transmits source code. When authenticated, it sends only metadata: which scan rules triggered, file type distribution, risk scores, and package identifiers. See [Configuration Guide — Authentication](configuration.md#authentication) for details.
+Not unless you, or your organisation's scan policy, ask it to. Without a policy that turns on LLM review, a plain `sigil scan` sends no code anywhere; the only thing it sends by default is the names and versions of the dependencies listed in a lockfile, for the OSV and npm/PyPI lookups, and, for CVE-numbered advisories, those CVE IDs to FIRST EPSS (plus a download of the CISA KEV catalogue). Logging in does not change that. The options that do send code are these: `sigil scan --submit` sends the scan result, including each finding's file path and the flagged source line; `sigil explain scan.json` sends every finding in that report, flagged source lines included, to the Sigil API for AI adjudication; `--enhanced` (Pro) uploads the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example); and `--llm-review`, or `llm_review: true` in your organisation policy (`SIGIL_POLICY_FILE`) or a `--config` file, sends masked excerpts to the configured model endpoint (`sigil config --policy`, given the same `--config`, shows whether it is on). See [Data Handling](data-handling.md) for details.
 
 ### Can I use Sigil without an internet connection?
 
-Yes. All eight scan phases run locally with no network calls. The CLI is fully functional offline. Cloud features (threat intelligence, scan history, team management) require authentication and network access.
+Yes, for local scans. All eight scan phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry); offline, those lookups are skipped and the scan still completes. `sigil clone`, `sigil pip` and `sigil npm` need the network to fetch what they scan. Cloud features (threat intelligence, scan history, team management) require authentication and network access.
 
 ### Does Sigil replace Snyk or Dependabot?
 
@@ -371,32 +365,31 @@ No. Sigil and dependency scanners are complementary. Snyk and Dependabot check d
 
 ### What happens if I approve something that's actually malicious?
 
-Approved code is moved to `~/.sigil/approved/`. It is not installed or executed automatically. You still need to manually copy or use the code. Approval means "I reviewed it and accept the risk."
+Approved code stays in `~/.sigil/quarantine/<id>/`. It is not installed or executed automatically. You still need to manually copy or use the code. Approval means "I reviewed it and accept the risk." It also pins the code's content digest in `~/.sigil/ledger/index.json`, so later scans of identical content suppress its findings (`sigil scan --ignore-ledger` reports them anyway).
 
 ### Can I undo an approval?
 
-There is no built-in "unapprove" command. Approved code lives in `~/.sigil/approved/<id>/`. You can delete it manually:
+There is no built-in "unapprove" command, and `sigil reject` refuses an item that is already approved. Approved code lives in `~/.sigil/quarantine/<id>/`. You can delete it manually, and remove the pin by deleting the entry with that `"id"` from `~/.sigil/ledger/index.json` (`sigil ledger show <id>` prints it until then):
 
 ```bash
-rm -rf ~/.sigil/approved/<quarantine-id>
+rm -rf ~/.sigil/quarantine/<quarantine-id>
 ```
 
 ### How do I reset Sigil completely?
 
 ```bash
 rm -rf ~/.sigil
-sigil config --init
 ```
 
-This removes all quarantined code, approved code, reports, logs, tokens, and configuration.
+This removes all quarantined and approved code, the trust ledger, cached results, the stored token and `sigil config` values. It also deletes residue backups (`~/.sigil/backups/`, so `sigil residue rollback` can no longer undo a `sigil residue apply`), fetched signatures, provider configs, known-good indexes, provenance baselines, any rule packs in `packs/` and the binary the PyPI package caches in `bin/`, along with everything else under `~/.sigil`; copy out what you need first. There is no initialization step: Sigil recreates what it needs the first time a command uses it. (If you set `SIGIL_QUARANTINE_DIR`, quarantined code lives there instead.)
 
 ### What languages does Sigil scan?
 
-Sigil scans Python (`.py`), JavaScript (`.js`, `.mjs`, `.jsx`), TypeScript (`.ts`, `.tsx`), Shell (`.sh`), and config files (`.yaml`, `.yml`, `.json`, `.toml`). Support for Go, Rust, and Ruby is planned.
+Every text file is content-scanned, whatever its language or extension, including markdown, agent instruction files, manifests and configuration (when you scan a git repository from its root, files its `.gitignore` excludes are not scanned; scanning a subdirectory does not apply the root `.gitignore`). Some rules apply only to certain file names or extensions (install hooks key on `setup.py` and `package.json`, for example), and more of them cover Python and JavaScript than Go or Ruby. See [File Types Scanned](cli.md#file-types-scanned).
 
 ### How is the risk score calculated?
 
-The score is the sum of `(findings_in_phase * phase_weight)` across all phases. Phase weights range from 2x (credentials) to 10x (install hooks). See [Scan Phases Reference](scan-rules.md) for the full breakdown.
+Each finding scores its severity (Low 1, Medium 2, High 3, Critical 5) times its weight, which is its phase's weight unless the rule sets its own, and the score is the sum, counting at most three findings per (rule, file) pair. Phase weights run from 1x (provenance) to 10x (install hooks, prompt injection). The [Getting Started](getting-started.md#scanning-a-git-repository) example scores 3×5 (a High code pattern) + 1×3 (a Low network call) + 1×2 (a Low credential read) = 20. The verdict is not a score threshold: see [Verdicts and Scoring](cli.md#verdicts-and-scoring).
 
 ---
 

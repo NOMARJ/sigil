@@ -4,34 +4,16 @@ Complete installation instructions for all platforms and package managers.
 
 ---
 
-## 🚀 Current Installation Method
+## 🚀 Install Script & Package Managers
 
-### Manual Install (All Platforms)
+### Quick Install Script (macOS/Linux)
 
 ```bash
-# Clone the repository
-git clone https://github.com/NOMARJ/sigil.git
-cd sigil
-
-# Make the CLI executable and install
-chmod +x bin/sigil
-sudo cp bin/sigil /usr/local/bin/sigil
-
-# Initialize directories and aliases
-sigil install
+curl -fsSLO https://www.sigilsec.ai/install.sh
+sh install.sh
 ```
 
-**What it does:**
-
-- Downloads the bash-based CLI implementation
-- Copies to system PATH for global access
-- Creates `~/.sigil/{quarantine,approved,logs,reports}` directories
-- Installs helpful shell aliases (optional)
-- Sets up git hooks for auto-scanning (optional)
-
----
-
-## Package Managers & Install Script
+Downloads the prebuilt release binary for your platform; see the [Getting Started guide](getting-started.md#option-1-quick-install-recommended) for what it checks and installs. To build the CLI yourself instead, see Build from Source below.
 
 ### Homebrew (macOS/Linux)
 
@@ -54,11 +36,7 @@ cargo install sigil-cli
 
 _Note: The `sigil` name on crates.io is occupied by an unrelated Unicode library — the Rust CLI is published as `sigil-cli`._
 
-### pip (Python) — _pending first PyPI publication_
-
-> **Not yet on PyPI.** The package source lives in [`python/`](../python/) and
-> is ready, but the project has not been registered or published yet. The
-> commands below will work once the first release is pushed to PyPI.
+### pip (Python)
 
 ```bash
 pip install sigilsec         # the name sigil-cli is taken on PyPI by an unrelated project
@@ -71,17 +49,10 @@ package: on first run it downloads the prebuilt binary for your platform
 against the release's `SHA256SUMS.txt`, caches it under
 `~/.sigil/bin/sigil-<version>`, and then forwards every invocation to it.
 
-- `SIGIL_VERSION=v1.3.6 sigil ...` — fetch a specific release (same as `install.sh`)
+- `SIGIL_VERSION=v1.3.7 sigil ...` — fetch a specific release (same as `install.sh`)
 - `SIGIL_BINARY=/path/to/sigil sigil ...` — use an existing binary, no download
 - Upgrade with `pip install --upgrade sigilsec`; remove with `pip uninstall sigilsec`
   (the cached binaries in `~/.sigil/bin/` can be deleted by hand)
-
-### Quick Install Script
-
-```bash
-curl -fsSLO https://www.sigilsec.ai/install.sh
-sh install.sh
-```
 
 ---
 
@@ -197,27 +168,37 @@ winget install NOMARK.Sigil
 
 ---
 
-## 🐳 Docker
+## 🐳 Docker — _Coming soon_
+
+> **No image is published yet.** Docker Hub has no `nomark/sigil` or
+> `nomark/sigil-full` repository, so the `docker pull` commands below do not
+> work today. Until they do, [build the CLI image yourself](#build-the-cli-image-yourself).
+> Published images will be tagged with the release version
+> (`nomark/sigil:<version>`, for example `1.3.7`); there is no `latest` tag.
 
 ### CLI Only
 
 ```bash
-docker pull nomark/sigil:1.2.1
+docker pull nomark/sigil:<version>
 
 # Scan a directory
-docker run --rm -v $(pwd):/workspace nomark/sigil:1.2.1 scan .
+docker run --rm -v $(pwd):/workspace nomark/sigil:<version> scan .
 
 # Clone and scan a repo
-docker run --rm -v ~/.sigil:/home/sigil/.sigil nomark/sigil:1.2.1 clone https://github.com/someone/repo
+docker run --rm -v ~/.sigil:/home/sigil/.sigil nomark/sigil:<version> clone https://github.com/someone/repo
 ```
 
 ### Full Stack (API + Dashboard + CLI)
 
+In this image `sigil` is the legacy bash CLI (`bin/sigil`), which hands scans to
+the Rust CLI installed as `sigil-engine`, and the image pre-creates
+`~/.sigil/approved`, `logs` and `reports`, which the Rust CLI does not use.
+
 ```bash
-docker pull nomark/sigil-full:1.2.1
+docker pull nomark/sigil-full:<version>
 
 # Run the full stack
-docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:1.2.1
+docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:<version>
 ```
 
 **Docker Compose:**
@@ -226,7 +207,7 @@ docker run -p 8000:8000 -p 3000:3000 nomark/sigil-full:1.2.1
 version: "3.8"
 services:
   sigil:
-    image: nomark/sigil-full:1.2.1
+    image: nomark/sigil-full:<version>
     ports:
       - "8000:8000" # API
       - "3000:3000" # Dashboard
@@ -263,17 +244,26 @@ a derived image).
 
 ### Prerequisites
 
-- **Rust 1.85+** (CI pins 1.90; current dependencies need edition 2024) — [Install Rust](https://rustup.rs)
+- **Rust 1.89+** (CI pins 1.90). `cli/Cargo.lock` is not committed, so a build resolves the newest compatible dependency releases and the minimum rises with them: in October 2026 a fresh clone built with 1.89 and failed with 1.88 (`uuid 1.27.0 requires rustc 1.89.0`) — [Install Rust](https://rustup.rs)
 - **Git**
+- **On Linux: a C compiler, `make` and `perl`** (for example `sudo apt install build-essential perl`). The HTTP client is built with `native-tls-vendored`, so the build compiles OpenSSL from source (`openssl-src`); `Dockerfile.cli` installs the same tools for that reason.
 
-### Build the CLI
+### Build the CLI (macOS/Linux)
 
 ```bash
 git clone https://github.com/NOMARJ/sigil
 cd sigil/cli
 cargo build --release
-sudo cp target/release/sigil /usr/local/bin/
+sudo ./target/release/sigil install    # copies the binary to /usr/local/bin
 ```
+
+**What it does:**
+
+- Builds the Rust CLI from `cli/`
+- `sigil install` copies the running binary to `/usr/local/bin/sigil` (`--path <dir>` installs into another directory, which must already exist)
+- Creates nothing under `~/.sigil/`: Sigil creates what it needs there the first time a command uses it (for example `~/.sigil/quarantine/` on the first `sigil clone`)
+- Installs no shell aliases: add them with `sigil setup shell` (optional)
+- Sets up no git hooks: add a pre-commit scan with `sigil setup git` (optional)
 
 ### Build the Full Stack
 
@@ -304,30 +294,26 @@ docker-compose up
 ### 1. Verify Installation
 
 ```bash
-sigil version
+sigil --version
 ```
 
-Expected output:
+Expected output (for the 1.3.7 release):
 
 ```
-Sigil 1.0.5
-Automated Security Auditing for AI Agent Code
-https://sigilsec.ai
+sigil 1.3.7
 ```
 
 ### 2. Set Up Shell Aliases
 
 ```bash
-sigil install
+sigil setup shell
 ```
 
-This installs convenient aliases:
+This adds three aliases to `~/.bashrc` or `~/.zshrc`, chosen from `$SHELL` (for any other shell it prints the aliases to add by hand):
 
 - `gclone` — Safe git clone with scanning
-- `safepip` — Safe pip install with scanning
-- `safenpm` — Safe npm install with scanning
-- `audithere` — Scan current directory
-- `qls` — List quarantine status
+- `safepip` — `sigil pip`: download a pip package into quarantine and scan it (does not install it)
+- `safenpm` — `sigil npm`: download an npm package into quarantine and scan it (does not install it)
 
 **Restart your shell** or run:
 
@@ -347,11 +333,12 @@ sigil scan .
 sigil login
 ```
 
-Enables:
+Stores a token for the cloud options; a plain `sigil scan` does not change. You then opt in explicitly:
 
-- Hash-based malware lookup
-- Auto-updating threat signatures
-- Community-reported threats
+- Hash-based malware lookup (Pro plan): `sigil scan --enrich`, on a fresh scan (add `--no-cache` if the directory, or a copy of it, was scanned before). The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
+- Threat signature updates (Pro plan): `sigil fetch` (signatures do not update on their own; run `sigil clear-cache` afterwards to re-check content already scanned)
+- AI analysis of your code (Pro plan): `sigil scan --enhanced`, on a fresh scan, uploads up to 50 eligible text files under the target directory, collected independently of scan exclusions, to the Sigil API for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example). The server checks the plan after the upload, so on a Free plan the files are still sent (see [Data Handling](./data-handling.md))
+- Reporting a threat: `sigil report`, which sends a hash, a threat type and a description. The current API rejects the payload `sigil report` sends (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
 
 See [Authentication Guide](./authentication-guide.md) for details.
 
@@ -371,7 +358,7 @@ pip install pre-commit    # then add the hooks below to .pre-commit-config.yaml
 ```yaml
 repos:
   - repo: https://github.com/NOMARJ/sigil
-    rev: v1.3.6
+    rev: v1.3.7
     hooks:
       - id: sigil-scan
       - id: sigil-scan-skills
@@ -418,8 +405,10 @@ cargo install sigil-cli --force
 
 ### Docker
 
+No image is published yet; rebuild the CLI image from an updated checkout:
+
 ```bash
-docker pull nomark/sigil:1.2.1
+docker build -f Dockerfile.cli -t sigil .
 ```
 
 ### Manual / Script Install
@@ -506,13 +495,13 @@ sudo npm install -g @nomarj/sigil
 
 ### Download fails / Binary unavailable
 
-The installer fails closed when a platform binary or checksum is unavailable. You can also manually install:
+The installer stops when a platform binary, checksum file, or matching checksum entry is unavailable. Checksum verification requires `sha256sum` or `shasum`: if neither tool is installed, it warns and continues without verifying the download. Install a hashing tool before running the installer to verify the download; `--skip-verify` also disables this check. When it cannot download or run a release binary, it points you to installing from source instead:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/NOMARJ/sigil/main/bin/sigil -o sigil
-chmod +x sigil
-sudo mv sigil /usr/local/bin/
+cargo install sigil-cli
 ```
+
+Or build `cli/` yourself as shown under Build from Source.
 
 ### Docker permission issues on Linux
 

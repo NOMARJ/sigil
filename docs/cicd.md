@@ -148,8 +148,9 @@ Require Sigil scans to pass before merging. Add Sigil as a required status check
 ### Authenticated Scans in CI
 
 The action accepts an `api-key` input for cloud threat-intelligence enrichment. API key
-issuance is not yet available from the dashboard, so this currently stays unset — all
-scan phases run fully offline without it. Once keys ship, pass one as a repository secret:
+issuance is not yet available from the dashboard, so this currently stays unset — the scan
+phases run locally without it (a tree with a lockfile still has its dependencies
+looked up in OSV and npm/PyPI). Once keys ship, pass one as a repository secret:
 
 ```yaml
 - uses: NOMARJ/sigil@main

@@ -90,7 +90,7 @@ claude plugin install sigil-security@sigil-marketplace
 
 #### Claude Code (Manual)
 
-Add to `~/.claude/claude_desktop_config.json`:
+Run `claude mcp add --scope user sigil -- npx -y @nomark/sigil-mcp-server` (without `--scope user` the server is registered for the current project only), or add this entry to the `mcpServers` object in `~/.claude.json`, where Claude Code keeps user-scope servers (`claude_desktop_config.json` is Claude Desktop's file, which Claude Code does not read):
 
 ```json
 {
@@ -501,5 +501,5 @@ If `sigil_scan` returns no findings but you expect some:
 
 - [CLI Command Reference](cli.md) — Full reference for the `sigil` CLI
 - [IDE Plugin Guide](ide-plugins.md) — VS Code, JetBrains, and GitHub Actions integrations
-- [Scan Phases Reference](scan-rules.md) — Detailed patterns and examples for each phase
+- [Scan Phases](cli.md#scan-phases) — The eight phases and their weights
 - [Getting Started](getting-started.md) — Installation and first scan walkthrough

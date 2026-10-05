@@ -9,9 +9,10 @@ Everything that controls Sigil's behavior — environment variables, config file
 Configuration is resolved in this order (highest priority first):
 
 1. **Command-line flags** — override everything
-2. **Environment variables** — override config file and defaults
-3. **Config file** (`~/.sigil/config`) — overrides defaults
-4. **Built-in defaults** — used when nothing else is set
+2. **Environment variables** — override defaults
+3. **Built-in defaults** — used when nothing else is set
+
+The values `sigil config` stores in `~/.sigil/config.json` are not read by any other command, so they form no layer here (see [Config File](#config-file)). Apart from the scan policy files (next section), the settings the CLI reads from `~/.sigil/` are `residue-allow` (the `sigil residue` allowlist), `providers/` (for `sigil run --providers`) and `config` (for `disclaimer=false` only).
 
 What a *scan* enforces — the exit gate, disabled rules, ignored paths,
 baselines, custom rules — is set by the scan policy described next, which has
@@ -41,6 +42,7 @@ lists under `locked:` can afterwards only be made stricter.
 version: 1                          # optional; the only version is 1
 fail_on: high                       # exit 1 on a finding at or above this (default high)
 fail_on_verdict: HIGH               # also exit 1 when the verdict is at or above this
+fail_on_incomplete: false           # also exit 1 when part of the target could not be fully inspected
 min_severity: low                   # hide findings below this (same as --severity)
 disable_rules: [NET-012, "PROV-*"]  # rule ids or globs (* and ?), case-insensitive
 severity_overrides:                 # rule id or glob -> severity
@@ -59,13 +61,14 @@ yara_engine: auto                   # auto | best-effort | builtin | yara-x | ya
 # Organisation policy only:
 locked: [fail_on, disable_rules]    # or [all]
 allow_project_policy: true          # false = project files may only tighten
-llm_endpoint: https://llm.internal.example.com/v1   # where the LLM stage sends code
+# llm_endpoint: https://llm.internal.example.com/v1   # with llm_provider: openai-compatible; where the LLM stage sends code
 ```
 
 | Key | Type | Effect |
 |---|---|---|
 | `fail_on` | `low`/`medium`/`high`/`critical` | exit 1 when an active finding is at or above it |
 | `fail_on_verdict` | `LOW`/`MEDIUM`/`HIGH`/`CRITICAL` | exit 1 when the verdict is at or above it |
+| `fail_on_incomplete` | bool | exit 1 when part of the target could not be fully inspected (as `--fail-on-incomplete`); see [Incomplete coverage](cli.md#incomplete-coverage) |
 | `min_severity` | severity | findings below it are dropped from the report and the score (counted in `policy.hidden_below_min_severity`) |
 | `disable_rules` | list of ids/globs | matching findings move to `policy.suppressed` |
 | `severity_overrides` | map id/glob → severity | rewrites a finding's severity before everything else; later entries win |
@@ -131,7 +134,8 @@ reporting on it by shipping a broken one; your own policy file, or one named
 with `--config`, still fails the run with exit `2`.
 Pass `--config <file>` to vouch for it. `sigil clone`/`pip`/`npm` never read
 a policy from quarantined content; they apply only the organisation and
-`--config` rule packs.
+`--config` rule packs. Their exit code does not follow `fail_on`: it is `1`
+for any verdict above LOW RISK (see [Exit Codes](cli.md#exit-codes)).
 
 **Sigil's own files.** Findings in the trusted policy file and in the
 baselines in use (for example the hidden-file rule firing on `.sigil.yml`, or
@@ -221,67 +225,64 @@ then written without colour). An unknown format is an error (exit `2`).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SIGIL_QUARANTINE_DIR` | `~/.sigil/quarantine` | Where quarantined code is stored |
-| `SIGIL_APPROVED_DIR` | `~/.sigil/approved` | Where approved code is moved |
-| `SIGIL_LOG_DIR` | `~/.sigil/logs` | Scan execution logs |
-| `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Detailed scan reports (text) |
-| `SIGIL_CONFIG` | `~/.sigil/config` | Path to the config file |
-| `SIGIL_TOKEN` | `~/.sigil/token` | Path to the authentication token file |
-| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
+
+The current CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`, `SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; those were read by the legacy bash CLI in `bin/`. (The MCP server in `plugins/mcp-server` reads its own `SIGIL_API_URL`; see [mcp.md](mcp.md#environment-variables).) `SIGIL_POLICY_FILE` and `SIGIL_NO_PROJECT_CONFIG` are described under [Scan policy](#scan-policy-sigilyml), the `SIGIL_LLM_*` variables and `ANTHROPIC_API_KEY` in [llm-review.md](llm-review.md), and the other variables the CLI reads in the [CLI reference](cli.md#environment-variables).
 
 **Example: custom quarantine location**
 
 ```bash
 export SIGIL_QUARANTINE_DIR=/opt/security/quarantine
-export SIGIL_APPROVED_DIR=/opt/security/approved
-```
-
-**Example: point to a self-hosted API**
-
-```bash
-export SIGIL_API_URL=https://sigil.internal.company.com
 ```
 
 ---
 
 ## Directory Structure
 
-After running `sigil config --init` or `sigil install`, Sigil creates:
+Nothing creates `~/.sigil/` up front: `sigil install` and `sigil setup` do not touch it, and there is no `sigil config --init`. Each path is created by the first command that writes it:
 
 ```
 ~/.sigil/
-├── quarantine/     # Untrusted code awaiting scan and review
-├── approved/       # Code that passed review
-├── logs/           # Scan execution logs
-├── reports/        # Detailed scan reports (text files)
-├── config          # User configuration file
-├── token           # JWT authentication token (after sigil login)
-└── signatures.json # Cached threat signatures (after first authenticated scan)
+├── quarantine/          # Untrusted code awaiting review: one <id>/ per entry, plus index.json
+├── ledger/index.json    # Content pins recorded by sigil approve
+├── cache/               # Cached results of sigil scan <dir> (sigil clear-cache empties only this)
+├── osv-cache/           # OSV advisory lookups for lockfile dependencies
+├── provenance-ledger/   # npm/PyPI provenance baselines for lockfile dependencies
+├── enrichment-cache/    # CISA KEV / EPSS data, fetched when a dependency finding is a CVE
+├── config.json          # Values set with sigil config KEY VALUE
+├── token                # JWT authentication token (after sigil login)
+├── signatures.json      # Cloud threat signatures (after sigil fetch)
+├── signatures_meta.json # When the signatures were last fetched (sigil fetch)
+└── .disclaimer_shown    # Marker: the full disclaimer has been shown once
 ```
+
+There is no `approved/`, `logs/` or `reports/` directory. Approved code stays in `quarantine/<id>/`, and reports go to the terminal or to the file named by `-o`. `osv-cache/` is written when `sigil scan` or `sigil baseline` scans a tree with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` (plus `enrichment-cache/` when a finding is a CVE), and `provenance-ledger/` when the tree has a `requirements.txt` or `package-lock.json`. Some commands add their own paths: `providers/` (`sigil provider`), `known-good/` (`sigil known-good install`) and `backups/` (`sigil residue apply`), and the pip package caches its binary in `bin/`. Rule packs you place in `packs/`, a released corpus in `corpus/` and the `sigil residue` allowlist `residue-allow` are read when present.
 
 ---
 
 ## Config File
 
-The config file at `~/.sigil/config` stores persistent settings. It uses a simple `KEY=VALUE` format.
+`sigil config` stores values in `~/.sigil/config.json`, a flat JSON object of strings. Setting a key creates the file (and `~/.sigil/`) if needed. No other command reads this file, so its values do not change how Sigil scans; scan settings belong in a [scan policy](#scan-policy-sigilyml).
 
 ```bash
-# ~/.sigil/config
-API_URL=https://api.sigilsec.ai
-AUTO_APPROVE_THRESHOLD=0
-DEFAULT_SEVERITY=low
+sigil config example_key example_value   # prints: sigil: example_key = example_value
+sigil config example_key                 # prints: "example_value"
 ```
 
 View current config:
 
 ```bash
-sigil config
+sigil config --list
 ```
 
-Initialize directories and create the config file:
-
-```bash
-sigil config --init
 ```
+{
+  "example_key": "example_value"
+}
+```
+
+Before any key is set it prints `sigil: no configuration file found`. There is no `sigil config --init`: the file is created the first time you set a key.
+
+One setting is read from a different file. A line reading exactly `disclaimer=false` (no spaces) in `~/.sigil/config`, a file with no extension that you write by hand, turns off the disclaimer after text verdicts. `sigil config disclaimer false` does not do this, because it writes `config.json`.
 
 ---
 
@@ -321,12 +322,14 @@ poetry.lock
 
 ### Default Exclusions
 
-Even without a `.sigilignore` file, Sigil always skips:
+Even without a `.sigilignore` file, Sigil never content-scans:
 
 - `node_modules/` — npm dependencies
 - `.git/` — git internal files
-- Test files and example files
-- Documentation files
+- `target/`, `.next/` and `__pycache__/` — build output and caches
+- Virtualenvs (`.venv/`, `venv/`) and tool caches (`.tox/`, `.mypy_cache/`, `.pytest_cache/`)
+
+Test, example and documentation files are scanned. Findings under `tests/`, `docs/`, `examples/` and similar directories are still reported, but they do not count toward the first-party evidence the HIGH verdict needs (see [Verdicts and Scoring](cli.md#verdicts-and-scoring)).
 
 ### Pattern Rules
 
@@ -339,7 +342,7 @@ Even without a `.sigilignore` file, Sigil always skips:
 
 ---
 
-## Scan Policies (Team Tier)
+## Team Policies (Team Tier, dashboard)
 
 Teams on the Team plan can configure scan policies that apply to all members. Policies define auto-approve thresholds, required review rules, and package allow/block lists.
 
@@ -383,7 +386,7 @@ deprecated-unsafe-lib
 
 ### Policy Sync
 
-Policies are stored in the Sigil cloud and sync to all authenticated team members. When a policy changes, it takes effect on the next scan.
+Policies are stored in the Sigil cloud and apply to the dashboard and API. The CLI does not fetch them, so they do not change `sigil scan`, `clone`, `pip` or `npm`: the CLI's only quarantine auto-approve is `--auto-approve` on `clone`, `pip` and `npm`, for a LOW RISK verdict (`sigil safe-run --auto-approve` only skips the confirmation prompt it shows for a HIGH RISK result before running a command in its sandbox), and what a CLI scan enforces comes from its [scan policy](#scan-policy-sigilyml).
 
 Configure policies via the web dashboard at **Settings > Scan Policies**, or via the API:
 
@@ -416,14 +419,13 @@ Sigil detects your shell from `$SHELL` (bash or zsh). The step is idempotent —
 ```bash
 # Installed by `sigil setup shell`
 alias gclone='sigil clone'     # Git clone with quarantine + scan
-alias safepip='sigil pip'      # pip install with scan first
-alias safenpm='sigil npm'      # npm install with scan first
+alias safepip='sigil pip'      # Download a pip package into quarantine + scan (does not install)
+alias safenpm='sigil npm'      # Download an npm package into quarantine + scan (does not install)
 ```
 
 Useful extras you can add manually:
 
 ```bash
-alias safefetch='sigil fetch'
 alias audit='sigil scan'
 alias audithere='sigil scan .'
 alias qls='sigil list'
@@ -442,7 +444,7 @@ Aliases are added to your shell config file. To remove them, delete the block be
 Install a pre-commit hook that scans the repository before each commit:
 
 ```bash
-sigil setup git          # Install in the current repo
+sigil setup git          # Install in the current repo (run from its root)
 ```
 
 The hook runs `sigil scan . --fail-on high` — all eight scan phases, blocking the commit on HIGH or CRITICAL findings.
@@ -464,29 +466,24 @@ The hook is written to `.git/hooks/pre-commit`. An existing pre-commit hook not 
 
 ### Token Storage
 
-After `sigil login`, the JWT token is stored at `~/.sigil/token` (or the path specified by `SIGIL_TOKEN`). The file contains only the raw JWT string.
+After `sigil login`, the JWT token is stored at `~/.sigil/token`. The file contains only the raw JWT string.
 
 ### Token Lifecycle
 
 - Tokens are issued by the Sigil API with an expiration time
 - The CLI reads the token on each authenticated request
-- If the token is expired or missing, the CLI falls back to offline mode (no threat intelligence)
+- Logging in does not change a plain `sigil scan`; only the cloud options (`--enrich`, `--submit`, `--enhanced`, `sigil fetch`, `sigil report`, `sigil explain`) send the token. The `sigil scan` options run only on a fresh scan: a re-scan that reuses a cached result skips them, so add `--no-cache`
 - Run `sigil login` again to refresh an expired token
 
 ### What Data Is Sent
 
-When authenticated, scan metadata is sent to the Sigil API. **Source code is never transmitted.**
+Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a `sigil scan` of a tree with a lockfile does look its dependencies' names and versions up in OSV and npm/PyPI and, for CVE-numbered advisories, sends those CVE IDs to FIRST EPSS and downloads the CISA KEV catalogue). What each option sends, per [Data Handling](data-handling.md):
 
-**Sent:**
-- Which scan rules triggered (e.g., "Phase 2: eval() found")
-- File type distribution (e.g., "12 Python files, 8 JavaScript files")
-- Risk score and verdict
-- Package name, version, and hash
-
-**Never sent:**
-- Source code or file contents
-- Credentials or environment variable values
-- File paths on your machine
+- `sigil scan --enrich`: a SHA-256 hash of the paths and sizes of every file under the directory
+- `sigil scan --submit`: the scan result, including each finding's rule, severity, file path, line and the flagged source line, plus the score and verdict. Flagged lines are source code, and can include a secret the line contains
+- `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example)
+- `sigil explain <scan.json>`: every finding in that saved scan report, including each flagged source line, so the server can have a model adjudicate one of them
+- `sigil report <hash>`: the hash, threat type and description you give it. The current API rejects this payload (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
 
 ---
 
@@ -495,4 +492,4 @@ When authenticated, scan metadata is sent to the Sigil API. **Source code is nev
 - [CLI Command Reference](cli.md) — Full reference for every command and flag
 - [Getting Started](getting-started.md) — Installation and first scan walkthrough
 - [CI/CD Integration](cicd.md) — Configuration for CI/CD pipelines
-- [Scan Phases Reference](scan-rules.md) — What each scan phase detects
+- [Scan Phases](cli.md#scan-phases) — What each scan phase detects

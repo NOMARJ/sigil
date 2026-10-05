@@ -6,10 +6,10 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 ## Global Behavior
 
-- Sigil runs entirely offline by default. All eight scan phases execute locally with no network calls.
-- When authenticated (`sigil login`), scans are enriched with cloud threat intelligence.
-- All scanned code is quarantined under `~/.sigil/quarantine/` — nothing executes until explicitly approved.
-- Exit codes reflect the scan verdict severity (see [Exit Codes](#exit-codes) below).
+- All eight scan phases execute locally, and no account is needed. `sigil scan` of a directory with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry) and, for CVE-numbered advisories, sends those CVE IDs to FIRST EPSS and downloads the CISA KEV catalogue; without a connection those lookups are skipped. `sigil clone`, `pip` and `npm` need the network to fetch what they scan.
+- Logging in (`sigil login`) stores a token and does not change a plain scan. The cloud options send it: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch`, `sigil report` and `sigil explain` (`--enhanced`, `sigil report` and `sigil explain` refuse to run without it). `--enrich` and `sigil fetch` need a Pro plan. `--enhanced`'s LLM analysis is Pro-only, but the server checks the plan after the upload, so on a Free plan the files are still sent (and, when the request is accepted, kept with the scan record). `sigil explain` uploads every finding in a scan JSON file, flagged source lines included, for server-side LLM adjudication. The `sigil scan` cloud options run only on a fresh scan: when a re-scan of unchanged content is served from the cache, they are skipped without a message, so add `--no-cache`. For a repository URL (`http(s)://`, `git@`, `ssh://` or `git://`, other than an archive or single-file URL or a GitHub `/tree/` link; see [archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links)), `sigil scan` runs the [`sigil clone`](#sigil-clone) workflow instead, which ignores the cloud options, `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete` without a message and exits like `sigil clone`: to apply them, run `sigil clone` and then scan `~/.sigil/quarantine/<id>` (`sigil list` shows the id).
+- Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/`. Sigil installs nothing and does not run it, before or after approval. The package tools it calls can, though: `pip download` runs a source distribution's `setup.py` to read its metadata, so `sigil pip` of a package with no compatible wheel runs that code on the host before the scan, and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`). `sigil scan <dir>` scans a local directory in place.
+- `sigil scan` exits by the findings' severity against `--fail-on`, by the verdict only with `--fail-on-verdict` (or `fail_on_verdict` in a scan policy), and by coverage only with `--fail-on-incomplete` (or `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete` in a scan policy). `sigil clone`, `pip` and `npm` have no `--fail-on`: they exit `1` for any verdict above LOW RISK, and so does `sigil scan` of a repository URL (see [Exit Codes](#exit-codes) below).
 
 ---
 
@@ -47,7 +47,7 @@ Wire Sigil into AI agent and developer workflows. Every step is best-effort and 
 sigil setup claude   # Register the Claude Code plugin marketplace + install sigil-security
 sigil setup shell    # Append gclone/safepip/safenpm aliases to your .bashrc/.zshrc
 sigil setup git      # Install a pre-commit hook running `sigil scan . --fail-on high`
-sigil setup all      # claude + shell, plus git when run inside a repository
+sigil setup all      # claude + shell, plus git when run from the root of a git repository
 ```
 
 `setup claude` requires the `claude` CLI on PATH and skips with a pointer when it is absent. `setup git` refuses to overwrite a pre-commit hook it didn't write.
@@ -141,12 +141,16 @@ Full policy table: [detection/ux.md](detection/ux.md#4-sigil-hook-pretooluse--th
 ### sigil config
 
 Read or set values in `~/.sigil/config.json`, and inspect or validate the scan
-policy that applies to a directory.
+policy that applies to a directory. No other command reads `config.json`, so a
+value set here changes nothing else. The API endpoint, for example, cannot be
+set here: `sigil fetch`, `sigil report` and the `sigil scan` cloud options
+always use `https://api.sigilsec.ai`, and
+[`sigil login --endpoint`](#sigil-login) applies to that login only.
 
 ```bash
 sigil config --list                      # Print ~/.sigil/config.json
-sigil config api_url                     # Print one value
-sigil config api_url https://sigil.local # Set one value
+sigil config example_key                 # Print one value
+sigil config example_key example_value   # Set one value
 sigil config --policy                    # Effective scan policy for the current directory
 sigil config --validate .sigil.yml       # Check a project policy without scanning
 sigil config --validate /etc/sigil/policy.yml --org   # Check an organisation policy
@@ -180,15 +184,14 @@ sigil clone <git-url>
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `git-url` | Yes | Repository URL (https, git@, or ssh://) |
+| `git-url` | Yes | Repository URL: anything `git clone` accepts (https, git@, ssh://, file://) |
 
 **Behavior:**
 
-1. Validates the URL format (http(s), git@, ssh://)
-2. Shallow clones (`--depth 1`) into `~/.sigil/quarantine/<id>/`
-3. Runs all 8 scan phases + external scanners + dependency analysis
-4. If authenticated, queries cloud threat intelligence
-5. Generates verdict and saves report to `~/.sigil/reports/`
+1. Shallow clones (`git clone --depth 1`) into `~/.sigil/quarantine/<id>/`; the URL is passed to git unchanged
+2. Runs all 8 scan phases (the OSV/npm/PyPI dependency lookups run only for `sigil scan` and `sigil baseline`; run `sigil scan ~/.sigil/quarantine/<id>` to get them)
+3. Applies the cloud threat signatures saved by `sigil fetch`, if any
+4. Prints the verdict and report to the terminal (or writes it to the file given by `-o`)
 
 **Example:**
 
@@ -215,11 +218,11 @@ sigil pip <package-name>
 
 **Behavior:**
 
-1. Validates package name format (alphanumeric, hyphens, underscores, dots, scoped)
-2. Downloads the package via `pip download --no-deps`
+1. Passes the name to pip as given: Sigil does not validate it, so anything `pip download` accepts (a local archive path, for example) is used
+2. Downloads the package via `pip download --no-deps`. When pip picks a source distribution (there is no compatible wheel), it runs the package's `setup.py` to read its metadata: that code runs on your machine during the download, before the scan
 3. Extracts the wheel or tarball into quarantine
-4. Runs full scan
-5. If the package is approved, prompts to install with `pip install`
+4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
+5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
 
 **Example:**
 
@@ -246,11 +249,11 @@ sigil npm <package-name>
 
 **Behavior:**
 
-1. Validates package name format (supports scoped packages like `@scope/name`)
+1. Passes the name to `npm pack` as given: Sigil does not validate it, and `npm pack` also accepts a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one); for those it runs the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`)
 2. Downloads via `npm pack` (creates a `.tgz` archive)
 3. Extracts into quarantine
-4. Runs full scan
-5. If approved, prompts to install with `npm install`
+4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
+5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
 
 **Example:**
 
@@ -291,7 +294,7 @@ sigil scan <path-or-url> [--format text|json|sarif|html|markdown|junit] [-o FILE
 | `--no-project-config` | | Ignore `.sigil.yml` (also `SIGIL_NO_PROJECT_CONFIG=1`). The organisation policy still applies |
 | `--phases` | `all` | Comma-separated phase filter |
 | `--severity` | `low` | Minimum severity to report |
-| `--no-cache` | | Force a fresh scan even if the content is unchanged |
+| `--no-cache` | | Force a fresh scan even if the content is unchanged. A result served from the cache skips the cloud options (`--enrich`, `--submit`, `--enhanced`) without a message, and does not apply signatures fetched since it was cached |
 | `--ignore-ledger` | | Report findings even when the content matches a trust-ledger approval |
 | `--follow-refs` | off | Also download what the scanned files tell someone to fetch, install or run, into quarantine, and scan it (never executed). Also enabled by `SIGIL_FOLLOW_REFS=1`. See [Following references](#following-references) |
 | `--llm-review` | off | Send each finding at Medium or above to a language model you choose, for an advisory second opinion. The rule, title, path, masked matched line and surrounding lines are sent; secrets are masked first. Anthropic by default (`ANTHROPIC_API_KEY`), or any OpenAI-compatible endpoint (`SIGIL_LLM_ENDPOINT`). The stage never changes a severity unless the scan policy sets `llm_may_downgrade: true`, and a failure never changes the verdict or exit code. Also `llm_review: true` in the organisation policy or a `--config` file; a `.sigil.yml` found by discovery cannot turn it on. See [LLM review](llm-review.md) |
@@ -599,6 +602,13 @@ It does not download or scan code: to scan something at a URL, pass the URL to
 `sigil scan` (git repositories, archives, single files and GitHub `/tree/` links
 are fetched into quarantine first).
 
+`sigil fetch` sends the token saved by `sigil login` and needs a Pro plan: the
+API serves signatures only to Pro and higher plans. Later scans apply the saved
+signatures, except that content scanned before the fetch keeps its cached
+result, in that directory or any copy of it (the cache is keyed on relative
+paths and file contents): run `sigil clear-cache`, or scan with `--no-cache`, to re-check it
+with the new signatures.
+
 ```bash
 sigil fetch            # refresh when the cache is stale
 sigil fetch --force    # re-download even if fresh
@@ -623,19 +633,21 @@ sigil scan https://example.com/agent-tool.tar.gz        # scan a URL (see sigil 
 
 ### sigil list
 
-Show all quarantined and approved items with their status, size, and verdict.
+Show quarantined items (pending, approved and rejected) with their status.
 
 ```bash
 sigil list
+sigil list -d              # also the path, created/updated times and any approve/reject reason
+sigil list -s pending      # one status only: pending, approved or rejected
 ```
 
 **Output includes:**
 
+- Status (`PENDING`, `APPROVED` or `REJECTED`)
 - Quarantine ID
-- Source (URL, package name, or path)
-- Size on disk
-- Scan verdict (if scanned)
-- Date quarantined
+- Source (URL, package name, or path) and its type (`git`, `pip`, `npm`, …)
+
+The verdict is not stored: to see it again, run `sigil scan ~/.sigil/quarantine/<id>` (for an approved item add `--ignore-ledger`, or its findings are suppressed by the approval).
 
 ---
 
@@ -678,7 +690,10 @@ sigil reject <quarantine-id>
 
 **Security:**
 
-Same path traversal protections as `sigil approve`.
+The ID must exactly match an entry in the quarantine index, and only a pending
+entry can be rejected; the directory removed is the path recorded for that
+entry, never a path built from the argument (`sigil reject ../x` reports
+`quarantine entry '../x' not found`).
 
 **Behavior:**
 
@@ -822,7 +837,7 @@ severity rationale: [detection/ux.md](detection/ux.md#agentcfg--checks).
 
 ### sigil login
 
-Authenticate with the Sigil cloud API to enable threat intelligence, scan history, and team features.
+Authenticate with the Sigil cloud API and store a token for the cloud options: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch`, `sigil report` and `sigil explain`.
 
 ```bash
 sigil login                       # browser-based device authorization flow
@@ -832,22 +847,26 @@ sigil login                       # browser-based device authorization flow
 
 | Flag | Description |
 |------|-------------|
-| `-t, --token <token>` | API token; if omitted, a browser-based device authorization flow runs. Note: there is currently no way to generate an API token from the dashboard, so use the device flow |
-| `--endpoint <url>` | API endpoint URL (default: `https://api.sigilsec.ai`) |
+| `-t, --token <token>` | Token to validate and save; if omitted, a browser-based device authorization flow runs. The API accepts only access tokens issued by its sign-in provider (Auth0), and there is currently no way to generate an API token from the dashboard. For CI, store the access token that a `sigil login` saved to `~/.sigil/token` in the CI secret store; it expires and the CLI does not refresh it, so replace the secret when it does |
+| `--endpoint <url>` | API endpoint for this login only (default: `https://api.sigilsec.ai`). It is not saved: `sigil fetch`, `sigil report` and the `sigil scan` cloud options always use `https://api.sigilsec.ai`, and send the token from this login there. `sigil explain` takes its own `--endpoint` |
 
 **Behavior:**
 
 1. Authenticates against the Sigil API (device flow, or validates the provided token)
 2. Stores the token to `~/.sigil/token`
-3. Subsequent scans include threat intelligence enrichment
+3. Changes nothing else: a plain `sigil scan` makes no Sigil API call, logged in or not
 
-**What authentication enables:**
+**What the token is used for** (each is an explicit option or command):
 
-- Threat intelligence lookups (known malicious hash database)
-- Publisher reputation scores
-- Community threat signatures (delta sync)
-- Scan history in the web dashboard
-- Team policies and alerts
+- Threat intelligence lookups against the known-malicious hash database (`sigil scan --enrich`, Pro plan). The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
+- Community threat signatures, delta-synced by `sigil fetch` (Pro plan) and applied by later fresh scans (see [`sigil fetch`](#sigil-fetch))
+- Scan history in the web dashboard, for results you send with `sigil scan --submit` (each finding with its flagged source line). The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent
+- Pro LLM analysis (`sigil scan --enhanced`, which uploads up to 50 text files from the directory, collected without the scan's exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50) and threat reports (`sigil report`, which sends a hash, a threat type and a description), which require it. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent. It also rejects the payload `sigil report` sends (HTTP 422: it expects a package name and a reason), so the report is not recorded, but the data is still sent
+- LLM adjudication of a finding (`sigil explain <scan.json>`), which requires it: it uploads every finding in the scan JSON file, flagged source lines included, to the API (`https://api.sigilsec.ai` unless you pass `--endpoint`) and asks the server to adjudicate one of them with an LLM. Free accounts draw on a monthly LLM allowance
+
+The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only
+on a fresh scan: a re-scan of unchanged content served from the cache skips
+them without a message, so add `--no-cache`.
 
 ---
 
@@ -859,13 +878,13 @@ There is no `logout` subcommand. To clear stored credentials, delete the token f
 rm ~/.sigil/token
 ```
 
-Scans return to offline-only mode.
+`sigil fetch`, `--enrich` and `--submit` then send no token, and `--enhanced`, `sigil report` and `sigil explain` refuse to run (`--enhanced` on a fresh scan; a result served from the cache skips it without a message).
 
 ---
 
 ## Scan Phases
 
-Every audit command runs these eight phases. Each phase has a severity weight that multiplies the number of findings.
+Every audit command runs these eight phases, plus Inference Security (the `INFER-*` rules: LLM clients pointed at unexpected endpoints, hardcoded API keys in client config, secrets from environment variables interpolated into prompts, prompt content sent or logged; weight 5×). Each finding scores its severity times its weight, which is its phase's weight unless the rule sets its own (see [Verdicts and Scoring](#verdicts-and-scoring)).
 
 | Phase | Name | Weight | What It Detects |
 |-------|------|--------|-----------------|
@@ -878,29 +897,38 @@ Every audit command runs these eight phases. Each phase has a severity weight th
 | 7 | Prompt Injection | 10× | AI agent instruction injection, system prompt overrides, jailbreak attempts |
 | 8 | Skill Security | 5× | MCP permission escalation, undeclared tool capabilities, skill.yaml tampering |
 
-**Supplementary checks (run after the 8 phases):**
+**Supplementary checks (run with the 8 phases):**
 
-- External scanners: semgrep, bandit, trufflehog, safety, npm audit
-- Dependency analysis: package count, unpinned versions
-- Permission/scope analysis: Docker privileged mode, GitHub Actions secrets, MCP tool configurations
+- Dependency checks: the typosquat check on direct dependencies, the `DEPSRC-*` checks for a package source redirected to an unrecognised host, and, for `sigil scan` and `sigil baseline` only, the OSV and npm/PyPI lookups of lockfile dependencies
+- The decode worklist (decoded payloads reach every phase), the correlation rules, and the structural checks on bytecode, archives and executables
 
 ---
 
 ## Verdicts and Scoring
 
-The risk score is the sum of `(severity_score * phase_weight)` over the findings,
+The risk score is the sum of `(severity_score * weight)` over the findings (the
+weight is the phase's unless the rule sets its own),
 with **at most three findings per (rule, file) pair** counted. Every finding is
 still reported and still counted in `summary.findings_count`; only its
 contribution to the score saturates. Without that cap, one Unicode conformance
 table that matches a single rule 1,680 times outscores a genuine backdoor, and
 the verdict measures file size rather than risk.
 
-| Score / Evidence | Verdict | Meaning | Recommended Action |
+| Evidence | Verdict | Meaning | Recommended Action |
 |-------|---------|---------|-------------------|
-| 0-9 | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
-| 10+, below the HIGH gate | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
+| None of the below (typically no findings, or Low findings only) | **LOW RISK** | No known malicious patterns detected | Review any flagged items, then approve |
+| A Medium-or-above finding in the code the package runs, a High or Critical finding anywhere (tests and docs included), or a signal score of 10 or more | **MEDIUM RISK** | Findings that warrant attention | Manual review of each finding |
 | HIGH gate (see below) | **HIGH RISK** | Significant suspicious patterns | Do not approve without thorough review |
 | Critical evidence (see below) | **CRITICAL RISK** | Strong indicators of malicious intent, regardless of score | Reject and report |
+
+The verdict is not read off the printed score, which is informational. Low
+findings are observations: they count toward the printed score but never raise
+the verdict, so ten files that each read an API key from
+the environment score 20 and are LOW RISK. The *signal score* is the same sum
+over Medium-and-above findings only. "The code the package runs" excludes its
+own `tests/`, `docs/`, `examples/`, vendored trees, `.min.js`/`.map` build
+products and code examples in reference documentation; one High network finding in a ten-file package scores 9 and is
+MEDIUM RISK.
 
 HIGH is not a score threshold. It was one — `score >= 25` — and a sum does not
 separate the two populations: measured over 844 malicious samples and 450 clean
@@ -908,21 +936,36 @@ packages, the clean packages sit at median 70 and p75 295 against a malicious
 median of 148. A large clean package accumulates score by being large, which is
 why 16 of the 20 most-downloaded packages on npm and PyPI came back HIGH RISK.
 
-HIGH now asks three questions, and one "yes" is enough:
+HIGH first needs attack-shaped evidence: a High or Critical finding in the code
+the package runs. Without one, no amount of Medium findings reaches HIGH — a
+single file holding 30 points of Medium findings is MEDIUM RISK. With one, any
+of four questions answered "yes" is enough:
 
 - **first-party score >= 200** — enough weighted evidence in the code the package
-  actually ships. Findings under a package's own `tests/`, `docs/`, `examples/`,
-  a vendored tree, or a `.min.js`/`.map` build product still appear in the
+  actually ships. The first-party score is the signal score (Medium and above)
+  without findings under a package's own `tests/`, `docs/`, `examples/`, a
+  vendored tree, or a `.min.js`/`.map` build product; those still appear in the
   report, but do not count toward this number. Markdown is deliberately
   first-party: for an agent skill, `SKILL.md` *is* the payload.
-- **score >= 4 x files scanned** — concentration. A malicious package is usually
-  small and mostly payload; this is what catches it when the absolute score is
-  low because there is barely any code to score.
+- **first-party score >= 3.5 x files scanned** — density. A malicious package is
+  usually small and mostly payload; this is what catches it when the absolute
+  score is low because there is barely any code to score.
+- **at least one scanned file in 8 carries High or Critical first-party
+  evidence** — concentration: the attack-shaped code is a real part of the
+  package rather than one line lost in a large one, whichever phase caught it.
 - **an action behaviour, corroborated by a first-party score >= 50** — the
   package runs at install time, ships an exfiltration endpoint, installs
-  persistence, or builds code at runtime, *and* there is other evidence in its
-  own code. Any one of those alone is ordinary: 111 of 450 clean packages
-  execute something at install time.
+  persistence, builds code at runtime, or (in an agent skill) tells the agent to
+  download and run an installer, *and* there is other evidence in its own code.
+  Any one of those alone is ordinary: 111 of 450 clean packages execute
+  something at install time.
+
+The data source and the measured effect below belong to the earlier,
+three-question form of this gate: first-party score >= 200, score >= 4 x files
+scanned, or a corroborated action behaviour, with no attack-evidence
+requirement and no one-file-in-8 question. They do not measure the current
+gate described above; the measurements behind the current gate are in
+[detection/fp-calibration.md](detection/fp-calibration.md).
 
 ```text
 Data Source: Datadog malicious-software-packages-dataset (fingerprint
@@ -936,7 +979,7 @@ Limitations: The thresholds were selected on one half of each population and
              used, not audited.
 ```
 
-Measured effect on the verdict, against the previous `score >= 25` gate:
+Measured effect of that earlier three-question gate on the verdict, against the previous `score >= 25` gate:
 
 | | before | after |
 |---|---:|---:|
@@ -964,7 +1007,8 @@ CRITICAL is evidence-gated, not score-based. It requires either:
 
 A corroborating Critical is still reported as Critical, still contributes its full
 weight to the score, and still fails `--fail-on critical`; findings that do not gate
-simply leave the verdict to the score thresholds. In `--format json` such a finding
+simply leave the verdict to the HIGH and MEDIUM rules above (a lone corroborating
+Critical is attack-shaped evidence, so it is at least MEDIUM). In `--format json` such a finding
 carries `"evidence": "corroborate"`; the key is absent on everything else.
 
 ---
@@ -1001,11 +1045,19 @@ artifacts you trust as a unit, use `sigil approve` and the trust ledger.
 
 ## Exit Codes
 
+`sigil scan`:
+
 | Code | Meaning |
 |------|---------|
-| `0` | Pass — no findings at or above the `--fail-on` severity threshold (default: `high`) |
-| `1` | Fail — at least one finding at or above the `--fail-on` threshold |
+| `0` | Pass — no findings at or above the `--fail-on` severity threshold (default: `high`), and neither `--fail-on-verdict` nor `--fail-on-incomplete` applies |
+| `1` | Fail — at least one finding at or above the `--fail-on` threshold, a verdict at or above `--fail-on-verdict`, or, with `--fail-on-incomplete`, part of the target not fully inspected |
 | `2` | Scan error — invalid path, invalid flags, or the scan could not run |
+
+`sigil clone`, `sigil pip` and `sigil npm` have no `--fail-on`: they exit `0`
+for a LOW RISK verdict, `1` for any higher verdict (MEDIUM RISK included), and
+`2` when the clone or download failed or the scan could not run. `sigil scan`
+of a repository URL runs the `sigil clone` workflow and exits the same way,
+ignoring `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete`.
 
 `sigil residue scan` uses the same three codes against its own `--fail-on` level (which also accepts `info`).
 
@@ -1013,9 +1065,13 @@ Use exit codes in scripts and CI pipelines to gate on scan results:
 
 ```bash
 sigil scan ./vendor/
-if [ $? -ge 2 ]; then
-  echo "High-risk findings detected — blocking deployment"
+rc=$?
+if [ "$rc" -eq 1 ]; then
+  echo "Findings at or above the --fail-on threshold — blocking deployment"
   exit 1
+elif [ "$rc" -ne 0 ]; then
+  echo "Scan error (exit $rc) — blocking until it is fixed"
+  exit "$rc"
 fi
 ```
 
@@ -1023,18 +1079,25 @@ fi
 
 ## Environment Variables
 
-All configuration can be overridden via environment variables.
+The CLI reads the variables below. Others are described with the feature they
+control: `SIGIL_POLICY_FILE` and `SIGIL_NO_PROJECT_CONFIG` (scan policy, see the
+[Configuration Guide](configuration.md#scan-policy-sigilyml)),
+`SIGIL_PACK_PUBLIC_KEY` ([`sigil rules`](#sigil-rules)),
+`SIGIL_ALLOW_PRIVATE_URLS` ([archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links))
+and `SIGIL_GUARD_MODE` / `SIGIL_BYPASS` ([`sigil hook`](#sigil-hook)).
+
+The CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`,
+`SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; the
+legacy bash CLI (`bin/sigil`) did. The token is always `~/.sigil/token`.
+`sigil fetch`, `sigil report` and the `sigil scan` cloud options always use
+`https://api.sigilsec.ai`; `sigil login --endpoint` applies to that login only
+and is not saved, and `sigil explain` takes its own `--endpoint`. The MCP
+server reads its own `SIGIL_API_URL` ([mcp.md](mcp.md#environment-variables)).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SIGIL_QUARANTINE_DIR` | `~/.sigil/quarantine` | Directory for quarantined code |
-| `SIGIL_APPROVED_DIR` | `~/.sigil/approved` | Directory for approved code |
-| `SIGIL_LOG_DIR` | `~/.sigil/logs` | Directory for scan logs |
-| `SIGIL_REPORT_DIR` | `~/.sigil/reports` | Directory for scan reports |
-| `SIGIL_CONFIG` | `~/.sigil/config` | Path to config file |
-| `SIGIL_TOKEN` | `~/.sigil/token` | Path to auth token file |
-| `SIGIL_API_URL` | `https://api.sigilsec.ai` | Sigil cloud API base URL |
-| `SIGIL_HOME` | `~` | Home directory `sigil residue` inspects and writes backups under (tests and CI) |
+| `SIGIL_HOME` | `~` | Home directory that `sigil residue` and `sigil skills` inspect (residue also writes backups under it; tests and CI) |
 | `SIGIL_TIMING` | unset | `1` prints a scan profile to **stderr** — see [Profiling a slow scan](#profiling-a-slow-scan) |
 | `SIGIL_FILE_BUDGET_SECS` | `30` | Wall-clock seconds one file may spend in the content pipeline; `0` disables the bound — see [Per-file scan budget](#per-file-scan-budget) |
 | `SIGIL_YARA_TIMEOUT_SECS` | `600` | Wall-clock seconds an external YARA engine (`yr`, `yara`) may spend on one scan, every run of it included; `0` disables the bound — see [Full YARA: external engines](enterprise.md#full-yara-external-engines) |
@@ -1113,7 +1176,8 @@ Every file that is text is content-scanned, whatever its name or extension:
 source in any language, shell and PowerShell scripts, markdown and agent
 instruction files (`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `.cursorrules`, …),
 manifests and configuration. Some checks are further scoped by file name
-(install hooks key on `setup.py` and `package.json`, for example). Binary
+(install hooks key on `setup.py` and `package.json`, for example) or by
+extension, and more of them cover Python and JavaScript than Go or Ruby. Binary
 files are left to the structural checks, which inspect executables, archives
 and Python bytecode.
 
@@ -1132,7 +1196,7 @@ a NUL byte" as "binary":
 - An agent instruction file or markdown file whose bytes are not decodable text
   is reported as `PROV-INCOMPLETE-001` (see [Incomplete coverage](#incomplete-coverage)).
 
-**Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them.
+**Never content-scanned:** `node_modules/`, `.git/`, `target/`, `.next/`, `__pycache__/`, virtualenvs and tool caches. `dist/` and `build/` are scanned unless the repository's own `.gitignore` excludes them; when you scan a git repository from its root, files its `.gitignore` excludes are not scanned (scanning a subdirectory does not apply the root `.gitignore`).
 
 Custom exclusions can be added via a `.sigilignore` file (see [Configuration Guide](configuration.md)).
 
@@ -1140,23 +1204,9 @@ Custom exclusions can be added via a `.sigilignore` file (see [Configuration Gui
 
 ## External Scanner Integration
 
-Sigil integrates with these security scanners when they are installed:
-
-| Scanner | Install | What It Adds |
-|---------|---------|-------------|
-| [semgrep](https://semgrep.dev) | `pip install semgrep` | Advanced multi-language pattern matching |
-| [bandit](https://bandit.readthedocs.io) | `pip install bandit` | Python-specific security linting |
-| [trufflehog](https://github.com/trufflesecurity/trufflehog) | `brew install trufflehog` | Deep secret detection across git history |
-| [safety](https://pyup.io/safety/) | `pip install safety` | Python CVE scanning against known vulnerabilities |
-| npm audit | Bundled with npm | JavaScript dependency vulnerability scanning |
-
-Check which scanners are available:
-
-```bash
-sigil config
-```
-
-All eight core scan phases run without any external scanners. External scanners add depth but are not required.
+The CLI does not call `semgrep`, `bandit`, `trufflehog`, `safety` or `npm audit`,
+so installing them does not change its results; the legacy bash CLI
+(`bin/sigil`) used them. All eight scan phases are built in.
 
 ---
 
@@ -1164,6 +1214,6 @@ All eight core scan phases run without any external scanners. External scanners 
 
 - [Getting Started](getting-started.md) — Installation walkthrough and first scan
 - [Configuration Guide](configuration.md) — Environment variables, .sigilignore, policies
-- [Scan Phases Reference](scan-rules.md) — Detailed patterns and examples for each phase
+- [`sigil rules`](#sigil-rules) — List and inspect every detection rule, by phase
 - [CI/CD Integration](cicd.md) — Using Sigil in GitHub Actions, GitLab CI, and other pipelines
 - [MCP Integration](mcp.md) — Connecting Sigil to AI agents via MCP

@@ -14,7 +14,7 @@
 
 ---
 
-Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing runs until it's been scanned, scored, and explicitly approved.
+Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing is installed or run before it has been scanned and scored, and you decide what to approve. Two exceptions: `sigil pip` lets pip run a package's `setup.py` while downloading it when pip picks its source distribution (no wheel for your platform and Python in the version it selects), and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts.
 
 The AI tooling ecosystem moves fast. Developers clone repos from tutorials, install MCP servers with 12 GitHub stars, and pull agent skills from Discord — all of which get direct access to API keys, databases, and cloud credentials. Traditional dependency scanners catch known CVEs but miss the real threat: **intentionally malicious code** designed to exfiltrate credentials, establish backdoors, or execute arbitrary commands via install hooks.
 
@@ -56,7 +56,7 @@ curl -fsSLO https://www.sigilsec.ai/install.sh && sh install.sh
 
 **Coming Soon:**
 
-- **Docker**: `docker pull nomark/sigil`
+- **Docker**: `docker pull nomark/sigil:<version>` (images will carry only version tags, no `latest`; see [installation](docs/installation.md))
 
 > **Note**: The `sigil` package name on crates.io is occupied by an unrelated project. Install the Rust CLI with `cargo install sigil-cli`.
 
@@ -91,14 +91,14 @@ Sigil runs **eight analysis phases** on every scan (all free; LLM analysis requi
 
 Each finding is weighted and scored. You get a clear verdict:
 
-| Score / Evidence                      | Verdict           | What Happens                                        |
-| ------------------------------------- | ----------------- | --------------------------------------------------- |
-| 0–9                                   | **LOW RISK**      | No known malicious patterns detected                |
-| 10–24                                 | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
-| HIGH gate ([details](docs/cli.md))    | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
-| Any single Critical-severity finding  | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
+| Evidence ([details](docs/cli.md#verdicts-and-scoring))                                                              | Verdict           | What Happens                                        |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------- | --------------------------------------------------- |
+| Nothing that reaches MEDIUM (typically no findings, or Low-severity observations only)                              | **LOW RISK**      | No known malicious patterns detected                |
+| A Medium-or-above finding in the code itself, a High or Critical one anywhere (tests included), or 10+ points of Medium-and-above findings | **MEDIUM RISK**   | Suspicious patterns — review before approving       |
+| HIGH gate: a High or Critical finding in the code itself that is a real part of the package                         | **HIGH RISK**     | Dangerous patterns — review carefully before use    |
+| Critical evidence                                                                                                   | **CRITICAL RISK** | Strong malicious indicators — regardless of score   |
 
-CRITICAL is evidence-gated, not score-based: a pile of medium/low heuristics can only ever reach HIGH RISK, but one Critical-severity finding forces a CRITICAL verdict.
+The verdict follows the evidence, not the printed score: Low observations never raise it, a pile of Medium findings stops at MEDIUM RISK, and HIGH needs a High or Critical finding in the code the package runs. CRITICAL is evidence-gated: it needs one Critical finding from a rule whose evidence stands alone, or Critical findings from two *different* rules that are individually inconclusive (a private key in a test fixture, for instance).
 
 Every scan also prints a letter grade (A–F, a label over the verdict), the behaviours the
 findings add up to (`exfiltration`, `persistence`, `harvests_credentials`, …), the five key
@@ -135,6 +135,7 @@ sigil residue apply       # apply with a backup of every target; undo with `sigi
 sigil login                               # browser-based device authorization
 sigil scan ./code --enhanced              # AI-powered threat detection
 sigil scan ./code --enhanced --verbose    # With detailed output
+# (cloud options run only on a fresh scan: add --no-cache if ./code, or a copy of it, was scanned before)
 
 # Download and scan any URL: archives, single files, GitHub /tree/ links
 sigil scan https://example.com/agent-tool.tar.gz
@@ -149,22 +150,20 @@ sigil reject abc123     # Permanently delete quarantined code
 sigil setup claude      # Register the Claude Code plugin (marketplace + install)
 sigil setup shell       # Add gclone/safepip/safenpm aliases to your shell rc
 sigil setup git         # Install a pre-commit hook (sigil scan --fail-on high)
-sigil setup all         # All of the above
+sigil setup all         # claude + shell, plus git when run from a repository's root
 ```
 
 ### Shell Aliases
 
-Aliases are opt-in: run `./install.sh --with-aliases` to append them to your shell rc. Use the commands you already know — Sigil protects you automatically:
+Aliases are opt-in: run `./install.sh --with-aliases` (or `sigil setup shell`) to append them to your shell rc. Use the commands you already know — Sigil protects you automatically:
 
-| Alias                  | What It Does                       |
-| ---------------------- | ---------------------------------- |
-| `gclone <url>`         | `git clone` with quarantine + scan |
-| `safepip <pkg>`        | `pip install` with scan first      |
-| `safenpm <pkg>`        | `npm install` with scan first      |
-| `safefetch <url>`      | Download + quarantine + scan       |
-| `audithere`            | Scan current directory             |
-| `qls`                  | Quarantine status                  |
-| `qapprove` / `qreject` | Approve or reject most recent item |
+| Alias           | What It Does                                                      |
+| --------------- | ----------------------------------------------------------------- |
+| `gclone <url>`  | `git clone` with quarantine + scan                                |
+| `safepip <pkg>` | `sigil pip`: download into quarantine and scan (does not install) |
+| `safenpm <pkg>` | `sigil npm`: download into quarantine and scan (does not install) |
+
+Add others yourself if you want them, for example `alias audithere='sigil scan .'` and `alias qls='sigil list'`.
 
 ## IDE & Agent Integrations
 
@@ -226,20 +225,25 @@ Any MCP-compatible client (Cursor, Windsurf, custom agents) can use Sigil's tool
 
 ## Threat Intelligence
 
-When authenticated (`sigil login`), Sigil connects to a **community-powered threat intelligence database**. Every scan from every user contributes anonymised pattern data. When someone flags a malicious package, the threat signature propagates to all users within minutes.
+Sigil can connect to a **community-powered threat intelligence database**, on request and with a Pro plan: `sigil scan --enrich` looks the scanned directory's hash up in it, and `sigil fetch` downloads its threat signatures, which later fresh scans apply (content scanned before the fetch, in that directory or a copy of it, is re-checked only after `sigil clear-cache` or with `--no-cache`). The current API answers an `--enrich` match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. Logging in (`sigil login`) stores the token these send; it does not change a plain scan. `sigil scan --submit` sends a scan's findings to the Sigil API (see below for what that includes); the current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history or the community data, but the data is still sent. New signatures reach your CLI only when you run `sigil fetch`; nothing is synced automatically.
 
 **What gets transmitted depends on how you use Sigil** — see [docs/data-handling.md](docs/data-handling.md) for the exact per-tier breakdown:
 
-- **Offline / unauthenticated (default):** nothing. All eight phases run locally; no network calls, no account.
-- **Authenticated threat intel (`sigil login`):** scan submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
-- **Pro AI investigation:** the relevant source files for a finding are uploaded and shared with an LLM provider to produce the analysis. This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
+- **Default (logged in or not):** no source code, no account needed. All eight phases run locally. When a scanned directory has a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod`, `sigil scan` looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), which sends their names and versions; for advisories numbered `CVE-…` it also downloads the CISA KEV catalogue and sends those CVE IDs to FIRST's EPSS API.
+- **Scan submission (`sigil scan --submit`, after `sigil login`):** submissions include finding metadata (rule IDs, severities, file paths) **and the flagged source lines** (the code excerpts shown in your scan output). Full files are not uploaded.
+- **AI explanation (`sigil explain scan.json`, after `sigil login`):** every finding in that saved report, flagged source lines included, goes to the Sigil API, which has an LLM provider adjudicate one of them.
+- **Pro AI investigation:** source files are uploaded and shared with an LLM provider to produce the analysis (`sigil scan --enhanced` uploads up to 50 eligible text files under the target directory, collected independently of scan exclusions, plus the scan result: every finding with its flagged source line, including findings in files outside those 50). This is what you are paying for — the AI reads your code. Never enable Pro analysis on code you cannot share.
 
 **Offline mode:** All eight scan phases run locally without authentication. Threat intelligence lookups are skipped, but you still get full local analysis.
 
 ```bash
-# Authenticate to enable threat intel
+# Authenticate, then use threat intel explicitly (Pro plan)
 sigil login
+sigil fetch                       # download threat signatures
+sigil scan . --enrich --no-cache  # hash lookup in the threat database
 ```
+
+The cloud options of `sigil scan` (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan that reuses a cached result skips them without a message, hence `--no-cache`. For a repository URL, `sigil scan` runs the `sigil clone` workflow, which ignores them (and `--fail-on`) without a message.
 
 **[Learn more about authentication →](docs/authentication-guide.md)**
 
@@ -472,11 +476,11 @@ Comprehensive documentation is available in the [`docs/`](docs/) directory:
 
 See [ROADMAP.md](ROADMAP.md) for the full roadmap.
 
-**Today:** Quarantine-first scanning for pip, npm, and git repos. Eight-phase behavioral detection. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
+**Today:** Quarantine-first scanning for pip, npm, and git repos. Eight-phase behavioral detection. Custom scan rules in YAML or JSON. Dependency advisory lookups for `requirements.txt`, `package-lock.json`, `Cargo.lock` and `go.mod`. Cloud threat intelligence with community reporting and signature sync. Dashboard with scan history, team management, and policy controls. Rust CLI binary, VS Code / Cursor / Windsurf extension (`.vsix`), JetBrains plugin, MCP server for AI agents, and GitHub Actions integration.
 
 **Now:** Hosted cloud — sign up and scan without running infrastructure.
 
-**Next:** Docker image and Go/Cargo scanning. VS Code Marketplace and JetBrains Marketplace listings. Custom scan rules via YAML. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
+**Next:** Docker image. VS Code Marketplace and JetBrains Marketplace listings. Enterprise SSO, RBAC, and audit logs. GitLab, Jenkins, and CircleCI integrations.
 
 ## Contributing
 

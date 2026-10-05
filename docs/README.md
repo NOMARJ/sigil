@@ -21,7 +21,7 @@
 |----------|-------------|
 | [**Architecture**](./architecture.md) | System design and component overview |
 | [**Detection Patterns**](./detection-patterns.md) | What Sigil scans for and how it works |
-| [**Scan Rules**](./scan-rules.md) | Pattern matching rules and severity weights |
+| [**Scan Phases**](./cli.md#scan-phases) | The eight scan phases and their severity weights |
 | [**Threat Model**](./threat-model.md) | Security threats Sigil is designed to prevent |
 
 ### Advanced Usage
@@ -136,11 +136,12 @@ Sigil works in two modes:
 **Free (Offline)** — Local pattern scanning, no account required
 - All 8 scan phases
 - Built-in threat signatures
-- Works 100% offline
+- Works offline; when online, `sigil scan` looks lockfile dependencies up in OSV and npm/PyPI (sending their names and versions)
 
 **Pro (Cloud-Connected)** — Enhanced threat detection with cloud intelligence
-- Hash-based malware lookup
-- Auto-updating threat signatures
+- Hash-based malware lookup (`sigil scan --enrich`). The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
+- Threat signature updates (`sigil fetch`)
+- AI analysis of your code (`sigil scan --enhanced`): uploads up to 50 eligible text files under the target directory, collected independently of scan exclusions, to the Sigil API for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (see [Data Handling](data-handling.md))
 - Community-reported threats
 - Advanced detection patterns
 
@@ -165,7 +166,7 @@ Found an error or want to improve these docs?
 2. Edit the relevant `.md` file in `docs/`
 3. Submit a pull request
 
-See [CONTRIBUTING.md](../.github/CONTRIBUTING.md) for guidelines.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 ---
 

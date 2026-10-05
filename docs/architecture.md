@@ -2,7 +2,7 @@
 
 ## Overview
 
-Sigil is an automated security auditing system for AI agent code, built around a **quarantine-first** workflow. Nothing executes, installs, or enters your working environment until it has been scanned, scored, and explicitly approved.
+Sigil is an automated security auditing system for AI agent code, built around a **quarantine-first** workflow. Nothing executes, installs, or enters your working environment until it has been scanned, scored, and explicitly approved. The exception is code the package tools run while downloading: `sigil pip` of a package with no compatible wheel lets `pip download` run its `setup.py` before the scan, and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts before the scan: `prepack`, `prepare` and `postpack` for a directory, and for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare` (see [`sigil pip`](cli.md#sigil-pip) and [`sigil npm`](cli.md#sigil-npm)).
 
 The system is organized into three layers that can operate independently or in concert.
 
@@ -13,9 +13,9 @@ The system is organized into three layers that can operate independently or in c
 |                          DEVELOPER MACHINE                            |
 |                                                                       |
 |  +-------------------------+                                          |
-|  |      CLI (bin/sigil)    |   Bash today, Rust (cli/) in future      |
+|  |      CLI (cli/, Rust)   |   bin/sigil is the legacy bash CLI       |
 |  |  - quarantine manager   |                                          |
-|  |  - 8-phase scanner      |   Runs fully offline. No account needed. |
+|  |  - 8-phase scanner      |   Runs locally. No account needed.       |
 |  |  - verdict engine       |                                          |
 |  +----------+--------------+                                          |
 |             |                                                         |
@@ -36,7 +36,7 @@ The system is organized into three layers that can operate independently or in c
 |  +----------+--------------+     +----------------------------+       |
 |             |                                                         |
 |  +----------+--------------+     +----------------------------+       |
-|  |  PostgreSQL (Supabase)  |     |   Redis (cache)            |       |
+|  |  Azure SQL (MSSQL)      |     |   Redis (cache)            |       |
 |  |  - scan results         |     |  - threat intel TTL cache  |       |
 |  |  - user accounts        |     |  - rate limiting           |       |
 |  |  - threat signatures    |     |  - session tokens          |       |
@@ -47,7 +47,7 @@ The system is organized into three layers that can operate independently or in c
 
 ### 1. CLI -- Developer Layer
 
-**Location:** `bin/sigil` (Bash), `cli/` (future Rust binary)
+**Location:** `cli/` (Rust). `bin/sigil` is the legacy bash CLI it superseded.
 
 The CLI is the primary interface for developers. It manages the quarantine directory, runs all eight scan phases locally, and produces a risk score and verdict. Key responsibilities:
 
@@ -55,25 +55,24 @@ The CLI is the primary interface for developers. It manages the quarantine direc
 - Eight-phase security analysis with weighted scoring
 - Shell alias installation for transparent protection (`gclone`, `safepip`, `safenpm`)
 - Git pre-commit hook installation
-- Integration with external scanners (semgrep, bandit, trufflehog, safety)
+- Dependency lookups for lockfiles (OSV advisories, npm/PyPI provenance)
 - Optional authenticated mode for cloud threat intelligence
 
-The CLI stores all state under `~/.sigil/`:
+The CLI keeps its state under `~/.sigil/`, creating each path on first use (the full layout is in [Directory Structure](configuration.md#directory-structure)):
 
 ```
 ~/.sigil/
-  quarantine/    # Untrusted code awaiting scan
-  approved/      # Code that passed review
-  logs/          # Scan execution logs
-  reports/       # Detailed scan reports (text)
-  config         # User configuration
+  quarantine/    # Untrusted code awaiting review; approved code stays here too
+  ledger/        # Content pins recorded by sigil approve
+  cache/         # Cached scan results
+  config.json    # Values set with sigil config
 ```
 
 ### 2. API Service -- Intelligence Layer
 
 **Location:** `api/`
 
-A Python FastAPI service that provides cloud-backed threat intelligence, scan history, and collaborative security data. The API never receives source code -- only pattern match metadata (which rules triggered, file types, risk scores).
+A Python FastAPI service that provides cloud-backed threat intelligence, scan history, and collaborative security data. It receives what the CLI's cloud options send: a directory hash for `--enrich`, the scan result with each finding's file path and flagged source line for `--submit`, file contents for the Pro `--enhanced` analysis, and, for `sigil explain`, every finding in a saved scan JSON file, flagged source lines included, for server-side LLM adjudication of one of them (see [data-handling.md](data-handling.md)).
 
 Responsibilities:
 
@@ -90,10 +89,9 @@ Responsibilities:
 
 A Next.js web application that provides a visual interface for scan history, team management, policy configuration, and threat intelligence browsing. Built with:
 
-- Next.js 14 with App Router
-- React 18
+- Next.js 16 with App Router
+- React 19
 - Tailwind CSS for styling
-- Supabase JS client for real-time data
 - TypeScript throughout
 
 ## Component Diagram
@@ -113,25 +111,25 @@ A Next.js web application that provides a visual interface for scan history, tea
        | Quarantine | | Scanner   |
        | Manager    | | Engine    |
        | (copy to   | | (8 phases |
-       |  ~/.sigil/ | |  + ext)   |
+       |  ~/.sigil/ | |  + deps*) |
        |  quarantine)|            |
        +-----+------+ +----+-----+
              |              |
              v              v
        +-----+--------------+-----+
        |     Verdict Engine        |
-       |  (score -> risk level)    |
+       | (evidence -> risk level)  |
        +-----+--------------------+
              |
      +-------+--------+
      |                 |
      v                 v
   approve           reject
-  (move to          (delete from
-   approved/)        quarantine/)
+  (pin digest       (delete from
+   in ledger/)       quarantine/)
 
                         |
-            (if authenticated)
+            (cloud options only)
                         |
                         v
 
@@ -149,10 +147,12 @@ A Next.js web application that provides a visual interface for scan history, tea
     |             |
     v             v
   +------+  +-------+
-  |Supa- |  | Redis |
-  |base  |  | Cache |
+  |Azure |  | Redis |
+  | SQL  |  | Cache |
   +------+  +-------+
 ```
+
+\* Lockfile dependency lookups (OSV, npm/PyPI provenance) run only for `sigil scan` and `sigil baseline` of a directory; the scans behind `gclone`, `safepip` and `safenpm` (`sigil clone`, `pip`, `npm`) run the eight phases without them.
 
 ## Data Flow
 
@@ -178,58 +178,64 @@ A Next.js web application that provides a visual interface for scan history, tea
    Phase 7: Prompt Injection Scanner (weight 10x)
    Phase 8: Skill Security Scanner   (weight 5x)
         |
-        + External scanners (semgrep, bandit, trufflehog, safety)
-        + Dependency analysis
-        + Permission/scope analysis
+        + Decode worklist, correlation, typosquat and dependency-source checks
+        (lockfile dependency lookups run only for sigil scan and sigil baseline)
         |
         v
 4. SCORING
-   Each finding contributes to a cumulative risk score.
-   Score = sum of (finding_count * phase_weight)
+   Each finding contributes severity score x its weight: the phase weight,
+   unless the rule sets its own
+   (Low 1, Medium 2, High 3, Critical 5; at most three per rule and file).
+   The score is informational; the verdict reads the evidence.
         |
         v
-5. VERDICT
-   Score 0      -> CLEAN          (safe to approve)
-   Score 1-9    -> LOW RISK       (review flagged items)
-   Score 10-24  -> MEDIUM RISK    (manual review recommended)
-   Score 25-49  -> HIGH RISK      (do not approve without review)
-   Score 50+    -> CRITICAL RISK  (reject -- multiple red flags)
+5. VERDICT (see docs/cli.md, Verdicts and Scoring)
+   LOW RISK       Nothing that reaches MEDIUM           (review, then approve)
+   MEDIUM RISK    Medium+ in the code, High anywhere,   (manual review)
+                  or 10+ points of Medium+ findings
+   HIGH RISK      High/Critical in the code that is a   (do not approve
+                  real part of the package               without review)
+   CRITICAL RISK  A standalone Critical rule, or two    (reject)
+                  different corroborating ones
         |
         v
 6. ACTION
-   User runs: sigil approve <id>  -- moves to ~/.sigil/approved/
+   User runs: sigil approve <id>  -- pins its digest in ~/.sigil/ledger/ (code stays in quarantine)
           or: sigil reject <id>   -- deletes from quarantine
 ```
 
 ### Threat Intelligence Flow (Authenticated Mode)
 
 ```
-1. CLI authenticates via sigil login (JWT token stored locally)
-2. After local scan completes, CLI sends metadata to POST /v1/scan:
-   - Which rules triggered
-   - File type distribution
+1. CLI authenticates via sigil login (token stored in ~/.sigil/token)
+2. With sigil scan --submit, CLI sends the scan result to POST /v1/scan:
+   - Each finding: rule, severity, file path, line, flagged source line
    - Risk score and verdict
-   - Package name/version/hash (NO source code)
+   The current API rejects the --submit payload (HTTP 422), so step 3 does
+   not yet happen for it, but the data is still sent. sigil explain also
+   posts a saved report's findings there (without the score and verdict)
 3. API enriches the scan with threat intelligence:
    - Known malicious hash lookups
    - Publisher reputation scores
    - Community-reported threats
-4. Updated threat signatures are fetched via GET /v1/signatures (delta sync)
-5. Signatures are cached locally for offline use
+4. sigil fetch (Pro plan) downloads updated threat signatures via GET /v1/signatures (delta sync)
+5. Signatures are cached locally for offline use; content scanned before the
+   fetch (in any directory) keeps its cached result until sigil clear-cache
+   or --no-cache
 ```
 
 ## Technology Stack
 
 | Component | Current | Future / Planned |
 |-----------|---------|-----------------|
-| **CLI** | Bash (`bin/sigil`) | Rust (`cli/`) via clap, walkdir, regex |
+| **CLI** | Rust (`cli/`) via clap, walkdir, regex; `bin/sigil` is the legacy bash CLI | -- |
 | **API** | Python 3.11+ with FastAPI | -- |
-| **Dashboard** | Next.js 14, React 18, Tailwind CSS | -- |
-| **Database** | PostgreSQL via Supabase | -- |
+| **Dashboard** | Next.js 16, React 19, Tailwind CSS | -- |
+| **Database** | Azure SQL (MSSQL) via aioodbc/pyodbc | -- |
 | **Cache** | Redis | -- |
-| **Auth** | JWT (python-jose, passlib/bcrypt) | -- |
+| **Auth** | Auth0-issued JWTs, verified with python-jose; bcrypt for legacy password hashes | -- |
 | **HTTP Client** | httpx (API), reqwest (Rust CLI) | -- |
-| **External Scanners** | semgrep, bandit, trufflehog, safety | npm audit, pip-audit |
+| **External Scanners** | None by default; YARA-X `yr` or `yara` when installed, for custom YARA rules the built-in engine cannot evaluate (the legacy bash CLI used semgrep, bandit, trufflehog, safety) | npm audit, pip-audit |
 | **CI/CD** | GitHub Actions | -- |
 
 ### Key Dependencies
@@ -238,14 +244,14 @@ A Next.js web application that provides a visual interface for scan history, tea
 - fastapi, uvicorn -- web framework and ASGI server
 - pydantic, pydantic-settings -- configuration and validation
 - httpx -- async HTTP client for threat intel queries
-- python-jose, passlib, bcrypt -- JWT authentication
-- supabase -- database client
+- python-jose, bcrypt -- JWT verification and legacy password hashes
+- aioodbc, pyodbc -- Azure SQL (MSSQL) database client
 - redis -- cache client
 
 **Dashboard (`dashboard/package.json`):**
-- next 14.2.5 -- React framework
-- react 18.3 -- UI library
-- @supabase/supabase-js -- real-time database client
+- next 16.3.3 -- React framework
+- react 19.2.1 -- UI library
+- @auth0/nextjs-auth0 -- sign-in
 - tailwindcss -- utility CSS
 - typescript -- type safety
 
@@ -261,31 +267,31 @@ A Next.js web application that provides a visual interface for scan history, tea
 
 ### Offline Mode (Default)
 
-All eight scan phases run locally without any network calls. This is the default behavior and requires no account or internet connection. The CLI uses built-in pattern matching and any locally installed external scanners.
+All eight scan phases run locally. This is the default behavior and requires no account. The CLI uses built-in pattern matching; `sigil scan` of a directory with a lockfile also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry), and skips those lookups when there is no connection.
 
 What works offline:
 - All eight scan phases with full scoring
-- External scanner integration (semgrep, bandit, trufflehog, safety)
 - Quarantine management (approve, reject, list)
 - Shell aliases and git hooks
 - Report generation
 
 What is unavailable offline:
 - Threat intelligence lookups (known malicious hashes)
-- Publisher reputation scores
-- Community threat signatures (delta sync)
+- Community threat signature updates (`sigil fetch`)
 - Scan history in the dashboard
-- Team management and policies
+- Team management and policies (dashboard only; the CLI does not fetch them)
 
 ### Authenticated Mode
 
-After running `sigil login`, the CLI sends scan metadata (never source code) to the Sigil API. This enables:
+`sigil login` stores a token; a plain scan does not change and sends nothing to the Sigil API. The cloud options use the token:
 
-- **Threat intelligence:** Hash lookups against a database of known malicious packages
-- **Publisher reputation:** Trust scores for package authors based on community data
-- **Signature updates:** New detection patterns propagated from the community
-- **Scan history:** Searchable history of all scans in the web dashboard
-- **Team policies:** Configurable auto-approve/reject thresholds per team
+- **Threat intelligence (Pro plan):** `sigil scan --enrich` looks the directory hash up in a database of known malicious packages. The current API answers a match in a format the CLI cannot parse, so a match is not shown: it appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`
+- **Signature updates (Pro plan):** `sigil fetch` downloads new detection patterns, which later fresh scans apply (content scanned before the fetch, in that directory or a copy of it, needs `sigil clear-cache` or `--no-cache`)
+- **Scan history:** `sigil scan --submit` sends the scan result, flagged source lines included, to the Sigil API for the web dashboard's scan history. The current API rejects the payload `--submit` sends (HTTP 422), so results do not yet appear in scan history, but the data is still sent
+- **Pro analysis:** `sigil scan --enhanced` uploads up to 50 text files from the directory, collected without the scan's exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50. The current API rejects the `--enhanced` request (HTTP 422) when the scan has any finding, after the files are sent
+- **Finding adjudication:** `sigil explain <scan.json>` uploads every finding in the saved scan result, flagged source lines included, and asks the server to adjudicate one with an LLM
+
+The `sigil scan` cloud options (`--enrich`, `--submit`, `--enhanced`) run only on a fresh scan: a re-scan of unchanged content served from the cache skips them without a message, so add `--no-cache`.
 
 ## Threat Intelligence Pipeline
 
@@ -314,8 +320,8 @@ After running `sigil login`, the CLI sends scan metadata (never source code) to 
   |           Distribution                          |
   |  - GET /v1/signatures (delta sync)              |
   |  - Cached at Redis layer (configurable TTL)     |
-  |  - CLI fetches on each authenticated scan       |
+  |  - CLI fetches with `sigil fetch`               |
   +------------------------------------------------+
 ```
 
-The pipeline ensures that when any user in the community encounters a malicious package, the detection pattern is available to all authenticated users within minutes. Scan submissions carry finding metadata (rule IDs, severities, file paths) plus the flagged source-line excerpts (`Finding.snippet`); full source files are transmitted only by the Pro enhanced-scan path, which uploads relevant file contents for LLM analysis. See `docs/data-handling.md` for the complete per-tier data flow.
+The pipeline ensures that when any user in the community encounters a malicious package, the detection pattern is available to every CLI that next runs `sigil fetch` (content scanned before that fetch, in any directory, is re-checked only after `sigil clear-cache` or with `--no-cache`). Scan submissions carry finding metadata (rule IDs, severities, file paths) plus the flagged source-line excerpts (`Finding.snippet`), as does `sigil explain`; full source files are transmitted only by the Pro enhanced-scan path, which uploads up to 50 text files from the scanned directory, collected without the scan's exclusions, for LLM analysis. See `docs/data-handling.md` for the complete per-tier data flow.
