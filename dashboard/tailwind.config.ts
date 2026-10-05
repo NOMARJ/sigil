@@ -6,16 +6,6 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
-  safelist: [
-    // Dynamic accent colors used in StatsCard
-    { pattern: /bg-(red|green|orange|blue|brand|success|warning|danger|info)-(400|500|600)\/(10|20|30)/ },
-    { pattern: /text-(red|green|orange|blue|brand|success|warning|danger|info)-(400|500|600)/ },
-    { pattern: /border-(red|green|orange|blue|brand|success|warning|danger|info)-(400|500|600)\/(20|30|40)/ },
-    // Dark theme utilities
-    { pattern: /bg-dark-(50|100|200|300|400|500|600|700|800|900|950)/ },
-    { pattern: /border-dark-(50|100|200|300|400|500|600|700|800|900|950)/ },
-    { pattern: /text-dark-(50|100|200|300|400|500|600|700|800|900|950)/ },
-  ],
   theme: {
     extend: {
       colors: {

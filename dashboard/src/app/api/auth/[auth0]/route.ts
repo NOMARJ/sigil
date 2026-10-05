@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 type AuthRouteContext = {
-  params: { auth0: string } | Promise<{ auth0: string }>;
+  params: Promise<{ auth0: string }>;
 };
 
 export async function GET(

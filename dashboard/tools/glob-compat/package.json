@@ -1,0 +1,11 @@
+{
+  "name": "@sigil/glob-compat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Directory glob compatibility for Next ESLint rootDir settings",
+  "main": "index.cjs",
+  "license": "MIT",
+  "dependencies": {
+    "tinyglobby": "0.2.17"
+  }
+}
