@@ -148,12 +148,53 @@ has_in "$CMD" "${WB}SIGIL_BYPASS=1([[:space:]]|\$)" \
   && emit allow "Sigil guard bypassed (SIGIL_BYPASS=1)"
 
 # A backslash-newline is a line continuation: the shell removes both, so
-# `… && sigil scan i.sh && \` then `bash i.sh` is one && chain.
+# `… && sigil scan i.sh && \` then `bash i.sh` is one && chain (hook.rs
+# join_continuations). Not inside a `# comment`, which a backslash does not
+# continue: the comment ends at the line end. Reading that takes awk; without
+# it every backslash-newline is joined, and a comment may swallow the line
+# after it.
+# shellcheck disable=SC2016 # an awk program, not shell
+JOIN_AWK='
+BEGIN { SQ = sprintf("%c", 39); DQ = "\""; buf = ""; seen = 0 }
+{ buf = (seen ? buf "\n" : "") $0; seen = 1 }
+END {
+  s = buf; n = length(s); out = ""; i = 1; esc = 0; brace = 0; st = "o"; ansi = 0
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (c == "\\") {
+      e = substr(s, i + 1, 1)
+      if (e == "\n") { i += 2; continue }
+      if (e == "\r" && substr(s, i + 2, 1) == "\n") { i += 3; continue }
+      if (st == "o" || st == "d" || (st == "s" && ansi)) { out = out c e; esc = i + 1; i += 2; continue }
+    }
+    if (st == "o") {
+      if (c == SQ) { ansi = (i > 1 && substr(s, i - 1, 1) == "$"); st = "s" }
+      else if (c == DQ) st = "d"
+      else if (c == "#" && brace == 0 && (i == 1 || (index(" \t\n;&|", substr(s, i - 1, 1)) && esc != i - 1))) {
+        while (i <= n && substr(s, i, 1) != "\n") { out = out substr(s, i, 1); i++ }
+        continue
+      }
+      else if (c == "{" && i > 1 && substr(s, i - 1, 1) == "$" && esc != i - 1) brace++
+      else if (c == "}" && brace > 0) brace--
+    } else if (st == "s") { if (c == SQ) st = "o" }
+    else if (c == DQ) st = "o"
+    out = out c; i++
+  }
+  printf "%s\n", out
+}'
 case $CMD in
   *"\\$NL"*|*"\\$CR$NL"*)
-    CMD=$(printf '%s\n' "$CMD" \
-      | sed -e ':a' -e "/\\\\$CR\$/{" -e '$!N' -e "s/\\\\$CR\\n//" -e 'ta' -e '}' \
-        -e '/\\$/{' -e '$!N' -e 's/\\\n//' -e 'ta' -e '}') ;;
+    CMD_JOINED=''
+    if command -v awk >/dev/null 2>&1; then
+      CMD_JOINED=$(printf '%s\n' "$CMD" | LC_ALL=C awk "$JOIN_AWK" 2>/dev/null) || CMD_JOINED=''
+    fi
+    if [ -n "$CMD_JOINED" ]; then
+      CMD=$CMD_JOINED
+    else
+      CMD=$(printf '%s\n' "$CMD" \
+        | sed -e ':a' -e "/\\\\$CR\$/{" -e '$!N' -e "s/\\\\$CR\\n//" -e 'ta' -e '}' \
+          -e '/\\$/{' -e '$!N' -e 's/\\\n//' -e 'ta' -e '}')
+    fi ;;
 esac
 
 # The command with quoting inside words removed (cmdline::dequote): quotes
@@ -1058,16 +1099,18 @@ function hdat(cmd, i,    j, c, hw) {
 # here-document). An opening quote is outside, a closing one inside. A
 # substitution opened inside double quotes is outside quotes until its ) or
 # backtick (SK: a backtick one; SP: the ( nesting of the one below).
-function qmap(cmd, d,    n, i, c, nx, st, ansi, ns, SK, SP, par, np, PD, PT, k, j, e, ln, hw, done, x, ar) {
-  n = length(cmd); st = "o"; ansi = 0; ns = 0; par = 0; np = 0; ar = 0
+function qmap(cmd, d,    n, i, c, nx, st, ansi, ns, SK, SP, par, np, PD, PT, k, j, e, ln, hw, done, x, ar, esc, brace) {
+  n = length(cmd); st = "o"; ansi = 0; ns = 0; par = 0; np = 0; ar = 0; esc = 0; brace = 0
   for (i = 1; i <= n; i++) {
     c = substr(cmd, i, 1); nx = substr(cmd, i + 1, 1)
     Q[d, i] = st
-    if (c == "\\" && (st == "o" || st == "d" || (st == "s" && ansi))) { if (i < n) Q[d, i + 1] = st; i++; continue }
+    if (c == "\\" && (st == "o" || st == "d" || (st == "s" && ansi))) { if (i < n) Q[d, i + 1] = st; esc = i + 1; i++; continue }
     if (st == "o") {
       if (c == SQ) { ansi = (i > 1 && substr(cmd, i - 1, 1) == "$"); st = "s" }
       else if (c == DQ) st = "d"
-      else if (c == "#" && (i == 1 || index(" \t\n;&|()<>", substr(cmd, i - 1, 1)))) { st = "c"; Q[d, i] = "c" }
+      else if (c == "#" && brace == 0 && (i == 1 || (index(" \t\n;&|", substr(cmd, i - 1, 1)) && esc != i - 1))) { st = "c"; Q[d, i] = "c" }
+      else if (c == "{" && i > 1 && substr(cmd, i - 1, 1) == "$" && esc != i - 1) brace++
+      else if (c == "}" && brace > 0) brace--
       else if (c == "(" && nx == "(") { ar++; Q[d, i + 1] = st; i++; continue }
       else if (c == ")" && nx == ")" && ar > 0) { ar--; Q[d, i + 1] = st; i++; continue }
       else if (c == "(" && ns > 0) par++
@@ -2560,16 +2603,17 @@ OPTIN_Q='\(["'\'']\)[^"'\''[:space:]]*\1'
 optin_prep() {
   R=$(printf '%s\n' "$1" | LC_ALL=C sed \
     -e 's/^/ /' \
+    -e 's/<<<[[:space:]]*--\([[:space:]]\)/ HERESTRING \1/g' \
     -e 's/<<</ HERESTRING /g' \
-    -e 's/[[:space:]][0-9]*&>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*&>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*>|[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*>&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*<<-*[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*<>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*<&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
-    -e 's/[[:space:]][0-9]*[<>][[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*&>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*&>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*>|[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*>&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*<<-*[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*<>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*<&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*[<>][[:space:]]*[^[:space:];&|(`<>]*/ /g' \
     -e "s/[[:space:]]-V[[:space:]][[:space:]]*$OPTIN_Q/ -V V/g" \
     -e "s/[[:space:]]-V=$OPTIN_Q/ -V V/g" \
     -e "s/[[:space:]]-V$OPTIN_Q/ -V V/g" \
@@ -2621,16 +2665,27 @@ function closing(s, n, open,   q, j, c) {
   }
   return 0
 }
+# A `--` word of its own inside a quoted string is a piece of the string, not
+# the end of the options: it becomes `-_`.
+function neutral(t,   o, p, L, c) {
+  o = ""; L = length(t); p = 1
+  while (p <= L) {
+    c = substr(t, p, 1)
+    if (c == "-" && substr(t, p + 1, 1) == "-" && (p == 1 || substr(t, p - 1, 1) ~ /[ \t\n]/) && (p + 2 > L || substr(t, p + 2, 1) ~ /[ \t\n]/)) { o = o "-_"; p += 2 }
+    else { o = o c; p++ }
+  }
+  return o
+}
 BEGIN { SQ = sprintf("%c", 39); DQ = "\""; buf = ""; seen = 0 }
 { buf = (seen ? buf "\n" : "") $0; seen = 1 }
 END {
-  s = buf; n = length(s); out = ""; depth = 0; tdepth = 0; i = 1
+  s = buf; n = length(s); out = ""; depth = 0; tdepth = 0; i = 1; esc = 0; brace = 0
   while (i <= n) {
     c = substr(s, i, 1)
     if (c == "\\") {
       e = substr(s, i + 1, 1)
       if (mode == "mask" && (e == ";" || e == "&" || e == "|" || e == "#")) e = "_"
-      out = out c e; i += 2; continue
+      out = out c e; esc = i + 1; i += 2; continue
     }
     if (c == SQ || c == DQ) {
       if (i in closes) { out = out c; i++; tdepth--; continue }
@@ -2639,14 +2694,17 @@ END {
         inner = substr(s, i + 1, j - i - 1)
         if (mode == "mask" && mentions(inner)) { closes[j] = 1; tdepth++; out = out c; i++; continue }
         if (mode == "mask" && !mentions(inner)) { gsub(/[;&|#]/, "_", inner); gsub(/\n/, " ", inner) }
-        out = out c inner c; i = j + 1; continue
+        out = out c neutral(inner) c; i = j + 1; continue
       }
       out = out c; i++; continue
     }
-    if (c == "#" && tdepth == 0 && (i == 1 || substr(s, i - 1, 1) ~ /[ \t\n;&|()<>]/)) {
+    if (c == "#" && tdepth == 0 && brace == 0 && (i == 1 || (substr(s, i - 1, 1) ~ /[ \t\n;&|]/ && esc != i - 1))) {
       while (i <= n && substr(s, i, 1) != "\n") i++
       continue
     }
+    if (c == "{" && i > 1 && substr(s, i - 1, 1) == "$" && esc != i - 1) brace++
+    else if (c == "}" && brace > 0) brace--
+    if (tdepth > 0 && c == "-" && substr(s, i + 1, 1) == "-" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t\n]/) && (i + 2 > n || substr(s, i + 2, 1) ~ /[ \t\n]/)) { out = out "-_"; i += 2; continue }
     if (c == "[") depth++
     else if (c == "]") { if (depth > 0) depth-- }
     else if (c == "\n" && depth > 0 && mode == "mask") c = " "
@@ -2665,17 +2723,41 @@ optin_lex() {
 # in, so a line end ends a call) and OPTIN_FLAT (the text on one line).
 OPTIN_ALL=''
 OPTIN_FLAT=''
+# A redirection's file that is a lone `--` (`> --`, `3> --`, `{fd}> --`,
+# `<<< --`) is a file, not the end of the options: it becomes `-_` (twice, as a
+# match takes the blank after the file, which the next redirection needs).
+OPTIN_DASHOPND='s/\([[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9&]*[<>][<>|&]*[[:space:]]*\)--\([[:space:]]\)/\1-_\3/g'
 optin_view() {
   optin_prep "$1"
   OPTIN_ALL=$OPTIN_ALL$NL$R
-  FL=$(printf '%s\n' "$1" | tr '\n' ' ')
+  FL=$(printf '%s\n' "$1" | tr '\n' ' ' | LC_ALL=C sed -e "$OPTIN_DASHOPND" -e "$OPTIN_DASHOPND")
   OPTIN_FLAT=$OPTIN_FLAT$NL$FL
 }
-# optin_views <text>: the text, dequoted, unspliced, and unspliced and
+# optin_bare <text>: the text without any quote or backslash, in OPTIN_BARE
+# (the rules that look for the flag itself read it, not the ones that look
+# for an expansion: a quoted "$VER" would read as one that may split).
+OPTIN_BARE=''
+optin_bare() {
+  BR=$(printf '%s\n' "$1" | tr -d "\"'\\\\")
+  optin_prep "$BR"
+  OPTIN_BARE=$OPTIN_BARE$NL$R
+}
+# optin_unescape <text>: UNE is the text with one layer of double-quote
+# escaping undone (hook.rs unescape_layer): a backslash before a backslash,
+# `$`, a backtick or `"` is dropped.
+optin_unescape() {
+  UNE=$1
+  case $1 in
+    *\\*)
+      UNE=$(printf '%s\n' "$1" | LC_ALL=C sed -e 's/\\\([\\$`"]\)/\1/g') ;;
+  esac
+}
+# optin_views1 <text>: the text, dequoted, unspliced, and unspliced and
 # dequoted (the last two when the quotes of a string handed to an
-# interpreter change it).
-optin_views() {
+# interpreter change it), and the bare text.
+optin_views1() {
   optin_view "$1"
+  optin_bare "$1"
   optin_dq "$1"; [ "$DQ" = "$1" ] || optin_view "$DQ"
   optin_unsplice "$1"
   if [ "$UNS" != "$1" ]; then
@@ -2683,8 +2765,24 @@ optin_views() {
     optin_dq "$UNS"; [ "$DQ" = "$UNS" ] || optin_view "$DQ"
   fi
 }
+# optin_views <text>: the views of the text, and of the text a second shell
+# reads once up to three layers of double-quote escaping are off it (hook.rs
+# build_scripts_opt_in).
+optin_views() {
+  optin_views1 "$1"
+  ov_layer=$1; ov_k=0
+  while [ "$ov_k" -lt 3 ]; do
+    optin_unescape "$ov_layer"
+    [ "$UNE" = "$ov_layer" ] && break
+    optin_views1 "$UNE"
+    ov_layer=$UNE; ov_k=$((ov_k + 1))
+  done
+}
 optin_has() {
   has_in "$OPTIN_ALL" "$1"
+}
+optin_bare_has() {
+  has_in "$OPTIN_BARE" "$1"
 }
 OPTIN_C='([^][(),[:space:];&|]|[<>][&|]|&>)'
 OPTIN_F='([^]#[(),[:space:];&|-]|[<>][&|]|&>)'
@@ -2695,13 +2793,30 @@ OPTIN_W="(-|-?${OPTIN_F}${OPTIN_C}*|--${OPTIN_C}+)"
 OPTIN_P='[^][:space:];&|()]'
 # A brace expansion inside a shell word: `{a,b}`, `{1..3}`.
 OPTIN_BR="\\{${OPTIN_P}*(,|\\.\\.)${OPTIN_P}*\\}"
+# `sigil` as a command word: the word, `/usr/bin/sigil`, `$(command -v
+# sigil)` and `sigil.exe` too.
+OPTIN_NAMED="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*"
+# A command word the shell may spell `sigil`: one with an expansion, a glob
+# character, a backslash, or a pair of quotes (`$S`, `si${E}gil`, `sig?l`,
+# `s\igil`, `'sigil'`).
+OPTIN_SPELLED="(^|[][(),[:space:];&|])(${OPTIN_C}*[\$\`\\\\*?]${OPTIN_C}*|${OPTIN_C}*\"${OPTIN_C}*\"${OPTIN_C}*|${OPTIN_C}*'${OPTIN_C}*'${OPTIN_C}*)"
+# A global option of sigil and its value (hook.rs global_option_words):
+# `-v`, `--verbose`, `-f X`, `-fX`, `--format X`, `--format=X`, and `-o`,
+# `--rules`, `--yara-engine`, `--config` alike; short options may be clustered.
+OPTIN_G="(-v+|--verbose|(--(format|output|rules|yara-engine|config)|-[vfo]*[fo])${OPTIN_S}${OPTIN_C}+|--(format|output|rules|yara-engine|config)=${OPTIN_C}*|-[vfo]*[fo]${OPTIN_C}+)"
 # `sigil`, any global options, then `pip` or `npm` (a piece of a brace
 # group too: `{sigil,pip}`), or a command word that is an expansion.
-OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|${OPTIN_C}*[\$\`*?\"']${OPTIN_C}*)${OPTIN_S}[\"'{]*(pip|npm)[\"'}]*"
-# `sigil` and, right after it, a word that may expand to `pip`/`npm`.
-OPTIN_SUBX="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*${OPTIN_S}[\"']*(${OPTIN_C}*[\$\`]${OPTIN_C}*|${OPTIN_P}*${OPTIN_BR}${OPTIN_P}*)"
+OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|${OPTIN_C}*[\$\`*?\"'\\\\]${OPTIN_C}*)${OPTIN_S}[\"'{]*(pip|npm)[\"'}]*"
+# `sigil`, its global options, and where the subcommand goes a word that may
+# expand to `pip`/`npm`: an expansion, a quote, a backslash, a glob or a brace
+# expansion (`$SUB`, `$'npm'`, `n\pm`, `np${x}m`, `{pip,npm}`).
+OPTIN_SUBX="${OPTIN_NAMED}(${OPTIN_S}${OPTIN_G})*${OPTIN_S}(${OPTIN_C}*[\$\`\\\\'\"{*?]${OPTIN_C}*)"
 # A word after it that is the flag, or may expand to it: `$` or a backtick.
 OPTIN_FLAG="${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])"
+# A word that starts like the flag or that a brace expansion or a glob may
+# make one (hook.rs flag_like): `--allow-build-${F}`, `{--allow-build-scripts,}`,
+# `--allow-build-s*`, `[-]-allow-build-scripts`, `--allow-{build,x}-scripts`.
+OPTIN_FLAGA="${OPTIN_S}[\"']*[][{}*?-]*allow-[b{*?[]"
 # A shell word that begins like an option or a pattern (`-`, `{`, `*`, `?`,
 # `[`) and holds a brace expansion or a glob, which the shell may expand to
 # the flag. A bracket pattern counts in a word that starts with `-`
@@ -2723,7 +2838,14 @@ OPTIN_N='[^][(),[:space:];&|]'
 OPTIN_ND='[^][(),[:space:];&|-]'
 OPTIN_TOK="(${OPTIN_ND}${OPTIN_N}*|-|-${OPTIN_ND}${OPTIN_N}*|--${OPTIN_N}+)"
 OPTIN_FLATRE="(^|${OPTIN_D})[\"'{]*(pip|npm)[\"'}]*${OPTIN_D}+(${OPTIN_TOK}${OPTIN_D}+)*[\"']*--allow-build-scripts"
-OPTIN_ENVRE='SIGIL_ALLOW_BUILD_SCRIPTS["'"'"']*\+?='
+# The confirmation variable (hook.rs sets_opt_in_env): its name with anything
+# glued to it and then `=`; its first part next to a word that sets a
+# variable by name; an assignment with an expansion in its name in a call
+# with `export`, `env` or the like.
+OPTIN_ENVRE='SIGIL_ALLOW_BUILD[^][(),[:space:];&|<>]*='
+OPTIN_ENVPFX='SIGIL_ALLOW_BUILD'
+OPTIN_ENVNAMER="(^|[][(),[:space:];&|\"'])(export|declare|typeset|readonly|local|printf|read|mapfile|readarray|eval)([][(),[:space:];&|\"']|\$)"
+OPTIN_ENVBUILT="(^|[][(),[:space:];&|\"'])(export|declare|typeset|readonly|local|env|eval)([][(),[:space:]\"']+[^;&|]*)?[][(),[:space:]\"']+[\"']*[^[:space:];&|=\"']*[\$\`][^[:space:];&|=]*="
 # 4. A nested shell (hook.rs nested_obscured_call, which reads the same way).
 #    A double-quoted string keeps `\c` as it is, and the shell it is handed
 #    to reads the unquoted text and drops the backslash:
@@ -2757,11 +2879,11 @@ OPTIN_ENVRE='SIGIL_ALLOW_BUILD_SCRIPTS["'"'"']*\+?='
 #    word, then one of them again.
 NS_SQ="'"
 NS_OBS_ERE="[\$\`\\\\${NS_SQ}\"*?[{]"
-NS_NAMES='sh bash dash zsh ksh mksh ash csh tcsh fish busybox ssh su runuser eval source trap watch script flock parallel'
-NS_SHELLS='sh bash dash zsh ksh mksh ash csh tcsh fish busybox'
-NS_SHELL_ERE="(^|[^A-Za-z0-9_.-])(sh|bash|dash|zsh|ksh|mksh|ash|csh|tcsh|fish|busybox|ssh|su|runuser|eval|source|trap|watch|script|flock|parallel)[0-9.]*([^A-Za-z0-9_-]|\$)|[\$][{]?(SHELL|BASH)[}]?|(^|[[:space:];&|(])[.]([[:space:]]|\$)"
+NS_NAMES='sh bash dash zsh ksh mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh ssh su runuser eval source trap watch script flock parallel'
+NS_SHELLS='sh bash dash zsh ksh mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh'
+NS_SHELL_ERE="(^|[^A-Za-z0-9_.-])(sh|bash|dash|zsh|ksh|mksh|ash|csh|tcsh|fish|busybox|rbash|rksh|rzsh|posh|yash|pdksh|oksh|ssh|su|runuser|eval|source|trap|watch|script|flock|parallel)[0-9.]*([^A-Za-z0-9_-]|\$)|[\$][{]?(SHELL|BASH)[}]?|(^|[[:space:];&|(])[.]([[:space:]]|\$)"
 NS_DASHC_ERE="(^|[[:space:]])-[A-Za-z]*c([[:space:]]*[\"${NS_SQ}\$\`]|[\"${NS_SQ}\$\`])"  # coarse: any program
-NS_COARSE_ERE="(sigil|${NS_OBS_ERE}).*(^|[^A-Za-z0-9_.-])(pip|npm)([^A-Za-z0-9_.-]|\$).*${NS_OBS_ERE}"
+NS_COARSE_ERE="(^|[^A-Za-z0-9_.-])(sigil|pip|npm)([^A-Za-z0-9_.-]|\$).*${NS_OBS_ERE}"
 # shellcheck disable=SC2016 # an awk program, not shell
 NS_AWK='
 function named(word, list,   k, nm, rest) {
@@ -2806,6 +2928,100 @@ function dashc(s,   nt, k, t, body, l, flag, rest, more, prog, b, j, q) {
   }
   return 0
 }
+# gopt(a): how many words the global option a of sigil takes (hook.rs
+# global_option_words): 1 alone, 2 with a value word after it, 0 for a word
+# that is not an option.
+function gopt(a,   lng, name, eq, letters, k, ch) {
+  if (substr(a, 1, 1) != "-" || a == "-" || a == "--") return 0
+  if (substr(a, 1, 2) == "--") {
+    lng = substr(a, 3); eq = index(lng, "=")
+    name = eq ? substr(lng, 1, eq - 1) : lng
+    if (!eq && (name == "format" || name == "output" || name == "rules" || name == "yara-engine" || name == "config")) return 2
+    return 1
+  }
+  letters = substr(a, 2)
+  for (k = 1; k <= length(letters); k++) {
+    ch = substr(letters, k, 1)
+    if (ch == "v") continue
+    if (ch == "f" || ch == "o") return (k == length(letters)) ? 2 : 1
+    return 1
+  }
+  return 1
+}
+# sigil_call(s, e): may the sigil word that ends just before position e be a
+# pip/npm call (hook.rs ns_sigil_call): what follows it, past its global
+# options and their values, is not a plain word of another subcommand.
+function sigil_call(s, e,   n, i, st, w, nxt, k) {
+  n = length(s); i = e
+  while (1) {
+    while (i <= n && (substr(s, i, 1) == " " || substr(s, i, 1) == "\t")) i++
+    st = i
+    while (i <= n && index(OPTCH, substr(s, i, 1)) > 0) i++
+    w = substr(s, st, i - st)
+    nxt = substr(s, i, 1)
+    if (w == "" || (i <= n && index(" \t\n;&|)", nxt) == 0)) return 1
+    k = gopt(w)
+    if (k == 1) continue
+    if (k == 2) {
+      while (i <= n && (substr(s, i, 1) == " " || substr(s, i, 1) == "\t")) i++
+      while (i <= n && index(" \t\n;&|)", substr(s, i, 1)) == 0) i++
+      continue
+    }
+    if (w == "pip" || w == "npm") return 1
+    return (w !~ /^[a-z-]+$/)
+  }
+}
+# knownf(w): a program known not to read its stdin or a here-document as a
+# command line (hook.rs ns_known_filter).
+function knownf(w,   b, k) {
+  sub("^[" DQ SQ "]+", "", w)
+  b = w
+  while ((k = index(b, "/")) > 0) b = substr(b, k + 1)
+  for (k = 1; k <= NFLT; k++) if (FLT[k] == b) return 1
+  for (k = 1; k <= 12; k++) if (NOTSH[k] != "" && substr(b, 1, length(NOTSH[k])) == NOTSH[k]) return 1
+  return 0
+}
+# firstword(s, from): the first word of the command that starts at from
+# (blanks and assignments skipped), up to a blank or one of ;&|<>().
+function firstword(s, from,   n, i, st, w) {
+  n = length(s); i = from
+  while (1) {
+    while (i <= n && index(" \t\n", substr(s, i, 1)) > 0) i++
+    st = i
+    while (i <= n && index(" \t\n;&|<>()", substr(s, i, 1)) == 0) i++
+    w = substr(s, st, i - st)
+    if (w ~ /^[A-Za-z0-9_]+=/ && i <= n) continue
+    return w
+  }
+}
+# to_unknown(s): text piped (| |&) into a command that is not a known filter,
+# or the input of a here-document or here-string of one (hook.rs
+# ns_text_to_unknown): it may be a shell (| rbash, | $0, | exec sh).
+function to_unknown(s,   n, k, c, pv, nx, sepc, start, from, w) {
+  n = length(s); start = 1; k = 1
+  while (k <= n) {
+    c = substr(s, k, 1); pv = (k > 1) ? substr(s, k - 1, 1) : ""; nx = substr(s, k + 1, 1)
+    sepc = 0
+    if (c == ";" || c == "\n" || c == "(") sepc = 1
+    else if (c == "&") sepc = !(pv == ">" || pv == "<" || nx == ">")
+    else if (c == "|") sepc = (pv != ">")
+    if (sepc) {
+      if (c == "|" && nx != "|" && pv != "|") {
+        from = (nx == "&") ? k + 2 : k + 1
+        w = firstword(s, from)
+        if (w != "" && !knownf(w)) return 1
+      }
+      start = k + 1
+    } else if (c == "<" && nx == "<") {
+      w = firstword(s, start)
+      if (w != "" && !knownf(w)) return 1
+      while (k <= n && substr(s, k, 1) == "<") k++
+      continue
+    }
+    k++
+  }
+  return 0
+}
 # shells(s, all, out): out[last position of an occurrence] = its first
 # position; the number of occurrences.
 function shells(s, all, out,   n, i, a, w, c, cnt, rest, br, t, nxt) {
@@ -2841,6 +3057,8 @@ BEGIN {
   WORDCH = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-"
   LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
   split("python node deno bun perl ruby php lua awk gawk mawk sed", NOTSH, " ")
+  NFLT = split("cat tee grep egrep fgrep rg cut sort uniq wc head tail tr jq less more column fold fmt nl od xxd base64 sha256sum md5sum shasum xargs diff cmp comm paste rev tac yes true false echo printf test [", FLT, " ")
+  OPTCH = WORDCH "="
   buf = ""; seen = 0
 }
 { buf = (seen ? buf "\n" : "") $0; seen = 1 }
@@ -2851,7 +3069,8 @@ END {
       st = i
       while (i <= n && wordc(substr(buf, i, 1))) i++
       w = substr(buf, st, i - st)
-      if (w == "pip" || w == "npm") mgr[++nm] = st
+      if (w == "pip" || w == "npm") { mgr[++nm] = st; alen[nm] = 3 }
+      else if (w == "sigil" && sigil_call(buf, i)) { mgr[++nm] = st; alen[nm] = 5 }
     } else i++
   }
   if (nm == 0) { print 0; exit }
@@ -2912,18 +3131,19 @@ END {
     } else i++
   }
   e = 1
+  tu = to_unknown(buf)
   for (m = 1; m <= nm; m++) {
-    p = mgr[m]
+    p = mgr[m]; al = alen[m]
     while (e <= ne && ec[e] < p) e++
     inside = (e <= ne && eo[e] < p && p < ec[e])
     st = sep[p - 1] + 1
     opening = (inside && eo[e] >= st) ? 1 : 0
-    spelled = (sig[p - 1] >= st) || (obs[p - 1] - obs[st - 1] > opening)
-    fin = stp[p + 3] - 1
-    closing = (inside && ec[e] <= n && ec[e] >= p + 3 && ec[e] <= fin) ? 1 : 0
-    if (inside) applies = g
-    else applies = (shl[p - 1] >= st) || pipe || (here && g) || (xp[p - 1] - xp[st - 1] > 0)
-    if (applies && spelled && obs[fin] - obs[p + 2] > closing) { print 1; exit }
+    spelled = (al == 5) || (sig[p - 1] >= st) || (obs[p - 1] - obs[st - 1] > opening)
+    fin = stp[p + al] - 1
+    closing = (inside && ec[e] <= n && ec[e] >= p + al && ec[e] <= fin) ? 1 : 0
+    if (inside) applies = g || tu
+    else applies = (shl[p - 1] >= st) || pipe || tu || (here && g) || (xp[p - 1] - xp[st - 1] > 0)
+    if (applies && spelled && obs[fin] - obs[p + al - 1] > closing) { print 1; exit }
   }
   print 0
 }'
@@ -2942,7 +3162,7 @@ ns_check() {
 # Only a command that holds one of these words (quotes and backslashes
 # aside) can hold the call; the lexer's pre-filter text is that.
 case $LEX_TXT in
-  *pip*|*npm*|*sigil*|*SIGIL_ALLOW_BUILD_SCRIPTS*)
+  *pip*|*npm*|*sigil*|*SIGIL_ALLOW_BUILD*)
     LEX_HAS_AWK=''
     command -v awk >/dev/null 2>&1 && LEX_HAS_AWK=1
     optin_lex strip "$CMD"; OPTIN_BASE=$LX
@@ -2950,13 +3170,34 @@ case $LEX_TXT in
     optin_lex mask "$CMD"
     [ "$LX" = "$OPTIN_BASE" ] || optin_views "$LX"
     has_in "$OPTIN_FLAT" "$OPTIN_FLATRE" && OPTIN=1
+    # The confirmation variable, by its name, near a word that sets a variable
+    # by name, or built from parts.
     has_in "$OPTIN_FLAT" "$OPTIN_ENVRE" && OPTIN=1
+    has_in "$OPTIN_BARE" "$OPTIN_ENVRE" && OPTIN=1
+    { has_in "$OPTIN_FLAT" "$OPTIN_ENVPFX" && has_in "$OPTIN_FLAT" "$OPTIN_ENVNAMER"; } && OPTIN=1
+    { has_in "$OPTIN_BARE" "$OPTIN_ENVPFX" && has_in "$OPTIN_BARE" "$OPTIN_ENVNAMER"; } && OPTIN=1
+    optin_has "$OPTIN_ENVBUILT" && OPTIN=1
+    optin_bare_has "$OPTIN_ENVBUILT" && OPTIN=1
+    # The flag after a command word that is or may be sigil, whatever the
+    # subcommand is spelled like (also in the text without quotes).
+    optin_has "${OPTIN_NAMED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_has "${OPTIN_SPELLED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_bare_has "${OPTIN_NAMED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_bare_has "${OPTIN_SPELLED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
     optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
     optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
     optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
     optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
     optin_has "$OPTIN_BRM" && OPTIN=1
+    # xargs appends the words it reads, or puts them where its replace string
+    # stands; the call it runs may be an expansion or have no subcommand yet.
     optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs[[:space:]]([^;&|#]*[[:space:]])?-[A-Za-z0-9]*[Ii]([^;&|#]*[^[:alnum:]_.-])?sigil(\\.exe)?([^[:alnum:]_.-]|\$)" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs[[:space:]]([^;&|#]*[[:space:]])?sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_G})*[[:space:]]*(\$|[;&|)])" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]]+-[^[:space:];&|]*)*[[:space:]]+[\"']*[\$\`]" \
       && OPTIN=1
     ns_check ;;
 esac

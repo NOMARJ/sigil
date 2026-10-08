@@ -219,6 +219,44 @@ fn heredoc_at(chars: &[char], i: usize) -> Option<(String, bool)> {
     (!delim.is_empty() && !numeric).then_some((delim, tabs))
 }
 
+/// `cmd` without its line continuations (a backslash and a line end): the
+/// shell removes both, so `… && sigil scan i.sh && \⏎bash i.sh` is one `&&`
+/// chain. Not inside a `# comment`, which a backslash does not continue (it
+/// ends at the line end), and not after another backslash (two backslashes
+/// are an escaped backslash, and the line end after them is a real one).
+fn join_continuations(cmd: &str) -> String {
+    if !cmd.contains("\\\n") && !cmd.contains("\\\r\n") {
+        return cmd.to_string();
+    }
+    let chars: Vec<char> = cmd.chars().collect();
+    let q = quote_map(&chars);
+    let mut out = String::with_capacity(cmd.len());
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == '\\' && q[i] != Q::Comment {
+            match (chars.get(i + 1), chars.get(i + 2)) {
+                (Some('\n'), _) => {
+                    i += 2;
+                    continue;
+                }
+                (Some('\r'), Some('\n')) => {
+                    i += 3;
+                    continue;
+                }
+                (Some('\\'), _) => {
+                    out.push_str("\\\\");
+                    i += 2;
+                    continue;
+                }
+                _ => {}
+            }
+        }
+        out.push(chars[i]);
+        i += 1;
+    }
+    out
+}
+
 fn quote_map(chars: &[char]) -> Vec<Q> {
     let mut m = vec![Q::Out; chars.len()];
     // In $'…' a backslash escapes the next character, `\'` included.
@@ -234,6 +272,11 @@ fn quote_map(chars: &[char]) -> Vec<Q> {
     let mut pending: Vec<(String, bool)> = Vec::new();
     // Open `((` arithmetic, where `<<` is a shift.
     let mut arith = 0u32;
+    // The character an unquoted backslash escaped last (`\ ` is a space that
+    // belongs to its word), and the depth of open `${ … }` (where a `#` is
+    // text, not a comment).
+    let mut escaped: Option<usize> = None;
+    let mut brace = 0u32;
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -244,6 +287,7 @@ fn quote_map(chars: &[char]) -> Vec<Q> {
             if let Some(n) = m.get_mut(i + 1) {
                 *n = state;
             }
+            escaped = Some(i + 1);
             i += 2;
             continue;
         }
@@ -254,15 +298,21 @@ fn quote_map(chars: &[char]) -> Vec<Q> {
                     state = Q::Single;
                 }
                 '"' => state = Q::Double,
-                '#' if i == 0
-                    || matches!(
-                        chars[i - 1],
-                        ' ' | '\t' | '\n' | ';' | '&' | '|' | '(' | ')' | '<' | '>'
-                    ) =>
+                // A `#` starts a comment only at the start of a word: after
+                // unescaped blank space or `;` `&` `|`, outside `${ … }`. After
+                // a `)`, `<` or `>` it may be glued to a substitution
+                // (`$(a)#`, `<(a)#`), so it is taken for text: a comment is
+                // never assumed where the shell may not see one.
+                '#' if brace == 0
+                    && (i == 0
+                        || matches!(chars[i - 1], ' ' | '\t' | '\n' | ';' | '&' | '|')
+                            && escaped != Some(i - 1)) =>
                 {
                     state = Q::Comment;
                     m[i] = Q::Comment;
                 }
+                '{' if i > 0 && chars[i - 1] == '$' && escaped != Some(i - 1) => brace += 1,
+                '}' if brace > 0 => brace -= 1,
                 '(' if next == Some('(') => {
                     arith += 1;
                     m[i + 1] = state;
@@ -848,14 +898,21 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 /// `sigil pip|npm … --allow-build-scripts` lets pip or npm run the
 /// package's own setup or lifecycle scripts on this machine before the scan.
 /// The flag is meant as the user's own decision; a command an agent runs is
-/// not that, so it is put to the user. (The CLI asks for its own
-/// confirmation as well, so this reading is a second line, not the only
-/// one: a pattern reader cannot see a flag a program builds at run time.)
+/// not that, so it is put to the user. This ask is the one layer aimed at an
+/// agent. The CLI asks for a confirmation too (a typed `yes` at a terminal,
+/// or `SIGIL_ALLOW_BUILD_SCRIPTS=1`), but that only stops accidents and
+/// unattended runs: a program that opens a pseudo-terminal, or sets the
+/// variable, satisfies it. And this reading is advisory as well: it reads the
+/// text of the command, and a flag a program builds at run time is not in it.
 ///
-/// Three readings, over the stage's text as written, with literal quoting
-/// removed, with the quotes of a string a shell hands to an interpreter
-/// (`'\''`, `'"'"'`, `\"`) unspliced, and with the `;` `&` `|` `#` and line
-/// ends inside a quoted word masked (see [`mask_quoted_separators`]):
+/// Fail-safe, not exact: where the text could mean the flag, it asks. Over
+/// several views of the stage's text (as written; with the quotes of a string
+/// a shell hands to an interpreter unspliced: `'\''`, `'"'"'`, `\"`; with up
+/// to three layers of double-quote escaping undone: `bash -c "sigil np\\m …"`
+/// hands the inner shell `np\m`; with the `;` `&` `|` `#` and line ends
+/// inside a quoted word masked, see [`mask_quoted_separators`]; and each of
+/// those again with the quotes taken off plain word characters, and with
+/// every quote and backslash taken off), three readings:
 ///
 /// 1. [`flat_opt_in`]: a `pip` or `npm` word, then, before a `--` word of
 ///    its own, a word starting with `--allow-build-scripts`, however the
@@ -865,55 +922,91 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 ///    list written over several lines). Nothing here needs a `sigil` word,
 ///    so no spelling of the command word hides the flag.
 /// 2. [`sets_opt_in_env`]: the variable the CLI accepts in place of a
-///    terminal (`SIGIL_ALLOW_BUILD_SCRIPTS=1`) being set.
-/// 3. [`opt_in_words`]: what the flat reading cannot see, a word the
-///    shell may expand into the flag. Where a `sigil` word (or a command
-///    word that is an expansion, a glob, or holds a quote that stayed,
-///    such as `$(command -v sigil)`, `si${E}gil`) appears (also inside a
-///    quoted string a shell, `find -exec`, `coproc` or a here-string runs,
-///    in an interpreter's argv list such as `['sigil','pip',…]`, and in text
-///    that only mentions it, as the install rules read `npm install`
-///    anywhere): `sigil`, then `pip` or `npm` (or, right after `sigil`, a
-///    word that may expand to it: `$SUB`, `{pip,npm}`), then, before a `--`,
-///    a `# comment` or a `;`/`&`/`|`, a word starting with
-///    `--allow-build-scripts` (a glued redirection such as
-///    `--allow-build-scripts>log` included) or a word the shell may expand
-///    to it: one with a `$` or backtick, or one that begins like an option
-///    or a pattern (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
-///    (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
-///    `--allow-build-scr?pts`, `--allow-build-scr[i]pts`; a glob expands
-///    only where a file matches, which the command can arrange). A
-///    redirection and its file (`> "$LOG"`, `2>&1`) are not arguments, nor
-///    is one quoted word after `-V`/`--version` (`-V "$VER"`, its value);
-///    an unquoted `-V $VER` can split into more words and is still asked
-///    about. A sigil pip/npm call behind `xargs` is asked about too: xargs
-///    appends words it reads. The shell fallback (`sigil-guard.sh`) reads
-///    the same shapes.
+///    terminal (`SIGIL_ALLOW_BUILD_SCRIPTS=1`) being set, under its own name
+///    or a name the shell may build.
+/// 3. [`opt_in_words`]: what the flat reading cannot see, a call whose
+///    subcommand or flag the shell may spell. Where a `sigil` word (or a
+///    command word that is an expansion, a glob, or holds a quote or a
+///    backslash, such as `$(command -v sigil)`, `si${E}gil`, `$S`) appears
+///    (also inside a quoted string a shell, `find -exec`, `coproc` or a
+///    here-string runs, in an interpreter's argv list such as
+///    `['sigil','pip',…]`, and in text that only mentions it, as the install
+///    rules read `npm install` anywhere):
+///    - a word starting with `--allow-build-scripts` later in the same call
+///      (before a `--`, a `# comment` or a `;`/`&`/`|`) asks, whatever
+///      stands between: the subcommand may be `$'npm'`, `$M`, `np${x}m`, or
+///      come from a function's `"$@"` or from `xargs`. Only `pip` and `npm`
+///      take the flag, so asking about a non-flag word that precedes it is
+///      cheap;
+///    - after `sigil` and its global options (`-v`, `-f X`, `--format X|=X`,
+///      `-o X`, `--rules X`, `--yara-engine X`, `--config X`), the
+///      subcommand is `pip`, `npm`, or a word that may expand to one (`$SUB`,
+///      `{pip,npm}`, `$'npm'`, `n\pm`); after it, a word with a `$` or
+///      backtick, or one that begins like an option or a pattern (`-`, `{`,
+///      `*`, `?`, `[`) and holds a brace expansion
+///      (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
+///      `--allow-build-scr?pts`, `--allow-build-scr[i]pts`; a glob expands
+///      only where a file matches, which the command can arrange), may be
+///      the flag. A redirection and its file (`> "$LOG"`, `2>&1`, and a file
+///      named `--`: `> --`, `<<< --`) are not arguments, nor is one quoted
+///      word after `-V`/`--version` (`-V "$VER"`, its value); an unquoted
+///      `-V $VER` can split into more words and is still asked about;
+///    - a sigil call behind `xargs` is asked about: xargs appends the words
+///      it reads, or puts them where its replace string (`-I@`, `-i`) stands.
+///
+/// The shell fallback (`sigil-guard.sh`) reads the same shapes with sed,
+/// awk and extended regular expressions; it is a coarser reading, and
+/// `nested-shell-agreement.py` measures where the two differ.
 ///
 /// What it does not read: a flag that a program builds at run time
 /// (`'--allow-build-' + 'scripts'` in an interpreter's code), a file or
 /// variable the call reads its arguments from, a call a script or alias
 /// makes without the words appearing in the command (a script written by
 /// one tool call and run by the next), a glob-spelled `sigil` (`sigi[l]`)
-/// followed by an expansion, and a quoted word holding a `pip` or `npm`
-/// word that is data, not a script, in front of an expansion that spells
-/// the flag.
+/// followed by an expansion, a command word and a subcommand that are both
+/// bare expansions with the flag in a third (`$S $M x $F`: indistinguishable
+/// from `$CC $CFLAGS $SRC`), and a quoted word holding a `pip` or `npm` word
+/// that is data, not a script, in front of an expansion that spells the flag.
 fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
-    let unspliced = unsplice_quotes(stage);
+    fn add(views: &mut Vec<String>, v: String) {
+        if !views.contains(&v) {
+            views.push(v);
+        }
+    }
     let mut views: Vec<String> = vec![stage.to_string()];
-    if unspliced != stage {
-        views.push(unspliced);
+    add(&mut views, unsplice_quotes(stage));
+    // The text a second shell reads, after the double-quoted string it came in
+    // has been through the first: one layer of escaping off, and so on.
+    let mut layer = stage.to_string();
+    for _ in 0..3 {
+        let next = unescape_layer(&layer);
+        if next == layer {
+            break;
+        }
+        add(&mut views, next.clone());
+        add(&mut views, unsplice_quotes(&next));
+        layer = next;
     }
     for i in 0..views.len() {
         let masked = mask_quoted_separators(&views[i]);
-        if masked != views[i] {
-            views.push(masked);
-        }
+        add(&mut views, masked);
     }
     let reads = |t: &str| flat_opt_in(t) || sets_opt_in_env(t) || opt_in_words(t);
-    let opted_in = views
-        .iter()
-        .any(|text| reads(text) || reads(&dequote_literals(text)));
+    let opted_in = views.iter().any(|text| {
+        if reads(text) {
+            return true;
+        }
+        let plain = dequote_literals(text);
+        if plain != *text && reads(&plain) {
+            return true;
+        }
+        // With every quote gone, a quoted `"$VER"` reads as an expansion that
+        // may split; only the flag itself is looked for.
+        let bare = strip_quotes(text);
+        bare != *text
+            && bare != plain
+            && (flat_opt_in(&bare) || sets_opt_in_env(&bare) || opt_in_words_in(&bare, false))
+    });
     opted_in.then(|| {
         Decision::Ask(
             "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle \
@@ -933,7 +1026,8 @@ fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
 /// a second reading of its text, in which a backslash, a quote or an
 /// expansion means something else than it did in the first.
 const NS_SHELLS: &[&str] = &[
-    "sh", "bash", "dash", "zsh", "ksh", "mksh", "ash", "csh", "tcsh", "fish", "busybox",
+    "sh", "bash", "dash", "zsh", "ksh", "mksh", "ash", "csh", "tcsh", "fish", "busybox", "rbash",
+    "rksh", "rzsh", "posh", "yash", "pdksh", "oksh",
 ];
 const NS_OTHERS: &[&str] = &[
     "ssh", "su", "runuser", "eval", "source", "trap", "watch", "script", "flock", "parallel",
@@ -1049,6 +1143,131 @@ fn ns_dash_c(cmd: &str) -> bool {
     })
 }
 
+/// Programs that are known not to read their standard input, or a here-document,
+/// as a command line: a filter, a pager, a viewer, an interpreter of another
+/// language ([`NS_NOT_SHELLS`]). Anything else after a `|` or in front of a
+/// `<<` may be a shell (`rbash`, `$0`, `exec sh`, a wrapper), and text piped to it
+/// is read again.
+const NS_FILTERS: &[&str] = &[
+    "cat", "tee", "grep", "egrep", "fgrep", "rg", "cut", "sort", "uniq", "wc", "head", "tail",
+    "tr", "jq", "less", "more", "column", "fold", "fmt", "nl", "od", "xxd", "base64", "sha256sum",
+    "md5sum", "shasum", "xargs", "diff", "cmp", "comm", "paste", "rev", "tac", "yes", "true",
+    "false", "echo", "printf", "test", "[",
+];
+
+fn ns_known_filter(word: &str) -> bool {
+    let word = word.trim_start_matches(['"', '\'']);
+    let name = word.rsplit('/').next().unwrap_or(word);
+    NS_FILTERS.contains(&name) || NS_NOT_SHELLS.iter().any(|p| name.starts_with(p))
+}
+
+/// Whether the `sigil` word that ends at `end` may be a `pip`/`npm` call: what
+/// follows it, past its global options and their values, is not a plain word
+/// of another subcommand (`sigil scan …`, `sigil --format json list`), which
+/// takes no such flag. A quote, an expansion or a backslash in the place of
+/// the subcommand may be one.
+fn ns_sigil_call(chars: &[char], end: usize) -> bool {
+    let n = chars.len();
+    let blank = |c: char| matches!(c, ' ' | '\t');
+    let mut i = end;
+    loop {
+        while i < n && blank(chars[i]) {
+            i += 1;
+        }
+        let start = i;
+        while i < n && (chars[i].is_ascii_alphanumeric() || matches!(chars[i], '-' | '_' | '.' | '=')) {
+            i += 1;
+        }
+        let word: String = chars[start..i].iter().collect();
+        if word.is_empty() || (i < n && !matches!(chars[i], ' ' | '\t' | '\n' | ';' | '&' | '|' | ')')) {
+            return true;
+        }
+        match global_option_words(&word) {
+            Some(1) => {}
+            Some(_) => {
+                // The option's value: any word.
+                while i < n && blank(chars[i]) {
+                    i += 1;
+                }
+                while i < n && !blank(chars[i]) && !matches!(chars[i], '\n' | ';' | '&' | '|' | ')') {
+                    i += 1;
+                }
+            }
+            None => {
+                return matches!(word.as_str(), "pip" | "npm")
+                    || !word.chars().all(|c| c.is_ascii_lowercase() || c == '-');
+            }
+        }
+    }
+}
+
+/// The first word of the command that starts at `from` (blanks, and a word
+/// that assigns a variable, skipped), up to a blank or one of `;&|<>()`.
+fn ns_first_word(chars: &[char], from: usize) -> String {
+    let mut i = from;
+    loop {
+        while i < chars.len() && matches!(chars[i], ' ' | '\t' | '\n') {
+            i += 1;
+        }
+        let start = i;
+        while i < chars.len() && !matches!(chars[i], ' ' | '\t' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')') {
+            i += 1;
+        }
+        let word: String = chars[start..i].iter().collect();
+        let assigns = word
+            .split_once('=')
+            .is_some_and(|(name, _)| !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+        if assigns && i < chars.len() {
+            continue;
+        }
+        return word;
+    }
+}
+
+/// Whether text is piped (`|`, `|&`) into a command that is not a known
+/// filter, or is the input of a here-document or here-string (`<<`, `<<<`)
+/// of a command that is not one: it may be a shell that reads the text as a
+/// command line (`| rbash`, `| $0`, `| exec sh`, `rbash <<EOF`).
+fn ns_text_to_unknown(chars: &[char]) -> bool {
+    let n = chars.len();
+    // The start of the simple command that holds the index: after the last
+    // `;` `&` `|` `(` or line end (not that of `2>&1`, `&>f` or `>|f`).
+    let mut start = 0usize;
+    let mut k = 0usize;
+    while k < n {
+        let c = chars[k];
+        let prev = k.checked_sub(1).map(|j| chars[j]);
+        let next = chars.get(k + 1).copied();
+        let separator = match c {
+            ';' | '\n' | '(' => true,
+            '&' => !(matches!(prev, Some('>' | '<')) || next == Some('>')),
+            '|' => prev != Some('>'),
+            _ => false,
+        };
+        if separator {
+            if c == '|' && next != Some('|') && prev != Some('|') {
+                let from = if next == Some('&') { k + 2 } else { k + 1 };
+                let word = ns_first_word(chars, from);
+                if !word.is_empty() && !ns_known_filter(&word) {
+                    return true;
+                }
+            }
+            start = k + 1;
+        } else if c == '<' && next == Some('<') {
+            let word = ns_first_word(chars, start);
+            if !word.is_empty() && !word.starts_with(['<', '>']) && !ns_known_filter(&word) {
+                return true;
+            }
+            while k < n && chars[k] == '<' {
+                k += 1;
+            }
+            continue;
+        }
+        k += 1;
+    }
+    false
+}
+
 /// Whether a command hands a `sigil pip|npm` call to a nested shell in text
 /// where a backslash, a quote or an expansion might turn a word into
 /// `--allow-build-scripts` once that shell reads it. A double-quoted string
@@ -1058,28 +1277,34 @@ fn ns_dash_c(cmd: &str) -> bool {
 /// the inner one runs, and the spellings are endless. Rather than chase them,
 /// any such call is asked about: over-asking is the intended failure.
 ///
-/// A `pip`/`npm` word (a maximal run of `[A-Za-z0-9_.-]`, as [`is_manager`]
-/// reads it) counts when
+/// The call is found from a `sigil`, `pip` or `npm` word (a maximal run of
+/// `[A-Za-z0-9_.-]`, as [`is_manager`] reads it), not from `pip`/`npm` alone:
+/// the subcommand may be the text that is obscured (`np\\m`). A `sigil` word
+/// followed by a plain word that is neither (`sigil scan …`) is not a call
+/// that takes the flag. The word counts when
 ///  - it sits in a quoted string (the outermost `'…'` or `"…"` of the
 ///    command, a backslash escaping a character outside single quotes) and
 ///    the command holds a shell ([`ns_shell_occurrences`], also with its
-///    quotes and backslashes removed: `b"as"h`) or a `-c` flag with a quoted
-///    or expanded string after it ([`ns_dash_c`]) anywhere, or
+///    quotes and backslashes removed: `b"as"h`), a `-c` flag with a quoted
+///    or expanded string after it ([`ns_dash_c`]), or text piped or fed by a
+///    here-document to a command that is not a known filter
+///    ([`ns_text_to_unknown`]: `| rbash`, `| $0`, `| exec sh`) anywhere, or
 ///  - it is unquoted, and a shell stands in its own simple command (after
-///    the last `;` `&` `|` `(` or line end), or a pipeline stage starts one
-///    (`printf … | sh`), or the command holds a `<<` and a shell as above,
-///    or its simple command holds a `$`, backtick, `{`, `*` or `?` in front
-///    of it (a command word the shell expands, `${S} --format json pip`).
+///    the last `;` `&` `|` `(` or line end), or text goes to a command that is
+///    not a known filter (`printf … | sh`, `… | $0`), or the command holds a
+///    `<<` and a shell as above, or its simple command holds a `$`,
+///    backtick, `{`, `*` or `?` in front of it (a command word the shell
+///    expands, `${S} --format json pip`).
 ///
-/// In either place, the words of its simple command in front of it
-/// (after the last separator character, quoted or not) must hold `sigil` or an
-/// [`NS_OBSCURING`] character (a word the shell may spell `sigil`), and the
-/// text after it, to the end of its call (the next `;`, line end, `)`, `&` or
-/// `|`, past the end of its quoted string if the call goes on), must hold an
-/// [`NS_OBSCURING`] character. The quote that opens the string holding the
-/// word and the one that closes it do not count. A separator that is not one
-/// needs a backslash, a quote, `$` or a backtick in front of it, which is that
-/// character.
+/// In either place, for a `pip`/`npm` word the words of its simple command in
+/// front of it (after the last separator character, quoted or not) must hold
+/// `sigil` or an [`NS_OBSCURING`] character (a word the shell may spell
+/// `sigil`); a `sigil` word needs nothing. The text after the word, to the end
+/// of its call (the next `;`, line end, `)`, `&` or `|`, past the end of its
+/// quoted string if the call goes on), must hold an [`NS_OBSCURING`] character.
+/// The quote that opens the string holding the word and the one that closes
+/// it do not count. A separator that is not one needs a backslash, a quote,
+/// `$` or a backtick in front of it, which is that character.
 ///
 /// `sigil-guard.sh` reads this the same way (in awk), and the MCP server's
 /// `check_command` is this function through [`classify_in`]. It is linear in
@@ -1087,8 +1312,9 @@ fn ns_dash_c(cmd: &str) -> bool {
 fn nested_obscured_call(cmd: &str) -> bool {
     let chars: Vec<char> = cmd.chars().collect();
     let n = chars.len();
-    // The manager words.
-    let mut managers: Vec<usize> = Vec::new();
+    // The words the call is found from: `pip`, `npm` (length 3) and `sigil`
+    // (length 5) not followed by a plain word of another subcommand.
+    let mut anchors: Vec<(usize, usize)> = Vec::new();
     let mut i = 0;
     while i < n {
         if ns_word_char(chars[i]) {
@@ -1096,17 +1322,16 @@ fn nested_obscured_call(cmd: &str) -> bool {
             while i < n && ns_word_char(chars[i]) {
                 i += 1;
             }
-            if matches!(
-                chars[start..i].iter().collect::<String>().as_str(),
-                "pip" | "npm"
-            ) {
-                managers.push(start);
+            match chars[start..i].iter().collect::<String>().as_str() {
+                "pip" | "npm" => anchors.push((start, 3)),
+                "sigil" if ns_sigil_call(&chars, i) => anchors.push((start, 5)),
+                _ => {}
             }
         } else {
             i += 1;
         }
     }
-    if managers.is_empty() {
+    if anchors.is_empty() {
         return false;
     }
     // Prefix tables: the last separator (`;` `&` `|` `(` or a line end) before
@@ -1167,6 +1392,7 @@ fn nested_obscured_call(cmd: &str) -> bool {
     let pipe_to_shell = ns_shell_occurrences(&chars, true)
         .iter()
         .any(|&(start, _)| usize::try_from(pipe_sep[start]).is_ok_and(|k| chars[k] == '|'));
+    let to_unknown = ns_text_to_unknown(&chars);
     let stripped: Vec<char> = chars
         .iter()
         .copied()
@@ -1211,7 +1437,7 @@ fn nested_obscured_call(cmd: &str) -> bool {
         }
     }
     let mut next_extent = 0;
-    for &p in &managers {
+    for &(p, len) in &anchors {
         // The extents and the managers are both in order.
         while extents
             .get(next_extent)
@@ -1231,42 +1457,84 @@ fn nested_obscured_call(cmd: &str) -> bool {
         // what follows.
         let start = usize::try_from(sep[p] + 1).unwrap_or(0);
         let opening = usize::from(enclosing.is_some_and(|&(open, _)| open >= start));
-        let spelled = sigil[p] >= start as i64 || obscuring[p] - obscuring[start] > opening;
-        let end = stop[p + 3];
+        let spelled = len == 5
+            || sigil[p] >= start as i64
+            || obscuring[p] - obscuring[start] > opening;
+        let end = stop[p + len];
         let closing = usize::from(
-            enclosing.is_some_and(|&(_, close)| close < n && (p + 3..end).contains(&close)),
+            enclosing.is_some_and(|&(_, close)| close < n && (p + len..end).contains(&close)),
         );
         let applies = match enclosing {
-            Some(_) => shell_anywhere,
+            Some(_) => shell_anywhere || to_unknown,
             // Unquoted: a shell reads it again, or the command word in front
             // of it is itself an expansion (`${S} --format json pip …`).
             None => {
                 shell[p] >= start as i64
                     || pipe_to_shell
+                    || to_unknown
                     || (here && shell_anywhere)
                     || expanding[p] > expanding[start]
             }
         };
-        if applies && spelled && obscuring[end] - obscuring[p + 3] > closing {
+        if applies && spelled && obscuring[end] - obscuring[p + len] > closing {
             return true;
         }
     }
     false
 }
 
-/// The environment variable the CLI accepts, in place of a person at a
-/// terminal, as the confirmation of `--allow-build-scripts`.
-const OPT_IN_ENV: &str = "SIGIL_ALLOW_BUILD_SCRIPTS";
+/// The start of the name of the environment variable the CLI accepts, in
+/// place of a person at a terminal, as the confirmation of
+/// `--allow-build-scripts` (`SIGIL_ALLOW_BUILD_SCRIPTS`). Any appearance of it
+/// next to something
+/// that sets a variable is asked about, so a name the shell completes
+/// (`"SIGIL_ALLOW_BUILD_SCRIPT${E}S=1"`, `export $V`, `printf -v`) does not
+/// hide it.
+const OPT_IN_ENV_PREFIX: &str = "SIGIL_ALLOW_BUILD";
 
-/// Whether `text` sets [`OPT_IN_ENV`]: the name, then (quotes aside) `=` or
-/// `+=` (`SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil …`, `export SIGIL_ALLOW_BUILD_SCRIPTS=1`,
-/// `env "SIGIL_ALLOW_BUILD_SCRIPTS=1" …`). A command that only names it
-/// (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`) sets nothing.
+/// Words that set or export a variable by name: the name appearing next to
+/// one of them, in any form, may set the confirmation.
+const ENV_NAMERS: &[&str] = &[
+    "export", "declare", "typeset", "readonly", "local", "printf", "read", "mapfile", "readarray",
+    "eval",
+];
+
+/// Words that give a child process a variable from their arguments
+/// (`env "$V=1" cmd`): a word of the same call with a `$` or backtick before
+/// its `=` may be the confirmation under a name the shell builds.
+const ENV_SETTERS: &[&str] = &[
+    "export", "declare", "typeset", "readonly", "local", "env", "eval",
+];
+
+fn env_separator(c: char) -> bool {
+    c.is_whitespace() || matches!(c, ';' | '&' | '|' | '(' | ')' | '<' | '>')
+}
+
+/// Whether `text` sets the variable: its name with anything glued to it and
+/// then `=` or `+=` (`SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil …`,
+/// `env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" …`, `export SIGIL_ALLOW_BUILD_SCRIPTS=1`),
+/// or the name (its first part is enough) in a command with a word that
+/// sets a variable by name (`printf -v SIGIL_ALLOW_BUILD_SCRIPTS 1; export
+/// SIGIL_ALLOW_BUILD_SCRIPTS`, `read SIGIL_ALLOW_BUILD_SCRIPTS`,
+/// `V=SIGIL_ALLOW_BUILD_SCRIPTS; export $V=1`). A command that only names it
+/// (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`, `echo $SIGIL_ALLOW_BUILD_SCRIPTS`)
+/// sets nothing. A name built entirely from parts is read in
+/// [`opt_in_words`] (an assignment with a `$` before its `=`, in a call with
+/// `export`, `env`, ...).
 fn sets_opt_in_env(text: &str) -> bool {
-    text.match_indices(OPT_IN_ENV).any(|(i, _)| {
-        let rest = text[i + OPT_IN_ENV.len()..].trim_start_matches(['"', '\'']);
-        rest.starts_with('=') || rest.starts_with("+=")
-    })
+    if !text.contains(OPT_IN_ENV_PREFIX) {
+        return false;
+    }
+    let assigned = text.match_indices(OPT_IN_ENV_PREFIX).any(|(i, _)| {
+        text[i + OPT_IN_ENV_PREFIX.len()..]
+            .split(env_separator)
+            .next()
+            .is_some_and(|word| word.contains('='))
+    });
+    assigned
+        || text
+            .split(env_separator)
+            .any(|w| ENV_NAMERS.contains(&w.trim_matches(['"', '\''])))
 }
 
 /// `pip` or `npm`, also as a piece of a brace expansion (`{sigil,pip}`) or
@@ -1278,33 +1546,105 @@ fn is_manager(word: &str) -> bool {
     )
 }
 
+/// A redirection operator word, also with a `{fd}` descriptor variable in
+/// front of it (`{fd}> f`).
+fn redirect(word: &str) -> Option<cmdline::Redirect> {
+    let rest = match word.strip_prefix('{').and_then(|w| w.split_once('}')) {
+        Some((name, rest))
+            if !name.is_empty()
+                && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+                && rest.starts_with(['<', '>']) =>
+        {
+            rest
+        }
+        _ => word,
+    };
+    cmdline::redirection(rest)
+}
+
+/// A word that starts with the flag (quotes before it aside).
+fn flag_word(word: &str) -> bool {
+    word.trim_start_matches(['"', '\''])
+        .starts_with("--allow-build-scripts")
+}
+
+/// For each byte of `text`, whether it sits inside quotes (a `--` there is a
+/// piece of a quoted string, not the end of the options). Quotes are followed
+/// in a here-document's body too, which is a script like the rest: unlike
+/// [`quote_map`], this does not know about comments or here-documents.
+fn quoted_bytes(text: &str) -> Vec<bool> {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = Vec::with_capacity(text.len());
+    let mut push = |inside: bool, c: char| {
+        out.extend(std::iter::repeat_n(inside, c.len_utf8()));
+    };
+    // 0: outside quotes, 1: in '…', 2: in "…" (a `$'…'` is 1 with `ansi`).
+    let mut state = 0u8;
+    let mut ansi = false;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        push(state != 0, c);
+        let escapes = state == 2 || state == 0 || (state == 1 && ansi);
+        if c == '\\' && escapes {
+            if let Some(&n) = chars.get(i + 1) {
+                push(state != 0, n);
+            }
+            i += 2;
+            continue;
+        }
+        match (state, c) {
+            (0, '\'') => {
+                ansi = i > 0 && chars[i - 1] == '$';
+                state = 1;
+            }
+            (0, '"') => state = 2,
+            (1, '\'') | (2, '"') => state = 0,
+            _ => {}
+        }
+        i += 1;
+    }
+    out
+}
+
 /// The flat reading of the opt-in: a `pip` or `npm` word, then a word
 /// starting with `--allow-build-scripts` (quotes before it aside), with only
-/// a `--` word of its own ending the options between them. Words are
-/// split at whitespace and at `;` `&` `|` `(` `)` `[` `]` `,`, but none of
+/// a `--` word of its own ending the options between them (not one inside a
+/// quoted string, and not the file of a redirection: `> --`, `<<< --`). Words
+/// are split at whitespace and at `;` `&` `|` `(` `)` `[` `]` `,`, but none of
 /// those ends the call here: a quoted `;` or `#` (`'./a;b'`, `'a #b'`), a
 /// line end in an argv list that spans lines, and a redirection all sit
 /// between the words without hiding the flag. It asks about more than the
 /// shell would run (`sigil pip x; echo --allow-build-scripts`), never less.
 fn flat_opt_in(text: &str) -> bool {
+    let quoted = text.contains(['\'', '"']).then(|| quoted_bytes(text));
     let mut after_manager = false;
+    // The previous word was a redirection operator that takes the next word.
+    let mut operand = false;
     for word in text.split(|c: char| {
         c.is_whitespace() || matches!(c, ';' | '&' | '|' | '(' | ')' | '[' | ']' | ',')
     }) {
         if word.is_empty() {
             continue;
         }
+        let was_operand = std::mem::take(&mut operand);
         if word == "--" {
-            after_manager = false;
-        } else if after_manager
-            && word
-                .trim_start_matches(['"', '\''])
-                .starts_with("--allow-build-scripts")
-        {
+            let offset = word.as_ptr() as usize - text.as_ptr() as usize;
+            let inside = quoted
+                .as_ref()
+                .is_some_and(|q| q.get(offset).copied().unwrap_or(false));
+            if !was_operand && !inside {
+                after_manager = false;
+            }
+            continue;
+        }
+        if after_manager && flag_word(word) {
             return true;
-        } else if is_manager(word) {
+        }
+        if is_manager(word) {
             after_manager = true;
         }
+        operand = redirect(word).is_some_and(|r| r.takes_next);
     }
     false
 }
@@ -1432,6 +1772,39 @@ fn dequote_literals(s: &str) -> String {
         .into_owned()
 }
 
+/// `s` with one layer of double-quote escaping undone: a backslash before a
+/// backslash, `$`, a backtick or `"` is dropped and the character stays. The
+/// text of `bash -c "sigil np\\m x"` is `sigil np\m x` once the outer shell
+/// has read it, and `npm` once the inner one has.
+fn unescape_layer(s: &str) -> String {
+    if !s.contains('\\') {
+        return s.to_string();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(&n) = chars.peek() {
+                if matches!(n, '\\' | '$' | '`' | '"') {
+                    out.push(n);
+                    chars.next();
+                    continue;
+                }
+            }
+        }
+        out.push(c);
+    }
+    out
+}
+
+/// `s` without any quote or backslash: whatever a shell would make of them,
+/// the words they spell are in what is left.
+fn strip_quotes(s: &str) -> String {
+    s.chars()
+        .filter(|c| !matches!(c, '"' | '\'' | '\\'))
+        .collect()
+}
+
 /// The trailing run of name characters of a word (`/usr/bin/sigil` and
 /// `"sigil` end in `sigil`; `my-sigil` does not).
 fn name_tail(word: &str) -> &str {
@@ -1451,6 +1824,9 @@ struct OptTok<'a> {
     /// `?`, `[`) and holds a brace expansion or a glob: the shell may expand
     /// it to the flag.
     pattern: bool,
+    /// The word starts inside a quoted string (a `--` there is a piece of the
+    /// string).
+    quoted: bool,
 }
 
 /// Whether a shell word holds a brace expansion: `{`, then a `,` or `..`,
@@ -1500,11 +1876,15 @@ fn expansion_shape(word: &str) -> (bool, bool) {
 /// word also records what its shell word (the text between whitespace,
 /// separators and parentheses) would expand to.
 fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
-    fn word<'a>(text: &'a str) -> OptTok<'a> {
+    let in_quotes = text.contains(['\'', '"']).then(|| quoted_bytes(text));
+    // `t` is a slice of `text`.
+    fn word<'a>(text: &str, t: &'a str, in_quotes: Option<&[bool]>) -> OptTok<'a> {
+        let offset = t.as_ptr() as usize - text.as_ptr() as usize;
         OptTok {
-            text: Some(text),
+            text: Some(t),
             brace: false,
             pattern: false,
+            quoted: in_quotes.is_some_and(|q| q.get(offset).copied().unwrap_or(false)),
         }
     }
     fn separator<'a>() -> OptTok<'a> {
@@ -1512,8 +1892,10 @@ fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
             text: None,
             brace: false,
             pattern: false,
+            quoted: false,
         }
     }
+    let q = in_quotes.as_deref();
     // Set the expansion shape of the tokens made from one shell word.
     fn shape(toks: &mut [OptTok<'_>], shell_word: &str) {
         if toks.is_empty() || !shell_word.contains(['{', '*', '?', '[']) {
@@ -1542,7 +1924,7 @@ fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
                 };
                 if separator_char || matches!(c, b'[' | b']' | b'(' | b')' | b',') {
                     if start < i {
-                        toks.push(word(&w[start..i]));
+                        toks.push(word(text, &w[start..i], q));
                     }
                     if separator_char {
                         toks.push(separator());
@@ -1556,7 +1938,7 @@ fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
                 }
             }
             if start < w.len() {
-                toks.push(word(&w[start..]));
+                toks.push(word(text, &w[start..], q));
             }
             shape(&mut toks[shell_toks..], &w[shell_start..]);
         }
@@ -1575,36 +1957,231 @@ fn quoted_word(t: &str) -> bool {
             .any(|q| b[0] == q && b[b.len() - 1] == q && !b[1..b.len() - 1].contains(&q))
 }
 
-fn opt_in_words(text: &str) -> bool {
-    let toks = opt_in_tokens(text);
-    let quotes = |c: char| c == '"' || c == '\'';
-    // A word of this call: not a separator, a `--` or a `# comment`.
-    fn arg<'a>(t: &OptTok<'a>) -> Option<&'a str> {
-        t.text.filter(|a| *a != "--" && !a.starts_with('#'))
+/// How many words the global option `a` of `sigil` takes (itself, and the
+/// value after it when it is not glued on): `-v`, `--verbose`,
+/// `-f X`/`-fX`/`--format X`/`--format=X`, and `-o`, `--rules`,
+/// `--yara-engine`, `--config` alike; short options may be clustered
+/// (`-vf json`). `None` for a word that is not an option.
+fn global_option_words(a: &str) -> Option<usize> {
+    let a = a.trim_start_matches(['"', '\'']);
+    if !a.starts_with('-') || a == "-" || a == "--" {
+        return None;
     }
-    // `next_manager[j]`: the first `pip`/`npm` word of the call from `j` on.
-    // Worked out once, so a line of many `sigil` words is read in a single
-    // pass, not once per word.
-    let mut next_manager: Vec<Option<usize>> = vec![None; toks.len() + 1];
-    for j in (0..toks.len()).rev() {
-        next_manager[j] = match arg(&toks[j]) {
-            None => None,
-            Some(a) if is_manager(a) => Some(j),
-            Some(_) => next_manager[j + 1],
+    if let Some(long) = a.strip_prefix("--") {
+        let name = long.split('=').next().unwrap_or(long);
+        let valued = matches!(name, "format" | "output" | "rules" | "yara-engine" | "config");
+        return Some(if valued && !long.contains('=') { 2 } else { 1 });
+    }
+    let letters = &a[1..];
+    for (k, ch) in letters.char_indices() {
+        match ch {
+            'v' => {}
+            'f' | 'o' => return Some(if letters[k + 1..].is_empty() { 2 } else { 1 }),
+            _ => return Some(1),
+        }
+    }
+    Some(1)
+}
+
+/// The replace string of an `xargs` call whose words start at `toks[from]`
+/// (`-I@`, `-I {}`, `-i`, `--replace=X`), read up to the `sigil` word it
+/// runs.
+fn xargs_replace(toks: &[OptTok<'_>], from: usize) -> Option<String> {
+    let mut j = from;
+    while let Some(a) = toks.get(j).and_then(|t| t.text) {
+        j += 1;
+        if matches!(name_tail(a.trim_end_matches([')', '`', '"', '\''])), "sigil") {
+            return None;
+        }
+        if let Some(r) = a.strip_prefix("--replace") {
+            return Some(r.strip_prefix('=').unwrap_or("{}").to_string());
+        }
+        if a.starts_with('-') && !a.starts_with("--") {
+            if let Some(k) = a.find(['I', 'i']) {
+                let glued = &a[k + 1..];
+                if !glued.is_empty() {
+                    return Some(glued.to_string());
+                }
+                if a.as_bytes()[k] == b'i' {
+                    return Some("{}".to_string());
+                }
+                return toks.get(j).and_then(|t| t.text).map(str::to_string);
+            }
+        }
+    }
+    None
+}
+
+/// A word that starts like the flag, or that the shell may expand into one: it
+/// begins `--allow-b` (`--allow-build-${F}`, `--allow-build-$(echo scripts)`),
+/// or it holds a brace expansion or a glob and a piece of the flag's name
+/// (`{--allow-build-scripts,}`, `--allow-build-s*`; not `{json,sarif}`).
+fn flag_like(a: &str, t: &OptTok<'_>) -> bool {
+    let a = a.trim_start_matches(['"', '\'']);
+    a.starts_with("--allow-b")
+        || (t.pattern && ["allow", "build", "scripts"].iter().any(|p| a.contains(p)))
+}
+
+/// The word an `xargs` call whose words start at `toks[from]` runs: the first
+/// that is not an option or an option's value.
+fn xargs_command(toks: &[OptTok<'_>], from: usize) -> Option<usize> {
+    let mut j = from;
+    while let Some(a) = toks.get(j).and_then(|t| t.text) {
+        if !a.starts_with('-') {
+            return Some(j);
+        }
+        j += 1 + usize::from(matches!(a, "-n" | "-P" | "-d" | "-E" | "-e" | "-s" | "-L" | "-l" | "-a" | "-I"));
+    }
+    None
+}
+
+/// Whether a word of a call may be `pip` or `npm` once the shell has read it:
+/// the word itself, one with an expansion, a quote, a backslash, a glob or a
+/// brace expansion, or one that holds the replace string of an `xargs`.
+fn maybe_manager(a: &str, replace: Option<&str>) -> bool {
+    is_manager(a)
+        || a.contains(['$', '`', '\\', '\'', '"', '{', '*', '?'])
+        || replace.is_some_and(|r| !r.is_empty() && a.contains(r))
+}
+
+/// A word that is, or may be spelled as, a command word of its own: `sigil`
+/// is named, so the others are an expansion, a backslash or a glob in it, or a
+/// quote pair around or inside it (`'sigil'`, `sig''il`; a lone quote is
+/// the start of a longer quoted string).
+fn spelled_command(w: &str) -> bool {
+    w.contains(['$', '`', '\\', '*', '?'])
+        || ['\'', '"'].iter().any(|q| w.matches(*q).count() >= 2)
+}
+
+/// Whether a call that exports or declares things (`export`, `env`, `eval`,
+/// ...) has a word that assigns to a name with an expansion in it
+/// (`export $V=1`, `env "$V=1" sigil …`): the variable the CLI takes as the
+/// confirmation, under a name the shell builds.
+fn builds_variable_name(toks: &[OptTok<'_>]) -> bool {
+    let mut setter = false;
+    for t in toks {
+        let Some(a) = t.text else {
+            setter = false;
+            continue;
         };
+        let word = a.trim_matches(['"', '\'']);
+        if ENV_SETTERS.contains(&word) {
+            setter = true;
+        } else if setter {
+            if let Some((name, _)) = word.split_once('=') {
+                if name.contains(['$', '`']) {
+                    return true;
+                }
+            }
+        }
     }
+    false
+}
+
+/// [`opt_in_words`] with the reading of expansions after `pip`/`npm` on
+/// (`loose`), or only the flag after a command word that is or may be `sigil`.
+fn opt_in_words(text: &str) -> bool {
+    opt_in_words_in(text, true)
+}
+
+fn opt_in_words_in(text: &str, loose: bool) -> bool {
+    let toks = opt_in_tokens(text);
+    let n = toks.len();
+    let quotes = |c: char| c == '"' || c == '\'';
+    if builds_variable_name(&toks) {
+        return true;
+    }
+    // `operand[j]`: the word is the file of a redirection (`> f`, `<<< s`),
+    // whatever it is, a lone `--` included.
+    let mut operand = vec![false; n + 1];
+    for j in 0..n {
+        if let Some(a) = toks[j].text {
+            if redirect(a).is_some_and(|r| r.takes_next) {
+                if let Some(next) = toks.get(j + 1).and_then(|t| t.text) {
+                    if !next.starts_with('#') {
+                        operand[j + 1] = true;
+                    }
+                }
+            }
+        }
+    }
+    // Where the call ends: a separator, a `# comment`, or a `--` of its own
+    // (not inside a quoted string, not a redirection's file), which ends the
+    // options.
+    let ends = |j: usize| -> bool {
+        toks.get(j).is_none_or(|t| match t.text {
+            None => true,
+            Some(a) => a.starts_with('#') || (a == "--" && !t.quoted && !operand[j]),
+        })
+    };
+    // A word of this call.
+    let arg = |j: usize| -> Option<&str> {
+        if ends(j) {
+            None
+        } else {
+            toks[j].text
+        }
+    };
+    // `next_manager[j]`: the first `pip`/`npm` word of the call from `j` on,
+    // and `flag_ahead[j]`: whether a word starting with the flag stands in
+    // the call from `j` on. Worked out once, so a line of many `sigil` words
+    // is read in a single pass, not once per word.
+    let mut next_manager: Vec<Option<usize>> = vec![None; n + 1];
+    let mut flag_ahead = vec![false; n + 1];
+    for j in (0..n).rev() {
+        match arg(j) {
+            None => {}
+            Some(a) => {
+                next_manager[j] = if is_manager(a) {
+                    Some(j)
+                } else {
+                    next_manager[j + 1]
+                };
+                flag_ahead[j] = flag_like(a, &toks[j]) || flag_ahead[j + 1];
+            }
+        }
+    }
+    // The first word of the call from `from` on that is not a global option
+    // of `sigil`, its value or a redirection.
+    let subcommand = |from: usize| -> Option<usize> {
+        let mut j = from;
+        loop {
+            let a = arg(j)?;
+            if let Some(r) = redirect(a) {
+                j += 1 + usize::from(r.takes_next && !ends(j + 1));
+            } else if let Some(words) = global_option_words(a) {
+                j += words;
+            } else {
+                return Some(j);
+            }
+        }
+    };
     // Where the words after `pip`/`npm` were already read (and held no
     // flag): a later call reaching one stops there.
-    let mut read = vec![false; toks.len() + 1];
+    let mut read = vec![false; n + 1];
     let mut xargs = false;
+    let mut replace: Option<String> = None;
     for (i, t) in toks.iter().enumerate() {
-        let Some(w) = arg(t) else {
+        if t.text.is_none() {
             xargs = false;
+            replace = None;
+            continue;
+        }
+        let Some(w) = arg(i) else {
             continue;
         };
         let tail = name_tail(w);
         if tail == "xargs" {
             xargs = true;
+            replace = xargs_replace(&toks, i + 1);
+            // What it runs is a word the shell expands (`xargs $S`): the words
+            // it appends may be the whole call.
+            if xargs_command(&toks, i + 1)
+                .and_then(|c| arg(c))
+                .is_some_and(|c| c.contains(['$', '`']))
+            {
+                return true;
+            }
             continue;
         }
         // `sigil`, `/usr/bin/sigil`, `$(command -v sigil)`, or a command
@@ -1617,19 +2194,37 @@ fn opt_in_words(text: &str) -> bool {
         if !named && !spelled {
             continue;
         }
-        // `sigil [global options] pip|npm …`; right after `sigil`, a word
-        // that may expand to `pip`/`npm` (`sigil $SUB x`, `sigil {pip,npm} x`).
-        let first = toks.get(i + 1);
+        // The flag, in a call that starts with a command word that is or may
+        // be `sigil`: only `pip` and `npm` take it, so it is asked about
+        // wherever the subcommand is.
+        if (named || spelled_command(w)) && flag_ahead[i + 1] {
+            return true;
+        }
+        if !loose {
+            continue;
+        }
+        // `sigil [global options] pip|npm …`; the subcommand may be a word
+        // that may expand to `pip`/`npm` (`sigil $SUB x`, `sigil {pip,npm} x`,
+        // `sigil --format json $'npm' x`, `sigil -f json n\pm x`), or the
+        // first `pip`/`npm` word further on (an option this reading does not
+        // know takes a value).
+        let slot = if named { subcommand(i + 1) } else { None };
         let manager = if named {
-            match first {
-                Some(f) if arg(f).is_some_and(|a| a.contains(['$', '`']) || f.brace) => Some(i + 1),
+            match slot {
+                Some(s) if maybe_manager(arg(s).unwrap_or(""), replace.as_deref()) => {
+                    Some(s)
+                }
                 _ => next_manager[i + 1],
             }
         } else {
-            first
-                .filter(|f| arg(f).is_some_and(is_manager))
+            toks.get(i + 1)
+                .filter(|_| arg(i + 1).is_some_and(is_manager))
                 .map(|_| i + 1)
         };
+        // `xargs sigil`, `xargs sigil -v`: what it reads is the subcommand.
+        if xargs && named && slot.is_none() {
+            return true;
+        }
         let Some(manager) = manager else {
             continue;
         };
@@ -1637,21 +2232,19 @@ fn opt_in_words(text: &str) -> bool {
             return true;
         }
         let mut j = manager + 1;
-        while let Some(a) = toks.get(j).and_then(arg) {
+        while let Some(a) = arg(j) {
             if read[j] {
                 break;
             }
             read[j] = true;
             let tok = &toks[j];
             j += 1;
-            if a.trim_start_matches(quotes)
-                .starts_with("--allow-build-scripts")
-            {
+            if flag_word(a.trim_start_matches(quotes)) {
                 return true;
             }
-            // A redirection and its file are not arguments.
-            if let Some(r) = cmdline::redirection(a) {
-                if r.takes_next && toks.get(j).and_then(arg).is_some() {
+            // A redirection and its file (a lone `--` too) are not arguments.
+            if redirect(a).is_some() {
+                if operand[j] {
                     j += 1;
                 }
                 continue;
@@ -1671,7 +2264,12 @@ fn opt_in_words(text: &str) -> bool {
             {
                 continue;
             }
-            if a.contains(['$', '`']) || tok.pattern {
+            if a.contains(['$', '`'])
+                || tok.pattern
+                || replace
+                    .as_deref()
+                    .is_some_and(|r| !r.is_empty() && a.contains(r))
+            {
                 return true;
             }
         }
@@ -2940,7 +3538,7 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
     }
     // A backslash-newline is a line continuation: the shell removes both,
     // so `… && sigil scan i.sh && \⏎bash i.sh` is one && chain.
-    let cmd = cmd.replace("\\\r\n", "").replace("\\\n", "");
+    let cmd = join_continuations(cmd);
 
     // A download piped or substituted into an interpreter. Judged on the
     // whole command (process substitution spans segments) and never gated

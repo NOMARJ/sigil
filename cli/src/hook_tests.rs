@@ -1692,6 +1692,10 @@ fn asks_when_a_nested_shell_may_rewrite_the_flag() {
         // Nothing needs the flag to be there to be asked about: it is the
         // text after the call that may become it.
         r#"bash -c "sigil npm left-pad \"$EXTRA\"""#,
+        // The text that only holds the call is asked about too when one
+        // layer of escaping off it reads as the flag (nothing here knows
+        // whether another program reads it).
+        r#"echo "sigil pip x --allow-build-s\\cripts""#,
     ] {
         assert_eq!(decision(cmd), "ask", "expected ask: {cmd}");
     }
@@ -1715,7 +1719,6 @@ fn asks_when_a_nested_shell_may_rewrite_the_flag() {
         r#"sigil pip "requests>=2,<3" && bash run.sh"#,
         r#"sigil npm 'left-pad' | tee log"#,
         // Data, not a command line another program reads.
-        r#"echo "sigil pip x --allow-build-s\\cripts""#,
         r#"git commit -m 'use sigil pip with "quotes"'"#,
         r#"grep -rn "sigil pip" docs"#,
     ] {
@@ -1872,6 +1875,249 @@ fn asks_when_the_confirmation_variable_is_set() {
         "grep SIGIL_ALLOW_BUILD_SCRIPTS docs/cli.md",
         "echo $SIGIL_ALLOW_BUILD_SCRIPTS",
         "sigil npm left-pad",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+}
+
+/// `pip` or `npm` is not always a literal word right after `sigil`: a global
+/// option, a quote, an expansion or a function's `"$@"` may stand between or
+/// spell it. Only `pip` and `npm` take the flag, so a word that starts with it
+/// after a command word that is or may be `sigil` is asked about whatever the
+/// subcommand looks like.
+#[test]
+fn asks_when_the_subcommand_is_not_a_literal_word() {
+    for cmd in [
+        // A global option in front of a spelled subcommand.
+        "sigil --format json $'npm' x --allow-build-scripts",
+        "sigil -v $'npm' x --allow-build-scripts",
+        "sigil --format=json $'npm' x --allow-build-scripts",
+        "sigil -f json $'npm' x --allow-build-scripts",
+        "sigil -fjson $'npm' x --allow-build-scripts",
+        "sigil -vf json $'npm' x --allow-build-scripts",
+        "sigil -o out.json \"npm\" x --allow-build-scripts",
+        "sigil --rules rules.yml 'np'm x --allow-build-scripts",
+        "sigil --yara-engine builtin n\\pm x --allow-build-scripts",
+        "sigil --config c.yml np${x}m x --allow-build-scripts",
+        "M=npm; sigil --format json $M x --allow-build-scripts",
+        "sigil --format json np${x}m x --allow-build-scripts",
+        "sigil --format json $(printf npm) x --allow-build-scripts",
+        // The command word an expansion as well.
+        "S=sigil; M=npm; $S $M x --allow-build-scripts",
+        "S=sigil; ${S} --format json $'pip' x --allow-build-scripts",
+        "$(command -v sigil) --format json \"$M\" x --allow-build-scripts",
+        // A function passes the subcommand, or xargs reads it.
+        "f() { sigil --format json \"$@\" --allow-build-scripts; }; f npm x",
+        "f() { sigil \"$@\" --allow-build-scripts; }; f pip x",
+        "printf 'npm\\n' | xargs -I@ sigil @ x --allow-build-scripts",
+        "printf 'npm\\n' | xargs -I{} sigil {} x --allow-build-scripts",
+        "printf 'npm\\n' | xargs -Ifoo sigil foo x --allow-build-scripts",
+        "printf 'npm\\n' | xargs -I @ sigil @ x --allow-build-scripts",
+        "printf '%s\\n' npm | xargs -i sigil {} x --allow-build-scripts",
+        // The flag itself comes from the pipe, or from an expansion.
+        "printf '%s\\n' --allow-build-scripts | xargs -I@ sigil npm x @",
+        "printf 'npm x --allow-build-scripts' | xargs sigil",
+        "printf 'npm x --allow-build-scripts' | xargs sigil --format json",
+        "printf '%s\\n' x | xargs $S",
+        "M=npm; F=--allow-build-scripts; sigil --format json $M x $F",
+        "sigil --output out.json -v \"$M\" x $F",
+        "sigil -vf json $'npm' x $F",
+        // A flag spelled partly by an expansion, after a spelled command word.
+        "S=sigil; $S -fjson $M x --allow-build-${F}",
+        "S=sigil; $S -fjson $M x --allow-build-$(printf scripts)",
+        "S=sigil; ${S} --rules x $M x --allow-build-s{cripts,}",
+        "sigil --format json $M x --allow-build-s*",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+    }
+    for cmd in [
+        // Other subcommands, with expansions of their own.
+        "sigil --format json scan $DIR",
+        "sigil -f json scan \"$DIR\" \"$OTHER\"",
+        "sigil --rules \"$RULES\" scan .",
+        "sigil --output \"$OUT\" --format json scan $DIR",
+        "sigil -vf json list",
+        "sigil --format {json,sarif} scan .",
+        "git ls-files | xargs sigil scan",
+        "find . -name '*.json' | xargs -I{} sigil scan {}",
+        "printf '%s\\n' a b | xargs -n1 sigil scan",
+        // Text that names the flag, not a call that passes it.
+        "git commit -m \"docs: reword --allow-build-scripts\"",
+        "git commit -m 'document --allow-build-scripts'",
+        "grep -rn -e '--allow-build-scripts' docs",
+        "grep -rn -- '--allow-build-scripts' docs/",
+        "cd /home/user/sigil && grep -rn allow-build-scripts docs",
+        "grep -n \"allow-build\" docs/cli.md | head",
+        "sed -n '1,5p' docs/cli.md && echo --allow-build-scripts",
+        // The terminator ends the options.
+        "sigil --format json npm -- --allow-build-scripts",
+        "sigil npm x -- --allow-build-scripts",
+        "S=sigil; $S npm x -- --allow-build-scripts",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+}
+
+/// A nested shell reads a double-quoted string again: `np\\m` is `np\m` to the
+/// first and `npm` to the second. The call is found from `sigil`, not from a
+/// literal `pip`/`npm`, and a pipe or here-document into any command that is not
+/// a known filter (`rbash`, `$0`) may be a shell.
+#[test]
+fn asks_when_the_nested_subcommand_is_obscured() {
+    for cmd in [
+        r#"echo "sigil np\\m x --allow-build-scripts" | sh"#,
+        "sh <<EOF\nsigil np\\\\m x --allow-build-scripts\nEOF",
+        r#"ssh host "sigil np\\m x --allow-build-scripts""#,
+        r#"echo "sigil npm x --allow-build-s\\cripts" | rbash"#,
+        "rbash <<EOF\nsigil npm x --allow-build-s\\\\cripts\nEOF",
+        r#"echo "sigil npm x --allow-build-s\\cripts" | $0"#,
+        r#"echo "sigil npm x --allow-build-s\\cripts" | ${0}"#,
+        r#"echo "sigil npm x --allow-build-s\\cripts" | $_"#,
+        r#"echo "sigil npm x --allow-build-s\\cripts" | rksh"#,
+        r#"echo "sigil npm x --allow-build-s\\cripts" | exec sh"#,
+        r#"echo "sigil npm x --allow-build-s\\cripts" | env sh"#,
+        r#"bash -c "sigil np\\m x --allow-build-scripts""#,
+        r#"bash -c "sigil --format=json \\$(printf npm) 'x y' --allow-build-s\\cripts""#,
+        r#"(sh -c "sigil p\\${E}ip -V 1.0 x -\\-allow-build-scripts")"#,
+        r#"echo "S=sigil; \${S} -fjson np''m x --allow-build-\$(printf scripts)" | exec sh"#,
+        "$0 <<EOF\nS=sigil; \\$S -v \"\\$M\" x --allow-build-\\$(printf scripts)\nEOF",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+    }
+    for cmd in [
+        // A filter is not a shell.
+        r#"echo "sigil pip \"x\"" | tee log"#,
+        r#"echo "sigil pip \"x\"" | grep sigil"#,
+        r#"printf '%s\n' "sigil npm \"x\"" | wc -l"#,
+        r#"sigil npm "left-pad" | tail -3"#,
+        // Another subcommand of sigil, with or without global options.
+        r#"bash -c "sigil scan \"$DIR\"""#,
+        r#"bash -c "sigil --format json scan \"$DIR\" && echo ok""#,
+        r#"bash -c "sigil -v -o \"$OUT\" scan .""#,
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+}
+
+/// A `#` is a comment only at the start of a word, outside `${…}`; a
+/// backslash and a line end after a comment do not continue it.
+#[test]
+fn a_hash_that_is_not_a_comment_hides_nothing() {
+    for cmd in [
+        // The comment ends at the line end, whatever stands in front of it.
+        "echo hi # note \\\nsigil npm x --allow-build-scripts",
+        "echo hi # note \\\n\\\nsigil npm x --allow-build-scripts",
+        "echo ok # note \\\nSIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./npmdir --allow-build-scripts",
+        "echo ok # note \\\nSIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./npmdir",
+        "echo a # c\nsigil npm x --allow-build-scripts",
+        // A `#` that belongs to a word.
+        "echo \\ # ; sigil npm x --allow-build-scripts",
+        "echo ${x:- #}; sigil npm x --allow-build-scripts",
+        "echo ${x:+ # }; sigil npm x --allow-build-scripts",
+        "echo $(echo a)# ; sigil npm x --allow-build-scripts",
+        "echo $((1+1))# ; sigil npm x --allow-build-scripts",
+        "echo <(:)# ; sigil npm x --allow-build-scripts",
+        "echo >(:)# ; sigil npm x --allow-build-scripts",
+        "x=( a \\ # b ); sigil npm x --allow-build-scripts",
+        "echo a\\;# ; sigil npm x --allow-build-scripts",
+        "echo a\\ #; sigil npm x --allow-build-scripts",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+    }
+    for cmd in [
+        // Real comments.
+        "sigil npm x # --allow-build-scripts",
+        "echo hi # sigil npm x --allow-build-scripts",
+        "echo hi # note\necho done # sigil npm x --allow-build-scripts",
+        "echo hi;# sigil npm x --allow-build-scripts",
+        "echo hi # note \\\n# sigil npm x --allow-build-scripts",
+        "# sigil npm x --allow-build-scripts\nls",
+        "echo ${x:-a} # sigil npm x --allow-build-scripts",
+        "echo $(echo a) # sigil npm x --allow-build-scripts",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+    // The comment still hides a deny-shaped word from nothing: a continuation
+    // that is not in a comment is joined as before.
+    assert_eq!(decision("npm \\\ninstall evil"), "deny");
+    assert_eq!(decision("echo a\\\\\nnpm install evil"), "deny");
+}
+
+/// The file of a redirection is not an argument, and a `--` inside a quoted
+/// string is part of the string: neither ends the options.
+#[test]
+fn a_redirection_or_quoted_dashes_do_not_end_the_options() {
+    for cmd in [
+        "sigil npm x > -- --allow-build-scripts",
+        "sigil pip x > -- --allow-build-scripts",
+        "sigil npm x >> -- --allow-build-scripts",
+        "sigil npm x 2> -- --allow-build-scripts",
+        "sigil npm x &> -- --allow-build-scripts",
+        "sigil npm x >| -- --allow-build-scripts",
+        "sigil --format json npm x > -- --allow-build-scripts",
+        "sigil npm > -- x --allow-build-scripts",
+        "sigil npm x 3> -- 4> -- --allow-build-scripts",
+        "sigil npm x {fd}> -- --allow-build-scripts",
+        "sigil npm x <<< -- --allow-build-scripts",
+        "sigil npm x < -- --allow-build-scripts",
+        "sigil --format json > -- npm x --allow-build-scripts",
+        "sigil npm 'a -- b' --allow-build-scripts",
+        "sigil npm \"a -- b\" --allow-build-scripts",
+        "sigil npm 'pip -- b' --allow-build-scripts",
+        "sigil --rules 'a -- b' npm x --allow-build-scripts",
+        "bash -c 'sigil npm \"a -- b\" --allow-build-scripts'",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+    }
+    for cmd in [
+        "sigil npm -- --allow-build-scripts",
+        "sigil npm x -- --allow-build-scripts",
+        "sigil npm x > out.txt -- --allow-build-scripts",
+        "sigil npm 'a b' -- --allow-build-scripts",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+    assert!(flat_opt_in("sigil npm x > -- --allow-build-scripts"));
+    assert!(flat_opt_in("sigil npm x <<< -- --allow-build-scripts"));
+    assert!(flat_opt_in("sigil npm 'a -- b' --allow-build-scripts"));
+    assert!(!flat_opt_in("sigil npm x -- --allow-build-scripts"));
+}
+
+/// The variable the CLI takes as the confirmation can be set under a name the
+/// shell builds; the hook asks about the name in any form next to something
+/// that sets a variable, and about an assignment with an expansion in its
+/// name.
+#[test]
+fn asks_when_the_confirmation_variable_is_built_or_named() {
+    for cmd in [
+        "env \"SIGIL_ALLOW_BUILD_SCRIPT${E}S=1\" sigil npm x",
+        "export \"SIGIL_ALLOW_BUILD_SCRIPT${E}S=1\"; sigil npm x",
+        "V=SIGIL_ALLOW_BUILD_SCRIPTS; export $V=1; sigil npm x",
+        "V=SIGIL_ALLOW_BUILD_SCRIPTS; env $V=1 sigil npm x",
+        "V=SIGIL_ALLOW_BUILD_SCRIPTS; env \"$V=1\" sigil npm x",
+        "V=SIGIL_ALLOW_BUILD_SCRIPTS; export \"$V=1\"; sigil npm x",
+        "N=SIGIL_ALLOW_BUILD; env \"${N}_SCRIPTS=1\" sigil npm x",
+        "printf -v SIGIL_ALLOW_BUILD_SCRIPTS 1; export SIGIL_ALLOW_BUILD_SCRIPTS; sigil npm x",
+        "read SIGIL_ALLOW_BUILD_SCRIPTS <<< 1; export SIGIL_ALLOW_BUILD_SCRIPTS; sigil npm x",
+        "eval \"SIGIL_ALLOW_BUILD_SCRIPT${E}S=1 sigil npm x\"",
+        "declare -x \"SIGIL_ALLOW_BUILD_SCRIPT${E}S=1\"; sigil npm x",
+        "typeset -x SIGIL_ALLOW_BUILD_SCRIPTS=1; sigil npm x",
+        "V=SIGIL_ALLOW_; W=BUILD_SCRIPTS; export \"$V$W=1\"; sigil npm x",
+        "export $(echo SIGIL_ALLOW_BUILD_SCRIPTS=1); sigil npm x",
+        "env SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil --format json $'npm' ./npmdir",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+        assert!(reason(cmd).contains("SIGIL_ALLOW_BUILD_SCRIPTS"), "{cmd}");
+    }
+    for cmd in [
+        "grep SIGIL_ALLOW_BUILD_SCRIPTS docs/cli.md",
+        "grep -rn SIGIL_ALLOW_BUILD docs | head",
+        "echo $SIGIL_ALLOW_BUILD_SCRIPTS",
+        "export PATH=\"$PATH:/opt/bin\"",
+        "export FOO=bar; sigil npm left-pad",
+        "env FOO=\"$BAR\" sigil npm left-pad",
+        "env | sort",
+        "local x=\"$(pwd)\"",
     ] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
     }
