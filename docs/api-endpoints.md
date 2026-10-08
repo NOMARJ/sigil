@@ -123,7 +123,7 @@ Source: `api/routers/report.py` — Prefix: `/v1`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| POST | `/v1/report` | No | Submit a threat report for review (`sigil report`, the dashboard); the API does not check a token. Also at `POST /threats/report`. Accepts `{package_name, reason, ...}` and CLI 1.3.7's `{hash, threat_type, description}` |
+| POST | `/v1/report` | No | Submit a threat report for review (`sigil report`, the dashboard); the API does not check a token. Also at `POST /threats/report` and `POST /report`. Accepts `{package_name, reason, ...}` and CLI 1.3.7's `{hash, threat_type, description}` |
 
 ---
 
