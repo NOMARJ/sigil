@@ -910,12 +910,10 @@ fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
             views.push(masked);
         }
     }
-    let opted_in = views.iter().any(|text| {
-        let dequoted = dequote_literals(text);
-        [text.as_str(), dequoted.as_str()]
-            .into_iter()
-            .any(|t| flat_opt_in(t) || sets_opt_in_env(t) || opt_in_words(t))
-    });
+    let reads = |t: &str| flat_opt_in(t) || sets_opt_in_env(t) || opt_in_words(t);
+    let opted_in = views
+        .iter()
+        .any(|text| reads(text) || reads(&dequote_literals(text)));
     opted_in.then(|| {
         Decision::Ask(
             "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle \
@@ -984,7 +982,7 @@ fn flat_opt_in(text: &str) -> bool {
 }
 
 /// `text` with the characters that would end a call (`;` `&` `|` `#`)
-/// inside a quoted word replaced by `_`, and a line end inside quoted text
+/// inside a quoted word, or escaped by a backslash, replaced by `_`, and a line end inside quoted text
 /// or inside `[…]` (an argv list over several lines) by a space, so that the
 /// word is one word of the call it sits in, as the shell passes it:
 /// `sigil npm './a;b' $FLAG`, `sigil pip x --rules 'a #b' $FLAG`. A quoted
@@ -992,7 +990,7 @@ fn flat_opt_in(text: &str) -> bool {
 /// an argv list that a shell or an interpreter runs, whose separators are
 /// real (`bash -c 'sigil pip x; echo $HOME'`).
 fn mask_quoted_separators(text: &str) -> String {
-    if !text.contains(['\'', '"', '[']) {
+    if !text.contains(['\'', '"', '[', '\\']) {
         return text.to_string();
     }
     let chars: Vec<char> = text.chars().collect();
@@ -1004,7 +1002,12 @@ fn mask_quoted_separators(text: &str) -> String {
     while i < chars.len() {
         let c = chars[i];
         match c {
+            // A backslash-escaped separator (`a\;b`) is a character of its
+            // word.
             '\\' => {
+                if matches!(chars.get(i + 1), Some(';' | '&' | '|' | '#')) {
+                    out[i + 1] = '_';
+                }
                 i += 2;
                 continue;
             }
@@ -3000,6 +3003,17 @@ impl Walk {
     fn run(&mut self, cmd: &str, inherit: bool, depth: u8) {
         let chars: Vec<char> = cmd.chars().collect();
         let q = quote_map(&chars);
+        // The string of a `bash -c '…'` or `eval '…'`, as the shell it goes
+        // to reads it, is a command line of its own: the quotes inside it
+        // are its own, no longer nested in the outer command's (`eval 'sigil
+        // '\''pip'\'' a'\''b;c'\''d $F'` hands the shell `sigil 'pip'
+        // a'b;c'd $F`), so it is read for the opt-in on its own as well as
+        // inside the whole command.
+        if depth > 0 {
+            if let Some(ask) = build_scripts_opt_in(&uncommented(cmd, 0, &q)) {
+                self.judge(ask);
+            }
+        }
         let inner = inner_strings(&chars, &q);
         let pcs = pieces(&chars, &q);
         // The directory each open `( … )` group and substitution started

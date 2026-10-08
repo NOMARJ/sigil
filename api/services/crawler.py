@@ -210,6 +210,29 @@ def _npm_integrity_ok(data: bytes, dist: dict[str, Any]) -> bool:
     return False
 
 
+def _remove_links(root: str) -> int:
+    """Delete every symbolic link under *root*; return how many.
+
+    `tar` and `unzip` create the symlinks an archive holds (they only refuse
+    to write *through* one), and a git checkout holds whatever its repository
+    does. A package's link to ``~/.aws/credentials``, or to ``/`` or
+    ``/proc``, must not be read by the scan that follows: its findings'
+    snippets would carry the host file's lines. Links are neither followed
+    nor opened here.
+    """
+    removed = 0
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        for name in dirnames + filenames:
+            path = os.path.join(dirpath, name)
+            if os.path.islink(path):
+                try:
+                    os.unlink(path)
+                    removed += 1
+                except OSError as e:
+                    logger.warning("could not remove link %s: %s", path, e)
+    return removed
+
+
 async def _download_npm(target: CrawlTarget, dest: str) -> bool:
     """Download an npm registry package's tarball to dest and unpack it.
 
@@ -272,6 +295,7 @@ async def _download_npm(target: CrawlTarget, dest: str) -> bool:
             stderr=asyncio.subprocess.PIPE,
         )
         await asyncio.wait_for(proc.communicate(), timeout=30)
+        await asyncio.to_thread(_remove_links, dest)
         return True
     except (asyncio.TimeoutError, OSError) as e:
         logger.warning("unpack timeout/error for %s: %s", target.name, e)
@@ -409,6 +433,7 @@ async def _download_pip(target: CrawlTarget, dest: str) -> bool:
                 )
                 await asyncio.wait_for(proc2.communicate(), timeout=30)
 
+        await asyncio.to_thread(_remove_links, dest)
         return True
     except (asyncio.TimeoutError, OSError) as e:
         logger.warning("unpack timeout/error for %s: %s", target.name, e)
@@ -441,6 +466,7 @@ async def _download_git(target: CrawlTarget, dest: str) -> bool:
             logger.warning("git clone failed for %s: %s", target.name, stderr.decode())
             return False
 
+        await asyncio.to_thread(_remove_links, dest)
         return True
     except (asyncio.TimeoutError, OSError) as e:
         logger.warning("git clone timeout/error for %s: %s", target.name, e)

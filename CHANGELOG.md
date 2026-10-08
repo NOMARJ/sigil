@@ -51,16 +51,16 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     local mock registry that served such a tarball string, where the
     unchecked build ran a marker-writing `prepare` script and this one
     refuses it before `npm pack` starts), runs
-    `npm pack --ignore-scripts -- <tarball URL>`, and checks the packed
-    tarball against the registry's `dist.integrity` (the strongest hash
-    listed, as `npm install` checks it; `dist.shasum` when there is no
-    integrity) before anything reads it. npm does not check a bare tarball
-    URL, so without that a registry or CDN could show Sigil other bytes than
-    `npm install` would accept (tested with a local mock registry serving a
-    tarball that does not match its integrity: `npm pack <name>` and 1.3.7
-    fail with EINTEGRITY, and `sigil npm` now refuses it with exit 2 and no
-    quarantine entry; the real `left-pad@1.3.0` tarball from
-    registry.npmjs.org passes). A registry whose metadata points
+    `npm pack --ignore-scripts -- <name>@<version>` (the release by registry
+    name, not by tarball URL: see below), and checks the packed tarball
+    against the registry's `dist.integrity` (the strongest hash listed, as
+    `npm install` checks it; `dist.shasum` when there is no integrity) before
+    anything reads it. `npm view` and `npm pack` are separate requests, so
+    this ties the bytes scanned to the digest Sigil resolved (tested with a
+    local mock registry serving a tarball that does not match its integrity:
+    `npm pack <name>` and 1.3.7 fail with EINTEGRITY, and `sigil npm` now
+    refuses it with exit 2 and no quarantine entry; the real
+    `left-pad@1.3.0` tarball from registry.npmjs.org passes). A registry whose metadata points
     a version's tarball at a git repository or a `file:` path is refused, and
     so is a URL npm reads as a git repository (on GitHub, GitLab, Bitbucket,
     Gist or sourcehut, a path naming a repository, as hosted-git-info reads
@@ -77,6 +77,35 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     names the aliased package to scan instead). A name or range is read as a
     tarball path by npm's own pattern, whose unescaped `.` also matches
     `foo.tar-gz`.
+  - `sigil npm` packs the release by name, not by its tarball URL. Handed a
+    bare tarball URL, npm names the file it writes `<name>-<version>.tgz`
+    after the `package.json` inside the tarball, which the package's author
+    controls: a tarball whose `version` is `1.0.0/../../../../../../outside/v`
+    made the build in this branch's previous round write `outside/v.tgz`
+    beside the quarantine directory, before any scan (npm 10.9.7 against a
+    local mock registry whose integrity matched the bytes; 1.3.7 packed the
+    name, so named the file from the registry's manifest and did not). Packing
+    `name@version` takes the name from the registry's manifest, which `npm
+    view` has already shown Sigil. The name and version `npm view` gives must
+    also be a valid npm package name (`name` or `@scope/name`, letters,
+    digits and `. _ ~ - ! ' ( ) *`) and a version (letters, digits, `. + -`)
+    or the command stops with exit 2, so a registry (a private or mirrored
+    one; the public registry validates both) cannot put a path separator or
+    a terminal escape sequence into the file name, the progress line, the
+    quarantine index or the JSON `package` field (an `ESC ] 0 ; … BEL` title
+    sequence in a name was printed raw by `sigil npm` and `sigil list`
+    before). A URL spec is also refused by npm 12 (`allow-remote=none`,
+    `EALLOWREMOTE`), so packing the URL, as the previous round did, made
+    every default `sigil npm` fail on npm 12.2.0, the registry's current npm;
+    by name it works on npm 10.9.7 and 12.2.0 (both run against a local mock
+    registry).
+  - For a bare name or `name@*`, `npm view` shows only the `latest` tag, but
+    npm itself skips a `latest` that is deprecated for the highest release
+    that is not (npm 10.9.7 and 12.2.0, with a local mock registry: `npm pack
+    rng2` gives 1.9.0 when 2.0.0 is `latest` and deprecated; `rng2@latest`
+    gives 2.0.0). Sigil resolved the tag and scanned 2.0.0. When the tag is
+    deprecated, Sigil now also lists every release (`npm view <name>@>=0`)
+    and picks as npm does.
   - The spec is checked first. pip: a package name with optional `[extras]`
     and version specifiers (`requests`, `requests[socks]`,
     `"requests>=2,<3"`, `"requests (>=2)"`), each version starting with a
@@ -103,14 +132,30 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `quarantine/index.json` is made under an exclusive lock on `index.lock`
     beside it, and the file is replaced by a rename, so a reader never sees a
     half-written index. (Eight parallel `sigil npm` runs sharing one HOME,
-    each failing at `npm pack`, hit "failed to parse quarantine index" in 12
-    to 19 of 24 runs and left 7 PENDING entries behind, in three runs of the
-    build without the lock.) A Ctrl-C or SIGTERM during the download also
+    each failing at `npm pack`, hit "failed to parse quarantine index" in 5 to
+    19 of 24 runs across repeated trials of the build without the lock (12 to
+    14 in four more trials for this entry, with 10 to 12 PENDING entries left
+    behind each time); the count depends on machine load. With the lock: 0
+    errors and an empty `sigil list` in every trial, each 3 rounds of 8
+    runs.) A Ctrl-C or SIGTERM during the download also
     removes the unscanned entry (exit 130 or 143); only SIGKILL leaves an
     empty one.
   - A Windows drive path (`C:\x\y`) is refused as the local path it is, with
     the `sigil scan <path>` pointer, not as a URL, and a PEP 508 environment
-    marker (`six; python_version<'3'`) is named as one.
+    marker (`six; python_version<'3'`) is named as one. A path with a space
+    in the pointer is quoted (`sigil scan './my dir'`); `name @ https://…` is
+    called a direct reference, not a URL; a spec with a leading space is
+    trimmed as pip trims it; a whole-spec `npm:left-pad@1.3.0` is called an
+    alias; and a pinned spec with extras (`requests[socks]==2.32.3`) is
+    recorded and reported as `requests==2.32.3`, as an unpinned one is.
+  - When a wheel-only download finds no wheel, the message now also says how
+    to read the source distribution without building it (`sigil scan <URL of
+    the .tar.gz>` from the index), which runs nothing from it; the sigil-scan
+    skill's `scan.sh` shows Sigil's stderr instead of discarding it, so the
+    reason for a refusal reaches the caller. When `pip index versions` fails,
+    the hint follows what pip said: a pip older than 21.2 (`unknown command
+    "index"`) is told to upgrade or pin, a name pip does not find to check the
+    spelling.
   - `--allow-build-scripts` (on both commands) restores the old behaviour for
     code you already trust: any spec, no `--only-binary` / `--ignore-scripts`,
     no configuration check or registry lookup, and npm runs from your
@@ -119,35 +164,64 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     It prints a warning that the package's own code may run on this machine
     before the scan. It does not scan a pip project directory: pip runs its
     build backend but saves nothing to quarantine, and the command fails.
+  - `--allow-build-scripts` needs a person's confirmation. A flag in a
+    command line is not one: the Claude Code hook can read a command, but not
+    one that builds the flag at run time or a script written by one tool call
+    and run by the next. At a terminal Sigil prints the warning and waits for
+    `yes`; with no terminal (an AI agent's shell, a pipe, CI) it refuses with
+    exit 2 and downloads and runs nothing, unless `SIGIL_ALLOW_BUILD_SCRIPTS=1`
+    is set for the command by a script or job that has decided to trust the
+    code. The hook asks about a command that sets the variable too.
   - The Claude Code PreToolUse hook (`sigil hook pretooluse`, its shell
     fallback, and the MCP server's `check_command`) asks before a command
-    that passes the flag to `sigil pip`/`sigil npm`. Both read it wherever a
-    `sigil … pip|npm` call appears: with a redirection glued to it, inside a
-    string a shell, `find -exec` or a here-string runs, and in text that only
-    mentions it, including an interpreter's argv list (`subprocess.run(['sigil',
-    'pip', …])`); a redirection before the flag, `2>&1` and `>|` included,
-    does not end the call. They also ask when a word after `pip`/`npm` is a
-    `$` or backtick expansion, or begins like an option or a pattern (`-`,
+    that passes the flag to `sigil pip`/`sigil npm`, as a second line behind
+    the CLI's own confirmation. All three read a command three ways: a `pip`
+    or `npm` word followed by `--allow-build-scripts` (before a standalone
+    `--`), whatever sits between them and however the command word is spelled
+    (`sigil npm './a;b' --allow-build-scripts`, a quoted `&`, `|`, ` #` or
+    line end, an argv list that spans lines in a heredoc, `si${E}gil npm …`,
+    `sig$(true)il npm …`, `bash -c "sig\"\"il npm …"`: each was allowed
+    by the previous round, which ended a call at every `;`, `&`, `|`, `#` and
+    line end, quoted or not, and found `sigil` only as a plain word); a
+    command that sets `SIGIL_ALLOW_BUILD_SCRIPTS`; and what the first reading
+    cannot see, a word the shell may expand into the flag, read as before: a
+    `$` or backtick word, or one that begins like an option or a pattern (`-`,
     `{`, `*`, `?`, `[`) and holds a brace expansion
     (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`, which
-    expands where a file of that name exists, as the command can arrange);
-    when `xargs` feeds the call; when the command word before `pip`/`npm` is
-    an expansion (`$(command -v sigil) pip …`); and when the word right after
-    `sigil` may expand to `pip` or `npm` (`sigil $SUB x`, `sigil {pip,npm}
-    x`). The quoting a shell splices into a string it hands to an
-    interpreter (`'\''`, `'"'"'`, `\"`) is undone before an argv list is
-    read. They do not ask for a redirection's file (`> "$LOG"`), a quoted
-    version value (`-V "$VER"`), or a range or extras (`'requests[security]'`,
-    `'lodash@*'`). It is not a hard boundary: a flag a program builds at run
-    time, an argv list read from a file or variable, and an expansion that is
-    not right after `sigil` (`sigil --format json $SUB x`) are not read, and
-    the hook still allows `npm pack <dir or git spec>` and `pip download
-    <path, URL or package>` run directly. The native hook reads the words of
-    a command in a single pass (a line of 40,000 `sigil` words took 15 s
-    when each rescanned those after it, and 0.4 s now). The MCP servers'
-    package-scan tools never pass the flag. The hook's suggestion for
-    `deno run npm:<pkg>/<subpath>` now names the package without the subpath
-    (`sigil npm chalk@5.3.0`).
+    expands where a file of that name exists, as the command can arrange),
+    after `pip`/`npm`; `xargs` feeding the call; a command word that is an
+    expansion, a glob or holds a quote that stayed (`$(command -v sigil) pip
+    …`, `si${E}gil npm …`); and the word right after `sigil` that may expand
+    to `pip` or `npm`, which is read as the subcommand, so that a flag or
+    another expansion after it asks (`sigil $SUB x --allow-build-scripts`);
+    alone, `sigil $SUB x` is allowed, and a brace group there (`sigil
+    {pip,npm} x`) is asked about, in the shell fallback as in the native
+    hook (it allowed that one before). A separator inside a quoted word, or
+    escaped, does not end the call in this third reading either (`sigil npm
+    './a;b' $FLAG`), except in a quoted string that holds a `pip` or `npm`
+    word, which is a script whose `;` is real. They do not ask for a
+    redirection's file (`> "$LOG"`), a quoted version value (`-V "$VER"`), or
+    a range or extras (`'requests[security]'`, `'lodash@*'`). It is not a
+    hard boundary and the docs now say what it misses: a flag a program
+    builds at run time, an argv list read from a file or variable, a script
+    one tool call writes and the next runs (a Write that creates `run.sh`,
+    then `sh run.sh`), an inline `SIGIL_BYPASS=1` prefix (which lifts every
+    ask), and `npm pack <dir or git spec>`, `npm view <dir>`, `pip download
+    <path, URL or package>` and `pip wheel <path>` run directly, which the
+    hook allows. A generated-command check (a script that makes
+    commands from spelled command words, spelled flags, decoy words with
+    `;`, `&`, `|`, `#`, newlines and quotes, and `bash -c`/`eval` wrappers,
+    keeps only those that bash really runs as `pip|npm …
+    --allow-build-scripts`, and asks the hook): the previous round's native
+    hook allowed 73 of 400 of them and its shell fallback 50 of 300; this
+    round's native hook allowed 0 of 500 in each of five seeds and the
+    fallback 0 of 300 in each of two. That covers the shapes the generator
+    makes, not every shape. The native
+    hook reads the words of a command in a single pass (a line of 40,000
+    `sigil` words took 15 s when each rescanned those after it, and 0.4 s
+    now). The MCP servers' package-scan tools never pass the flag. The hook's
+    suggestion for `deno run npm:<pkg>/<subpath>` now names the package
+    without the subpath (`sigil npm chalk@5.3.0`).
 - **The package crawler no longer runs package code on the API host.**
   `api/services/crawler.py` downloaded PyPI packages with `pip download
   --no-binary :all:`, which builds every source distribution (running its
@@ -171,7 +245,18 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   distributions) and `npm pack <name>` (no `--ignore-scripts`, no checks);
   the fallback is gone, and a job whose downloaders are unavailable now fails
   and is retried or dead-lettered. A test fails if anything under `bot/`
-  starts `pip`, `npm` or another package manager.
+  starts `pip`, `npm` or another package manager. Neither `tar` nor `unzip`
+  writes through a symbolic link, but both create the ones an archive holds,
+  and the scanners followed them: a tarball holding `config.js -> <a file
+  outside the tree>` put that file's lines into the findings the crawler and
+  the bot worker store (tested: six links named `a.py`, `a.sh`, `a.txt`,
+  `a.json`, `a.yml` and `a.md` to a file of fake credentials gave 17
+  findings with its lines as snippets, and a link to a directory makes the
+  scan walk it). The scanners (`api/services/scanner.py`,
+  `api/scanner/scanner_engine.py`, `api/services/openclaw_rules.py`,
+  `api/services/scanner_v1.py`) now skip every symbolic link, and the crawler
+  deletes the links of an unpacked package or checkout. Existing behaviour,
+  not new in this branch, but reachable through the unpack-only crawler.
 
 ### 🐛 Fixed
 

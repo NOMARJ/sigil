@@ -64,7 +64,7 @@ It exposes three tools:
 |------|-----------|---------|
 | `scan` | `target` (path or git URL), optional `min_severity` | `verdict`, `decision` (`allow` / `review` / `block`), `safe_to_install`, `policy_gate`, `score`, `grade`, `platform`, `behaviors`, and the 25 most severe findings |
 | `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` (an exact version for PyPI; a version, tag or range for npm) | the same summary for a registry package downloaded into quarantine without running any of its code (see `sigil pip` / `sigil npm` in the [CLI reference](cli.md)), plus `package`, the exact release scanned (`left-pad@1.3.0`, `six==1.17.0`: install that one); a path, URL or git spec is refused, and so is a PyPI release with no prebuilt wheel |
-| `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook (so a `sigil pip` / `sigil npm` command that carries `--allow-build-scripts` is `ask`; `scan_package` itself never passes that flag) |
+| `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook (so a `sigil pip` / `sigil npm` command that carries `--allow-build-scripts`, or sets `SIGIL_ALLOW_BUILD_SCRIPTS`, is `ask`; `scan_package` itself never passes that flag) |
 
 `safe_to_install` is `true` only for a `LOW RISK` verdict that no active scan
 policy fails. When a policy is in effect, `policy_gate` is `pass` or `fail`

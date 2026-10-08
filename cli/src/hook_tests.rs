@@ -1631,11 +1631,15 @@ fn asks_when_quoted_separators_come_before_the_flag() {
         "sigil npm 'a&b' --allow-build-scripts",
         "sigil npm 'a|b' --allow-build-scripts",
         "sigil npm \"a;b\" --allow-build-scripts",
-        "sigil npm a\;b --allow-build-scripts",
+        r"sigil npm a\;b --allow-build-scripts",
         "sigil npm 'a #b' --allow-build-scripts",
         "sigil npm \"a #b\" --allow-build-scripts",
         "sigil npm 'a\nb' --allow-build-scripts",
         "sigil npm \"a\nb\" --allow-build-scripts",
+        // An escaped separator, then an expansion that spells the flag.
+        r"sigil npm a\;b $FLAG",
+        r"sigil pip x a\#b $FLAG",
+        r"sigil pip x a\&b $'--allow-build-scripts'",
         // Before the subcommand, as an option's value, after a redirection.
         "sigil --output '/tmp/a;b.json' npm ./evil --allow-build-scripts",
         "sigil npm ./evil > 'a;b' --allow-build-scripts",
@@ -1647,6 +1651,17 @@ fn asks_when_quoted_separators_come_before_the_flag() {
         "python3 - <<'EOF'\nimport subprocess\nsubprocess.run([\n  \"sigil\",\n  \"npm\",\n  \"./evx\",\n  \"--allow-build-scripts\",\n])\nEOF",
         "node - <<'EOF'\nrequire('child_process').execFileSync('sigil', [\n  'npm',\n  './evx',\n  '--allow-build-scripts',\n])\nEOF",
         "python3 -c 'import subprocess\nsubprocess.run([\"sigil\",\n \"pip\",\n \"x\",\n \"--allow-build-scripts\"])'",
+        // A word that may expand to pip/npm is the subcommand: another
+        // expansion after it asks, and a brace group is a pattern word.
+        "sigil $SUB x $F",
+        "sigil {pip,npm} x",
+        "sigil {pip,npm}",
+        "sigil --format json {pip,npm} x",
+        "sigil {pip,--allow-build-scripts} evil",
+        // A script handed to a shell, whose own quotes are nested in the
+        // outer ones: read as the command line it is.
+        r"eval 'X=1 sigil '\''pip'\'' a'\''b;c'\''d ${F:---allow-build-scripts} x'",
+        r"bash -c 'si\gil pi'\'''\''p ./evil '\''a|b'\'' $'\''\x2d\x2dallow-build-scripts'\'''",
         // An expansion that spells the flag, after a quoted separator.
         "sigil npm './a;b' $FLAG",
         "sigil pip x --rules 'a #b' \"$FLAG\"",
@@ -1657,6 +1672,11 @@ fn asks_when_quoted_separators_come_before_the_flag() {
     // Still the end of the call when the separator is outside the quotes,
     // and a `--` still ends the options.
     for cmd in [
+        // Alone, the word after `sigil` is any sigil call.
+        "sigil $SUB x",
+        "sigil \"$SUB\" x",
+        "sigil ${SUB} x",
+        "sigil --format {json,sarif} scan .",
         "sigil npm 'a;b'",
         "sigil npm ./evil -V ';'",
         "sigil pip 'a;b' && echo $HOME",
@@ -1688,17 +1708,14 @@ fn asks_whatever_the_command_word_is_spelled_like() {
         // Glob spellings (they match a file named sigil in the directory).
         "sig?l npm ./evx --allow-build-scripts",
         "sig* npm ./evx --allow-build-scripts",
+        "sigi[l] npm ./evx --allow-build-scripts",
         // The flag may then be an expansion too.
         "si${E}gil npm ./evx $FLAG",
         "sig'il npm ./evx $FLAG",
     ] {
         assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
     }
-    for cmd in [
-        "si${E}gil npm ./evx",
-        "$S $M x",
-        "echo done npm",
-    ] {
+    for cmd in ["si${E}gil npm ./evx", "$S $M x", "echo done npm"] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
     }
 }

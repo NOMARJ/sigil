@@ -282,6 +282,8 @@ check ask   "-V ';' then the flag"         "sigil npm ./evil -V ';' --allow-buil
 check ask   "-V '1;2' before the spec"     "sigil pip -V '1;2' evil --allow-build-scripts"
 check ask   "expansion after a quoted ;"   "sigil npm './a;b' \$FLAG"
 check ask   "expansion after a quoted #"   "sigil pip x --rules 'a #b' \"\$FLAG\""
+check ask   "escaped ; then expansion"     'sigil npm a\;b $FLAG'
+check ask   "escaped & then ANSI-C flag"   "sigil pip x a\\&b \$'--allow-build-scripts'"
 check allow "quoted ; and no flag"         "sigil npm 'a;b'"
 check allow "-V ';' and no flag"           "sigil npm ./evil -V ';'"
 check allow "quoted ;, then another stage" "sigil pip 'a;b' && echo \$HOME"
@@ -316,9 +318,23 @@ check ask   "here-string, nested quotes"   "bash <<< 'sig'\\'''\\''il npm ./evx 
 check ask   "bash -c, escaped quote pair"  'bash -c "sig\"\"il npm ./evx --allow-build-scripts"'
 check ask   "glob-spelled sigil, ?"        'sig?l npm ./evx --allow-build-scripts'
 check ask   "glob-spelled sigil, *"        'sig* npm ./evx --allow-build-scripts'
+check ask   "glob-spelled sigil, [l]"      'sigi[l] npm ./evx --allow-build-scripts'
 check ask   "spelled sigil, flag expanded" 'si${E}gil npm ./evx $FLAG'
 check allow "spelled sigil, no flag"       'si${E}gil npm ./evx'
 check allow "two expansions, no manager"   '$S $M x'
+# A word right after sigil that may expand to pip/npm is read as the
+# subcommand: a flag or another expansion after it asks; alone it does not
+# (`sigil $ARGS` is any sigil call). A brace group is a pattern word.
+check allow "expansion as subcommand"      'sigil $SUB x'
+check allow "quoted expansion, subcommand" 'sigil "$SUB" x'
+check allow "braced expansion, subcommand" 'sigil ${SUB} x'
+check ask   "expansion, then expansion"    'sigil $SUB x $F'
+check ask   "brace group as subcommand"    'sigil {pip,npm} x'
+check ask   "brace group alone"            'sigil {pip,npm}'
+check ask   "brace group after an option"  'sigil --format json {pip,npm} x'
+check ask   "brace group spelling the flag" 'sigil {pip,--allow-build-scripts} evil'
+check allow "brace group, other command"   'echo {a,b}'
+check allow "brace in a global option"     'sigil --format {json,sarif} scan .'
 # The variable that confirms the flag where there is no terminal.
 check ask   "confirmation variable, prefix" "SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./evx"
 check ask   "confirmation variable, export" "export SIGIL_ALLOW_BUILD_SCRIPTS=1; sigil pip x"

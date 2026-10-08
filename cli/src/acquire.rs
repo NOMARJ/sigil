@@ -108,16 +108,28 @@ pub fn opt_in_unconfirmed(manager: Manager, spec: &str) -> String {
 }
 
 /// `s` as one shell word: unchanged when it holds only characters a shell
-/// leaves alone, else in single quotes.
+/// leaves alone, else quoted: a Windows drive path (`C:\my dir`, whose
+/// backslashes are no escape there) in double quotes, anything else in
+/// single quotes.
 pub fn shell_quote(s: &str) -> String {
-    let plain = !s.is_empty()
-        && s.chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '@' | '%' | '+' | '=' | ':' | ',' | '.' | '/' | '~' | '-'));
-    if plain {
-        s.to_string()
-    } else {
-        format!("'{}'", s.replace('\'', "'\\''"))
+    let plain = |c: char| {
+        c.is_ascii_alphanumeric()
+            || matches!(
+                c,
+                '_' | '@' | '%' | '+' | '=' | ':' | ',' | '.' | '/' | '~' | '-'
+            )
+    };
+    if !s.is_empty() && s.chars().all(plain) {
+        return s.to_string();
     }
+    if is_drive_path(s) {
+        return if s.chars().all(|c| plain(c) || c == '\\') {
+            s.to_string()
+        } else {
+            format!("\"{}\"", s.replace('"', ""))
+        };
+    }
+    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 /// pip's archive suffixes (`pip._internal.utils.filetypes`): a requirement
@@ -321,7 +333,7 @@ pub fn refusal(manager: Manager, spec: &str, err: &SpecError) -> String {
                 "sigil {cmd} will not download `{spec}`: {why}.\n  {runs}.\n  \
                  Name a registry package instead, e.g. {example}.\n  \
                  To accept that risk for code you already trust, re-run with \
-                 {ALLOW_BUILD_SCRIPTS}."
+                 {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm)."
             )
         }
         SpecError::LocalPath { why, path } => {
@@ -407,7 +419,8 @@ pub fn pip_wheel_only_hint(spec: &str, resolved: Option<&str>) -> String {
     format!(
         "Sigil asks pip for prebuilt wheels only (--only-binary=:all:), because building a \
          source distribution runs the package's own setup code on this machine before the scan. \
-         {what} for code you already trust, re-run with {ALLOW_BUILD_SCRIPTS}.\n  To read the \
+         {what} for code you already trust, re-run with {ALLOW_BUILD_SCRIPTS} (Sigil then asks \
+         you to confirm).\n  To read the \
          source distribution without building it, scan its file from the index: \
          `sigil scan <URL of the .tar.gz>` (the link is on the project's PyPI download page); \
          that reads the archive and runs nothing from it."
@@ -531,7 +544,7 @@ pub fn pip_config_refusal(keys: &[String]) -> String {
          command: `PIP_CONFIG_FILE=/dev/null sigil pip …` skips every pip config file, index \
          settings included, so give the index in the environment too if you need one \
          (`PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=<url> sigil pip …`). Or, for code you \
-         already trust, re-run with {ALLOW_BUILD_SCRIPTS}.",
+         already trust, re-run with {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm).",
         keys.join(", ")
     )
 }
@@ -1059,7 +1072,7 @@ fn npm_version_is_safe(version: &str) -> bool {
 pub fn npm_name_for_default_pick(spec: &str) -> Option<String> {
     let name = spec.strip_suffix("@*").unwrap_or(spec);
     // A bare name has no `@` after its first character (a scope's `@`).
-    (!name.is_empty() && !name[1..].contains('@')).then(|| name.to_string())
+    (!name.is_empty() && !name.chars().skip(1).any(|c| c == '@')).then(|| name.to_string())
 }
 
 /// The spec that makes `npm view` list every release of `name` (a range
@@ -1372,7 +1385,7 @@ pub fn npm_tarball_refusal(release: &str, why: &str) -> String {
         "sigil npm will not download `{release}`: {why}.\n  Packing it would run its prepare \
          script on this machine before Sigil can scan it. Check which registry npm uses here \
          (`npm config get registry`); for code you already trust, re-run with \
-         {ALLOW_BUILD_SCRIPTS}."
+         {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm)."
     )
 }
 

@@ -17,8 +17,9 @@ Scan a package before installation:
    refuses paths, URLs and git specs, and fails when the PyPI release `pip
    install` would pick has no prebuilt wheel, because fetching those would
    run the package's own code before the scan. Report that to the user;
-   never add `--allow-build-scripts` yourself (the hook asks the user before
-   it runs). For a file or directory already on disk, use `sigil scan
+   never add `--allow-build-scripts` or `SIGIL_ALLOW_BUILD_SCRIPTS` yourself
+   (the hook asks the user before it runs, and Sigil refuses the flag
+   without a person at a terminal to confirm it). For a file or directory already on disk, use `sigil scan
    <path>` instead. Sigil prints the version it scanned (`resolves to …`,
    and `package` in `--format json` and in the MCP `scan_package` result):
    install that exact version.

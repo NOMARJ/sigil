@@ -157,7 +157,6 @@ fn pip_refuses_malformed_requirements() {
         "foo[",
         "foo[bar",
         "foo[-x]",
-        " requests",
         "requests,",
         // A version starts with a letter or digit.
         "x==--allow-build-scripts",
@@ -444,10 +443,11 @@ fn pip_download_args_opt_in_drops_only_binary() {
 
 #[test]
 fn npm_pack_args_default_ignores_scripts_and_ends_options() {
-    let url = "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz";
+    // The release by registry name: npm names the file from the registry's
+    // manifest, and a URL spec is refused by npm 12 (EALLOWREMOTE).
     assert_eq!(
-        strings(&npm_pack_args(url, false, None)),
-        ["pack", "--ignore-scripts", "--", url]
+        strings(&npm_pack_args("left-pad@1.3.0", false, None)),
+        ["pack", "--ignore-scripts", "--", "left-pad@1.3.0"]
     );
 }
 
@@ -937,4 +937,179 @@ fn the_packed_tarball_must_match_the_registry_integrity() {
     let msg = npm_integrity_refusal("plainpkg@1.0.0", &err);
     assert!(msg.contains("plainpkg@1.0.0"), "{msg}");
     assert!(msg.contains("EINTEGRITY"), "{msg}");
+}
+
+#[test]
+fn npm_view_names_and_versions_that_would_name_a_path_are_refused() {
+    let view = |name: &str, version: &str| {
+        serde_json::json!({
+            "name": name,
+            "version": version,
+            "dist.tarball": "https://registry.npmjs.org/x/-/x-1.0.0.tgz",
+        })
+        .to_string()
+    };
+    for (name, version) in [
+        ("pwn", "1.0.0"),
+        ("@types/node", "20.1.0"),
+        ("left-pad", "1.3.0-rc.1+build.5"),
+        ("Legacy_Name.js", "0.0.1"),
+    ] {
+        assert!(
+            parse_npm_view(&view(name, version)).is_ok(),
+            "{name}@{version}"
+        );
+    }
+    for (name, version) in [
+        ("x/../../../outside/pwn", "1.0.0"),
+        ("@s/../../../outside/pwn", "1.0.0"),
+        ("@s/a/b", "1.0.0"),
+        ("@s", "1.0.0"),
+        ("@/x", "1.0.0"),
+        ("..", "1.0.0"),
+        ("a\\b", "1.0.0"),
+        ("", "1.0.0"),
+        ("ansi\u{1b}]0;PWNED\u{7}x", "1.0.1"),
+        ("name\u{202e}", "1.0.0"),
+        ("pwn", "1.0.0/../../../../outside/v"),
+        ("pwn", "1.0.0\\..\\x"),
+        ("pwn", "1.0.0 "),
+        ("pwn", "1.0.0\u{1b}[2J"),
+        ("pwn", ""),
+    ] {
+        let err = parse_npm_view(&view(name, version)).unwrap_err();
+        assert!(err.contains("not a valid"), "{name:?}@{version:?}: {err}");
+        assert!(
+            !err.chars().any(char::is_control),
+            "the message must not carry the control characters: {err:?}"
+        );
+    }
+}
+
+#[test]
+fn a_bare_name_or_star_is_asked_about_in_its_range_form_when_latest_is_deprecated() {
+    for spec in ["rng2", "@scope/rng2", "rng2@*", "@scope/rng2@*"] {
+        let name = npm_name_for_default_pick(spec).unwrap_or_default();
+        assert!(spec.starts_with(&name), "{spec} -> {name}");
+        assert!(!name.ends_with("@*"));
+    }
+    assert_eq!(npm_name_for_default_pick("rng2").as_deref(), Some("rng2"));
+    assert_eq!(
+        npm_name_for_default_pick("@s/rng2@*").as_deref(),
+        Some("@s/rng2")
+    );
+    // A version, a tag or a range names what npm picks as it is.
+    for spec in [
+        "rng2@1.9.0",
+        "rng2@latest",
+        "rng2@^1",
+        "@s/rng2@1.0.0",
+        "rng2@>=1",
+    ] {
+        assert_eq!(npm_name_for_default_pick(spec), None, "{spec}");
+    }
+    assert_eq!(npm_all_versions_spec("@s/rng2"), "@s/rng2@>=0");
+}
+
+#[test]
+fn the_opt_in_confirmation_is_a_person_or_the_variable_set_to_one() {
+    use std::ffi::OsStr;
+    assert!(opt_in_env_confirms(Some(OsStr::new("1"))));
+    for not in ["", "0", "true", "yes", " 1", "1 ", "11"] {
+        assert!(!opt_in_env_confirms(Some(OsStr::new(not))), "{not:?}");
+    }
+    assert!(!opt_in_env_confirms(None));
+    for yes in ["yes", "YES\n", " Yes \r\n"] {
+        assert!(answer_confirms(yes), "{yes:?}");
+    }
+    for no in ["", "y", "y\n", "no", "yes please", "yess", "1", "true"] {
+        assert!(!answer_confirms(no), "{no:?}");
+    }
+    let msg = opt_in_unconfirmed(Manager::Npm, "./evil");
+    assert!(msg.contains("SIGIL_ALLOW_BUILD_SCRIPTS=1"), "{msg}");
+    assert!(msg.contains("no terminal"), "{msg}");
+    assert!(msg.contains("Nothing was downloaded or run"), "{msg}");
+}
+
+#[test]
+fn a_path_in_a_hint_is_one_shell_word() {
+    assert_eq!(shell_quote("./my-dir"), "./my-dir");
+    assert_eq!(shell_quote("/tmp/a_b-c.d/e"), "/tmp/a_b-c.d/e");
+    assert_eq!(shell_quote("./my dir"), "'./my dir'");
+    assert_eq!(shell_quote("a;b"), "'a;b'");
+    assert_eq!(shell_quote("it's"), "'it'\\''s'");
+    assert_eq!(shell_quote("$HOME"), "'$HOME'");
+    // A Windows drive path keeps its backslashes, and takes double quotes.
+    assert_eq!(shell_quote("C:\\x\\y"), "C:\\x\\y");
+    assert_eq!(shell_quote("C:\\my dir\\y"), "\"C:\\my dir\\y\"");
+    assert_eq!(shell_quote(""), "''");
+    let err = check_spec(Manager::Npm, "./my dir", false).unwrap_err();
+    let shown = refusal(Manager::Npm, "./my dir", &err);
+    assert!(shown.contains("`sigil scan './my dir'`"), "{shown}");
+}
+
+#[test]
+fn a_direct_reference_is_called_one_and_a_leading_space_is_trimmed() {
+    let reason = |spec: &str| match check_spec(Manager::Pip, spec, false) {
+        Err(SpecError::NotRegistry(why)) => why,
+        other => panic!("{spec}: {other:?}"),
+    };
+    assert!(reason("foo @ https://x.invalid/y.whl").contains("direct reference"));
+    assert!(reason("foo@https://x.invalid/y.whl").contains("direct reference"));
+    assert!(reason("foo @ git+https://x.invalid/y").contains("direct reference"));
+    assert!(reason("https://x.invalid/y.whl").contains("URL"));
+    assert!(reason("https://user@x.invalid/y.whl").contains("URL"));
+    // pip trims the requirement; Sigil reads it as pip does.
+    assert_eq!(pip(" six==1.17.0"), "ok");
+    assert_eq!(pip("six==1.17.0 "), "ok");
+    assert_eq!(pip(" six"), "ok");
+}
+
+#[test]
+fn a_whole_spec_npm_alias_is_an_alias() {
+    match check_spec(Manager::Npm, "npm:left-pad@1.3.0", false) {
+        Err(SpecError::Alias(target)) => assert_eq!(target, "left-pad@1.3.0"),
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(npm("NPM:left-pad"), "alias");
+    assert_eq!(npm("foo@npm:left-pad@1.3.0"), "alias");
+}
+
+#[test]
+fn the_release_scanned_is_named_without_extras() {
+    assert_eq!(pip_release_name("requests==2.32.3"), "requests==2.32.3");
+    assert_eq!(
+        pip_release_name("requests[socks]==2.32.3"),
+        "requests==2.32.3"
+    );
+    assert_eq!(
+        pip_release_name("requests [socks, security] ==2.32.3"),
+        "requests ==2.32.3"
+    );
+    assert_eq!(pip_release_name(" six==1.17.0 "), "six==1.17.0");
+    assert_eq!(pip_release_name("a[b"), "a[b");
+}
+
+#[test]
+fn the_index_failure_hint_follows_what_pip_said() {
+    let old = pip_index_failure_hint("ERROR: unknown command \"index\"\n", "six");
+    assert!(old.contains("21.2"), "{old}");
+    assert!(old.contains("sigil pip six==<version>"), "{old}");
+    let typo = pip_index_failure_hint(
+        "ERROR: No matching distribution found for no-such-pkg\n",
+        "no-such-pkg",
+    );
+    assert!(typo.contains("Check the spelling"), "{typo}");
+    assert!(!typo.contains("pin a version"), "{typo}");
+    let other = pip_index_failure_hint("", "six");
+    assert!(other.contains("pip listed no release of `six`"), "{other}");
+    assert!(other.contains("pin a version"), "{other}");
+}
+
+#[test]
+fn the_no_wheel_hint_points_at_scanning_the_source_distribution() {
+    let hint = pip_wheel_only_hint("docopt", None);
+    assert!(hint.contains("sigil scan <URL of the .tar.gz>"), "{hint}");
+    assert!(hint.contains("runs nothing from it"), "{hint}");
+    assert!(hint.contains(ALLOW_BUILD_SCRIPTS), "{hint}");
 }

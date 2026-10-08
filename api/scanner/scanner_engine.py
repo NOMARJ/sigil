@@ -215,8 +215,9 @@ class ScannerEngine:
             "coverage",
         }
 
+        # A symbolic link is never followed: it can point outside the tree.
         for child in sorted(root.iterdir()):
-            if child.name in skip_dirs:
+            if child.name in skip_dirs or child.is_symlink():
                 continue
             if child.is_file():
                 yield child

@@ -473,6 +473,32 @@ mod tests {
     }
 
     #[test]
+    fn check_command_asks_about_the_opt_in_however_it_is_written() {
+        let decision = |command: &str| {
+            let request = serde_json::json!({
+                "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                "params": {"name": "check_command", "arguments": {"command": command}},
+            });
+            let r = call(&request.to_string()).unwrap();
+            r["result"]["structuredContent"]["decision"].clone()
+        };
+        for command in [
+            "sigil npm ./evil --allow-build-scripts",
+            "sigil npm './ev;il' --allow-build-scripts",
+            "sigil pip x --rules 'a #b' --allow-build-scripts",
+            "si${E}gil npm ./evx --allow-build-scripts",
+            r"bash -c 'sig'\'''\''il npm ./evx --allow-build-scripts'",
+            "SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./evx",
+            "python3 - <<'EOF'\nsubprocess.run([\n \"sigil\",\n \"npm\",\n \"./evx\",\n \"--allow-build-scripts\",\n])\nEOF",
+        ] {
+            assert_eq!(decision(command), "ask", "{command}");
+        }
+        for command in ["sigil npm left-pad", "sigil npm -- --allow-build-scripts"] {
+            assert_eq!(decision(command), "allow", "{command}");
+        }
+    }
+
+    #[test]
     fn tool_errors_are_reported_in_band() {
         let r = call(r#"{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"scan","arguments":{}}}"#).unwrap();
         assert_eq!(r["result"]["isError"], true);

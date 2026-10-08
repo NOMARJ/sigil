@@ -2627,7 +2627,11 @@ END {
   s = buf; n = length(s); out = ""; depth = 0; tdepth = 0; i = 1
   while (i <= n) {
     c = substr(s, i, 1)
-    if (c == "\\") { out = out substr(s, i, 2); i += 2; continue }
+    if (c == "\\") {
+      e = substr(s, i + 1, 1)
+      if (mode == "mask" && (e == ";" || e == "&" || e == "|" || e == "#")) e = "_"
+      out = out c e; i += 2; continue
+    }
     if (c == SQ || c == DQ) {
       if (i in closes) { out = out c; i++; tdepth--; continue }
       j = closing(s, n, i)
@@ -2704,6 +2708,13 @@ OPTIN_FLAG="${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])"
 # (`--allow-build-scr[i]pts`) or opens with `[-`, `[!` or `[^`; `['sigil'`
 # and `[sigil,pip]` are the elements of an argv list.
 OPTIN_PAT="[[:space:]()][\"']*((-${OPTIN_P}*)?(${OPTIN_BR}|[*?])|-${OPTIN_P}*\\[[^]'\"[:space:];&|()]|\\[[-!^])"
+# A brace group where the subcommand goes (`sigil {pip,npm} x`,
+# `sigil {pip,--allow-build-scripts} evil`): its pieces are separate words
+# once the shell expands it, the flag among them. hook.rs reads the first
+# word after `sigil` that begins like an option or a pattern and holds a
+# brace expansion, and a brace group after the global options whose first
+# piece is `pip` or `npm`, as a pattern word that follows the subcommand.
+OPTIN_BRM="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*(${OPTIN_S}[\"']*((-|\\*|\\?)${OPTIN_P}*)?${OPTIN_BR}|(${OPTIN_S}${OPTIN_W})*${OPTIN_S}[\"']*[-{*?]${OPTIN_P}*(pip|npm)[\"'}]*,${OPTIN_P}*)"
 # FLAT: the delimiters are whitespace and `;&|()[],`; a word is the run of
 # anything else. A word that is not exactly `--`: a first character that is
 # not `-`, a lone `-`, `-` and a non-dash, or `--` and more.
@@ -2729,6 +2740,7 @@ case $LEX_TXT in
     optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
     optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
     optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
+    optin_has "$OPTIN_BRM" && OPTIN=1
     optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
       && OPTIN=1 ;;
 esac

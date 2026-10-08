@@ -122,7 +122,8 @@ enum Commands {
         /// Also accept source distributions, local paths, URLs and VCS
         /// references, which pip builds by running the package's own setup
         /// code on this machine BEFORE the scan. Only for code you already
-        /// trust
+        /// trust. Asks you to type yes at a terminal; without one it needs
+        /// SIGIL_ALLOW_BUILD_SCRIPTS=1
         #[arg(long)]
         allow_build_scripts: bool,
     },
@@ -147,7 +148,9 @@ enum Commands {
 
         /// Also accept directories, tarballs, URLs, git specs and aliases,
         /// and let npm run the package's lifecycle scripts while packing it,
-        /// on this machine, BEFORE the scan. Only for code you already trust
+        /// on this machine, BEFORE the scan. Only for code you already trust.
+        /// Asks you to type yes at a terminal; without one it needs
+        /// SIGIL_ALLOW_BUILD_SCRIPTS=1
         #[arg(long)]
         allow_build_scripts: bool,
     },
