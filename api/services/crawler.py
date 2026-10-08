@@ -20,6 +20,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import logging
@@ -44,15 +45,29 @@ PYPI_JSON_BASE = "https://pypi.org/pypi"
 PYPI_FILES_HOST = "files.pythonhosted.org"
 MAX_PACKAGE_BYTES = 100 * 1024 * 1024
 
+# npm packages are fetched as files too, from the public registry: `npm pack`
+# runs a directory's or git checkout's prepare script even with
+# --ignore-scripts, and packing by name follows whatever tarball the
+# configured registry names, a git repository or `file:` path included.
+NPM_REGISTRY = "https://registry.npmjs.org"
+NPM_TARBALL_HOST = "registry.npmjs.org"
+# The abbreviated metadata npm itself installs from: versions, dist-tags and
+# each version's `dist` (tarball URL, integrity, shasum).
+NPM_METADATA_ACCEPT = "application/vnd.npm.install-v1+json"
+
 # Registry names only. Anything else (a path, URL, git spec, `owner/repo`,
-# an npm alias, a leading `-`) is refused before pip or npm sees it: npm
-# packs a directory or git checkout by running its prepare script.
+# an npm alias, a leading `-`) is refused before a URL is built from it.
 _PYPI_NAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
 _PYPI_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.!+_-]*$")
 _NPM_NAME_RE = re.compile(
     r"^(?:@[A-Za-z0-9][A-Za-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*$"
 )
 _NPM_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+_-]*$")
+# npm-package-arg's isFileType (its `.` inside `tar.gz` matches any
+# character): npm reads a name or version ending so as a local tarball path,
+# never as a registry package.
+_NPM_FILE_TYPE_RE = re.compile(r"[.](?:tgz|tar.gz|tar)$", re.IGNORECASE)
+_SHA1_HEX_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 _PYPI_FILE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]*\.(?:tar\.gz|zip|whl)$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -139,61 +154,127 @@ async def scan_package(target: CrawlTarget) -> CrawlResult:
     return result
 
 
-def _npm_spec(target: CrawlTarget) -> str | None:
-    """`name` or `name@version` for a registry package; None for anything
-    npm would read as a directory, tarball, URL, git spec or alias."""
-    if not _NPM_NAME_RE.match(target.name):
+def _npm_metadata_url(target: CrawlTarget) -> str | None:
+    """The registry metadata URL for a registry package name (a version, if
+    given, must look like a version or tag); None for anything npm would
+    read as a directory, tarball, URL, git spec or alias."""
+    if not _NPM_NAME_RE.match(target.name) or _NPM_FILE_TYPE_RE.search(target.name):
         return None
-    if target.version:
-        if not _NPM_VERSION_RE.match(target.version):
-            return None
-        return f"{target.name}@{target.version}"
-    return target.name
+    if target.version and (
+        not _NPM_VERSION_RE.match(target.version)
+        or _NPM_FILE_TYPE_RE.search(target.version)
+    ):
+        return None
+    # A scoped name's `/` is escaped, as npm sends it (`@scope%2Fname`).
+    return f"{NPM_REGISTRY}/{quote(target.name, safe='@')}"
+
+
+def _npm_pick_release(meta: Any, version: str) -> tuple[str, dict[str, Any]] | None:
+    """The release `version` names (an exact version, else a dist-tag;
+    `latest` when empty) and its `dist`, from registry metadata."""
+    versions = meta.get("versions") if isinstance(meta, dict) else None
+    tags = meta.get("dist-tags") if isinstance(meta, dict) else None
+    if not isinstance(versions, dict):
+        return None
+    wanted = version or "latest"
+    if wanted not in versions and isinstance(tags, dict):
+        tagged = tags.get(wanted)
+        wanted = tagged if isinstance(tagged, str) else ""
+    release = versions.get(wanted)
+    dist = release.get("dist") if isinstance(release, dict) else None
+    if not isinstance(dist, dict) or not _NPM_VERSION_RE.match(wanted):
+        return None
+    return wanted, dist
+
+
+def _npm_integrity_ok(data: bytes, dist: dict[str, Any]) -> bool:
+    """Check a tarball as npm checks a registry download: the strongest
+    algorithm `dist.integrity` lists (Subresource Integrity) must match one
+    of its hashes; without an integrity, `dist.shasum` (sha1, hex) must."""
+    integrity = dist.get("integrity")
+    if isinstance(integrity, str) and integrity.strip():
+        hashes: list[tuple[str, str]] = []
+        for item in integrity.split():
+            algorithm, sep, rest = item.partition("-")
+            if sep:
+                hashes.append((algorithm, rest.split("?", 1)[0]))
+        for algorithm in ("sha512", "sha384", "sha256", "sha1"):
+            wanted = [digest for alg, digest in hashes if alg == algorithm]
+            if wanted:
+                got = base64.b64encode(hashlib.new(algorithm, data).digest()).decode()
+                return got in wanted
+        return False
+    shasum = dist.get("shasum")
+    if isinstance(shasum, str) and _SHA1_HEX_RE.match(shasum):
+        return hashlib.new("sha1", data).hexdigest() == shasum.lower()
+    return False
 
 
 async def _download_npm(target: CrawlTarget, dest: str) -> bool:
-    """Download an npm registry package to dest directory.
+    """Download an npm registry package's tarball to dest and unpack it.
 
-    The tarball is packed with --ignore-scripts, and only a registry name is
-    accepted: npm runs a directory's or git checkout's prepare script while
-    packing it, even with --ignore-scripts.
+    No npm runs: `npm pack` runs a directory's or git checkout's prepare
+    script even with --ignore-scripts, and packing by name follows whatever
+    tarball the registry's metadata names. The crawler reads the public
+    registry's metadata itself, takes the release's tarball only from the
+    registry host over https, and keeps it only when it matches the
+    registry's integrity (as `npm install` checks it), as the PyPI path
+    checks its sha256.
     """
-    spec = _npm_spec(target)
-    if spec is None:
+    meta_url = _npm_metadata_url(target)
+    if meta_url is None:
         logger.warning(
             "Refusing npm target that is not a registry package: %r @ %r",
             target.name,
             target.version,
         )
         return False
-    cmd = ["npm", "pack", "--ignore-scripts", "--pack-destination", dest, "--", spec]
+    raw = await _http_get_bytes(
+        meta_url, timeout=30, headers={"Accept": NPM_METADATA_ACCEPT}
+    )
+    if raw is None:
+        return False
+    try:
+        meta = json.loads(raw)
+    except ValueError:
+        logger.warning("npm metadata for %s is not JSON", target.name)
+        return False
+    picked = _npm_pick_release(meta, target.version)
+    if picked is None:
+        logger.warning(
+            "No npm release of %s matches %r", target.name, target.version or "latest"
+        )
+        return False
+    version, dist = picked
+    url = str(dist.get("tarball", ""))
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname != NPM_TARBALL_HOST:
+        logger.warning("Refusing npm tarball for %s: %r", target.name, url)
+        return False
+    data = await _http_get_bytes(url)
+    if data is None:
+        return False
+    if not _npm_integrity_ok(data, dist):
+        logger.warning("integrity mismatch for %s@%s", target.name, version)
+        return False
+    filename = f"{target.name.lstrip('@').replace('/', '-')}-{version}.tgz"
+    tarball = Path(dest) / filename
+    tarball.write_bytes(data)
+
     try:
         proc = await asyncio.create_subprocess_exec(
-            *cmd,
+            "tar",
+            "xzf",
+            str(tarball),
+            "-C",
+            dest,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            cwd=dest,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
-
-        if proc.returncode != 0:
-            logger.warning("npm pack failed for %s: %s", target.name, stderr.decode())
-            return False
-
-        # Unpack the tarball
-        tarballs = list(Path(dest).glob("*.tgz"))
-        if tarballs:
-            unpack_cmd = ["tar", "xzf", str(tarballs[0]), "-C", dest]
-            proc2 = await asyncio.create_subprocess_exec(
-                *unpack_cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(proc2.communicate(), timeout=30)
-
+        await asyncio.wait_for(proc.communicate(), timeout=30)
         return True
     except (asyncio.TimeoutError, OSError) as e:
-        logger.warning("npm download timeout/error for %s: %s", target.name, e)
+        logger.warning("unpack timeout/error for %s: %s", target.name, e)
         return False
 
 
@@ -231,7 +312,9 @@ def _pick_release_file(meta: Any) -> dict[str, Any] | None:
     return None
 
 
-async def _http_get_bytes(url: str, timeout: int = 120) -> bytes | None:
+async def _http_get_bytes(
+    url: str, timeout: int = 120, headers: dict[str, str] | None = None
+) -> bytes | None:
     """GET `url` with a size cap and no redirects. None on any failure."""
     try:
         import httpx
@@ -240,7 +323,7 @@ async def _http_get_bytes(url: str, timeout: int = 120) -> bytes | None:
         return None
     try:
         async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
-            async with client.stream("GET", url) as resp:
+            async with client.stream("GET", url, headers=headers) as resp:
                 resp.raise_for_status()
                 chunks: list[bytes] = []
                 total = 0

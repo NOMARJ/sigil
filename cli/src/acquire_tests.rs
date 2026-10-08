@@ -9,6 +9,7 @@ fn kind(r: Result<(), SpecError>) -> &'static str {
         Ok(()) => "ok",
         Err(SpecError::Unusable(_)) => "unusable",
         Err(SpecError::NotRegistry(_)) => "not-registry",
+        Err(SpecError::LocalPath { .. }) => "local-path",
         Err(SpecError::Alias(_)) => "alias",
         Err(SpecError::Malformed(_)) => "malformed",
     }
@@ -75,21 +76,7 @@ fn pip_refuses_what_pip_would_build_or_run() {
         "/abs/pkg",
         "pkg/sub",
         "~/pkg",
-        "C:\\pkg",
         "pkg\\sub",
-        // URLs and VCS references.
-        "https://example.invalid/pkg-1.0.tar.gz",
-        "http://example.invalid/pkg",
-        "file:///tmp/pkg-1.0.tar.gz",
-        "git+https://github.com/owner/repo",
-        "git+ssh://git@github.com/owner/repo.git",
-        "hg+https://example.invalid/repo",
-        "svn+https://example.invalid/repo",
-        "bzr+https://example.invalid/repo",
-        // PEP 508 direct references.
-        "pkg @ https://example.invalid/pkg-1.0.tar.gz",
-        "pkg@file:///tmp/pkg",
-        "pkg @ git+https://github.com/owner/repo",
         // Names pip reads as an archive in the working directory.
         "markerpkg.tgz",
         "pkg.tar.gz",
@@ -105,6 +92,25 @@ fn pip_refuses_what_pip_would_build_or_run() {
         "x==1.zip ",
         "x ==1.tar.gz ",
         "x[e]==1.zip ",
+    ] {
+        assert_eq!(pip(spec), "local-path", "{spec}");
+    }
+    for spec in [
+        // A drive letter reads as a URL scheme.
+        "C:\\pkg",
+        // URLs and VCS references.
+        "https://example.invalid/pkg-1.0.tar.gz",
+        "http://example.invalid/pkg",
+        "file:///tmp/pkg-1.0.tar.gz",
+        "git+https://github.com/owner/repo",
+        "git+ssh://git@github.com/owner/repo.git",
+        "hg+https://example.invalid/repo",
+        "svn+https://example.invalid/repo",
+        "bzr+https://example.invalid/repo",
+        // PEP 508 direct references.
+        "pkg @ https://example.invalid/pkg-1.0.tar.gz",
+        "pkg@file:///tmp/pkg",
+        "pkg @ git+https://github.com/owner/repo",
     ] {
         assert_eq!(pip(spec), "not-registry", "{spec}");
     }
@@ -249,6 +255,11 @@ fn npm_accepts_registry_specs() {
         // A tag that looks like a host is still a registry tag
         // (npm-package-arg: type "tag").
         "foo@github.com",
+        // A scoped name is never read as a tarball path, and `.targz`
+        // is one character short of `isFileType`'s `.tar?gz`.
+        "@scope/foo.tgz",
+        "@scope/foo.tar.gz@1.0.0",
+        "foo.targz",
     ] {
         assert_eq!(npm(spec), "ok", "{spec}");
     }
@@ -265,15 +276,29 @@ fn npm_refuses_what_npm_would_build_or_run() {
         "~/dir",
         ".foo",
         "dir\\sub",
-        "C:\\dir",
         "file:../dir",
         "file:pkg.tgz",
         "FILE:../dir",
-        // Tarballs, by path or URL.
+        "npmdir/",
+        "foo@.1",
+        // Tarball paths, as npm-package-arg's `isFileType` reads them: its
+        // `.` in `tar.gz` matches any character.
         "pkg.tgz",
         "pkg.tar.gz",
         "pkg.TAR",
         "foo@1.0.tgz",
+        "foo.tar-gz",
+        "foo@1.tar-gz",
+        "foo@1.tarxgz",
+        "FOO.TARXGZ",
+        "@scope/foo@1.tgz",
+    ] {
+        assert_eq!(npm(spec), "local-path", "{spec}");
+    }
+    for spec in [
+        // A drive letter reads as a URL scheme.
+        "C:\\dir",
+        // Tarball URLs.
         "https://registry.npmjs.org/x/-/x-1.0.0.tgz",
         "http://example.invalid/x.tgz",
         // Git specs and hosted-git shorthands.
@@ -293,9 +318,7 @@ fn npm_refuses_what_npm_would_build_or_run() {
         "foo@owner/repo",
         "foo@git+https://github.com/owner/repo.git",
         "foo@./dir",
-        "foo@.1",
         "@scope/name/sub",
-        "npmdir/",
     ] {
         assert_eq!(npm(spec), "not-registry", "{spec}");
     }
@@ -427,6 +450,8 @@ fn resolution_args_end_options_before_the_spec() {
             "name",
             "version",
             "dist.tarball",
+            "dist.integrity",
+            "dist.shasum",
             "deprecated",
             "dist-tags.latest",
         ]
@@ -439,27 +464,16 @@ fn resolution_args_end_options_before_the_spec() {
 
 #[test]
 fn only_a_registry_refusal_offers_the_opt_in() {
-    let not_registry = check_spec(Manager::Pip, "./pkg", false).unwrap_err();
-    let msg = refusal(Manager::Pip, "./pkg", &not_registry);
-    assert!(msg.contains("local path"), "{msg}");
-    assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
-
     let npm_git = check_spec(Manager::Npm, "owner/repo", false).unwrap_err();
     let msg = refusal(Manager::Npm, "owner/repo", &npm_git);
     assert!(msg.contains("owner/repo shorthand"), "{msg}");
     assert!(msg.contains("prepare script"), "{msg}");
     assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
 
-    // A trailing slash is a directory, not owner/repo.
-    let dir = check_spec(Manager::Npm, "npmdir/", false).unwrap_err();
-    let msg = refusal(Manager::Npm, "npmdir/", &dir);
-    assert!(msg.contains("local path"), "{msg}");
-    assert!(!msg.contains("shorthand"), "{msg}");
-
-    // A relative path is read from the caller's directory with the opt-in.
-    let rel = check_spec(Manager::Npm, "./dir", false).unwrap_err();
-    let msg = refusal(Manager::Npm, "./dir", &rel);
-    assert!(msg.contains("current directory"), "{msg}");
+    let pip_url = check_spec(Manager::Pip, "git+https://example.invalid/r", false).unwrap_err();
+    let msg = refusal(Manager::Pip, "git+https://example.invalid/r", &pip_url);
+    assert!(msg.contains("VCS reference"), "{msg}");
+    assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
 
     for (m, spec) in [
         (Manager::Pip, "-r"),
@@ -469,6 +483,39 @@ fn only_a_registry_refusal_offers_the_opt_in() {
         let err = check_spec(m, spec, false).unwrap_err();
         let msg = refusal(m, spec, &err);
         assert!(!msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
+    }
+}
+
+#[test]
+fn a_local_path_refusal_points_at_sigil_scan() {
+    // What pip or npm would read is what `sigil scan` should read: it
+    // scans a file or directory where it is and runs nothing from it. The
+    // opt-in is not offered: for a pip directory it builds and then saves
+    // nothing to scan, and an archive needs no download at all.
+    for (m, spec, path) in [
+        (Manager::Pip, "./pyproj", "./pyproj"),
+        (
+            Manager::Pip,
+            "pkg-1.0-py3-none-any.whl",
+            "pkg-1.0-py3-none-any.whl",
+        ),
+        (Manager::Pip, "pkg.whl[extra]", "pkg.whl"),
+        (Manager::Npm, "./dir", "./dir"),
+        (Manager::Npm, "npmdir/", "npmdir/"),
+        (Manager::Npm, "pkg-1.0.0.tgz", "pkg-1.0.0.tgz"),
+        (Manager::Npm, "foo@1.tgz", "1.tgz"),
+        (Manager::Npm, "file:../pkg", "../pkg"),
+        (Manager::Npm, "file:///tmp/pkg", "/tmp/pkg"),
+    ] {
+        let err = check_spec(m, spec, false).unwrap_err();
+        let msg = refusal(m, spec, &err);
+        assert!(
+            msg.contains(&format!("`sigil scan {path}`")),
+            "{spec}: {msg}"
+        );
+        assert!(msg.contains("runs nothing"), "{msg}");
+        assert!(!msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
+        assert!(!msg.contains("build backend"), "{msg}");
     }
 }
 
@@ -622,6 +669,8 @@ fn release(version: &str, deprecated: bool, latest: &str) -> NpmRelease {
         name: "x".into(),
         version: version.into(),
         tarball: format!("https://registry.npmjs.org/x/-/x-{version}.tgz"),
+        integrity: None,
+        shasum: None,
         deprecated,
         latest: Some(latest.into()),
     }
@@ -629,12 +678,14 @@ fn release(version: &str, deprecated: bool, latest: &str) -> NpmRelease {
 
 #[test]
 fn npm_view_output_is_read() {
-    let one = r#"{"name":"is-number","version":"7.0.0","dist.tarball":"https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz","dist-tags.latest":"7.0.0"}"#;
+    let one = r#"{"name":"is-number","version":"7.0.0","dist.tarball":"https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz","dist.integrity":"sha512-abc==","dist.shasum":"0123","dist-tags.latest":"7.0.0"}"#;
     let r = parse_npm_view(one).unwrap();
     assert_eq!(r.len(), 1);
     assert_eq!(r[0].id(), "is-number@7.0.0");
     assert!(!r[0].deprecated);
     assert_eq!(r[0].latest.as_deref(), Some("7.0.0"));
+    assert_eq!(r[0].integrity.as_deref(), Some("sha512-abc=="));
+    assert_eq!(r[0].shasum.as_deref(), Some("0123"));
 
     let many = r#"[
       {"name":"left-pad","version":"1.2.0","dist.tarball":"https://registry.npmjs.org/left-pad/-/left-pad-1.2.0.tgz","deprecated":"use padStart","dist-tags.latest":"1.3.0"},
@@ -703,11 +754,32 @@ fn semver_precedence() {
 
 #[test]
 fn only_a_plain_http_tarball_url_is_packed() {
+    // Each URL below was classified with npm 10.9.7's own npm-package-arg
+    // (`npa(url).type`): `remote` for the first list, `git` for the second
+    // except the two plain-http ones marked there.
     for ok in [
         "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
         "http://127.0.0.1:4873/x/-/x-1.0.0.tgz",
         "https://npm.pkg.github.com/download/@o/x/1.0.0/abc",
         "https://codeload.github.com/o/r/tar.gz/v1",
+        // Hosted-git hosts serve downloads too: hosted-git-info reads these
+        // paths as no repository, so npm fetches them as tarballs.
+        "https://gitlab.com/api/v4/projects/123/packages/npm/@acme/pkg/-/@acme/pkg-1.0.0.tgz",
+        "https://gitlab.com/api/v4/packages/npm/@acme/pkg/-/@acme/pkg-1.0.0.tgz",
+        "https://gitlab.com/o/r/repository/archive.tar.gz?ref=v1",
+        "https://gitlab.com/onlyone",
+        "https://github.com/owner/repo/releases/download/v1.0.0/pkg-1.0.0.tgz",
+        "https://github.com/owner/repo/archive/refs/tags/v1.tar.gz",
+        "https://github.com/owner",
+        "https://github.com/owner/.git",
+        "https://bitbucket.org/o/r/get/v1.tar.gz",
+        "https://git.sr.ht/~o/r/archive/v1.tar.gz",
+        "https://gist.github.com/o/abc/raw/file.tgz",
+        "https://gist.github.com/",
+        "https://gitlab.com/o/r/",
+        "https://gitlab.com/o/-/r",
+        "https://github.com/o/r/blob/main/x.tgz",
+        "https://github.com//r",
     ] {
         assert!(check_npm_tarball_url(ok).is_ok(), "{ok}");
     }
@@ -718,12 +790,34 @@ fn only_a_plain_http_tarball_url_is_packed() {
         "ssh://git@example.invalid/o/r.git",
         "file:/tmp/dir",
         "file:///tmp/x.tgz",
+        // Repositories, as hosted-git-info reads them.
         "https://github.com/o/r.tgz",
+        "https://github.com/o/r",
+        "https://github.com/o/r/",
+        "https://github.com/o/r.git",
+        "https://github.com/o/r/tree/main",
+        "https://github.com/o/r#v1.0.0",
         "https://www.github.com/o/r",
+        "http://github.com/o/r",
+        "https://user:pass@github.com/o/r",
         "https://GitLab.com/o/r.tgz",
+        "https://gitlab.com/group/sub/r",
         "https://bitbucket.org/o/r",
+        "https://bitbucket.org/o/r/src/main",
         "https://gist.github.com/abc",
+        "https://gist.github.com/o/abc",
         "https://git.sr.ht/~o/r",
+        "https://gitlab.com/o/r.git",
+        "https://www.gitlab.com/o/r",
+        "https://gist.github.com/.git",
+        "https://bitbucket.org/o/r.git",
+        "https://git.sr.ht/~o/r.git",
+        "https://github.com/o/r/tree",
+        "https://github.com/o/r?x=1",
+        // npm downloads these (hosted-git-info takes plain http only for
+        // GitHub); refused anyway, which is never less safe.
+        "http://gitlab.com/o/r",
+        "http://bitbucket.org/o/r",
         "github:o/r",
         "o/r",
         "not a url",
@@ -735,4 +829,43 @@ fn only_a_plain_http_tarball_url_is_packed() {
     assert!(msg.contains("markreg@1.0.0"), "{msg}");
     assert!(msg.contains("prepare script"), "{msg}");
     assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
+    let why = check_npm_tarball_url("https://gitlab.com/o/r.tgz").unwrap_err();
+    assert!(why.contains("git repository on gitlab.com"), "{why}");
+}
+
+#[test]
+fn the_packed_tarball_must_match_the_registry_integrity() {
+    let data: &[u8] = b"tarball bytes";
+    // Digests of `data` (openssl dgst), as npm writes them.
+    let sha512 = "sha512-B8POa95m3GJFaMFp1MsqEvsPvqIJoPCLbH2k06iUbfIjuNSkCqtohW801kLScBVmPs4lTysbJEGKUysB9lnEYw==";
+    let sha1_hex = "af2a34236064c58f7672bd0954ec725ad3de6a4e";
+    let sha1_sri = "sha1-ryo0I2BkxY92cr0JVOxyWtPeak4=";
+    let mismatch = "sha512-AAAA";
+
+    assert!(check_npm_integrity(data, Some(sha512), None).is_ok());
+    assert!(check_npm_integrity(data, Some(&format!("{sha512}?opt")), None).is_ok());
+    assert!(check_npm_integrity(data, Some(sha1_sri), None).is_ok());
+    assert!(check_npm_integrity(data, None, Some(sha1_hex)).is_ok());
+    assert!(check_npm_integrity(data, Some(""), Some(&sha1_hex.to_uppercase())).is_ok());
+    // Any one hash of the strongest algorithm listed is enough.
+    assert!(check_npm_integrity(data, Some(&format!("{mismatch} {sha512}")), None).is_ok());
+
+    for (integrity, shasum) in [
+        (Some(mismatch), Some(sha1_hex)),
+        // The strongest algorithm decides: a matching sha1 next to a
+        // wrong sha512 is not enough.
+        (Some(&*format!("{sha1_sri} {mismatch}")), None),
+        (None, Some("0000000000000000000000000000000000000000")),
+        (Some("md5-abc"), None),
+        (None, None),
+        (Some(" "), Some("")),
+    ] {
+        let err = check_npm_integrity(data, integrity, shasum).unwrap_err();
+        assert!(!err.is_empty());
+    }
+    let err = check_npm_integrity(data, Some(mismatch), None).unwrap_err();
+    assert!(err.contains(sha512), "{err}");
+    let msg = npm_integrity_refusal("plainpkg@1.0.0", &err);
+    assert!(msg.contains("plainpkg@1.0.0"), "{msg}");
+    assert!(msg.contains("EINTEGRITY"), "{msg}");
 }

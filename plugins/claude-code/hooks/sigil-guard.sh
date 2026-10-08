@@ -1852,6 +1852,14 @@ check_variant() {
     case $cv_deno in
       npm:*)
         cv_spec=${cv_deno#npm:}
+        # The package, without the subpath deno loads from it
+        # (`chalk@5.3.0/main`, `@scope/pkg@1/x`): sigil npm takes the
+        # package, and npm reads `chalk@5.3.0/main` as a git shorthand.
+        case $cv_spec in
+          @*/*/*) cv_rest=${cv_spec#*/}; cv_spec=${cv_spec%%/*}/${cv_rest%%/*} ;;
+          @*) ;;
+          */*) cv_spec=${cv_spec%%/*} ;;
+        esac
         CK_DENY="deno fetches $cv_spec from the npm registry and runs it in one step, with no scan. Use: sigil npm $cv_spec && $cv_text. $BYPASS_HINT"
         CK_TARGETS=npm:$cv_spec ;;
       *)
@@ -2503,18 +2511,67 @@ IFS=$IFS_DEFAULT
 # user's decision, not an agent's (hook.rs build_scripts_opt_in, which
 # reads the same shapes). Wherever a `sigil` word, or a command word that
 # is an expansion (`$(command -v sigil)`, `$SIGIL`), appears (also inside a
-# quoted string a shell, `find -exec` or a here-string runs, and in text
-# that only mentions it): `sigil`, then `pip` or `npm`, then, before a
-# `--`, a `# comment` or a `;`/`&`/`|`, a word starting with
-# --allow-build-scripts (a glued redirection included) or a word with a `$`
-# or backtick, which could expand to it. A sigil pip/npm call behind xargs
-# counts too. Every allow below becomes this ask; a deny still wins.
+# quoted string a shell, `find -exec` or a here-string runs, in an
+# interpreter's argv list such as `['sigil','pip',…]`, and in text that
+# only mentions it): `sigil`, then `pip` or `npm`, then, before a `--`, a
+# `# comment` or a `;`/`&`/`|`, a word starting with --allow-build-scripts
+# (a glued redirection included) or a word with a `$` or backtick, which
+# could expand to it. Words are split at `[ ] ( ) ,` as well as whitespace;
+# the `&` or `|` of a redirection (`2>&1`, `&>f`, `>|f`) does not end the
+# call. A redirection and its file (`> "$LOG"`) and one quoted word after
+# -V/--version (`-V "$VER"`, its value) are dropped first. A sigil pip/npm
+# call behind xargs counts too. Every allow below becomes this ask; a deny
+# still wins. Read on the command as written and with quotes removed from
+# runs of plain word characters only (so a quoted `">"` or `"$X"` keeps its
+# quotes).
 OPTIN=0
-OPTIN_W='(-|-?[^-#[:space:];&|][^[:space:];&|]*|--[^[:space:];&|]+)'
-OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*([[:space:]]+${OPTIN_W})*|[\$\`][^[:space:];&|]*)[[:space:]]+[\"']?(pip|npm)[\"']?"
-has "${OPTIN_SUB}([[:space:]]+${OPTIN_W})*[[:space:]]+([\"']*--allow-build-scripts|[^[:space:];&|]*[\$\`])" \
+OPTIN_Q='\(["'\'']\)[^"'\''[:space:]]*\1'
+# optin_prep <text>: R is the text with each redirection and its file
+# dropped, and one quoted word after -V/--version replaced. A here-string's
+# text is kept (a shell may run it: `bash <<< "sigil pip …"`), as are a
+# process or command substitution in a file (`<(…)`, `> "$(…)"`), whose
+# command runs.
+optin_prep() {
+  R=$(printf '%s\n' "$1" | LC_ALL=C sed \
+    -e 's/^/ /' \
+    -e 's/<<</ HERESTRING /g' \
+    -e 's/[[:space:]][0-9]*&>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*&>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*>|[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*>&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*<<-*[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*<>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*<&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]][0-9]*[<>][[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e "s/[[:space:]]-V[[:space:]][[:space:]]*$OPTIN_Q/ -V V/g" \
+    -e "s/[[:space:]]-V=$OPTIN_Q/ -V V/g" \
+    -e "s/[[:space:]]-V$OPTIN_Q/ -V V/g" \
+    -e "s/[[:space:]]--version[[:space:]][[:space:]]*$OPTIN_Q/ -V V/g" \
+    -e "s/[[:space:]]--version=$OPTIN_Q/ -V V/g")
+}
+optin_prep "$CMD"; OPTIN_RAW=$R
+OPTIN_LIT='[^]'\''"[:space:]$`<>&|;()[,]*'
+OPTIN_DQ=$CMD
+case $CMD in
+  *[\"\'\\]*)
+    OPTIN_DQ=$(printf '%s\n' "$CMD" | LC_ALL=C sed \
+      -e "s/'\\($OPTIN_LIT\\)'/\\1/g" \
+      -e "s/\"\\($OPTIN_LIT\\)\"/\\1/g" \
+      -e 's/\\\([A-Za-z0-9_./-]\)/\1/g') ;;
+esac
+optin_prep "$OPTIN_DQ"; OPTIN_DQ=$R
+optin_has() {
+  has_in "$OPTIN_RAW" "$1" || has_in "$OPTIN_DQ" "$1"
+}
+OPTIN_C='([^][(),[:space:];&|]|[<>][&|]|&>)'
+OPTIN_F='([^]#[(),[:space:];&|-]|[<>][&|]|&>)'
+OPTIN_S='[][(),[:space:]]+'
+OPTIN_W="(-|-?${OPTIN_F}${OPTIN_C}*|--${OPTIN_C}+)"
+OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|[\$\`]${OPTIN_C}*)${OPTIN_S}[\"']?(pip|npm)[\"']?"
+optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])" \
   && OPTIN=1
-has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([[:space:];&|]|\$)" \
+optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
   && OPTIN=1
 allow_unless_opt_in() {
   [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it. Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."

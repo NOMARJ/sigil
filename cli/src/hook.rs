@@ -850,20 +850,24 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 /// The flag is meant as the user's own decision; a command an agent runs is
 /// not that, so it is put to the user.
 ///
-/// Read from the words of the stage's text, as written and with quoting
-/// removed, wherever a `sigil` word appears (also in a quoted string that a
-/// shell, `find -exec`, `coproc` or a here-string runs, and in text that
+/// Read from the words of the stage's text, as written and with literal
+/// quoting removed, wherever a `sigil` word appears (also in a quoted string
+/// that a shell, `find -exec`, `coproc` or a here-string runs, in an
+/// interpreter's argv list such as `['sigil','pip',…]`, and in text that
 /// only mentions it, as the install rules read `npm install` anywhere): a
 /// `sigil` word (or a command word that is an expansion, such as
-/// `$(command -v sigil)`), then `pip` or `npm`, then, before a `--`, a `# comment` or
-/// a `;`/`&`/`|`, a word starting with `--allow-build-scripts` (a glued
-/// redirection such as `--allow-build-scripts>log` included) or a word
-/// with a `$` or backtick, whose expansion could be the flag. A sigil
-/// pip/npm call behind `xargs` is asked about too: xargs appends words it
-/// reads. The shell fallback (`sigil-guard.sh`) reads the same shapes.
+/// `$(command -v sigil)`), then `pip` or `npm`, then, before a `--`, a `#
+/// comment` or a `;`/`&`/`|`, a word starting with `--allow-build-scripts`
+/// (a glued redirection such as `--allow-build-scripts>log` included) or a
+/// word with a `$` or backtick, whose expansion could be the flag. A
+/// redirection and its file (`> "$LOG"`, `2>&1`) are not arguments, nor is
+/// one quoted word after `-V`/`--version` (`-V "$VER"`, its value); an
+/// unquoted `-V $VER` can split into more words and is still asked about.
+/// A sigil pip/npm call behind `xargs` is asked about too: xargs appends
+/// words it reads. The shell fallback (`sigil-guard.sh`) reads the same
+/// shapes.
 fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
-    let dq = cmdline::dequote(stage);
-    let opted_in = opt_in_words(stage) || opt_in_words(&dq);
+    let opted_in = opt_in_words(stage) || opt_in_words(&dequote_literals(stage));
     opted_in.then(|| {
         Decision::Ask(
             "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle \
@@ -875,6 +879,28 @@ fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
     })
 }
 
+/// [`cmdline::dequote`] for [`opt_in_words`]: quotes come off only a run of
+/// plain word characters (`--allow-"build"-scripts`, `sig''il`), never one
+/// holding an expansion or shell syntax, so a quoted `">"` or `"$X"` is not
+/// read as a redirection or an unquoted expansion. A backslash in front of
+/// a word character goes.
+fn dequote_literals(s: &str) -> String {
+    static SQ: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static DQ: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    static BS: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    if !s.contains(['\'', '"', '\\']) {
+        return s.to_string();
+    }
+    let re = |cell: &'static std::sync::OnceLock<regex::Regex>, p: &str| {
+        cell.get_or_init(|| regex::Regex::new(p).expect("static pattern compiles"))
+    };
+    let a = re(&SQ, r#"'([^'"\s$`<>&|;()\[\],]*)'"#).replace_all(s, "$1");
+    let b = re(&DQ, r#""([^'"\s$`<>&|;()\[\],]*)""#).replace_all(&a, "$1");
+    re(&BS, r"\\([A-Za-z0-9_./-])")
+        .replace_all(&b, "$1")
+        .into_owned()
+}
+
 /// The trailing run of name characters of a word (`/usr/bin/sigil` and
 /// `"sigil` end in `sigil`; `my-sigil` does not).
 fn name_tail(word: &str) -> &str {
@@ -883,23 +909,56 @@ fn name_tail(word: &str) -> &str {
         .unwrap_or(word)
 }
 
-fn opt_in_words(text: &str) -> bool {
-    // Words, with `;`, `&`, `|` and line ends as tokens of their own
-    // (`None`).
+/// The words [`opt_in_words`] reads: split at whitespace, with `;`, `&`,
+/// `|` and line ends as separators of their own (`None`) except the `&` or
+/// `|` of a redirection operator (`2>&1`, `>&2`, `<&0`, `&>f`, `>|f`), which
+/// stays in its word; and split at `[`, `]`, `(`, `)` and `,` too, so the
+/// quoted elements of an argv list (`['sigil','pip',…]`) are words.
+fn opt_in_tokens(text: &str) -> Vec<Option<&str>> {
     let mut toks: Vec<Option<&str>> = Vec::new();
     for line in text.lines() {
         for w in line.split_whitespace() {
-            for (k, piece) in w.split([';', '&', '|']).enumerate() {
-                if k > 0 {
-                    toks.push(None);
+            let b = w.as_bytes();
+            let mut start = 0;
+            for (i, &c) in b.iter().enumerate() {
+                let prev = i.checked_sub(1).map(|p| b[p]);
+                let separator = match c {
+                    b';' => true,
+                    b'&' => !matches!(prev, Some(b'>' | b'<')) && b.get(i + 1) != Some(&b'>'),
+                    b'|' => prev != Some(b'>'),
+                    _ => false,
+                };
+                if separator || matches!(c, b'[' | b']' | b'(' | b')' | b',') {
+                    if start < i {
+                        toks.push(Some(&w[start..i]));
+                    }
+                    if separator {
+                        toks.push(None);
+                    }
+                    start = i + 1;
                 }
-                if !piece.is_empty() {
-                    toks.push(Some(piece));
-                }
+            }
+            if start < w.len() {
+                toks.push(Some(&w[start..]));
             }
         }
         toks.push(None);
     }
+    toks
+}
+
+/// One quoted word, `"…"` or `'…'` with no quote of its kind inside: the
+/// shell passes it as exactly one argument.
+fn quoted_word(t: &str) -> bool {
+    let b = t.as_bytes();
+    b.len() >= 2
+        && [b'"', b'\'']
+            .into_iter()
+            .any(|q| b[0] == q && b[b.len() - 1] == q && !b[1..b.len() - 1].contains(&q))
+}
+
+fn opt_in_words(text: &str) -> bool {
+    let toks = opt_in_tokens(text);
     let quotes = |c: char| c == '"' || c == '\'';
     // A word of this call: not a separator, a `--` or a `# comment`.
     fn arg(t: Option<&str>) -> Option<&str> {
@@ -947,8 +1006,32 @@ fn opt_in_words(text: &str) -> bool {
             j += 1;
             if a.trim_start_matches(quotes)
                 .starts_with("--allow-build-scripts")
-                || a.contains(['$', '`'])
             {
+                return true;
+            }
+            // A redirection and its file are not arguments.
+            if let Some(r) = cmdline::redirection(a) {
+                if r.takes_next && toks.get(j).copied().and_then(arg).is_some() {
+                    j += 1;
+                }
+                continue;
+            }
+            // `-V "$VER"`, `--version="$VER"`, `-V"$VER"`: one quoted word
+            // is the version's value, never a flag.
+            if matches!(a, "-V" | "--version")
+                && toks.get(j).copied().flatten().is_some_and(quoted_word)
+            {
+                j += 1;
+                continue;
+            }
+            if ["--version=", "-V=", "-V"]
+                .iter()
+                .find_map(|p| a.strip_prefix(p))
+                .is_some_and(quoted_word)
+            {
+                continue;
+            }
+            if a.contains(['$', '`']) {
                 return true;
             }
         }
@@ -1075,7 +1158,7 @@ fn stage_targets(stage: &str, ctx: &Context) -> Vec<Target> {
     if let Some(m) = deno_module(stage) {
         // A URL module is fetched at run time: nothing can vet it by name.
         return vec![match m.strip_prefix("npm:") {
-            Some(spec) => Target::Npm(spec.to_string()),
+            Some(spec) => Target::Npm(deno_npm_package(spec).to_string()),
             None => Target::Unvettable,
         }];
     }
@@ -1633,10 +1716,27 @@ fn deno_module(stage: &str) -> Option<String> {
     remote.then(|| m.clone())
 }
 
+/// The package of a deno `npm:` specifier, without the subpath deno loads
+/// from it (`chalk@5.3.0/main` is `chalk@5.3.0`, `@scope/pkg@1/x` is
+/// `@scope/pkg@1`): `sigil npm` takes the package, and npm reads
+/// `chalk@5.3.0/main` as a git shorthand.
+fn deno_npm_package(spec: &str) -> &str {
+    let name_from = if spec.starts_with('@') {
+        spec.find('/').map_or(spec.len(), |i| i + 1)
+    } else {
+        0
+    };
+    match spec[name_from..].find('/') {
+        Some(i) => &spec[..name_from + i],
+        None => spec,
+    }
+}
+
 /// Deno fetches and runs a remote module in one step, like npx.
 fn deno_remote(stage: &str) -> Option<Decision> {
     let m = deno_module(stage)?;
     if let Some(spec) = m.strip_prefix("npm:") {
+        let spec = deno_npm_package(spec);
         return Some(Decision::Deny(format!(
             "deno fetches {spec} from the npm registry and runs it in one step, with no scan. Use: sigil npm {spec} && {}. {BYPASS_HINT}",
             stage.trim()

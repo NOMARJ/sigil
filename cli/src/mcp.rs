@@ -159,15 +159,16 @@ fn tool_definitions() -> Value {
             "name": "scan_package",
             "title": "Scan a package before install",
             "description": "Download an npm or PyPI package into quarantine (without running any of its \
-    install scripts) and scan it. Returns the verdict and safe_to_install. Registry packages by name \
-    only: a path, URL or git spec is refused, and a PyPI release with no prebuilt wheel for this \
-    platform fails, because fetching those would run the package's own code.",
+    install scripts) and scan it. Returns the verdict, safe_to_install and `package`, the exact \
+    release that was scanned (install that version). Registry packages by name only: a path, URL \
+    or git spec is refused, and a PyPI release with no prebuilt wheel for this platform fails, \
+    because fetching those would run the package's own code.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "ecosystem": { "type": "string", "enum": ["npm", "pypi"] },
                     "name": { "type": "string", "description": "Package name" },
-                    "version": { "type": "string", "description": "Exact version (default: latest)" }
+                    "version": { "type": "string", "description": "Version to scan: an exact version (PyPI), or a version, tag or range (npm). Default: the release a plain install would pick. The result's `package` names the release scanned." }
                 },
                 "required": ["ecosystem", "name"]
             },
@@ -374,6 +375,9 @@ fn summarise_report(target: &str, code: i32, stdout: &str, stderr: &str) -> Resu
         "findings_truncated": total > MAX_FINDINGS_INLINE,
         "findings": top,
         "quarantine_id": report.get("quarantine_id"),
+        // `sigil pip`/`npm`: the release downloaded and scanned
+        // (`left-pad@1.3.0`, `six==1.17.0`).
+        "package": report.get("package"),
     }))
 }
 
@@ -535,6 +539,18 @@ mod tests {
         let s = summarise_report("x", 0, stdout, "").unwrap();
         assert_eq!(s["safe_to_install"], true);
         assert_eq!(s["decision"], "allow");
+    }
+
+    #[test]
+    fn the_scanned_release_is_returned() {
+        let stdout =
+            r#"{"findings":[],"package":"left-pad@1.3.0","summary":{"verdict":"LOW RISK"}}"#;
+        let s = summarise_report("npm:left-pad", 0, stdout, "").unwrap();
+        assert_eq!(s["package"], "left-pad@1.3.0");
+        // A scan report without one (sigil scan) says so with null.
+        let stdout = r#"{"findings":[],"summary":{"verdict":"LOW RISK"}}"#;
+        let s = summarise_report("x", 0, stdout, "").unwrap();
+        assert!(s["package"].is_null());
     }
 
     #[test]

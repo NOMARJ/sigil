@@ -18,7 +18,10 @@ Scan a package before installation:
    install` would pick has no prebuilt wheel, because fetching those would
    run the package's own code before the scan. Report that to the user;
    never add `--allow-build-scripts` yourself (the hook asks the user before
-   it runs). Sigil prints the version it scanned: install that version.
+   it runs). For a file or directory already on disk, use `sigil scan
+   <path>` instead. Sigil prints the version it scanned (`resolves to …`,
+   and `package` in `--format json` and in the MCP `scan_package` result):
+   install that exact version.
 3. Review quarantine findings
 4. Recommend approve/reject based on risk score
 

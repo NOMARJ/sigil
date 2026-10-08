@@ -21,6 +21,9 @@
 //!   first asks the index which versions exist (`pip index versions`, which
 //!   builds nothing), picks the one `pip install <spec>` would pick, and
 //!   downloads exactly that one; when it has no wheel the command fails.
+//!   pip runs in the caller's directory, so a relative `PIP_FIND_LINKS` or
+//!   config path means what it does for `pip install`: with archive-like
+//!   names refused, a registry spec cannot be read as a file there.
 //! - npm: `npm pack` runs a local directory's prepack/prepare/postpack
 //!   scripts, and for a git spec it clones, installs and prepares the
 //!   checkout. Sigil passes `--ignore-scripts`, but npm 10.9.7 (pacote
@@ -28,17 +31,18 @@
 //!   that flag set, so anything that is not a registry package by name is
 //!   refused before npm runs. A registry's metadata can itself point a
 //!   version's tarball at a git repository, so Sigil resolves the spec with
-//!   `npm view` first, checks the tarball URL is a plain http(s) download,
-//!   and packs that URL.
-//!
-//! By default pip and npm run in the (empty) quarantine directory, so nothing
-//! in the caller's directory can be read as a local archive.
+//!   `npm view` first, checks the tarball URL is a plain http(s) download
+//!   (as npm-package-arg and hosted-git-info classify it), packs that URL
+//!   from the (empty) quarantine directory, and checks the packed tarball
+//!   against the registry's `dist.integrity`, as `npm install` would.
 //!
 //! `--allow-build-scripts` lifts the refusals and drops the two options, for
-//! code the user already trusts, and runs pip and npm from the caller's
-//! directory (as 1.3.7 did for pip) so a relative path means what the user
-//! typed; the command then prints a warning that the package's own code may
-//! run on this machine before the scan.
+//! code the user already trusts, and runs npm from the caller's directory
+//! so a relative path means what the user typed; the command then prints a
+//! warning that the package's own code may run on this machine before the
+//! scan. A file or directory the user already has is better scanned where
+//! it is (`sigil scan <path>`), which runs nothing from it: the refusal for
+//! a local path says so.
 //!
 //! Every spec is passed after `--`, and one starting with `-` is refused
 //! outright, so a spec can never be read as an option.
@@ -69,24 +73,10 @@ const PIP_ARCHIVE_SUFFIXES: &[&str] = &[
     ".tar.lzma",
 ];
 
-/// npm-package-arg's `isFileType`: a name or range ending in one is a
-/// tarball path.
-const NPM_TARBALL_SUFFIXES: &[&str] = &[".tgz", ".tar.gz", ".tar"];
-
 /// pip options that add requirements of their own to every `pip download`.
 /// A requirement, constraint or editable entry can name a local path, URL or
 /// VCS checkout, which pip builds even with `--only-binary=:all:`.
 const PIP_ADDED_REQUIREMENTS: &[&str] = &["requirement", "constraint", "editable"];
-
-/// hosted-git-info's hosts (npm 10.9.7): npm reads an http(s) URL on one of
-/// them (with or without `www.`) as a git repository, not a tarball.
-const NPM_GIT_HOSTS: &[&str] = &[
-    "github.com",
-    "gist.github.com",
-    "gitlab.com",
-    "bitbucket.org",
-    "git.sr.ht",
-];
 
 /// Which package manager a spec is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,6 +103,10 @@ pub enum SpecError {
     /// Something other than a registry package by name: pip or npm would
     /// build it or run its scripts. Accepted with `--allow-build-scripts`.
     NotRegistry(String),
+    /// A file or directory on this machine (`path`: what pip or npm would
+    /// read). `sigil scan <path>` scans it where it is, running nothing.
+    /// Accepted with `--allow-build-scripts`.
+    LocalPath { why: String, path: String },
     /// An `npm:` alias: it stands for another registry package, named
     /// here. Accepted with `--allow-build-scripts`.
     Alias(String),
@@ -202,6 +196,8 @@ pub fn npm_view_args(spec: &str) -> Vec<OsString> {
         "name",
         "version",
         "dist.tarball",
+        "dist.integrity",
+        "dist.shasum",
         "deprecated",
         "dist-tags.latest",
     ]
@@ -255,16 +251,23 @@ pub fn refusal(manager: Manager, spec: &str, err: &SpecError) -> String {
                      with --ignore-scripts, on this machine, before Sigil can scan it"
                 }
             };
-            let path_hint = if manager == Manager::Npm && is_relative_npm_path(spec) {
-                " (a relative path is read from your current directory)"
-            } else {
-                ""
-            };
             format!(
                 "sigil {cmd} will not download `{spec}`: {why}.\n  {runs}.\n  \
                  Name a registry package instead, e.g. {example}.\n  \
                  To accept that risk for code you already trust, re-run with \
-                 {ALLOW_BUILD_SCRIPTS}{path_hint}."
+                 {ALLOW_BUILD_SCRIPTS}."
+            )
+        }
+        SpecError::LocalPath { why, path } => {
+            let from = match manager {
+                Manager::Pip => "the package index",
+                Manager::Npm => "the registry",
+            };
+            format!(
+                "sigil {cmd} will not download `{spec}`: {why}.\n  sigil {cmd} fetches packages \
+                 from {from} by name, e.g. {example}. To check a file or directory you already \
+                 have, scan it where it is: `sigil scan {path}` reads it (archives included) and \
+                 runs nothing from it."
             )
         }
         SpecError::Alias(target) => format!(
@@ -286,16 +289,6 @@ pub fn refusal(manager: Manager, spec: &str, err: &SpecError) -> String {
             format!("sigil {cmd} will not download `{spec}`: {why}.\n  Expected {expected}.")
         }
     }
-}
-
-/// A spec npm would read as a path relative to its working directory.
-fn is_relative_npm_path(spec: &str) -> bool {
-    let s = spec.strip_prefix("file:").unwrap_or(spec);
-    s.starts_with("./")
-        || s.starts_with("../")
-        || s == "."
-        || s == ".."
-        || (!s.starts_with('/') && !s.contains(':') && ends_with_any(s, NPM_TARBALL_SUFFIXES))
 }
 
 /// The warning printed (after `warning: `) when `--allow-build-scripts` is
@@ -427,9 +420,10 @@ pub fn pip_config_refusal(keys: &[String]) -> String {
          `pip download`. A requirement, constraint or editable entry can name a local path, URL \
          or VCS checkout, which pip builds by running its code, even with --only-binary=:all:, \
          on this machine, before Sigil can scan anything.\n  Remove the setting for this \
-         command (for example `PIP_CONFIG_FILE=/dev/null sigil pip …`, which skips every pip \
-         config file, index settings included), or, for code you already trust, re-run with \
-         {ALLOW_BUILD_SCRIPTS}.",
+         command: `PIP_CONFIG_FILE=/dev/null sigil pip …` skips every pip config file, index \
+         settings included, so give the index in the environment too if you need one \
+         (`PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=<url> sigil pip …`). Or, for code you \
+         already trust, re-run with {ALLOW_BUILD_SCRIPTS}.",
         keys.join(", ")
     )
 }
@@ -534,18 +528,27 @@ fn check_pip(spec: &str) -> Result<PipRequirement, SpecError> {
         || trimmed.starts_with('.')
         || trimmed.starts_with('~')
     {
-        return Err(SpecError::NotRegistry("it is a local path".into()));
+        return Err(SpecError::LocalPath {
+            why: "it is a local path".into(),
+            path: trimmed.to_string(),
+        });
     }
     let name_end = trimmed
         .find(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')))
         .unwrap_or(trimmed.len());
     // pip reads `foo.tar.gz`, `foo.whl[x]` and `foo==1.zip` as files.
-    if ends_with_any(trimmed, PIP_ARCHIVE_SUFFIXES)
-        || ends_with_any(&trimmed[..name_end], PIP_ARCHIVE_SUFFIXES)
-    {
-        return Err(SpecError::NotRegistry(
-            "pip reads it as an archive file path".into(),
-        ));
+    let archive = if ends_with_any(trimmed, PIP_ARCHIVE_SUFFIXES) {
+        Some(trimmed)
+    } else if ends_with_any(&trimmed[..name_end], PIP_ARCHIVE_SUFFIXES) {
+        Some(&trimmed[..name_end])
+    } else {
+        None
+    };
+    if let Some(path) = archive {
+        return Err(SpecError::LocalPath {
+            why: "pip reads it as an archive file path".into(),
+            path: path.to_string(),
+        });
     }
     parse_pip_requirement(spec).map_err(SpecError::Malformed)
 }
@@ -667,6 +670,25 @@ fn skip_ws(b: &[u8], i: &mut usize) {
 // npm: a registry package name with an optional version, tag or range
 // ---------------------------------------------------------------------------
 
+/// npm-package-arg 12.0.2's `isFileType`, `/[.](?:tgz|tar.gz|tar)$/i`: a
+/// name or range it matches is read as a tarball path. The `.` inside
+/// `tar.gz` is a regex wildcard (any character but a line end), so
+/// `foo.tar-gz` and `foo.tarxgz` are tarball paths to npm too.
+fn npa_is_file_type(s: &str) -> bool {
+    let lower = s.to_ascii_lowercase();
+    if lower.ends_with(".tgz") || lower.ends_with(".tar") {
+        return true;
+    }
+    let Some(rest) = lower.strip_suffix("gz") else {
+        return false;
+    };
+    let mut chars = rest.chars();
+    chars
+        .next_back()
+        .is_some_and(|c| !matches!(c, '\n' | '\r' | '\u{2028}' | '\u{2029}'))
+        && chars.as_str().ends_with(".tar")
+}
+
 /// A name or scope segment: letters, digits, `.`, `_`, `~`, `-`, starting
 /// with a letter or digit (npm refuses a leading `.` or `_`). Uppercase is
 /// allowed: older registry packages use it.
@@ -687,7 +709,15 @@ fn check_npm(spec: &str) -> Result<(), SpecError> {
         return Err(SpecError::NotRegistry("it is a git spec".into()));
     }
     if lower.starts_with("file:") {
-        return Err(SpecError::NotRegistry("it is a local file: spec".into()));
+        let path = &spec[5..];
+        let path = match path.strip_prefix("//") {
+            Some(p) if p.starts_with('/') => p,
+            _ => path,
+        };
+        return Err(SpecError::LocalPath {
+            why: "it is a local file: spec".into(),
+            path: path.to_string(),
+        });
     }
     if spec.contains("://") || has_scheme(spec) {
         return Err(SpecError::NotRegistry(
@@ -699,7 +729,10 @@ fn check_npm(spec: &str) -> Result<(), SpecError> {
         || spec.starts_with('~')
         || spec.contains('\\')
     {
-        return Err(SpecError::NotRegistry("it is a local path".into()));
+        return Err(SpecError::LocalPath {
+            why: "it is a local path".into(),
+            path: spec.to_string(),
+        });
     }
 
     // `name` / `@scope/name`, then an optional `@<version|tag|range>`.
@@ -747,18 +780,28 @@ fn check_npm(spec: &str) -> Result<(), SpecError> {
                 "it is a GitHub owner/repo shorthand, which npm fetches with git"
             }
             Some((_, "")) if scope.is_none() && range.is_none() => {
-                "it is a local path (a directory)"
+                return Err(SpecError::LocalPath {
+                    why: "it is a local path (a directory)".into(),
+                    path: spec.to_string(),
+                });
             }
             _ => "it is a path or git spec, not a registry name",
         };
         return Err(SpecError::NotRegistry(why.into()));
     }
-    if ends_with_any(name, NPM_TARBALL_SUFFIXES)
-        || range.is_some_and(|r| ends_with_any(r, NPM_TARBALL_SUFFIXES))
-    {
-        return Err(SpecError::NotRegistry(
-            "npm reads it as a tarball file path".into(),
-        ));
+    // An unscoped name (the whole spec is then the path) or any range that
+    // npm-package-arg reads as a tarball file; `@scope/x.tgz` is a registry
+    // name to it.
+    let tarball = if scope.is_none() && npa_is_file_type(name) {
+        Some(spec)
+    } else {
+        range.filter(|r| npa_is_file_type(r))
+    };
+    if let Some(path) = tarball {
+        return Err(SpecError::LocalPath {
+            why: "npm reads it as a tarball file path".into(),
+            path: path.to_string(),
+        });
     }
 
     if let Some(scope) = scope {
@@ -770,10 +813,11 @@ fn check_npm(spec: &str) -> Result<(), SpecError> {
         return Err(SpecError::Malformed("the package name is not valid".into()));
     }
     // npm-package-arg reads a range starting with `.` as a file path.
-    if range.is_some_and(|r| r.starts_with('.')) {
-        return Err(SpecError::NotRegistry(
-            "npm reads the part after `@` as a file path".into(),
-        ));
+    if let Some(r) = range.filter(|r| r.starts_with('.')) {
+        return Err(SpecError::LocalPath {
+            why: "npm reads the part after `@` as a file path".into(),
+            path: r.to_string(),
+        });
     }
     if let Some(r) = range {
         // Words of a range start with a version, an operator or `x`/`*`;
@@ -808,6 +852,11 @@ pub struct NpmRelease {
     pub name: String,
     pub version: String,
     pub tarball: String,
+    /// `dist.integrity`: Subresource Integrity hashes of the tarball.
+    pub integrity: Option<String>,
+    /// `dist.shasum`: the tarball's sha1, hex (older registries give only
+    /// this).
+    pub shasum: Option<String>,
     pub deprecated: bool,
     pub latest: Option<String>,
 }
@@ -819,9 +868,9 @@ impl NpmRelease {
     }
 }
 
-/// Parse `npm view --json <spec> name version dist.tarball deprecated
-/// dist-tags.latest`: one object for a version or tag, an array of them for
-/// a range that several versions match.
+/// Parse `npm view --json <spec> name version dist.tarball dist.integrity
+/// dist.shasum deprecated dist-tags.latest`: one object for a version or
+/// tag, an array of them for a range that several versions match.
 pub fn parse_npm_view(stdout: &str) -> Result<Vec<NpmRelease>, String> {
     let v: serde_json::Value = serde_json::from_str(stdout.trim())
         .map_err(|e| format!("npm view printed something other than JSON ({e})"))?;
@@ -851,6 +900,8 @@ pub fn parse_npm_view(stdout: &str) -> Result<Vec<NpmRelease>, String> {
             name,
             version,
             tarball,
+            integrity: field(o, "dist.integrity"),
+            shasum: field(o, "dist.shasum"),
             // npm-pick-manifest tests `!mani.deprecated`: an empty string
             // is not a deprecation.
             deprecated: match o.get("deprecated") {
@@ -892,8 +943,8 @@ pub fn pick_npm_release(releases: &[NpmRelease]) -> Option<&NpmRelease> {
 
 /// Check the tarball URL a registry gave for a release: it must be a plain
 /// http(s) download that npm fetches as a tarball. `file:` and git URLs, and
-/// http(s) URLs on hosts npm reads as git repositories, make npm clone or
-/// pack a directory and run its prepare script.
+/// http(s) URLs that npm reads as a git repository, make npm clone or pack
+/// a directory and run its prepare script.
 pub fn check_npm_tarball_url(url: &str) -> Result<(), String> {
     let parsed =
         reqwest::Url::parse(url).map_err(|_| format!("`{url}` is not a URL npm downloads"))?;
@@ -903,15 +954,170 @@ pub fn check_npm_tarball_url(url: &str) -> Result<(), String> {
              download (it is not an http(s) URL)"
         ));
     }
-    let host = parsed.host_str().unwrap_or_default().to_ascii_lowercase();
-    let host = host.strip_prefix("www.").unwrap_or(&host);
-    if NPM_GIT_HOSTS.contains(&host) {
+    if let Some(host) = npm_git_repo_host(&parsed) {
         return Err(format!(
-            "the registry gives `{url}` as the tarball, and npm reads a URL on {host} as a git \
-             repository, which it clones and prepares"
+            "the registry gives `{url}` as the tarball, and npm reads that URL as a git \
+             repository on {host} (not a tarball download), which it clones and prepares"
         ));
     }
     Ok(())
+}
+
+/// The git host, when npm reads an http(s) URL as a git repository there
+/// rather than as a tarball to download. npm-package-arg asks
+/// hosted-git-info (8.1.0 in npm 10.9.7), which knows five hosts (`www.`
+/// stripped) and reads a URL on one as a repository only when the host's
+/// `extract` finds a user and project in its path. Ported from there, except
+/// that every host is checked for `http:` as for `https:` (hosted-git-info
+/// takes plain `http:` only for GitHub) and a malformed `%` escape, which
+/// hosted-git-info gives up on, still counts: both refuse more, never less.
+fn npm_git_repo_host(url: &reqwest::Url) -> Option<&'static str> {
+    let host = url.host_str()?.to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host);
+    let path = url.path();
+    // `pathname.split('/', n)`: piece `i`, or "" past the end.
+    let piece = |i: usize| path.split('/').nth(i).unwrap_or("");
+    // A project name: not empty once a `.git` suffix is dropped.
+    let project = |i: usize| {
+        let name = piece(i);
+        !name.strip_suffix(".git").unwrap_or(name).is_empty()
+    };
+    let (name, repo) = match host {
+        "github.com" => {
+            // `/user/project[.git]`, or `/user/project/tree/<ref>`.
+            let kind = piece(3);
+            (
+                "github.com",
+                (kind.is_empty() || kind == "tree") && !piece(1).is_empty() && project(2),
+            )
+        }
+        "bitbucket.org" => (
+            "bitbucket.org",
+            piece(3) != "get" && !piece(1).is_empty() && project(2),
+        ),
+        "gitlab.com" => {
+            // Any depth of groups; `/-/` (package registry, releases, raw
+            // files) and `/archive.tar.gz` are downloads.
+            let p = path.strip_prefix('/').unwrap_or(path);
+            let git = !p.contains("/-/")
+                && !p.contains("/archive.tar.gz")
+                && p.rsplit_once('/').is_some_and(|(user, project)| {
+                    !user.is_empty() && !project.strip_suffix(".git").unwrap_or(project).is_empty()
+                });
+            ("gitlab.com", git)
+        }
+        "gist.github.com" => (
+            "gist.github.com",
+            piece(3) != "raw" && !(piece(1).is_empty() && piece(2).is_empty()),
+        ),
+        "git.sr.ht" => (
+            "git.sr.ht",
+            piece(3) != "archive" && !piece(1).is_empty() && project(2),
+        ),
+        _ => return None,
+    };
+    repo.then_some(name)
+}
+
+/// Check a tarball npm packed against what the registry said it hashes to:
+/// `dist.integrity` (Subresource Integrity: as ssri checks it, the
+/// strongest algorithm listed must match one of its hashes), else
+/// `dist.shasum` (sha1, hex). `npm install <name>` checks the download this
+/// way; npm packs a bare tarball URL without a check, so Sigil checks it.
+pub fn check_npm_integrity(
+    mut data: impl std::io::Read,
+    integrity: Option<&str>,
+    shasum: Option<&str>,
+) -> Result<(), String> {
+    use base64::Engine as _;
+    // What to check against: the strongest SRI algorithm listed with its
+    // hashes (base64), else the sha1 shasum (hex).
+    let (algorithm, wanted, what): (&str, Vec<&str>, String) =
+        match integrity.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(sri) => {
+                // `algorithm-base64digest[?options]`, whitespace separated.
+                let hashes: Vec<(&str, &str)> = sri
+                    .split_whitespace()
+                    .filter_map(|h| {
+                        let (algorithm, rest) = h.split_once('-')?;
+                        Some((algorithm, rest.split('?').next().unwrap_or(rest)))
+                    })
+                    .collect();
+                let Some(algorithm) = ["sha512", "sha384", "sha256", "sha1"]
+                    .into_iter()
+                    .find(|a| hashes.iter().any(|(x, _)| x == a))
+                else {
+                    return Err(format!(
+                        "the registry's integrity for it (`{sri}`) has no sha512, sha384, sha256 \
+                         or sha1 hash to check"
+                    ));
+                };
+                let wanted = hashes
+                    .iter()
+                    .filter(|(a, _)| *a == algorithm)
+                    .map(|(_, d)| *d)
+                    .collect();
+                (
+                    algorithm,
+                    wanted,
+                    format!("integrity the registry gives (`{sri}`)"),
+                )
+            }
+            None => match shasum.map(str::trim).filter(|s| !s.is_empty()) {
+                Some(hex) => (
+                    "sha1-hex",
+                    vec![hex],
+                    format!("shasum the registry gives ({hex})"),
+                ),
+                None => {
+                    return Err(
+                        "the registry gives no integrity or shasum for it, so what would \
+                                be scanned cannot be tied to what `npm install` accepts"
+                            .into(),
+                    )
+                }
+            },
+        };
+    fn hash<D: sha2::Digest + std::io::Write>(
+        r: &mut dyn std::io::Read,
+    ) -> std::io::Result<Vec<u8>> {
+        let mut h = D::new();
+        std::io::copy(r, &mut h)?;
+        Ok(h.finalize().to_vec())
+    }
+    let digest = match algorithm {
+        "sha512" => hash::<sha2::Sha512>(&mut data),
+        "sha384" => hash::<sha2::Sha384>(&mut data),
+        "sha256" => hash::<sha2::Sha256>(&mut data),
+        _ => hash::<sha1::Sha1>(&mut data),
+    }
+    .map_err(|e| format!("could not read the tarball npm wrote: {e}"))?;
+    let (got, matches) = if algorithm == "sha1-hex" {
+        let got = hex::encode(&digest);
+        let ok = wanted.iter().any(|w| w.eq_ignore_ascii_case(&got));
+        (format!("sha1 {got}"), ok)
+    } else {
+        let got = base64::engine::general_purpose::STANDARD.encode(&digest);
+        let ok = wanted.iter().any(|w| *w == got);
+        (format!("{algorithm}-{got}"), ok)
+    };
+    if matches {
+        Ok(())
+    } else {
+        Err(format!(
+            "the tarball npm downloaded hashes to {got}, which is not the {what}"
+        ))
+    }
+}
+
+/// The refusal printed when the packed tarball does not match the
+/// registry's integrity.
+pub fn npm_integrity_refusal(release: &str, why: &str) -> String {
+    format!(
+        "sigil npm will not scan `{release}`: {why}.\n  `npm install` would refuse it \
+         (EINTEGRITY), so a scan of it says nothing about what would be installed. Try again \
+         later or check which registry npm uses here (`npm config get registry`)."
+    )
 }
 
 /// The refusal printed when the registry's tarball URL is not a plain

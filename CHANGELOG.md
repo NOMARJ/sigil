@@ -18,12 +18,13 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   `owner/repo`, git URLs). All of that happened on the host, before the scan
   and before any approval.
   - `sigil pip` now downloads with `pip download --no-deps --only-binary=:all:
-    --dest <quarantine> -- <name>==<version>` from the quarantine directory:
-    prebuilt wheels only. For a spec that does not pin a version, it first
-    asks the index which versions exist (`pip index versions --pre`, which
-    builds nothing; pip 21.2 or later), picks the one `pip install <spec>`
-    would pick (PEP 440 matching, as pip's `packaging` does it) and prints
-    it. When that release has no wheel for the platform, the command fails
+    --dest <quarantine> -- <name>==<version>`: prebuilt wheels only. pip runs
+    from your working directory, as `pip install` does, so a relative
+    `PIP_FIND_LINKS` or pip.conf path means the same to both. For a spec that
+    does not pin a version, it first asks the index which versions exist
+    (`pip index versions --pre`, which builds nothing; pip 21.2 or later),
+    picks the one `pip install <spec>` would pick (PEP 440 matching, as pip's
+    `packaging` does it), checks it like a typed spec, and prints it. When that release has no wheel for the platform, the command fails
     (exit 2) and says why: a wheel-only download of the unpinned spec would
     otherwise have scanned an older release that has a wheel while `pip
     install` builds the newer one (tested with real pip 24.0 against a local
@@ -40,53 +41,89 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `no-binary` setting in pip's config or `PIP_NO_BINARY` does not override
     the command-line option (tested).
   - `sigil npm` now asks the registry what the spec resolves to (`npm view`),
-    checks that the release's tarball URL is a plain `http(s)` download, and
-    runs `npm pack --ignore-scripts -- <tarball URL>`. A registry whose
-    metadata points a version's tarball at a git repository (or a `file:`
-    path, or a URL on a host npm reads as a git host) is refused: npm would
-    clone or pack it and run its `prepare` script (tested with a local mock
-    registry and a `git+file:` tarball). On npm 10.9.7 `--ignore-scripts`
+    checks that the release's tarball URL is a plain `http(s)` download, runs
+    `npm pack --ignore-scripts -- <tarball URL>`, and checks the packed
+    tarball against the registry's `dist.integrity` (the strongest hash
+    listed, as `npm install` checks it; `dist.shasum` when there is no
+    integrity) before anything reads it. npm does not check a bare tarball
+    URL, so without that a registry or CDN could show Sigil other bytes than
+    `npm install` would accept (tested with a local mock registry serving a
+    tarball that does not match its integrity: `npm pack <name>` and 1.3.7
+    fail with EINTEGRITY, and `sigil npm` now refuses it with exit 2 and no
+    quarantine entry; the real `left-pad@1.3.0` tarball from
+    registry.npmjs.org passes). A registry whose metadata points
+    a version's tarball at a git repository or a `file:` path is refused, and
+    so is a URL npm reads as a git repository (on GitHub, GitLab, Bitbucket,
+    Gist or sourcehut, a path naming a repository, as hosted-git-info reads
+    it): npm would clone or pack it and run its `prepare` script (tested with
+    a local mock registry and a `git+file:` tarball). Downloads on those
+    hosts, such as GitLab's npm package registry (`…/-/…`) and GitHub release
+    assets, are packed as tarballs (each URL in the tests was classified with
+    npm 10.9.7's own npm-package-arg). On npm 10.9.7 `--ignore-scripts`
     still runs a local directory's or git checkout's `prepare` script (tested
     with a marker file; pacote's directory fetcher does not consult the
     flag), so anything other than a registry package by name is refused
     before npm runs: directories, tarballs, URLs, `file:` specs, git specs
     including the `owner/repo` shorthand, and `npm:` aliases (the refusal
-    names the aliased package to scan instead).
+    names the aliased package to scan instead). A name or range is read as a
+    tarball path by npm's own pattern, whose unescaped `.` also matches
+    `foo.tar-gz`.
   - The spec is checked first. pip: a package name with optional `[extras]`
     and version specifiers (`requests`, `requests[socks]`,
     `"requests>=2,<3"`, `"requests (>=2)"`), each version starting with a
     letter or digit. npm: a name (scoped allowed) with an optional
     `@version`, `@tag` or `@range`. A refused spec is a usage error (exit 2)
-    and creates no quarantine entry. A spec starting with `-` is always
-    refused, and the spec is passed after `--`, so it can never be read as an
-    option.
+    and creates no quarantine entry; for a local path or archive the refusal
+    points at `sigil scan <path>`, which scans it in place and runs nothing.
+    A spec starting with `-` is always refused, and the spec is passed after
+    `--`, so it can never be read as an option. A lookup, refusal or
+    download that fails after the quarantine entry is created removes the
+    entry, so no empty PENDING entry is left to approve, and a download that
+    saves nothing to quarantine is an error (exit 2), never a LOW RISK
+    result to auto-approve.
+  - With `--format json` the report names the release that was scanned
+    (`"package": "left-pad@1.3.0"`), and the MCP server's `scan_package`
+    returns it too: the version to install.
   - `--allow-build-scripts` (on both commands) restores the old behaviour for
     code you already trust: any spec, no `--only-binary` / `--ignore-scripts`,
-    no configuration check or registry lookup, and pip and npm run from your
-    working directory so a relative path means what you typed (npm writes
-    the tarball to quarantine with `--pack-destination`). It prints a warning
-    that the package's own code may run on this machine before the scan.
+    no configuration check or registry lookup, and npm runs from your
+    working directory (as pip always does) so a relative path means what you
+    typed (npm writes the tarball to quarantine with `--pack-destination`).
+    It prints a warning that the package's own code may run on this machine
+    before the scan. It does not scan a pip project directory: pip runs its
+    build backend but saves nothing to quarantine, and the command fails.
   - The Claude Code PreToolUse hook (`sigil hook pretooluse`, its shell
     fallback, and the MCP server's `check_command`) asks before a command
     that passes the flag to `sigil pip`/`sigil npm`. Both read it wherever a
     `sigil … pip|npm` call appears: with a redirection glued to it, inside a
     string a shell, `find -exec` or a here-string runs, and in text that only
-    mentions it. They also ask when a word after `pip`/`npm` is a `$` or
-    backtick expansion, when `xargs` feeds the call, and when the command
-    word before `pip`/`npm` is an expansion (`$(command -v sigil) pip …`).
-    It is not a hard boundary: a subcommand taken from a variable (`sigil
-    $CMD`) is not read, and the hook still allows `npm pack <dir or git
-    spec>` and `pip download <path, URL or package>` run directly. The MCP
-    servers' package-scan tools never pass the flag.
+    mentions it, including an interpreter's argv list (`subprocess.run(['sigil',
+    'pip', …])`); a redirection before the flag, `2>&1` and `>|` included,
+    does not end the call. They also ask when a word after `pip`/`npm` is a
+    `$` or backtick expansion, when `xargs` feeds the call, and when the
+    command word before `pip`/`npm` is an expansion (`$(command -v sigil)
+    pip …`), but not for a redirection's file (`> "$LOG"`) or a quoted
+    version value (`-V "$VER"`). It is not a hard boundary: a subcommand or
+    argv list built in a variable (`sigil $CMD`) is not read, and the hook
+    still allows `npm pack <dir or git spec>` and `pip download <path, URL or
+    package>` run directly. The MCP servers' package-scan tools never pass
+    the flag. The hook's suggestion for `deno run npm:<pkg>/<subpath>` now
+    names the package without the subpath (`sigil npm chalk@5.3.0`).
 - **The package crawler no longer runs package code on the API host.**
   `api/services/crawler.py` downloaded PyPI packages with `pip download
   --no-binary :all:`, which builds every source distribution (running its
   `setup.py` or build backend) to read its metadata, and npm packages with
   `npm pack <name>`, which runs the lifecycle scripts of a name that is a
-  directory or git spec. It now takes the release's sdist (or, without one,
-  its wheel) from PyPI's JSON API as a file, checks its sha256 and only
-  unpacks it, and packs npm packages with `npm pack --ignore-scripts --
-  <name>[@<version>]`, refusing anything but a registry name.
+  directory or git spec, and of any name whose registry metadata names a
+  `file:` or git tarball. Neither pip nor npm runs now. It takes the
+  release's sdist (or, without one, its wheel) from PyPI's JSON API as a
+  file and checks its sha256, and takes an npm release's tarball from the
+  public registry's metadata (only over https from `registry.npmjs.org`) and
+  checks it against `dist.integrity` (or `dist.shasum`); it then only
+  unpacks them. Anything but a registry name, or an exact version or
+  dist-tag on the registry, is refused (tested with a local mock registry
+  serving `file:` and `git+file:` tarballs whose `prepare` script would
+  create a marker file: refused, no marker).
 
 ### 🐛 Fixed
 

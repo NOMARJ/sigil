@@ -189,6 +189,35 @@ check allow "expansion in a later stage"   'sigil pip requests && echo $HOME'
 check allow "expansion, not pip/npm"       'sigil scan $DIR'
 check allow "expanded interpreter, pip"    '$PY -m pip download x'
 check allow "quoted range, redirections"   'sigil pip "requests>=2,<3" >/dev/null 2>&1 | tee log'
+# A redirection before the flag, & or | included, does not end the call.
+check ask   "opt-in after 2>&1"            "sigil pip x 2>&1 --allow-build-scripts"
+check ask   "opt-in after >&2"             "sigil pip x >&2 --allow-build-scripts"
+check ask   "opt-in after &>file"          "sigil pip x &>/dev/null --allow-build-scripts"
+check ask   "opt-in after >| file"         "sigil pip x >| log --allow-build-scripts"
+check ask   "opt-in after glued >&2"       "sigil pip x>&2 --allow-build-scripts"
+check ask   "opt-in after a heredoc word"  "sigil pip x <<EOF --allow-build-scripts"
+check ask   "quoted > is an argument"      'sigil pip x ">" --allow-"build"-scripts'
+# An interpreter's argv list.
+check ask   "opt-in in a python argv list" "python3 -c \"import subprocess; subprocess.run(['sigil','pip','./x','--allow-build-scripts'])\""
+check ask   "opt-in, python list, spaces"  "python3 -c 'import subprocess; subprocess.run([\"sigil\", \"pip\", \"./x\", \"--allow-build-scripts\"])'"
+check ask   "opt-in in a node argv list"   "node -e \"require('child_process').execFileSync('sigil',['npm','./x','--allow-build-scripts'])\""
+check allow "argv list without the flag"   "python3 -c \"import subprocess; subprocess.run(['sigil','pip','requests'])\""
+# A redirection's file and one quoted -V value are never the flag; an
+# unquoted expansion, or a quoted one that is an argument, can be.
+check allow "redirect file is \$LOG"        'sigil pip requests > "$LOG" 2>&1'
+check allow "append to \$LOG"               'sigil pip requests >> $LOG'
+check allow "stderr to \$ERR"               'sigil pip requests 2>"$ERR"'
+check allow "stdin from \$IN"               'sigil pip requests < "$IN"'
+check allow "-V \"\$VER\""                    'sigil npm left-pad -V "$VER"'
+check allow "--version \"\${VER}\""           'sigil npm left-pad --version "${VER}"'
+check allow "--version=\"\$VER\""             'sigil npm left-pad --version="$VER"'
+check allow "-V=\"\$VER\""                    'sigil npm left-pad -V="$VER"'
+check allow "-V\"\$VER\""                     'sigil npm left-pad -V"$VER"'
+check ask   "-V = \"\$X\" (= is the value)"   'sigil npm left-pad -V = "$X"'
+check ask   "-V \$VER unquoted"              'sigil npm left-pad -V $VER'
+check ask   "-V quoted, then \$EXTRA"        'sigil npm left-pad -V "$VER" $EXTRA'
+check ask   "quoted spec from a loop"       'for p in left-pad lodash; do sigil npm "$p"; done'
+check ask   "redirect, then \"\$FLAG\""       'sigil npm x > "$LOG" "$FLAG"'
 
 # ── DENY: a download piped or substituted into an interpreter ──────────────
 # Never gated by a sigil call: the server decides per request what it serves.
@@ -329,6 +358,8 @@ check allow "deno run local file"          "deno run -A ./main.ts"
 check allow "deno task"                    "deno task dev"
 check allow "deno fmt"                     "deno fmt"
 check allow "deno npm:, vetted"            "sigil npm cowsay && deno run npm:cowsay"
+check allow "deno npm: subpath, vetted"    "sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main"
+check allow "deno scoped subpath, vetted"  "sigil npm @s/p@1.2.0 && deno run npm:@s/p@1.2.0/x/m.js"
 check deny  "deno npm:, runner arg"        "deno run npm:evil uvx"
 
 # ── DENY: a download piped to an interpreter, past redirections, wrappers ──

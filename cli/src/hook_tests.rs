@@ -223,6 +223,22 @@ fn tool_installers_and_deno_remote_modules_are_denied() {
     }
     assert!(reason("pipx install evil-cli").contains("sigil pip evil-cli && pipx install evil-cli"));
     assert!(reason("deno run -A npm:evil").contains("sigil npm evil && deno run -A npm:evil"));
+    // The subpath deno loads is not part of the package: `sigil npm` takes
+    // the package (npm would read `chalk@5.3.0/main` as a git shorthand).
+    for (cmd, use_) in [
+        (
+            "deno run npm:chalk@5.3.0/main",
+            "sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main",
+        ),
+        (
+            "deno run npm:@scope/pkg@1.2.0/sub/mod.js",
+            "sigil npm @scope/pkg@1.2.0 && deno run",
+        ),
+        ("deno run npm:chalk/main", "sigil npm chalk && deno run"),
+    ] {
+        assert_eq!(decision(cmd), "deny", "expected deny: {cmd}");
+        assert!(reason(cmd).contains(use_), "{cmd}: {}", reason(cmd));
+    }
     for cmd in [
         "pipx list",
         "uv tool list",
@@ -535,6 +551,7 @@ fn a_gate_must_vet_the_same_kind_of_thing() {
         "sigil clone https://github.com/o/r -b dev && git clone --depth 1 -b dev https://github.com/o/r x",
         "sigil pip ruff==0.4.0 && uv tool install ruff@0.4.0",
         "sigil npm cowsay && deno run npm:cowsay",
+        "sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main",
     ] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
     }
@@ -1459,6 +1476,27 @@ fn asks_before_sigil_lets_package_code_run() {
         // install x` is denied: the words are read wherever they are.
         "echo sigil pip evil --allow-build-scripts",
         "git commit -m \"sigil pip x --allow-build-scripts\"",
+        // A redirection before the flag, `&` or `|` included, does not end
+        // the call: the flag after it is still sigil's.
+        "sigil pip x 2>&1 --allow-build-scripts",
+        "sigil pip x >&2 --allow-build-scripts",
+        "sigil pip x &>/dev/null --allow-build-scripts",
+        "sigil pip x &>>log --allow-build-scripts",
+        "sigil pip x >| log --allow-build-scripts",
+        "sigil pip x>&2 --allow-build-scripts",
+        "sigil pip x <<EOF --allow-build-scripts",
+        // A quoted `>` is an argument, not a redirection.
+        "sigil pip x \">\" --allow-\"build\"-scripts",
+        // An interpreter's argv list.
+        "python3 -c \"import subprocess; subprocess.run(['sigil','pip','./x','--allow-build-scripts'])\"",
+        "python3 -c 'import subprocess; subprocess.run([\"sigil\", \"pip\", \"./x\", \"--allow-build-scripts\"])'",
+        "node -e \"require('child_process').execFileSync('sigil',['npm','./x','--allow-build-scripts'])\"",
+        // An unquoted expansion can split into more words, and a quoted one
+        // that is not an option's value can be the flag itself.
+        "sigil npm left-pad -V $VER",
+        "sigil npm left-pad -V \"$VER\" $EXTRA",
+        "for p in left-pad lodash; do sigil npm \"$p\"; done",
+        "sigil npm x > \"$LOG\" \"$FLAG\"",
     ] {
         assert_eq!(decision(cmd), "ask", "expected ask: {cmd}");
         assert!(reason(cmd).contains("--allow-build-scripts"), "{cmd}");
@@ -1478,6 +1516,20 @@ fn asks_before_sigil_lets_package_code_run() {
         "sigil scan $DIR",
         "$PY -m pip download x",
         "sigil pip \"requests>=2,<3\" >/dev/null 2>&1 | tee log",
+        // A redirection's file and a quoted version value are never the
+        // flag.
+        "sigil pip requests > \"$LOG\" 2>&1",
+        "sigil pip requests >> $LOG",
+        "sigil pip requests 2>\"$ERR\"",
+        "sigil pip requests < \"$IN\"",
+        "sigil npm left-pad -V \"$VER\"",
+        "sigil npm left-pad --version \"${VER}\"",
+        "sigil npm left-pad --version=\"$VER\"",
+        "sigil npm left-pad -V=\"$VER\"",
+        "sigil npm left-pad -V\"$VER\"",
+        "sigil npm left-pad -V '$VER'",
+        // An argv list without the flag.
+        "python3 -c \"import subprocess; subprocess.run(['sigil','pip','requests'])\"",
     ] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
     }

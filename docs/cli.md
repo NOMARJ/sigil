@@ -230,22 +230,31 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    working directory (`pkg.tar.gz`, `pkg.whl`), environment markers, a
    version that does not start with a letter or digit, and anything starting
    with `-` are refused with exit 2, before anything is downloaded or added
-   to quarantine.
+   to quarantine. For a file or directory you already have, the refusal
+   points at `sigil scan <path>`, which scans it where it is (archives
+   included) and runs nothing from it.
 2. Reads pip's configuration (`pip config list`). A `requirement`,
    `constraint` or `editable` setting in the `[global]` or `[download]`
    section of a pip config file is refused with exit 2: pip adds what it names
    to every download and builds a local path, URL or VCS reference there even
    with `--only-binary=:all:`. The same settings from the environment
    (`PIP_REQUIREMENT`, `PIP_CONSTRAINT`, `PIP_EDITABLE`) are left out of pip's
-   environment for this command, with a note.
+   environment for this command, with a note. A config constraint that only
+   pins versions is refused too: Sigil does not read the files these settings
+   name. See [Troubleshooting](troubleshooting.md) for keeping your index
+   while skipping the config file.
 3. For a spec that does not pin a version with `==` or `===`, asks the index
    which versions exist (`pip index versions --pre -- <name>`, which builds
    nothing; it needs pip 21.2 or later) and picks the one `pip install <spec>`
    would pick: the highest that matches, with pre-releases only when the spec
    names one or pip's config sets `pre`. It prints the result, for example
-   `requests<2.32 resolves to requests==2.31.0`.
+   `requests<2.32 resolves to requests==2.31.0`. The resolved version is
+   checked like a typed one. Nothing is added to quarantine before this.
 4. Runs `pip download --no-deps --only-binary=:all: --dest <quarantine> -- <name>==<version>`
-   in the quarantine directory: prebuilt wheels only. pip prepares a source
+   from your working directory, as `pip install` runs, so relative pip
+   settings (`PIP_FIND_LINKS=./wheels`, a relative `find-links` or `cert` in
+   pip.conf) mean the same to both; the spec check has already refused
+   anything pip could read as a file there. Prebuilt wheels only: pip prepares a source
    distribution's metadata by running its `setup.py` or build backend, so a
    release published only as a source distribution (or with no wheel for this
    platform and Python) fails to download (exit 2), and the error says so.
@@ -255,8 +264,11 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 5. Extracts the wheel into quarantine and runs all 8 scan phases (not the
    dependency lookups, which only `sigil scan` and `sigil baseline` run).
 6. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
-   anything worse, 2 when the spec or pip's config was refused or the download
-   or scan failed. With `--auto-approve`, a LOW RISK result is approved.
+   anything worse, 2 when the spec or pip's config was refused, the lookup or
+   download failed, pip saved nothing to quarantine, or the scan failed. A
+   failure before the scan removes the quarantine entry it created. With
+   `--auto-approve`, a LOW RISK result is approved. With `--format json`, the
+   report's `package` field names the release scanned (`requests==2.32.3`).
 
 `pip install <spec>` can still end up with another version than the one Sigil
 scanned: a release published in between, another interpreter or platform, or
@@ -265,12 +277,14 @@ apply. Install the version Sigil printed: `pip install requests==2.32.3`.
 
 **`--allow-build-scripts`** drops `--only-binary=:all:`, the spec check (only
 an empty spec, control characters, and a spec starting with `-` are still
-refused), the configuration check and the version lookup, leaves pip's
-environment as it is, and runs pip from your working directory, so a relative
-path (`./my-project`) means what you typed. pip may then build the package
-from source, which runs its own setup code on this machine, with your
-privileges, before Sigil scans anything; quarantine does not contain that.
-Sigil prints a warning saying so. `--only-binary` alone would not be enough
+refused), the configuration check and the version lookup, and leaves pip's
+environment as it is. pip may then build the package from source, which runs
+its own setup code on this machine, with your privileges, before Sigil scans
+anything; quarantine does not contain that. Sigil prints a warning saying so.
+It is not a way to scan a project directory: pip runs the directory's build
+backend but does not copy a directory into `--dest`, so nothing reaches
+quarantine and the command fails (exit 2, never LOW RISK or auto-approved).
+Use `sigil scan ./my-project` for that. `--only-binary` alone would not be enough
 without the spec and configuration checks: pip 24.0 built a local directory,
 a local sdist, a `file://` URL and a `git+file://` reference with it set,
 whether named on the command line or in a requirement or constraint file.
@@ -312,29 +326,47 @@ sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    spec (`github:owner/repo`, the `owner/repo` shorthand, `git+https://…`,
    `git@host:owner/repo`, `name#branch`), and anything starting with `-`, is
    refused with exit 2, before anything is downloaded or added to quarantine.
+   A name or range is a tarball path when npm reads it as one: npm's pattern
+   (`/[.](?:tgz|tar.gz|tar)$/i`) also matches `foo.tar-gz`, while a scoped
+   name such as `@scope/pkg.tgz` stays a registry name. For a file or
+   directory you already have, the refusal points at `sigil scan <path>`,
+   which scans it where it is (archives included) and runs nothing from it.
    A scoped name typed without its `@`, like `langchain/community`, is an
    `owner/repo` shorthand. An `npm:` alias is refused with the name it stands
    for, to scan directly.
 2. Asks the registry what the spec resolves to (`npm view --json -- <spec>
-   name version dist.tarball deprecated dist-tags.latest`, in the quarantine
-   directory). For a version or tag that is one release; for a range, Sigil
+   name version dist.tarball dist.integrity dist.shasum deprecated
+   dist-tags.latest`, in the quarantine directory). For a version or tag that is one release; for a range, Sigil
    picks the `latest` tag when it matches and is not deprecated, else the
    highest non-deprecated match (npm also weighs `engines`, which Sigil does
    not). It prints the release when it differs from what you typed:
    `left-pad@^1.2 resolves to left-pad@1.3.0`.
 3. Checks that release's tarball URL. It must be an `http(s)` URL that npm
-   downloads as a tarball: a registry entry whose tarball is a git URL, a
-   `file:` path, or a URL on GitHub, GitLab, Bitbucket, Gist or sourcehut
-   (which npm reads as a git repository) is refused with exit 2, because npm
-   would clone or pack it and run its `prepare` script.
+   downloads as a tarball. A registry entry whose tarball is a git URL or a
+   `file:` path is refused with exit 2, and so is a URL npm reads as a git
+   repository: on GitHub, GitLab, Bitbucket, Gist or sourcehut, a path that
+   names a repository (`https://github.com/owner/repo`, `…/repo.tgz`,
+   `…/tree/<ref>`), as npm's hosted-git-info reads it. npm would clone such a
+   URL and run its `prepare` script. Downloads on those hosts are packed like
+   any tarball: GitLab's npm package registry (`…/-/…`), GitHub release
+   assets (`…/releases/download/…`) and archive URLs.
 4. Runs `npm pack --ignore-scripts -- <tarball URL>` in the quarantine
    directory, which writes the tarball there.
-5. Extracts the tarball and runs all 8 scan phases (not the dependency
+5. Checks the tarball against the registry's `dist.integrity` (the strongest
+   hash it lists, as `npm install` checks it), or `dist.shasum` when the
+   registry gives no integrity. npm does not check a bare tarball URL, so
+   without this a registry or CDN could show Sigil other bytes than `npm
+   install` would accept. A mismatch, or neither digest, is exit 2 and
+   nothing is scanned.
+6. Extracts the tarball and runs all 8 scan phases (not the dependency
    lookups, which only `sigil scan` and `sigil baseline` run).
-6. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
-   anything worse, 2 when the spec or the registry's tarball was refused or
-   the download or scan failed. With `--auto-approve`, a LOW RISK result is
-   approved.
+7. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
+   anything worse, 2 when the spec, the registry's tarball or its integrity
+   was refused, the lookup or download failed, or the scan failed. A failure
+   before the scan removes the quarantine entry it created. With
+   `--auto-approve`, a LOW RISK result is approved. With `--format json`,
+   the report's `package` field names the release scanned (`left-pad@1.3.0`):
+   install that version.
 
 Why the spec check is needed: npm runs a local directory's `prepare` script
 while packing it, and for a git spec it clones the repository, installs its
@@ -345,7 +377,8 @@ dependencies and runs its `prepare` script. On npm 10.9.7 (Node 22) the
 empty spec, control characters, and a spec starting with `-` are still
 refused) and the registry lookup, and runs `npm pack --pack-destination
 <quarantine> -- <spec>` from your working directory, so a relative path
-(`./my-package`, `pkg.tgz`) means what you typed. npm then runs the package's
+(`./my-package`, `pkg.tgz`) means what you typed (though `sigil scan <path>`
+scans a directory or tarball you have without running anything). npm then runs the package's
 lifecycle scripts while packing it (prepare, prepack, postpack; for a git spec
 it also installs the checkout's dependencies and runs their install scripts)
 on this machine, before Sigil scans anything. Sigil prints a warning saying
@@ -1168,7 +1201,9 @@ artifacts you trust as a unit, use `sigil approve` and the trust ledger.
 
 `sigil clone`, `sigil pip` and `sigil npm` have no `--fail-on`: they exit `0`
 for a LOW RISK verdict, `1` for any higher verdict (MEDIUM RISK included), and
-`2` when the clone or download failed or the scan could not run. `sigil scan`
+`2` when the clone or download failed or the scan could not run, or (`pip` and
+`npm`) the spec, pip configuration, registry tarball or tarball integrity was
+refused, or nothing was downloaded. `sigil scan`
 of a repository URL runs the `sigil clone` workflow and exits the same way,
 ignoring `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete`.
 

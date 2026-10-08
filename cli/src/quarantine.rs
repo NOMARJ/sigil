@@ -188,6 +188,26 @@ pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String>
     Ok(result)
 }
 
+/// Remove a pending entry that never reached its scan (a lookup or download
+/// failed): its files, then its index record, so no empty PENDING entry is
+/// left to approve. An entry that is not pending, or not there, is left
+/// alone.
+pub fn discard(id: &str) -> Result<(), String> {
+    let mut index = load_index()?;
+    let Some(pos) = index
+        .iter()
+        .position(|e| e.id == id && e.status == QuarantineStatus::Pending)
+    else {
+        return Ok(());
+    };
+    if index[pos].path.exists() {
+        fs::remove_dir_all(&index[pos].path)
+            .map_err(|e| format!("failed to remove quarantined files for '{}': {}", id, e))?;
+    }
+    index.remove(pos);
+    save_index(&index)
+}
+
 /// Re-quarantine an item by flipping an Approved entry back to Pending. Used by
 /// rug-pull detection (US-F2): an approved artifact whose content drifted loses
 /// its trust and must be re-reviewed. No-op (Ok) if already Pending.
@@ -240,7 +260,7 @@ fn short_id() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{add, get, list, reject, QuarantineStatus};
+    use super::{add, approve, discard, get, list, reject, QuarantineStatus};
     use std::fs;
     use std::sync::Mutex;
     use tempfile::tempdir;
@@ -280,6 +300,32 @@ mod tests {
 
             let stored = get(&entry.id).expect("entry remains indexed");
             assert_eq!(stored.status, QuarantineStatus::Pending);
+        });
+    }
+
+    #[test]
+    fn discard_removes_only_a_pending_entry() {
+        with_quarantine_dir(|| {
+            let failed = add("docopt", "pip").expect("add entry");
+            let kept = add("six", "pip").expect("add entry");
+            let approved = add("left-pad", "npm").expect("add entry");
+            approve(&approved.id, None).expect("approve");
+
+            discard(&failed.id).expect("discard");
+            assert!(!failed.path.exists(), "its files are gone");
+            assert!(get(&failed.id).is_err(), "its record is gone");
+            assert!(kept.path.exists());
+            assert_eq!(list(None).expect("list").len(), 2);
+
+            // Not pending, or not there: left alone.
+            discard(&approved.id).expect("discard approved");
+            assert!(approved.path.exists());
+            assert_eq!(
+                get(&approved.id).expect("still indexed").status,
+                QuarantineStatus::Approved
+            );
+            discard("00000000").expect("discard unknown");
+            assert_eq!(list(None).expect("list").len(), 2);
         });
     }
 }

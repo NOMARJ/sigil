@@ -2,14 +2,18 @@
 
 `pip download` builds a source distribution (running its setup.py or build
 backend) to read its metadata, and `npm pack` runs a directory's or git
-checkout's prepare script. The crawler takes PyPI files from the JSON API
-instead, and packs only registry npm names with --ignore-scripts. No network:
-the HTTP fetch and subprocesses are replaced with recorders.
+checkout's prepare script, even with --ignore-scripts, and packing by name
+follows whatever tarball the registry's metadata names (a `file:` path or git
+URL included). The crawler takes PyPI files from the JSON API and npm
+tarballs from the public registry's metadata instead, checks each against the
+registry's digest, and only unpacks them: neither pip nor npm runs. No
+network: the HTTP fetch and subprocesses are replaced with recorders.
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 from pathlib import Path
@@ -53,8 +57,11 @@ def recorder(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
         calls["exec"].append(list(cmd))
         return _Proc()
 
-    async def fake_get(url: str, timeout: int = 120) -> bytes | None:
+    async def fake_get(
+        url: str, timeout: int = 120, headers: dict[str, str] | None = None
+    ) -> bytes | None:
         calls["http"].append(url)
+        calls.setdefault("headers", []).append(headers or {})
         return responses.get(url)
 
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
@@ -179,30 +186,150 @@ def test_pip_target_that_is_not_a_package_is_refused(
     assert recorder["exec"] == []
 
 
-def test_npm_target_is_packed_with_scripts_off(
+NPM = "https://registry.npmjs.org"
+TARBALL = b"npm tarball bytes"
+
+
+def _sri(body: bytes, algorithm: str = "sha512") -> str:
+    digest = hashlib.new(algorithm, body).digest()
+    return f"{algorithm}-{base64.b64encode(digest).decode()}"
+
+
+def _packument(
+    name: str,
+    version: str,
+    tarball: str,
+    tags: dict[str, str] | None = None,
+    **dist: Any,
+) -> bytes:
+    """Abbreviated npm registry metadata for one release."""
+    dist = {"tarball": tarball, **dist}
+    return json.dumps(
+        {
+            "name": name,
+            "dist-tags": tags or {"latest": version},
+            "versions": {version: {"name": name, "version": version, "dist": dist}},
+        }
+    ).encode()
+
+
+def test_npm_target_is_fetched_as_a_file_never_packed(
     recorder: dict[str, list[Any]], tmp_path: Path
 ) -> None:
-    for name, version, spec in (
-        ("left-pad", "1.3.0", "left-pad@1.3.0"),
-        ("@types/node", "", "@types/node"),
-        ("JSONStream", "latest", "JSONStream@latest"),
+    for name, version, meta_url, release in (
+        ("left-pad", "1.3.0", f"{NPM}/left-pad", "1.3.0"),
+        ("@types/node", "", f"{NPM}/@types%2Fnode", "20.1.0"),
+        ("JSONStream", "latest", f"{NPM}/JSONStream", "1.3.5"),
     ):
         recorder["exec"].clear()
+        recorder["http"].clear()
+        tarball = f"{NPM}/{name}/-/{name.split('/')[-1]}-{release}.tgz"
+        _serve(
+            recorder,
+            meta_url,
+            _packument(name, release, tarball, integrity=_sri(TARBALL)),
+        )
+        _serve(recorder, tarball, TARBALL)
         ok = asyncio.run(
             crawler._download_npm(
                 CrawlTarget(ecosystem="npm", name=name, version=version), str(tmp_path)
             )
         )
-        assert ok is True
-        assert recorder["exec"][0] == [
-            "npm",
-            "pack",
-            "--ignore-scripts",
-            "--pack-destination",
-            str(tmp_path),
-            "--",
-            spec,
-        ]
+        assert ok is True, name
+        assert recorder["http"] == [meta_url, tarball]
+        assert recorder["headers"][-2] == {"Accept": crawler.NPM_METADATA_ACCEPT}
+        # The tarball is saved as fetched and only unpacked: npm never runs.
+        saved = tmp_path / f"{name.lstrip('@').replace('/', '-')}-{release}.tgz"
+        assert saved.read_bytes() == TARBALL
+        assert [cmd[0] for cmd in recorder["exec"]] == ["tar"]
+        assert recorder["exec"][0][:2] == ["tar", "xzf"]
+
+
+def test_npm_tarball_must_match_the_registry_integrity(
+    recorder: dict[str, list[Any]], tmp_path: Path
+) -> None:
+    tarball = f"{NPM}/plainpkg/-/plainpkg-1.0.0.tgz"
+    sha1_hex = hashlib.sha1(TARBALL).hexdigest()
+    for dist, ok_expected in (
+        ({"integrity": _sri(b"other bytes")}, False),
+        # The strongest algorithm listed decides.
+        ({"integrity": f"{_sri(TARBALL, 'sha1')} {_sri(b'other', 'sha512')}"}, False),
+        ({"integrity": f"{_sri(b'other')} {_sri(TARBALL)}"}, True),
+        ({"integrity": "md5-abc"}, False),
+        ({}, False),
+        ({"shasum": "0" * 40}, False),
+        ({"shasum": sha1_hex}, True),
+        ({"integrity": _sri(TARBALL, "sha1")}, True),
+    ):
+        recorder["exec"].clear()
+        for f in tmp_path.iterdir():
+            f.unlink()
+        _serve(
+            recorder,
+            f"{NPM}/plainpkg",
+            _packument("plainpkg", "1.0.0", tarball, **dist),
+        )
+        _serve(recorder, tarball, TARBALL)
+        ok = asyncio.run(
+            crawler._download_npm(
+                CrawlTarget(ecosystem="npm", name="plainpkg"), str(tmp_path)
+            )
+        )
+        assert ok is ok_expected, dist
+        if not ok_expected:
+            assert list(tmp_path.iterdir()) == [], dist
+            assert recorder["exec"] == [], dist
+
+
+def test_npm_tarball_off_the_registry_is_never_fetched(
+    recorder: dict[str, list[Any]], tmp_path: Path
+) -> None:
+    # A registry or mirror can name any tarball; `npm pack <name>` would
+    # pack a `file:` directory or clone a git URL and run its prepare
+    # script. The crawler takes the tarball only from the registry host.
+    for tarball in (
+        "file:/srv/dirpkg",
+        "file:///srv/pkg.tgz",
+        "git+file:///srv/gitrepo",
+        "git+https://github.com/owner/repo.git",
+        "https://github.com/owner/repo.tgz",
+        "http://registry.npmjs.org/x/-/x-1.0.0.tgz",
+        "https://registry.npmjs.org.example.invalid/x-1.0.0.tgz",
+        "https://example.invalid/x-1.0.0.tgz",
+    ):
+        recorder["http"].clear()
+        _serve(
+            recorder,
+            f"{NPM}/probe",
+            _packument("probe", "1.0.0", tarball, integrity=_sri(TARBALL)),
+        )
+        ok = asyncio.run(
+            crawler._download_npm(
+                CrawlTarget(ecosystem="npm", name="probe"), str(tmp_path)
+            )
+        )
+        assert ok is False, tarball
+        assert recorder["http"] == [f"{NPM}/probe"], tarball
+    assert recorder["exec"] == []
+
+
+def test_npm_release_must_be_on_the_registry(
+    recorder: dict[str, list[Any]], tmp_path: Path
+) -> None:
+    tarball = f"{NPM}/x/-/x-1.0.0.tgz"
+    _serve(
+        recorder, f"{NPM}/x", _packument("x", "1.0.0", tarball, integrity=_sri(TARBALL))
+    )
+    for version in ("2.0.0", "next", "1"):
+        recorder["http"].clear()
+        ok = asyncio.run(
+            crawler._download_npm(
+                CrawlTarget(ecosystem="npm", name="x", version=version), str(tmp_path)
+            )
+        )
+        assert ok is False, version
+        assert recorder["http"] == [f"{NPM}/x"], version
+    assert recorder["exec"] == []
 
 
 @pytest.mark.parametrize(
@@ -219,6 +346,12 @@ def test_npm_target_is_packed_with_scripts_off(
         ("foo", "github:owner/repo"),
         ("foo", "^1.0"),
         ("foo#main", ""),
+        # npm-package-arg reads these as tarball paths, not registry names.
+        ("a.tgz", ""),
+        ("pkg.tar", ""),
+        ("x.tar-gz", ""),
+        ("foo", "1.tgz"),
+        ("foo", "1.tarxgz"),
     ],
 )
 def test_npm_target_that_is_not_a_registry_package_is_refused(
@@ -230,4 +363,5 @@ def test_npm_target_that_is_not_a_registry_package_is_refused(
         )
     )
     assert ok is False
+    assert recorder["http"] == []
     assert recorder["exec"] == []
