@@ -43,6 +43,15 @@ same way on the same day, after `/v1/scan-enhanced` stopped sending the `id`
 alias when no LLM analysis ran; only `id` (now absent), `scan_id` and
 `created_at` changed.
 
+`api-patched/scan_response.json` and
+`api-patched/scan_enhanced_response_free_plan.json` were captured again on
+2026-10-08, in process with the API's test client and its in-memory store
+instead of through the loopback proxy, from `cli-current/scan_submit.json`
+and `cli-current/scan_enhanced.json`, after the API gave the Inference
+Security phase its weight of 5 (it had defaulted to 1.0). Only `risk_score`
+(304.0 to 384.0), the ids and `created_at` changed; the verdict is
+`CRITICAL_RISK` in both.
+
 The `api-deployed/` responses come from the CLI built from this tree talking
 to the API at the PR's base. That API refuses the Inference Security phase
 (HTTP 422 on the five-file scan), so its scan and `--enhanced` responses are

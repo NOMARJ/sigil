@@ -10,8 +10,11 @@ are the reference for the data it sends.
 ## Current status: no LLM findings yet
 
 The API does not return LLM findings for `--enhanced` yet. It scores and
-stores the scan (the findings, not the uploaded files) and answers with its
-static analysis:
+stores the scan and answers with its static analysis. The uploaded files are
+kept out of the stored scan only once the Sigil API update is deployed; the
+API before it stores them with the scan record (see
+[Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation)).
+The response:
 
 - on a Free plan, with a note that LLM analysis needs a Pro plan. The plan is
   checked after the upload, so the files are still sent;
@@ -143,6 +146,14 @@ curl -H "Authorization: Bearer $(cat ~/.sigil/token)" https://api.sigilsec.ai/v1
 
 `/v1/scan-enhanced` allows 20 requests per minute, and each accepted request
 counts against the plan's monthly scan quota, like `--submit`.
+
+`--enhanced` already stores the scan, so `sigil scan --enhanced --submit`
+stores it once and uses one unit of the quota: after `--enhanced` returns a
+scan id, `--submit` prints that id (`results submitted to Sigil cloud by the
+--enhanced upload (scan id: ...); --submit sent nothing more`) and does not
+upload again. If `--enhanced` failed, or the API returned no scan id,
+`--submit` uploads as it does without `--enhanced`. CLI 1.3.7 uploads twice:
+two scan records, two units of the quota.
 
 ## Troubleshooting
 

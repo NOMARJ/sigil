@@ -126,19 +126,20 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     only requires one to be stored, so an expired token does not stop it. The
     CLI prints a warning and exits 1 when the API answers 2xx without a report
     id (a proxy or captive portal answering in its place), instead of
-    `threat reported successfully`. **A confirmed hash report now matches that
-    hash for every reader of the threat database, not only
-    `GET /v1/threat/{hash}`:** an unauthenticated `POST /v1/verify` for an
-    artifact with that hash returns `CRITICAL_RISK` (risk score 50) with the
-    entry in `findings_summary`, and a `POST /v1/scan` with that hash in
-    `metadata.hash` or `metadata.hashes` adds 10 to the risk score and returns
-    the entry in `threat_intel_hits`. Before this change a confirmed report was
-    stored under a hash of its package identity, which no artifact hash
-    matched. Confirming a hash report is therefore a decision about every
-    artifact with that hash, and a reviewer cannot check a hash without the
-    artifact. The attribution and character filtering described under
-    `--enrich` below apply to all three readers: the
-    description in `findings_summary` and `threat_intel_hits` is prefixed
+    `threat reported successfully`; `--submit` likewise warns, without
+    changing the exit code, when the answer has no scan id.
+    **A confirmed hash report now matches that hash for every reader of the
+    threat database, not only `GET /v1/threat/{hash}`:** an unauthenticated
+    `POST /v1/verify` for an artifact with that hash returns `CRITICAL_RISK`
+    (risk score 50) with the entry in `findings_summary`, and a `POST /v1/scan`
+    with that hash in `metadata.hash` or `metadata.hashes` adds 10 to the risk
+    score and returns the entry in `threat_intel_hits`. Before this change a
+    confirmed report was stored under a hash of its package identity, which no
+    artifact hash matched. Confirming a hash report is therefore a decision
+    about every artifact with that hash, and a reviewer cannot check a hash
+    without the artifact. The attribution and character filtering described
+    under `--enrich` below apply to all three readers: the description in
+    `findings_summary` and `threat_intel_hits` is prefixed
     `Community report (unverified hash): ` and carries no control characters.
   - `--enrich` could not parse a match: the CLI required `known_malicious` and
     `references`, which the API's threat entry does not have, and printed the

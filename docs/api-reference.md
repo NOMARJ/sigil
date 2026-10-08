@@ -259,7 +259,7 @@ Other fields (the CLI's `fingerprint`, for example) are ignored.
 
 ### POST /v1/scan-enhanced
 
-`sigil scan --enhanced`: the `POST /v1/scan` request plus source files for LLM analysis, a Pro plan feature. The request is stored as a scan the same way, except that the uploaded files are not stored. **The LLM step does not run for this endpoint yet**: on a Pro plan it fails and the API returns the static result; on a Free plan it returns the static result with an upgrade note. See [CLI LLM features](CLI_LLM_FEATURES.md) for what the CLI sends and prints.
+`sigil scan --enhanced`: the `POST /v1/scan` request plus source files for LLM analysis, a Pro plan feature. The request is stored as a scan the same way, except that the uploaded files are not stored (the API deployed before this update stored them with the scan record: see [Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation)). **The LLM step does not run for this endpoint yet**: on a Pro plan it fails and the API returns the static result; on a Free plan it returns the static result with an upgrade note. See [CLI LLM features](CLI_LLM_FEATURES.md) for what the CLI sends and prints.
 
 | Property | Value |
 |----------|-------|

@@ -98,8 +98,11 @@ transmit source code by design:
   before requesting enhanced analysis. The same request carries what
   `--submit` sends (section 2): the active `findings`, each with its
   `snippet` (the flagged source line), including findings in files outside
-  the uploaded ones (a secret flagged in `.env`, for example). The API holds
-  the uploaded files only while it handles the request, for its LLM step:
+  the uploaded ones (a secret flagged in `.env`, for example). With
+  `--submit` as well, the current CLI sends this one request and not a second
+  one, since this request already stores the scan (CLI 1.3.7 sends both).
+  The API holds the uploaded files only while it handles the request, for
+  its LLM step:
   the scan record it stores keeps the findings and the rest of the request
   but not the files (`submit_enhanced_scan`, `api/routers/scan.py`). The
   API deployed before the update that added CLI compatibility stores the
