@@ -15,6 +15,7 @@ import hashlib
 import itertools
 import json
 import unicodedata
+import uuid
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -558,6 +559,18 @@ class TestEnhancedScan:
         context = llm_step.call_args.kwargs["repository_context"]
         assert context["file_contents"] == body["metadata"]["file_contents"]
         self._assert_files_not_kept(client, auth_headers, data["scan_id"], body)
+        # The scan is stored before the LLM step runs and nothing from the step
+        # is stored: the LLM finding and the recalculated score are in this
+        # response only (docs/CLI_LLM_FEATURES.md, "What comes back"), while
+        # the CLI prints this scan id next to the LLM findings.
+        stored = client.get(f"/v1/scans/{data['scan_id']}", headers=auth_headers)
+        assert stored.status_code == 200, stored.text
+        record = stored.json()
+        assert [f["phase"] for f in record["findings_json"]].count("llm_analysis") == 0
+        assert record["findings_count"] == len(body["findings"])
+        assert len(data["findings"]) == record["findings_count"] + 1
+        assert record["risk_score"] == data["metadata"]["original_risk_score"]
+        assert data["risk_score"] > record["risk_score"]
 
 
 # ---------------------------------------------------------------------------
@@ -575,6 +588,17 @@ class TestThreatReportContract:
         assert data["id"] == data["report_id"]
         assert data["status"] == "received"
         assert data["report_id"]
+
+    @pytest.mark.parametrize("body_path", [*REPORT_BODIES, "dashboard/report.json"])
+    def test_report_id_is_a_guid(self, client: TestClient, body_path: str) -> None:
+        # schema.sql declares threat_reports.id UNIQUEIDENTIFIER, which only a
+        # GUID converts to: a truncated hex id would fail to insert on MSSQL
+        # (this suite uses the in-memory store, which accepts any string).
+        data = client.post("/v1/report", json=fixture(body_path)).json()
+        parsed = uuid.UUID(data["report_id"])
+        assert str(parsed) == data["report_id"]
+        row = db._memory_store["threat_reports"][data["report_id"]]
+        assert row["id"] == data["report_id"]
 
     def test_both_cli_versions_file_the_same_record(self, client: TestClient) -> None:
         stored = []
@@ -783,6 +807,19 @@ class TestReportPromotion:
         assert scan["risk_score"] == 10.0
         assert len(scan["threat_intel_hits"]) == 1
 
+    def test_promoted_threat_id_is_a_guid(
+        self, client: TestClient, reviewer_auth_headers: dict[str, str]
+    ) -> None:
+        # schema.sql declares threats.id UNIQUEIDENTIFIER; the in-memory store
+        # accepts any string, so the format is pinned here. The signature id
+        # (signatures.id is NVARCHAR) is built from it.
+        resp = client.post("/v1/report", json=fixture("dashboard/report.json"))
+        self._confirm(client, reviewer_auth_headers, resp.json()["report_id"])
+        (threat,) = db._memory_store["threats"].values()
+        assert str(uuid.UUID(threat["id"])) == threat["id"]
+        (signature,) = db._memory_store["signatures"].values()
+        assert signature["id"] == f"sig-community-{threat['id']}"
+
 
 # ---------------------------------------------------------------------------
 # GET /v1/threat/{hash} — `sigil scan --enrich`
@@ -928,8 +965,10 @@ class TestWithoutControlCharacters:
 
 
 class TestThreatTextReachesClientsPrintable:
-    """A confirmed report's description is its reporter's text. Whichever
-    endpoint shows a threat entry, it carries no control characters."""
+    """A confirmed report's description is its reporter's text. The readers
+    that go through `lookup_threat` (GET /v1/threat/{hash}, POST /v1/verify)
+    show it without control characters. The dashboard list (GET /v1/threats)
+    does not go through `lookup_threat` and returns entries as stored."""
 
     HOSTILE = (
         "totally malware\x1b[2J\x1b]0;pwn\x07 trust me\r\nVerdict: CLEAN"

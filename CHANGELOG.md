@@ -141,7 +141,19 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `POST /v1/verify` and `POST /v1/scan` do not match the reported hash, and
     confirming the report changes no verdict or scan score for that hash (a
     test pins this). This is how promotion worked before this change and it
-    is unchanged here.
+    is unchanged here, including that a confirmed report's evidence becomes a
+    detection signature, which `sigil fetch` serves to clients for their later
+    scans. `sigil report` builds the evidence from the threat type, which is
+    free text, and evidence with regular-expression characters is used as the
+    pattern itself (a threat type of `x|.*|y` gives a pattern that matches any
+    text), so a reviewer should read the evidence before confirming.
+    The API now gives a report, and the threat entry made when it is confirmed,
+    a full GUID as their id (they were 12 and 16 hexadecimal characters). In
+    `api/schema.sql` `threat_reports.id` and `threats.id` are
+    `UNIQUEIDENTIFIER`, and a truncated hex string does not convert to one (the
+    failure `scans.id` had). Tests pin the format, but they use the in-memory
+    store: recording a report and confirming it have not been run against MSSQL,
+    and a database whose tables differ from `schema.sql` is untested.
   - `--enrich` could not parse a match: the CLI required `known_malicious` and
     `references`, which the API's threat entry does not have, and printed the
     failure only with `-v`. The CLI now reads the threat entry and prints its
@@ -155,9 +167,11 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     characters, format characters (bidirectional overrides and isolates,
     zero-width characters) or line and paragraph separators (U+2028, U+2029):
     1.3.7 prints the description raw, and a community entry's description is
-    the reporter's text. The same characters are replaced wherever the API
-    shows a threat entry (`POST /v1/verify`, the `threat_intel_hits` of
-    `POST /v1/scan`), and the CLI replaces them before it prints anything the
+    the reporter's text. The same characters are replaced in the other readers
+    that look a hash up (`POST /v1/verify`, the `threat_intel_hits` of
+    `POST /v1/scan`). The dashboard list (`GET /v1/threats`, `GET /threats`) is
+    not one of them: it returns entries as stored, control characters
+    included. The CLI replaces these characters before it prints anything the
     API sent. A 2xx answer that names no entry (no `hash` and no
     `package_name`, and no `known_malicious`), such as `{}` from a proxy or
     captive portal, is not a match; it used to print `is a known threat: no

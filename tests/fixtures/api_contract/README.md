@@ -55,7 +55,9 @@ Security phase its weight of 5 (it had defaulted to 1.0). Only `risk_score`
 `api-patched/report_response.json` was captured again on 2026-10-08, in
 process with the API's test client and its in-memory store, from
 `cli-current/report.json`; only `id` and `report_id` changed (the report id
-is the 12-character hex id, as in `api-deployed/`, not a GUID).
+is now a GUID, as `threat_reports.id` is `UNIQUEIDENTIFIER` in
+`api/schema.sql`; `api-deployed/` has the 12-character hex id the API
+returned before).
 
 The `api-deployed/` responses come from the CLI built from this tree talking
 to the API at the PR's base. That API refuses the Inference Security phase

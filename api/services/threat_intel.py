@@ -148,10 +148,12 @@ async def lookup_threat(package_hash: str) -> ThreatEntry | None:
 
     The entry is returned without control characters in its text
     (``printable_threat_entry``): a community entry's text is whatever its
-    reporter wrote, and CLI 1.3.7 prints it. Every reader of the threat
-    database goes through here (GET /v1/threat/{hash}, POST /v1/verify, the
-    hash enrichment of POST /v1/scan). The cache holds the entry as stored, so
-    entries cached before this form existed are covered too.
+    reporter wrote, and CLI 1.3.7 prints it. The readers that go through here
+    get that form: GET /v1/threat/{hash}, POST /v1/verify and the hash
+    enrichment of POST /v1/scan. ``list_threats`` (the dashboard list, GET
+    /v1/threats) reads the table itself and returns entries as stored. The
+    cache holds the entry as stored, so entries cached before this form
+    existed are covered too.
     """
     cache_key = f"{_THREAT_CACHE_PREFIX}{package_hash}"
 
@@ -351,7 +353,9 @@ async def reload_signatures_from_json(json_path: str) -> dict[str, Any]:
 
 async def submit_report(report: ThreatReport) -> ThreatReportResponse:
     """Persist a user-submitted threat report and return an acknowledgement."""
-    report_id = uuid4().hex[:12]
+    # Full GUID: threat_reports.id is UNIQUEIDENTIFIER (schema.sql), and a
+    # truncated hex does not convert (the failure scans.id had).
+    report_id = str(uuid4())
 
     row = {
         "id": report_id,
@@ -573,7 +577,9 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
     pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
 
-    threat_id = uuid4().hex[:16]
+    # Full GUID: threats.id is UNIQUEIDENTIFIER (schema.sql), and a truncated
+    # hex does not convert.
+    threat_id = str(uuid4())
     threat_row = {
         "id": threat_id,
         "hash": pkg_hash,

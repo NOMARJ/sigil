@@ -321,8 +321,10 @@ def printable_threat_entry(entry: ThreatEntry) -> ThreatEntry:
     description is the reporter's own), and CLI 1.3.7 prints it raw. Only the
     characters `without_control_characters` replaces change; the entry is
     otherwise as stored. `lookup_threat` returns entries in this form, so
-    every reader of the threat database gets it: GET /v1/threat/{hash},
-    POST /v1/verify and the hash enrichment of POST /v1/scan.
+    every reader that goes through it gets it: GET /v1/threat/{hash},
+    POST /v1/verify and the hash enrichment of POST /v1/scan. The dashboard
+    list (`list_threats`, GET /v1/threats) does not go through it and returns
+    entries as stored.
     """
     data = entry.model_dump()
     for key in _THREAT_TEXT_FIELDS:

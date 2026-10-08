@@ -97,13 +97,13 @@ Source: `api/routers/threat.py` — Prefix: `/v1`
 | GET | `/v1/threat/{package_hash}` | Pro | Look up a hash in the threat database (`sigil scan --enrich`); 404 when unknown, 403 below Pro |
 | GET | `/v1/threats` | Pro | List known threats with pagination/filters |
 | GET | `/v1/signatures` | Pro | Download detection signatures (supports delta sync via `since`) |
-| POST | `/v1/signatures` | Pro, admin | Create or update a detection signature |
-| DELETE | `/v1/signatures/{sig_id}` | Pro, admin | Delete a detection signature |
+| POST | `/v1/signatures` | Pro + admin/owner role | Create or update a detection signature |
+| DELETE | `/v1/signatures/{sig_id}` | Pro + admin/owner role | Delete a detection signature |
 | GET | `/v1/threat-reports` | Pro | List threat reports with status filtering |
 | GET | `/v1/threat-reports/{report_id}` | Pro | Get single threat report details |
-| PATCH | `/v1/threat-reports/{report_id}` | Pro, reviewer | Update threat report status (review workflow); confirming creates a threat entry |
+| PATCH | `/v1/threat-reports/{report_id}` | Pro + reviewer/admin/owner role | Update threat report status (review workflow); confirming creates a threat entry |
 
-"Pro" means a Bearer token for an account on the Pro plan or higher; "admin" and "reviewer" are account roles (admin or owner; reviewer, admin or owner).
+"Pro" means a Bearer token for an account on the Pro plan or higher. Where a role is listed as well (`admin/owner`, `reviewer/admin/owner`), the account's role must also be one of those: otherwise the API answers 403, whatever the plan.
 
 ---
 

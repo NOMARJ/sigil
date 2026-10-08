@@ -279,6 +279,8 @@ Other fields (the CLI's `fingerprint`, for example) are ignored.
 
 `id` is included only when LLM analysis ran. CLI 1.3.7 reads `id` and prints `Enhanced LLM analysis completed` for any response that has it, so without analysis it reports a failed enhanced analysis instead.
 
+The scan is stored before the LLM step runs, and nothing from that step is stored. When LLM analysis ran, `findings` is the stored findings plus the LLM findings, and `risk_score` and `verdict` are recalculated with them; those LLM findings and that score and verdict are in this response only. `GET /v1/scans/{scan_id}` returns the static findings, score and verdict.
+
 **Status Codes:** 200 OK, 401 Missing or invalid token, 422 Validation error, 429 Rate limit or monthly scan quota exceeded
 
 ---
@@ -465,7 +467,7 @@ Look up a hash in the threat intelligence database. `sigil scan --enrich` calls 
 
 - Every 200 response is a match: an unknown hash returns 404. `known_malicious` is always `true` and `references` is always empty (none are recorded); CLI 1.3.7 needs both fields.
 - A community entry (`source: "community"`, made when a reviewer confirms a report) has the reporter's text as its description.
-- In the text fields, control characters (including terminal escapes), format characters (bidirectional overrides and isolates, zero-width characters) and the line and paragraph separators U+2028 and U+2029 are replaced with spaces. `POST /v1/verify` and the `threat_intel_hits` of `POST /v1/scan` show entries the same way.
+- In the text fields, control characters (including terminal escapes), format characters (bidirectional overrides and isolates, zero-width characters) and the line and paragraph separators U+2028 and U+2029 are replaced with spaces. `POST /v1/verify` and the `threat_intel_hits` of `POST /v1/scan` show entries the same way. The dashboard list (`GET /v1/threats`, `GET /threats`) does not: it returns entries as stored.
 - A confirmed `sigil report <hash>` report is **not findable by that hash**: confirming a report creates the entry keyed by the SHA-256 of `ecosystem:name:version` (for a hash report, `unknown:sha256:<hash>:`), as for every report, so a lookup of the hash given to `sigil report` returns 404, `POST /v1/verify` with that `artifact_hash` finds no threat, and `POST /v1/scan` with that hash in `metadata.hash` or `metadata.hashes` adds nothing to the risk score.
 
 **Status Codes:** 200 OK, 401 Missing or invalid token, 403 Plan below Pro, 404 Hash not found
@@ -603,20 +605,20 @@ Submit a threat report. Reports are queued for review; when a reviewer confirms 
 
 The body CLI 1.3.7 sends, `{"hash": "<sha256>", "threat_type": "<type>", "description": "<text>"}`, is also accepted and stored the same way as the current CLI's report: package `sha256:<hash>`, the description as the reason, and `Threat type: <type>` and `SHA-256: <hash>` as evidence. Its `hash` must be a SHA-256 digest (64 hexadecimal characters, any case); anything else is refused (422).
 
-A confirmed report is keyed in the threat database by a SHA-256 of its ecosystem, name and version, for a hash report too (`unknown:sha256:<hash>:`), never by the hash that was typed: a confirmed hash report is not findable by that hash (see `GET /v1/threat/{hash}`), and changes no `POST /v1/verify` verdict or `POST /v1/scan` score for it. A confirmed report with evidence also gets a detection signature built from that evidence. Confirming needs the reviewer role.
+A confirmed report is keyed in the threat database by a SHA-256 of its ecosystem, name and version, for a hash report too (`unknown:sha256:<hash>:`), never by the hash that was typed: a confirmed hash report is not findable by that hash (see `GET /v1/threat/{hash}`), and changes no `POST /v1/verify` verdict or `POST /v1/scan` score for it. A confirmed report with evidence also gets a detection signature built from that evidence, which `GET /v1/signatures` serves and which `sigil fetch` clients apply to their later scans. Evidence that contains regular-expression characters is used as the pattern itself, and `sigil report` builds its evidence from the threat type, which is free text: a threat type such as `x|.*|y` gives a pattern that matches any text. A reviewer should read the evidence before confirming. Confirming (`PATCH /v1/threat-reports/{id}`) needs the reviewer, admin or owner role.
 
 **Response (201 Created)** (`ThreatReportResponse`), captured (`tests/fixtures/api_contract/api-patched/report_response.json`):
 
 ```json
 {
-  "report_id": "36d5a8357323",
-  "id": "36d5a8357323",
+  "report_id": "2a21f1ec-125b-4cf8-97e8-3209c61b9b29",
+  "id": "2a21f1ec-125b-4cf8-97e8-3209c61b9b29",
   "status": "received",
   "message": "Thank you for your report. Our team will review it."
 }
 ```
 
-`id` is a copy of `report_id`, which CLI 1.3.7 reads.
+`id` is a copy of `report_id`, which CLI 1.3.7 reads. The report id is a GUID (`threat_reports.id` is a `UNIQUEIDENTIFIER` column); an API without the update returned 12 hexadecimal characters.
 
 **Status Codes:** 201 Created, 422 Validation error
 

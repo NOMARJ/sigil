@@ -97,8 +97,8 @@ update stored the files with the scan record; see
 ## What comes back
 
 The response is the API's scan response: `scan_id`, `target`, `files_scanned`,
-`findings` (as stored), the API's own `risk_score` and `verdict`, `status`,
-and `metadata`, which says what happened to the LLM step:
+`findings`, the API's own `risk_score` and `verdict`, `status`, and `metadata`,
+which says what happened to the LLM step:
 
 | Outcome | `metadata` |
 |---------|------------|
@@ -110,6 +110,14 @@ and `metadata`, which says what happened to the LLM step:
 The response also carries `id`, a copy of `scan_id`, but only when LLM analysis
 ran: CLI 1.3.7 reads `id`, and prints a success message for any response that
 has it.
+
+The API stores the scan before the LLM step runs, and stores nothing from that
+step. `findings` is the stored findings plus, when LLM analysis ran, its LLM
+findings (phase `llm_analysis`), and `risk_score` and `verdict` are then
+recalculated with them. The LLM findings and the recalculated score and verdict
+are in this response only: scan history (`GET /v1/scans/{scan_id}`) shows the
+static findings, score and verdict. The scan id the CLI prints next to the LLM
+findings leads to the stored scan, which does not have them.
 
 ## Output
 
@@ -129,7 +137,8 @@ The warnings and errors go to stderr. The success message goes to stdout
 with `-f text` and to stderr with any other `-f` format, so a JSON or SARIF
 report on stdout stays valid. LLM findings are printed for information: they
 do not change the verdict, the exit code or the scan report in any `-f`
-format.
+format, and the API does not store them (see
+[What comes back](#what-comes-back)).
 
 CLI 1.3.7 prints `sigil: Enhanced LLM analysis completed` to stdout, after
 the report, for any response it can parse. The API puts `id` in the response
