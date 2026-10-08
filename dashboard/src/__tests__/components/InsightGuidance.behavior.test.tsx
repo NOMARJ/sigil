@@ -6,6 +6,7 @@ import FirstInvestigationGuide from '@/components/FirstInvestigationGuide';
 import ToolTrackingCard from '@/components/ToolTrackingCard';
 import type { LLMInsight, Finding, CreditInfo, ForgeTool } from '@/lib/types';
 // [MOCK] Security analysis and tool metadata are local synthetic fixtures.
+// sigil:ignore-next-line CODE-001 -- fixture string shown to the UI under test, never executed
 const insight: LLMInsight = { analysis_type: 'zero_day_detection', threat_category: 'code_injection', confidence: .95, confidence_level: 'very_high', title: 'Eval chain', description: 'Remote request execution', reasoning: 'Input reaches eval', evidence_snippets: ['eval(input)'], affected_files: ['index.js'], severity_adjustment: 2, false_positive_likelihood: .1, remediation_suggestions: ['Use a parser'], mitigation_steps: ['Disable endpoint'] };
 const finding: Finding = { id: 'f', scan_id: 's', phase: 'code_patterns', severity: 'HIGH_RISK', title: 'Eval chain', description: 'execution', file_path: 'index.js', line_number: 1, pattern_matched: 'eval', weight: 3 };
 const credit: CreditInfo = { balance: 10, monthly_limit: 10, used_this_month: 0, costs: { quick_investigation: 4, thorough_investigation: 8, exhaustive_investigation: 16, false_positive_check: 4, remediation: 8, chat_message: 2 } };
@@ -13,9 +14,11 @@ const tool: ForgeTool = { id: 't', name: 'Parser', description: 'Parses input', 
 beforeEach(() => localStorage.clear());
 it.each([2, -2, 0])('expands and collapses actual evidence, remediation and details for severity %s', adjustment => {
  render(<ThreatExplanation insight={{ ...insight, severity_adjustment: adjustment, affected_files: adjustment === 0 ? [] : insight.affected_files }} isZeroDay={adjustment > 0} />);
+ // sigil:ignore-next-line CODE-001 -- fixture string shown to the UI under test, never executed
  expect(screen.queryByText('eval(input)')).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: 'Evidence (1)' })); expect(screen.getByText('eval(input)')).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button', { name: 'Remediation (1)' })); expect(screen.getByText('Use a parser')).toBeInTheDocument(); expect(screen.getByText('Disable endpoint')).toBeInTheDocument();
  fireEvent.click(screen.getByRole('button', { name: 'Details' })); expect(screen.getByText('False Positive Likelihood:')).toBeInTheDocument();
+ // sigil:ignore-next-line CODE-001 -- fixture string shown to the UI under test, never executed
  for (const name of ['Evidence (1)', 'Remediation (1)', 'Details']) fireEvent.click(screen.getByRole('button', { name })); expect(screen.queryByText('eval(input)')).not.toBeInTheDocument(); expect(screen.queryByText('Use a parser')).not.toBeInTheDocument();
 });
 it('filters titles and descriptions, categories and confidence, switches table/cards and shows coordinated context', () => {

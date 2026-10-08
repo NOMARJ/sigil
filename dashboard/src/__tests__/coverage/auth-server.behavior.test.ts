@@ -57,6 +57,7 @@ it.each(['nobody@example.invalid', 42])('reports unverified email with sanitized
   expect(await response.json()).toEqual({ error: 'email_unverified', email: typeof email === 'string' ? email : null });
 });
 it('returns the SDK access token contract', async () => {
+  // sigil:ignore-next-line CRED-007 -- mock access token for the SDK contract test, marked as unusable
   expect(await (await token()).json()).toEqual({ accessToken: 'MOCK-UNUSABLE-NOT-A-TOKEN' });
 });
 it.each(['login', 'logout', 'callback', 'signup'])('redirects legacy %s preserving query on the same origin', async action => {
