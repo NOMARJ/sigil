@@ -4,7 +4,9 @@
 //! Most tests put test-double `pip` and `npm` executables first on PATH. They
 //! only record their argv, working directory and environment, print canned
 //! output for the lookups Sigil makes first (`pip config list`, `pip index
-//! versions`, `npm view`) and exit; nothing touches a network. The
+//! versions`, `npm view`, `npm config get registry`) and exit; the only
+//! network is a registry on 127.0.0.1 that serves the tarball `sigil npm`
+//! downloads itself. The
 //! `real_pip_*` tests use the real pip, offline, against local fixtures
 //! whose only side effect, should pip run their code, is an empty marker
 //! file; they are skipped when pip is not installed. Every run gets its own
@@ -28,8 +30,10 @@ use std::process::{Command, Output};
 /// `pip index` print that to stderr and fail (pip older than 21.2 prints
 /// `unknown command "index"`); `$SIGIL_TEST_NPM_VIEW_ALL` is what an `npm
 /// view` of a `<name>@>=0` range prints (every release), `$SIGIL_TEST_NPM_VIEW`
-/// what any other view prints; with `$SIGIL_TEST_NPM_REFUSES_URLS` set, `npm
-/// pack` of a URL fails as npm 12 does (EALLOWREMOTE).
+/// what any other view prints; `npm config get registry` prints
+/// `$SIGIL_TEST_NPM_REGISTRY` (npm's default registry when unset) and `npm
+/// config get @scope:registry` `$SIGIL_TEST_NPM_SCOPED_REGISTRY` (`undefined`
+/// when unset), as npm does.
 const FAKE_TOOL: &str = r#"#!/bin/sh
 tool=$(basename "$0")
 sub=$1
@@ -46,12 +50,12 @@ case "$tool $sub" in
       case $a in *'@>=0') if [ -n "${SIGIL_TEST_NPM_VIEW_ALL:-}" ]; then printf '%s\n' "$SIGIL_TEST_NPM_VIEW_ALL"; exit 0; fi ;; esac
     done
     printf '%s\n' "${SIGIL_TEST_NPM_VIEW:-}"; exit 0 ;;
-  "npm pack")
-    if [ -n "${SIGIL_TEST_NPM_REFUSES_URLS:-}" ]; then
-      for a in "$@"; do
-        case $a in http://*|https://*) echo 'npm error code EALLOWREMOTE' >&2; exit 1 ;; esac
-      done
-    fi ;;
+  "npm config")
+    case $3 in
+      @*:registry) printf '%s\n' "${SIGIL_TEST_NPM_SCOPED_REGISTRY:-undefined}"; exit 0 ;;
+      registry) printf '%s\n' "${SIGIL_TEST_NPM_REGISTRY:-https://registry.npmjs.org/}"; exit 0 ;;
+    esac
+    exit 1 ;;
 esac
 if [ -n "${SIGIL_TEST_FAKE_SLEEP:-}" ]; then
   echo $$ > "$SIGIL_TEST_LOG_DIR/$tool-$sub.pid"
@@ -134,7 +138,20 @@ fn sigil_command(fx: &Fixture, args: &[&str], path: &str, env: &[(&str, &str)]) 
         .env_remove("SIGIL_QUARANTINE_DIR")
         .env_remove("SIGIL_POLICY_FILE")
         .env_remove("SIGIL_PACK_PUBLIC_KEY")
-        .env_remove("SIGIL_NO_PROJECT_CONFIG");
+        .env_remove("SIGIL_NO_PROJECT_CONFIG")
+        .env_remove("SIGIL_ALLOW_PRIVATE_URLS");
+    // The registry the tests download from is on 127.0.0.1: no proxy of the
+    // caller's stands between.
+    for k in [
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ] {
+        cmd.env_remove(k);
+    }
     // The caller's own pip settings must not leak into the tests.
     for (k, _) in std::env::vars_os() {
         if k.to_string_lossy().starts_with("PIP_") {
@@ -264,6 +281,37 @@ fn npm_view(name: &str, version: &str, tarball: &str, integrity: &str) -> String
     .to_string()
 }
 
+/// A registry on 127.0.0.1 serving the tarball of one release, which `sigil
+/// npm` downloads itself: the tarball's URL, its integrity, and the registry
+/// URL the fake `npm` reports as npm's registry (the tarball must be on its
+/// host).
+struct Served {
+    registry: String,
+    tarball: String,
+    integrity: String,
+}
+
+impl Served {
+    /// The environment that makes the fake `npm` report this registry.
+    fn env(&self) -> (&'static str, &str) {
+        ("SIGIL_TEST_NPM_REGISTRY", &self.registry)
+    }
+}
+
+/// Serve a real tarball of `name`@`version` (a file-name-safe name: the
+/// tarball is `<name>-<version>.tgz`) on a loopback registry.
+fn serve_tarball(fx: &Fixture, name: &str, version: &str) -> Served {
+    let (path, integrity) = npm_tarball(fx, name, version);
+    let file = path.file_name().unwrap().to_string_lossy().into_owned();
+    let bytes = std::fs::read(&path).unwrap();
+    let base = serve_registry(|_| (Vec::new(), vec![(file.clone(), bytes)]));
+    Served {
+        tarball: format!("{base}/files/{file}"),
+        registry: format!("{base}/"),
+        integrity,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // pip
 // ---------------------------------------------------------------------------
@@ -317,7 +365,12 @@ fn pip_resolves_an_unpinned_spec_to_the_release_pip_install_picks() {
         assert_eq!(cwd, fx.root);
         assert!(q.join("downloaded.txt").exists());
         let (argv, _) = recorded(&fx, "pip-download").expect("pip download ran");
-        assert_eq!(argv.last().map(String::as_str), Some(pinned), "{spec}");
+        // Pinned by string equality: `==2.0` also matches `2.0+local1`.
+        assert_eq!(
+            argv.last().map(String::as_str),
+            Some(pinned.replacen("==", "===", 1).as_str()),
+            "{spec}"
+        );
         assert!(argv.iter().any(|a| a == "--only-binary=:all:"));
         assert!(
             stdout(&out).contains("resolves to"),
@@ -354,7 +407,59 @@ fn pip_resolution_failures_download_nothing() {
             quarantine_items(&fx).is_empty(),
             "{spec} left a quarantine entry"
         );
+        // Nothing is said about downloading when nothing is.
+        assert!(!stdout(&out).contains("downloading"), "{}", stdout(&out));
     }
+}
+
+/// `-V` on a spec that already names a version is said plainly (it used to
+/// read as a marker or a malformed range), and nothing runs.
+#[test]
+fn a_version_flag_on_a_spec_that_names_a_version_is_refused_plainly() {
+    let fx = fixture();
+    for (args, spec) in [
+        (vec!["pip", "wheelok>=1", "-V", "1.0"], "wheelok>=1"),
+        (vec!["pip", "wheelok==1.0", "--version", "2.0"], "wheelok==1.0"),
+        (vec!["pip", "wheelok[x]<2", "-V", "1.0"], "wheelok[x]<2"),
+        (vec!["npm", "plainpkg@1", "-V", "1.0.0"], "plainpkg@1"),
+        (vec!["npm", "@types/node@20", "-V", "20.1.0"], "@types/node@20"),
+    ] {
+        let out = sigil(&fx, &args, &[OPT_IN]);
+        assert_eq!(code(&out), 2, "{args:?}: {}", stderr(&out));
+        let err = stderr(&out);
+        assert!(err.contains("was given a version twice"), "{err}");
+        assert!(err.contains(&format!("`{spec}` already names one")), "{err}");
+        assert!(!err.contains("environment marker"), "{err}");
+    }
+    assert!(ran_nothing(&fx, "pip") && ran_nothing(&fx, "npm"));
+    assert!(quarantine_items(&fx).is_empty());
+    // A name with extras or a scope is not a version.
+    let out = sigil(&fx, &["pip", "requests[socks]", "-V", "2.32.3"], &[]);
+    assert_eq!(code(&out), 0, "{}", stderr(&out));
+}
+
+/// With no pip or npm on PATH, the message says so (the system's own
+/// `No such file or directory (os error 2)` does not say which file).
+#[test]
+fn a_missing_pip_or_npm_is_named() {
+    let fx = fixture();
+    let empty = fx.root.join("empty-bin");
+    std::fs::create_dir_all(&empty).unwrap();
+    let path = empty.to_string_lossy().into_owned();
+    for (args, tool) in [
+        (vec!["pip", "requests==2.32.3"], "pip"),
+        (vec!["pip", "requests"], "pip"),
+        (vec!["npm", "left-pad"], "npm"),
+    ] {
+        let out = run_sigil(&fx, &args, &path, &[]);
+        assert_eq!(code(&out), 2, "{args:?}: {}", stderr(&out));
+        assert!(
+            stderr(&out).contains(&format!("is {tool} installed and on PATH?")),
+            "{args:?}: {}",
+            stderr(&out)
+        );
+    }
+    assert!(quarantine_items(&fx).is_empty());
 }
 
 #[test]
@@ -408,7 +513,10 @@ fn a_release_without_a_wheel_fails_instead_of_an_older_one_being_scanned() {
     assert!(err.contains("--only-binary=:all:"), "{err}");
     assert!(err.contains("--allow-build-scripts"), "{err}");
     let (argv, _) = recorded(&fx, "pip-download").unwrap();
-    assert_eq!(argv.last().map(String::as_str), Some("sdist-only-pkg==2.0"));
+    assert_eq!(
+        argv.last().map(String::as_str),
+        Some("sdist-only-pkg===2.0")
+    );
     // The failed download leaves no empty PENDING entry to approve.
     assert!(quarantine_items(&fx).is_empty());
     let list = sigil(&fx, &["list"], &[]);
@@ -586,22 +694,21 @@ fn a_download_that_saves_nothing_is_an_error_not_a_clean_scan() {
         stdout(&list)
     );
 
-    // The same for npm, by default: a pack that wrote no tarball.
+    // The same for npm with the opt-in: a pack that wrote no tarball. (By
+    // default Sigil writes the tarball itself and fails if it cannot.)
     let fx = fixture();
-    let (_, integrity) = npm_tarball(&fx, "left-pad", "1.3.0");
-    let view = npm_view(
-        "left-pad",
-        "1.3.0",
-        "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
-        &integrity,
+    let out = sigil(
+        &fx,
+        &["npm", "./local-dir", "--allow-build-scripts", "--auto-approve"],
+        &[OPT_IN],
     );
-    let out = sigil(&fx, &["npm", "left-pad"], &[("SIGIL_TEST_NPM_VIEW", &view)]);
     assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
     assert!(
         stderr(&out).contains("saved nothing into quarantine"),
         "{}",
         stderr(&out)
     );
+    assert!(!stdout(&out).contains("auto-approved"), "{}", stdout(&out));
     assert!(quarantine_items(&fx).is_empty());
 }
 
@@ -618,7 +725,6 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
         vec!["pip", "C:\\x\\y"],
         vec!["pip", "six; python_version<'3'"],
         vec!["pip", "x==1.zip "],
-        vec!["pip", "requests>=2", "-V", "2.32.3"],
         vec![
             "pip",
             "requests",
@@ -671,21 +777,20 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
 // npm
 // ---------------------------------------------------------------------------
 
-const TYPES_NODE_TARBALL: &str = "https://registry.npmjs.org/@types/node/-/node-20.1.0.tgz";
-
 #[test]
-fn npm_packs_the_resolved_registry_tarball_with_scripts_off() {
+fn npm_downloads_the_resolved_registry_tarball_and_never_runs_npm_pack() {
     let fx = fixture();
-    let (packed, integrity) = npm_tarball(&fx, "types-node", "20.1.0");
-    let view = npm_view("@types/node", "20.1.0", TYPES_NODE_TARBALL, &integrity);
-    let packed = packed.to_string_lossy().into_owned();
+    let served = serve_tarball(&fx, "types-node", "20.1.0");
+    let view = npm_view(
+        "@types/node",
+        "20.1.0",
+        &served.tarball,
+        &served.integrity,
+    );
     let out = sigil(
         &fx,
         &["--format", "json", "npm", "@types/node", "-V", "20.1.0"],
-        &[
-            ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_PACK_FILE", &packed),
-        ],
+        &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
     let q = only_item(&fx);
@@ -706,15 +811,13 @@ fn npm_packs_the_resolved_registry_tarball_with_scripts_off() {
             "dist-tags.latest",
         ]
     );
-    assert_eq!(cwd, q, "npm view runs where npm pack does");
-    let (argv, cwd) = recorded(&fx, "npm-pack").expect("npm pack ran");
-    // The release by registry name, not the tarball URL: npm names the file
-    // from the registry's manifest, and npm 12 refuses a URL spec.
-    assert_eq!(
-        argv,
-        ["pack", "--ignore-scripts", "--", "@types/node@20.1.0"]
-    );
-    assert_eq!(cwd, q, "npm must run in the quarantine directory");
+    assert_eq!(cwd, q, "npm view runs in the (empty) quarantine directory");
+    // No `npm pack`: it would fetch the release's metadata a second time (and
+    // could be told a different tarball). The tarball Sigil checked is the
+    // one it downloaded, and the registry setting was read from npm.
+    assert!(recorded(&fx, "npm-pack").is_none(), "npm pack ran");
+    let (argv, _) = recorded(&fx, "npm-config").expect("npm config ran");
+    assert_eq!(argv, ["config", "get", "registry"]);
     // The tarball was unpacked and scanned, and the JSON report names the
     // release that was scanned.
     assert!(q.join("types-node-20.1.0").join("package").is_dir());
@@ -726,20 +829,16 @@ fn npm_packs_the_resolved_registry_tarball_with_scripts_off() {
 #[test]
 fn npm_says_which_release_a_range_resolves_to() {
     let fx = fixture();
-    let (packed, integrity) = npm_tarball(&fx, "left-pad", "1.3.0");
+    let served = serve_tarball(&fx, "left-pad", "1.3.0");
     let view = serde_json::json!([
-        {"name":"left-pad","version":"1.2.0","dist.tarball":"https://registry.npmjs.org/left-pad/-/left-pad-1.2.0.tgz","dist.integrity":"sha512-AAAA","dist-tags.latest":"1.3.0"},
-        {"name":"left-pad","version":"1.3.0","dist.tarball":"https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz","dist.integrity":integrity,"dist-tags.latest":"1.3.0"}
+        {"name":"left-pad","version":"1.2.0","dist.tarball":format!("{}/files/left-pad-1.2.0.tgz", served.registry.trim_end_matches('/')),"dist.integrity":"sha512-AAAA","dist-tags.latest":"1.3.0"},
+        {"name":"left-pad","version":"1.3.0","dist.tarball":served.tarball,"dist.integrity":served.integrity,"dist-tags.latest":"1.3.0"}
     ])
     .to_string();
-    let packed = packed.to_string_lossy().into_owned();
     let out = sigil(
         &fx,
         &["npm", "left-pad@^1.2"],
-        &[
-            ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_PACK_FILE", &packed),
-        ],
+        &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
     assert!(
@@ -747,8 +846,7 @@ fn npm_says_which_release_a_range_resolves_to() {
         "{}",
         stdout(&out)
     );
-    let (argv, _) = recorded(&fx, "npm-pack").unwrap();
-    assert_eq!(argv.last().map(String::as_str), Some("left-pad@1.3.0"));
+    assert!(only_item(&fx).join("left-pad-1.3.0").is_dir());
     // The quarantine entry is named for the release, not the range typed.
     let list = sigil(&fx, &["list"], &[]);
     assert!(
@@ -764,23 +862,21 @@ fn npm_says_which_release_a_range_resolves_to() {
 #[test]
 fn npm_refuses_a_tarball_that_does_not_match_the_registry_integrity() {
     let fx = fixture();
-    let (packed, integrity) = npm_tarball(&fx, "plainpkg", "1.0.0");
+    let served = serve_tarball(&fx, "plainpkg", "1.0.0");
     let (_, other) = npm_tarball(&fx, "plainpkg-other", "1.0.0");
-    assert_ne!(integrity, other);
-    let packed = packed.to_string_lossy().into_owned();
-    let tarball = "https://registry.npmjs.org/plainpkg/-/plainpkg-1.0.0.tgz";
+    assert_ne!(served.integrity, other);
     let no_hash = serde_json::json!({
-        "name": "plainpkg", "version": "1.0.0", "dist.tarball": tarball,
+        "name": "plainpkg", "version": "1.0.0", "dist.tarball": served.tarball,
     })
     .to_string();
     let bad_shasum = serde_json::json!({
-        "name": "plainpkg", "version": "1.0.0", "dist.tarball": tarball,
+        "name": "plainpkg", "version": "1.0.0", "dist.tarball": served.tarball,
         "dist.shasum": "0000000000000000000000000000000000000000",
     })
     .to_string();
     for (view, says) in [
         (
-            npm_view("plainpkg", "1.0.0", tarball, &other),
+            npm_view("plainpkg", "1.0.0", &served.tarball, &other),
             "not the integrity",
         ),
         (no_hash, "no integrity or shasum"),
@@ -790,10 +886,7 @@ fn npm_refuses_a_tarball_that_does_not_match_the_registry_integrity() {
         let out = sigil(
             &fx,
             &["npm", "plainpkg", "--auto-approve"],
-            &[
-                ("SIGIL_TEST_NPM_VIEW", &view),
-                ("SIGIL_TEST_PACK_FILE", &packed),
-            ],
+            &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
         );
         assert_eq!(code(&out), 2, "{view}: {}", stderr(&out));
         let err = stderr(&out);
@@ -804,14 +897,11 @@ fn npm_refuses_a_tarball_that_does_not_match_the_registry_integrity() {
         assert!(quarantine_items(&fx).is_empty(), "{view}");
     }
     // The matching integrity passes.
-    let view = npm_view("plainpkg", "1.0.0", tarball, &integrity);
+    let view = npm_view("plainpkg", "1.0.0", &served.tarball, &served.integrity);
     let out = sigil(
         &fx,
         &["npm", "plainpkg"],
-        &[
-            ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_PACK_FILE", &packed),
-        ],
+        &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
 }
@@ -832,9 +922,108 @@ fn npm_refuses_a_registry_tarball_that_is_not_a_plain_download() {
         assert_eq!(code(&out), 2, "{tarball}: {}", stderr(&out));
         let err = stderr(&out);
         assert!(err.contains("will not download `markreg@1.0.0`"), "{err}");
+        assert!(!stdout(&out).contains("downloading"), "{}", stdout(&out));
         assert!(recorded(&fx, "npm-pack").is_none(), "{tarball} was packed");
         assert!(quarantine_items(&fx).is_empty(), "{tarball}");
     }
+}
+
+/// Sigil downloads the tarball itself, from the registry's own host and
+/// without credentials: a registry whose metadata names another host, or a
+/// URL with a token in it, is refused before anything is fetched.
+#[test]
+fn npm_refuses_a_tarball_off_the_registry_host_or_with_credentials() {
+    let fx = fixture();
+    let served = serve_tarball(&fx, "plainpkg", "1.0.0");
+    let on_registry = served.tarball.clone();
+    let with_user = on_registry.replacen("http://", "http://token:pw@", 1);
+    for (tarball, says) in [
+        ("http://evil.example/plainpkg-1.0.0.tgz".to_string(), "not the host"),
+        // npm's own registry in the metadata of another registry.
+        (
+            "https://registry.npmjs.org/plainpkg/-/plainpkg-1.0.0.tgz".to_string(),
+            "not the host",
+        ),
+        (with_user, "user name or password"),
+    ] {
+        let fx = fixture();
+        let view = npm_view("plainpkg", "1.0.0", &tarball, &served.integrity);
+        let out = sigil(
+            &fx,
+            &["npm", "plainpkg"],
+            &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
+        );
+        assert_eq!(code(&out), 2, "{tarball}: {}", stderr(&out));
+        let err = stderr(&out);
+        assert!(err.contains("will not download `plainpkg@1.0.0`"), "{err}");
+        assert!(err.contains(says), "{tarball}: {err}");
+        assert!(!err.contains("token:pw"), "credentials were printed: {err}");
+        assert!(recorded(&fx, "npm-pack").is_none(), "{tarball} was packed");
+        assert!(quarantine_items(&fx).is_empty(), "{tarball}");
+    }
+    // A scoped package is checked against its scope's registry.
+    let fx = fixture();
+    let view = npm_view("@acme/pkg", "1.0.0", &served.tarball, &served.integrity);
+    let out = sigil(
+        &fx,
+        &["npm", "@acme/pkg"],
+        &[
+            ("SIGIL_TEST_NPM_VIEW", &view),
+            ("SIGIL_TEST_NPM_REGISTRY", &served.registry),
+            ("SIGIL_TEST_NPM_SCOPED_REGISTRY", "https://npm.acme.example/"),
+        ],
+    );
+    assert_eq!(code(&out), 2, "{}", stderr(&out));
+    assert!(stderr(&out).contains("not the host"), "{}", stderr(&out));
+    let (argv, _) = recorded(&fx, "npm-config").expect("npm config ran");
+    assert_eq!(argv, ["config", "get", "@acme:registry"], "the scope's registry is asked first");
+}
+
+/// A registry that wants a token for tarballs is not sent one: the 401 is
+/// explained.
+#[test]
+fn npm_explains_a_tarball_that_needs_credentials() {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut s) = stream else { continue };
+            let mut seen = Vec::new();
+            let mut buf = [0u8; 1024];
+            while !seen.windows(4).any(|w| w == b"\r\n\r\n") {
+                match s.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => seen.extend_from_slice(&buf[..n]),
+                }
+            }
+            let _ = s.write_all(
+                b"HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+        }
+    });
+    let fx = fixture();
+    let (_, integrity) = npm_tarball(&fx, "secretpkg", "1.0.0");
+    let view = npm_view(
+        "secretpkg",
+        "1.0.0",
+        &format!("http://127.0.0.1:{port}/secretpkg-1.0.0.tgz"),
+        &integrity,
+    );
+    let out = sigil(
+        &fx,
+        &["npm", "secretpkg"],
+        &[
+            ("SIGIL_TEST_NPM_VIEW", &view),
+            ("SIGIL_TEST_NPM_REGISTRY", &format!("http://127.0.0.1:{port}/")),
+        ],
+    );
+    assert_eq!(code(&out), 2, "{}", stderr(&out));
+    let err = stderr(&out);
+    assert!(err.contains("could not download the tarball of `secretpkg@1.0.0`"), "{err}");
+    assert!(err.contains("HTTP 401"), "{err}");
+    assert!(err.contains("wants credentials"), "{err}");
+    assert!(quarantine_items(&fx).is_empty());
 }
 
 #[test]
@@ -871,37 +1060,14 @@ fn npm_refuses_a_tarball_string_that_npm_would_read_as_a_path() {
 }
 
 #[test]
-fn npm_packs_a_package_registry_url_on_a_git_host() {
-    // GitLab's npm package registry serves tarballs from gitlab.com; npm
-    // downloads such a URL as a tarball (hosted-git-info reads a `/-/` path
-    // as no repository), so it is packed like any registry tarball.
-    let fx = fixture();
-    let tarball =
-        "https://gitlab.com/api/v4/projects/123/packages/npm/@acme/pkg/-/@acme/pkg-1.0.0.tgz";
-    let (packed, integrity) = npm_tarball(&fx, "acme-pkg", "1.0.0");
-    let view = npm_view("@acme/pkg", "1.0.0", tarball, &integrity);
-    let packed = packed.to_string_lossy().into_owned();
-    let out = sigil(
-        &fx,
-        &["npm", "@acme/pkg"],
-        &[
-            ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_PACK_FILE", &packed),
-        ],
-    );
-    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
-    let (argv, _) = recorded(&fx, "npm-pack").expect("npm pack ran");
-    assert_eq!(argv.last().map(String::as_str), Some("@acme/pkg@1.0.0"));
-}
-
-#[test]
 fn parallel_runs_that_fail_leave_a_whole_index_and_no_pending_entry() {
-    // Every run adds its quarantine entry and, its `npm pack` failing,
+    // Every run adds its quarantine entry and, its download failing,
     // discards it again: two index writes per run, from eight processes
     // sharing one quarantine. Without a lock on the index, runs fail with
     // "failed to parse quarantine index" or leave entries behind.
     let fx = fixture();
-    let tarball = "https://registry.example/pkg/-/pkg-1.0.0.tgz";
+    // Nothing listens on port 1: the download is refused at once.
+    let tarball = "http://127.0.0.1:1/pkg-1.0.0.tgz";
     let outputs: Vec<(String, i32, String)> = std::thread::scope(|scope| {
         let workers: Vec<_> = (0..8)
             .map(|n| {
@@ -910,13 +1076,13 @@ fn parallel_runs_that_fail_leave_a_whole_index_and_no_pending_entry() {
                     let mut seen = Vec::new();
                     for round in 0..3 {
                         let name = format!("par{n}x{round}");
-                        let view = npm_view(&name, "1.0.0", tarball, "");
+                        let view = npm_view(&name, "1.0.0", tarball, "sha512-AAAA");
                         let out = sigil(
                             fx,
                             &["npm", &name],
                             &[
                                 ("SIGIL_TEST_NPM_VIEW", &view),
-                                ("SIGIL_TEST_FAKE_EXIT", "1"),
+                                ("SIGIL_TEST_NPM_REGISTRY", "http://127.0.0.1:1/"),
                             ],
                         );
                         seen.push((name, code(&out), stderr(&out)));
@@ -933,7 +1099,7 @@ fn parallel_runs_that_fail_leave_a_whole_index_and_no_pending_entry() {
     assert_eq!(outputs.len(), 24);
     for (name, status, err) in &outputs {
         assert_eq!(*status, 2, "{name}: {err}");
-        assert!(err.contains("npm pack failed"), "{name}: {err}");
+        assert!(err.contains("could not download the tarball"), "{name}: {err}");
         assert!(!err.contains("quarantine index"), "{name}: {err}");
         assert!(!err.contains("quarantine entry"), "{name}: {err}");
     }
@@ -959,6 +1125,39 @@ fn wait_for_file(path: &Path, secs: u64) -> bool {
     path.exists()
 }
 
+/// A registry on 127.0.0.1 that answers a tarball request with a head
+/// promising a body and then sends none, for as long as the test process
+/// lives (a slow transfer a test can interrupt). `seen` is created when a
+/// request has arrived.
+fn serve_stalled(seen: PathBuf) -> String {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+    let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut s) = stream else { continue };
+            let seen = seen.clone();
+            std::thread::spawn(move || {
+                let mut request = Vec::new();
+                let mut buf = [0u8; 1024];
+                while !request.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match s.read(&mut buf) {
+                        Ok(0) | Err(_) => return,
+                        Ok(n) => request.extend_from_slice(&buf[..n]),
+                    }
+                }
+                let _ = s.write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Length: 1000000\r\nConnection: close\r\n\r\npartial",
+                );
+                let _ = s.flush();
+                let _ = std::fs::write(&seen, "requested");
+                std::thread::sleep(std::time::Duration::from_secs(60));
+            });
+        }
+    });
+    base
+}
+
 #[test]
 fn an_interrupted_download_leaves_no_pending_entry() {
     // Ctrl-C (SIGINT) or a `timeout` (SIGTERM) during a slow transfer ends
@@ -970,11 +1169,13 @@ fn an_interrupted_download_leaves_no_pending_entry() {
         ("pip", "TERM", 143),
     ] {
         let fx = fixture();
+        let requested = fx.root.join("requested");
+        let base = serve_stalled(requested.clone());
         let view = npm_view(
             "slowpkg",
             "1.0.0",
-            "https://registry.example/slowpkg/-/slowpkg-1.0.0.tgz",
-            "",
+            &format!("{base}/slowpkg-1.0.0.tgz"),
+            "sha512-AAAA",
         );
         let path = format!(
             "{}:{}",
@@ -986,12 +1187,14 @@ fn an_interrupted_download_leaves_no_pending_entry() {
         } else {
             &["pip", "slowpkg==1.0"]
         };
+        let registry = format!("{base}/");
         let mut child = sigil_command(
             &fx,
             args,
             &path,
             &[
                 ("SIGIL_TEST_NPM_VIEW", &view),
+                ("SIGIL_TEST_NPM_REGISTRY", &registry),
                 ("SIGIL_TEST_FAKE_SLEEP", "30"),
             ],
         )
@@ -999,12 +1202,16 @@ fn an_interrupted_download_leaves_no_pending_entry() {
         .stderr(std::process::Stdio::piped())
         .spawn()
         .expect("run sigil");
-        let transfer_pid = fx.logs.join(format!(
-            "{tool}-{}.pid",
-            if tool == "npm" { "pack" } else { "download" }
-        ));
+        // npm: sigil downloads the tarball itself (the registry above stalls
+        // it); pip: the test double sleeps.
+        let transfer_pid = fx.logs.join("pip-download.pid");
+        let started = if tool == "npm" {
+            requested.clone()
+        } else {
+            transfer_pid.clone()
+        };
         assert!(
-            wait_for_file(&transfer_pid, 20),
+            wait_for_file(&started, 20),
             "{tool}: the transfer never started"
         );
         assert_eq!(
@@ -1031,8 +1238,10 @@ fn an_interrupted_download_leaves_no_pending_entry() {
         };
         // The transfer's own process (it inherited sigil's stderr) is not
         // the test's to leave running; stderr only ends once it is gone.
-        if let Ok(pid) = std::fs::read_to_string(&transfer_pid) {
-            let _ = Command::new("kill").arg(pid.trim()).status();
+        if tool == "pip" {
+            if let Ok(pid) = std::fs::read_to_string(&transfer_pid) {
+                let _ = Command::new("kill").arg(pid.trim()).status();
+            }
         }
         let mut err = String::new();
         if let Some(mut pipe) = child.stderr.take() {
@@ -1182,6 +1391,13 @@ fn mcp_scan_package(
         .env_remove("SIGIL_ALLOW_BUILD_SCRIPTS")
         .env_remove("SIGIL_QUARANTINE_DIR")
         .env_remove("SIGIL_POLICY_FILE")
+        .env_remove("SIGIL_ALLOW_PRIVATE_URLS")
+        .env_remove("HTTP_PROXY")
+        .env_remove("HTTPS_PROXY")
+        .env_remove("ALL_PROXY")
+        .env_remove("http_proxy")
+        .env_remove("https_proxy")
+        .env_remove("all_proxy")
         .envs(env.iter().copied())
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -1280,21 +1496,17 @@ fn mcp_scan_package_names_the_release_it_scanned() {
     assert_eq!(result["isError"], false, "{result}");
     assert_eq!(result["structuredContent"]["package"], "markerpkg==2.0");
 
-    let (packed, integrity) = npm_tarball(&fx, "left-pad", "1.3.0");
+    let served = serve_tarball(&fx, "left-pad", "1.3.0");
     let view = npm_view(
         "left-pad",
         "1.3.0",
-        "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
-        &integrity,
+        &served.tarball,
+        &served.integrity,
     );
-    let packed = packed.to_string_lossy().into_owned();
     let result = mcp_scan_package(
         &fx,
         serde_json::json!({ "ecosystem": "npm", "name": "left-pad", "version": "^1" }),
-        &[
-            ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_PACK_FILE", &packed),
-        ],
+        &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
     );
     assert_eq!(result["isError"], false, "{result}");
     assert_eq!(result["structuredContent"]["target"], "npm:left-pad");
@@ -1515,6 +1727,44 @@ fn real_pip_does_not_scan_an_older_wheel_in_place_of_the_newest_release() {
         .collect();
     assert_eq!(wheel_dirs.len(), 1, "the 1.0 wheel was downloaded once");
     assert!(!marker.exists());
+}
+
+/// An index that lists `2.0` and `2.0+local1`: the release Sigil resolved to
+/// (`2.0`) is the file it downloads, not the local variant that `==2.0` also
+/// matches and pip would take as the highest.
+#[test]
+fn real_pip_downloads_the_resolved_release_not_its_local_variant() {
+    if !real_pip_available() {
+        return;
+    }
+    let fx = fixture();
+    let links = fx.root.join("links");
+    std::fs::create_dir_all(&links).unwrap();
+    write_plain_wheel(&links, "2.0");
+    write_plain_wheel(&links, "2.0+local1");
+    let path = std::env::var("PATH").unwrap_or_default();
+    let env = offline(&links);
+
+    let out = run_sigil(&fx, &["pip", "markerpkg>2.0a1"], &path, &with(&env, &[]));
+    assert!(matches!(code(&out), 0 | 1), "stderr: {}", stderr(&out));
+    assert!(
+        stdout(&out).contains("resolves to markerpkg==2.0"),
+        "{}",
+        stdout(&out)
+    );
+    let q = only_item(&fx);
+    assert!(
+        q.join("markerpkg-2.0-py3-none-any").join("markerpkg").is_dir(),
+        "the 2.0 wheel was downloaded: {:?}",
+        std::fs::read_dir(&q).unwrap().filter_map(Result::ok).map(|e| e.file_name()).collect::<Vec<_>>()
+    );
+    assert!(
+        !q.join("markerpkg-2.0+local1-py3-none-any").exists(),
+        "the local variant was downloaded"
+    );
+    // The entry names the release that was downloaded.
+    let list = sigil(&fx, &["list"], &[]);
+    assert!(stdout(&list).contains("markerpkg==2.0 (pip)"), "{}", stdout(&list));
 }
 
 /// A constraint from the environment that names a local project, and a
@@ -1766,31 +2016,33 @@ fn the_variable_does_not_lift_the_unusable_spec_refusals() {
 // npm: what the registry's names and versions can make npm do
 // ---------------------------------------------------------------------------
 
-/// npm 12 refuses to fetch a tarball it is given as a URL (EALLOWREMOTE,
-/// `allow-remote=none`): packing the release by name works on every npm.
+/// Sigil never runs `npm pack` by default: not by name (it would ask the
+/// registry for the release's metadata a second time) and not by URL (npm 12
+/// refuses a URL without `--allow-remote=all`, and npm 10 names the file it
+/// writes from the tarball's own manifest). Even a double that fails every
+/// `npm pack` changes nothing.
 #[test]
-fn npm_is_given_the_release_by_name_never_a_url() {
+fn npm_is_never_asked_to_pack_by_default() {
     let fx = fixture();
-    let (packed, integrity) = npm_tarball(&fx, "left-pad", "1.3.0");
+    let served = serve_tarball(&fx, "left-pad", "1.3.0");
     let view = npm_view(
         "left-pad",
         "1.3.0",
-        "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
-        &integrity,
+        &served.tarball,
+        &served.integrity,
     );
-    let packed = packed.to_string_lossy().into_owned();
     let out = sigil(
         &fx,
         &["npm", "left-pad@1.3.0"],
         &[
             ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_PACK_FILE", &packed),
-            ("SIGIL_TEST_NPM_REFUSES_URLS", "1"),
+            served.env(),
+            ("SIGIL_TEST_FAKE_EXIT", "1"),
         ],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
-    let (argv, _) = recorded(&fx, "npm-pack").expect("npm pack ran");
-    assert_eq!(argv, ["pack", "--ignore-scripts", "--", "left-pad@1.3.0"]);
+    assert!(recorded(&fx, "npm-pack").is_none(), "npm pack ran");
+    let (argv, _) = recorded(&fx, "npm-view").expect("npm view ran");
     assert!(
         !argv.iter().any(|a| a.contains("://")),
         "no URL is handed to npm: {argv:?}"
@@ -1848,11 +2100,11 @@ fn ran_nothing_but_view(fx: &Fixture) -> bool {
 /// release scanned is the one an install gets.
 #[test]
 fn npm_skips_a_deprecated_latest_for_a_bare_name_as_npm_does() {
-    let rel = |version: &str, deprecated: bool, integrity: &str| {
+    let rel = |tarball: &str, version: &str, deprecated: bool, integrity: &str| {
         let mut o = serde_json::json!({
             "name": "rng2",
             "version": version,
-            "dist.tarball": format!("https://registry.npmjs.org/rng2/-/rng2-{version}.tgz"),
+            "dist.tarball": tarball,
             "dist.integrity": integrity,
             "dist-tags.latest": "2.0.0",
         });
@@ -1863,22 +2115,21 @@ fn npm_skips_a_deprecated_latest_for_a_bare_name_as_npm_does() {
     };
     for spec in ["rng2", "rng2@*"] {
         let fx = fixture();
-        let (packed, integrity) = npm_tarball(&fx, "rng2", "1.9.0");
-        let latest = rel("2.0.0", true, "sha512-BBBB").to_string();
+        let served = serve_tarball(&fx, "rng2", "1.9.0");
+        let latest = rel("http://127.0.0.1:1/x.tgz", "2.0.0", true, "sha512-BBBB").to_string();
         let all = serde_json::json!([
-            rel("1.0.0", false, "sha512-AAAA"),
-            rel("1.9.0", false, &integrity),
-            rel("2.0.0", true, "sha512-BBBB"),
+            rel("http://127.0.0.1:1/x.tgz", "1.0.0", false, "sha512-AAAA"),
+            rel(&served.tarball, "1.9.0", false, &served.integrity),
+            rel("http://127.0.0.1:1/x.tgz", "2.0.0", true, "sha512-BBBB"),
         ])
         .to_string();
-        let packed = packed.to_string_lossy().into_owned();
         let out = sigil(
             &fx,
             &["npm", spec],
             &[
                 ("SIGIL_TEST_NPM_VIEW", &latest),
                 ("SIGIL_TEST_NPM_VIEW_ALL", &all),
-                ("SIGIL_TEST_PACK_FILE", &packed),
+                served.env(),
             ],
         );
         assert_eq!(code(&out), 0, "{spec}: {}", stderr(&out));
@@ -1887,12 +2138,7 @@ fn npm_skips_a_deprecated_latest_for_a_bare_name_as_npm_does() {
             "{spec}: {}",
             stdout(&out)
         );
-        let (argv, _) = recorded(&fx, "npm-pack").expect("npm pack ran");
-        assert_eq!(
-            argv.last().map(String::as_str),
-            Some("rng2@1.9.0"),
-            "{spec}"
-        );
+        assert!(only_item(&fx).join("rng2-1.9.0").is_dir(), "{spec}");
         let (view, _) = recorded(&fx, "npm-view").expect("npm view ran");
         assert!(
             view.iter().any(|a| a == "rng2@>=0"),
@@ -1902,25 +2148,19 @@ fn npm_skips_a_deprecated_latest_for_a_bare_name_as_npm_does() {
     // A tag or a version named is taken as it is, deprecated or not.
     for spec in ["rng2@latest", "rng2@2.0.0"] {
         let fx = fixture();
-        let (packed, integrity) = npm_tarball(&fx, "rng2", "2.0.0");
-        let only = rel("2.0.0", true, &integrity).to_string();
-        let packed = packed.to_string_lossy().into_owned();
+        let served = serve_tarball(&fx, "rng2", "2.0.0");
+        let only = rel(&served.tarball, "2.0.0", true, &served.integrity).to_string();
         let out = sigil(
             &fx,
             &["npm", spec],
             &[
                 ("SIGIL_TEST_NPM_VIEW", &only),
                 ("SIGIL_TEST_NPM_VIEW_ALL", "[]"),
-                ("SIGIL_TEST_PACK_FILE", &packed),
+                served.env(),
             ],
         );
         assert_eq!(code(&out), 0, "{spec}: {}", stderr(&out));
-        let (argv, _) = recorded(&fx, "npm-pack").expect("npm pack ran");
-        assert_eq!(
-            argv.last().map(String::as_str),
-            Some("rng2@2.0.0"),
-            "{spec}"
-        );
+        assert!(only_item(&fx).join("rng2-2.0.0").is_dir(), "{spec}");
         let (view, _) = recorded(&fx, "npm-view").expect("npm view ran");
         assert!(
             !view.iter().any(|a| a.ends_with("@>=0")),
@@ -1930,21 +2170,19 @@ fn npm_skips_a_deprecated_latest_for_a_bare_name_as_npm_does() {
     // When the range lookup finds nothing (a package with only
     // pre-releases), the tag stands.
     let fx = fixture();
-    let (packed, integrity) = npm_tarball(&fx, "rng2", "2.0.0");
-    let only = rel("2.0.0", true, &integrity).to_string();
-    let packed = packed.to_string_lossy().into_owned();
+    let served = serve_tarball(&fx, "rng2", "2.0.0");
+    let only = rel(&served.tarball, "2.0.0", true, &served.integrity).to_string();
     let out = sigil(
         &fx,
         &["npm", "rng2"],
         &[
             ("SIGIL_TEST_NPM_VIEW", &only),
             ("SIGIL_TEST_NPM_VIEW_ALL", "{\"error\":{\"code\":\"E404\"}}"),
-            ("SIGIL_TEST_PACK_FILE", &packed),
+            served.env(),
         ],
     );
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
-    let (argv, _) = recorded(&fx, "npm-pack").expect("npm pack ran");
-    assert_eq!(argv.last().map(String::as_str), Some("rng2@2.0.0"));
+    assert!(only_item(&fx).join("rng2-2.0.0").is_dir());
 }
 
 // ---------------------------------------------------------------------------
@@ -2047,23 +2285,40 @@ fn sri_sha512(bytes: &[u8]) -> String {
     )
 }
 
+/// What a [`serve_registry_logged`] registry was asked: each request's
+/// path and `Accept` header, in order.
+type RequestLog = std::sync::Arc<std::sync::Mutex<Vec<(String, String)>>>;
+
 /// A one-purpose npm registry on 127.0.0.1, served by a thread for as long
 /// as the test process lives: `GET /<package>` is a packument and
 /// `GET /files/<name>` a file. `build` gets the registry's base URL and
 /// returns the packuments (by package name) and the files.
-#[allow(clippy::type_complexity)]
 fn serve_registry(
     build: impl FnOnce(&str) -> (Vec<(String, serde_json::Value)>, Vec<(String, Vec<u8>)>),
 ) -> String {
+    serve_registry_logged(build).0
+}
+
+/// [`serve_registry`], and what it is asked. A packument named
+/// `<package>#abbreviated` is what a request that asks for the abbreviated
+/// install document (`Accept: application/vnd.npm.install-v1+json`, as
+/// `npm pack` and `npm install` do, where `npm view` asks for full metadata)
+/// gets instead of `<package>`.
+#[allow(clippy::type_complexity)]
+fn serve_registry_logged(
+    build: impl FnOnce(&str) -> (Vec<(String, serde_json::Value)>, Vec<(String, Vec<u8>)>),
+) -> (String, RequestLog) {
     use std::io::{Read, Write};
     let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
     let base = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
     let (packuments, files) = build(&base);
     let (packuments, files) = (std::sync::Arc::new(packuments), std::sync::Arc::new(files));
+    let log: RequestLog = std::sync::Arc::default();
+    let served_log = log.clone();
     std::thread::spawn(move || {
         for stream in listener.incoming() {
             let Ok(mut stream) = stream else { continue };
-            let (packuments, files) = (packuments.clone(), files.clone());
+            let (packuments, files, log) = (packuments.clone(), files.clone(), served_log.clone());
             std::thread::spawn(move || {
                 let mut request = Vec::new();
                 let mut chunk = [0u8; 1024];
@@ -2080,16 +2335,42 @@ fn serve_registry(
                     .and_then(|l| l.split_whitespace().nth(1))
                     .and_then(|p| p.split('?').next())
                     .unwrap_or("/")
-                    .to_string();
+                    .replace("%2F", "%2f");
+                let accept = request
+                    .lines()
+                    .find_map(|l| {
+                        let (k, v) = l.split_once(':')?;
+                        k.eq_ignore_ascii_case("accept").then(|| v.trim().to_string())
+                    })
+                    .unwrap_or_default();
+                if let Ok(mut log) = log.lock() {
+                    log.push((path.clone(), accept.clone()));
+                }
+                let abbreviated = accept.contains("application/vnd.npm.install-v1+json");
                 let found = match path.strip_prefix("/files/") {
                     Some(name) => files
                         .iter()
                         .find(|(n, _)| n == name)
                         .map(|(_, b)| ("application/octet-stream", b.clone())),
-                    None => packuments
-                        .iter()
-                        .find(|(n, _)| path == format!("/{n}"))
-                        .map(|(_, v)| ("application/json", v.to_string().into_bytes())),
+                    None => {
+                        let wanted = |suffix: &str| {
+                            packuments
+                                .iter()
+                                .find(|(n, _)| path == format!("/{n}{suffix}"))
+                                .map(|(_, v)| ("application/json", v.to_string().into_bytes()))
+                        };
+                        // `/acc#abbreviated` cannot be a request path: the
+                        // abbreviated document is stored under that name.
+                        packuments
+                            .iter()
+                            .find(|(n, _)| {
+                                abbreviated
+                                    && n.strip_suffix("#abbreviated")
+                                        .is_some_and(|p| path == format!("/{p}"))
+                            })
+                            .map(|(_, v)| ("application/json", v.to_string().into_bytes()))
+                            .or_else(|| wanted(""))
+                    }
                 };
                 let (status, ctype, body) = match found {
                     Some((ctype, body)) => ("200 OK", ctype, body),
@@ -2109,7 +2390,7 @@ fn serve_registry(
             });
         }
     });
-    base
+    (base, log)
 }
 
 /// A packument with one release whose tarball is `/files/<file>` on `base`.
@@ -2165,7 +2446,16 @@ fn real_npm_env(fx: &Fixture, base: &str) -> Vec<(&'static str, String)> {
 }
 
 fn run_with_real_npm(fx: &Fixture, args: &[&str], base: &str) -> Output {
-    let path = std::env::var("PATH").unwrap_or_default();
+    run_with_npm_in(fx, args, base, None)
+}
+
+/// [`run_with_real_npm`], with the `npm` in `npm_dir` (when given) ahead of
+/// the one on PATH.
+fn run_with_npm_in(fx: &Fixture, args: &[&str], base: &str, npm_dir: Option<&Path>) -> Output {
+    let mut path = std::env::var("PATH").unwrap_or_default();
+    if let Some(dir) = npm_dir {
+        path = format!("{}:{path}", dir.display());
+    }
     let env = real_npm_env(fx, base);
     let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
     let mut cmd = sigil_command(fx, args, &path, &env);
@@ -2182,94 +2472,230 @@ fn run_with_real_npm(fx: &Fixture, args: &[&str], base: &str) -> Output {
     cmd.output().expect("run sigil")
 }
 
-/// `npm pack <tarball URL>` names the file `<name>-<version>.tgz` from the
-/// package.json inside the tarball, which its author controls: a version of
-/// `1.0.0/../../../../../../outside/v` wrote `outside/v.tgz` beside the
-/// quarantine directory, before the scan. Packing the release by name takes
-/// the name from the registry's manifest instead.
+/// The npm installations the real-npm tests that matter most run under: the
+/// one on PATH, and npm 12 when `$SIGIL_TEST_NPM12_BIN` names a directory
+/// holding its `npm` (for example `<prefix>/node_modules/.bin` after `npm
+/// install --prefix <prefix> npm@12`). `None` is the one on PATH.
+fn real_npm_installations() -> Vec<Option<PathBuf>> {
+    let mut out = Vec::new();
+    if real_npm_available() {
+        out.push(None);
+    }
+    match std::env::var_os("SIGIL_TEST_NPM12_BIN").map(PathBuf::from) {
+        Some(dir) if dir.join("npm").exists() => out.push(Some(dir)),
+        _ => eprintln!("skipped npm 12: SIGIL_TEST_NPM12_BIN is not set to a directory with npm"),
+    }
+    out
+}
+
+fn git_available() -> bool {
+    let available = Command::new("git")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !available {
+        eprintln!("skipped: git is not installed");
+    }
+    available
+}
+
+/// A registry answers `npm view` (which asks for the full metadata) with one
+/// tarball URL and `npm pack <name>@<version>` (which asks for the
+/// abbreviated install document) with a git or file URL whose `prepare`
+/// script creates a marker. Sigil validated the first; if anything handed
+/// the second to npm, the marker would appear. Sigil asks the registry about
+/// the release once, downloads the checked URL itself, and never runs `npm
+/// pack`.
 #[test]
-fn real_npm_cannot_be_made_to_write_outside_quarantine_by_a_tarballs_manifest() {
-    if !real_npm_available() {
+fn a_registry_that_answers_the_metadata_requests_differently_cannot_make_sigil_run_package_code() {
+    if !git_available() {
         return;
     }
-    let fx = fixture();
-    let outside = fx.root.join("outside");
-    std::fs::create_dir_all(&outside).unwrap();
-    // Six `..`, for this layout: `<root>/home/.sigil/quarantine/<id>` is
-    // where npm runs, `<root>/outside` where the file lands.
-    let hostile_version = "1.0.0/../../../../../../outside/v";
-    let bytes = tarball_bytes(&format!(
-        "{{\"name\":\"hostile\",\"version\":\"{hostile_version}\"}}\n"
-    ));
-    let base = serve_registry(|base| {
-        (
-            vec![(
-                "hostile".to_string(),
-                packument(
-                    base,
-                    "hostile",
-                    "hostile",
-                    "1.0.0",
-                    "hostile-1.0.0.tgz",
-                    &bytes,
+    for npm_dir in real_npm_installations() {
+        for kind in ["git", "file"] {
+            let which = format!(
+                "{} {kind}",
+                npm_dir
+                    .as_deref()
+                    .map_or_else(|| "PATH npm".to_string(), |d| d.display().to_string())
+            );
+            eprintln!("npm under test: {which}");
+            let fx = fixture();
+            let marker = fx.root.join("prepare-ran");
+            // What a git or directory spec would prepare: a package whose
+            // prepare script only creates `marker`.
+            let repo = fx.root.join("evil-repo");
+            std::fs::create_dir_all(&repo).unwrap();
+            std::fs::write(
+                repo.join("package.json"),
+                serde_json::json!({
+                    "name": "acc-split",
+                    "version": "1.0.0",
+                    "scripts": {"prepare": format!("touch '{}'", marker.display())},
+                })
+                .to_string(),
+            )
+            .unwrap();
+            std::fs::write(repo.join("index.js"), "module.exports = 1;\n").unwrap();
+            let git = |args: &[&str]| {
+                let ok = Command::new("git")
+                    .args(["-c", "user.email=t@example.invalid", "-c", "user.name=t"])
+                    .args(args)
+                    .current_dir(&repo)
+                    .output()
+                    .is_ok_and(|o| o.status.success());
+                assert!(ok, "git {args:?}");
+            };
+            git(&["init", "-q", "."]);
+            git(&["add", "-A"]);
+            git(&["commit", "-q", "-m", "init"]);
+            let evil_url = match kind {
+                "git" => format!("git+file://{}", repo.display()),
+                _ => format!("file:{}", repo.display()),
+            };
+            let bytes = tarball_bytes("{\"name\":\"acc-split\",\"version\":\"1.0.0\"}\n");
+            let (base, log) = serve_registry_logged(|base| {
+                let benign = packument(base, "acc-split", "acc-split", "1.0.0", "acc-split-1.0.0.tgz", &bytes);
+                let mut evil = benign.clone();
+                evil["versions"]["1.0.0"]["dist"]["tarball"] = evil_url.clone().into();
+                (
+                    vec![
+                        ("acc-split".to_string(), benign),
+                        ("acc-split#abbreviated".to_string(), evil),
+                    ],
+                    vec![("acc-split-1.0.0.tgz".to_string(), bytes.clone())],
+                )
+            });
+
+            let out = run_with_npm_in(&fx, &["npm", "acc-split"], &base, npm_dir.as_deref());
+            assert!(
+                !marker.exists(),
+                "{which}: package code ran (the prepare script of {evil_url}): {}",
+                stderr(&out)
+            );
+            assert_eq!(code(&out), 0, "{which}: {}", stderr(&out));
+            // The benign tarball, the one that was checked, is what was
+            // scanned.
+            let q = only_item(&fx);
+            assert!(q.join("acc-split-1.0.0").join("package").is_dir(), "{which}");
+            // The registry was asked about the release once, for the full
+            // metadata, and the tarball fetched once, by Sigil.
+            let seen = log.lock().unwrap().clone();
+            let metadata: Vec<_> = seen.iter().filter(|(p, _)| p == "/acc-split").collect();
+            assert_eq!(metadata.len(), 1, "{which}: {seen:?}");
+            assert!(
+                !metadata[0].1.contains("install-v1"),
+                "{which}: the one metadata request asked for the abbreviated document: {seen:?}"
+            );
+            assert_eq!(
+                seen.iter().filter(|(p, _)| p.starts_with("/files/")).count(),
+                1,
+                "{which}: {seen:?}"
+            );
+        }
+    }
+}
+
+/// `npm pack <tarball URL>` names the file `<name>-<version>.tgz` from the
+/// package.json inside the tarball, which its author controls: with npm
+/// 10.9.7 a version of `1.0.0/../../../../../../outside/v` wrote
+/// `outside/v.tgz` beside the quarantine directory, before the scan (npm 12
+/// turns the slashes into `-`). That is why Sigil never hands npm the URL: it
+/// downloads the tarball itself and names the file from the registry's
+/// checked name and version.
+#[test]
+fn real_npm_cannot_be_made_to_write_outside_quarantine_by_a_tarballs_manifest() {
+    for npm_dir in real_npm_installations() {
+        let fx = fixture();
+        let outside = fx.root.join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        // Six `..`, for this layout: `<root>/home/.sigil/quarantine/<id>` is
+        // where npm would run, `<root>/outside` where the file lands.
+        let hostile_version = "1.0.0/../../../../../../outside/v";
+        let bytes = tarball_bytes(&format!(
+            "{{\"name\":\"hostile\",\"version\":\"{hostile_version}\"}}\n"
+        ));
+        let base = serve_registry(|base| {
+            (
+                vec![(
+                    "hostile".to_string(),
+                    packument(
+                        base,
+                        "hostile",
+                        "hostile",
+                        "1.0.0",
+                        "hostile-1.0.0.tgz",
+                        &bytes,
+                    ),
+                )],
+                vec![("hostile-1.0.0.tgz".to_string(), bytes.clone())],
+            )
+        });
+
+        // The premise: handed the tarball's URL, this npm may write there (npm
+        // 12 has fixed it, in which case the check below is about Sigil
+        // only). Only reported, not asserted: it is npm's behaviour.
+        let probe = fx.home.join(".sigil").join("quarantine").join("probe");
+        std::fs::create_dir_all(&probe).unwrap();
+        let mut by_url = Command::new("npm");
+        by_url
+            .args([
+                "pack",
+                "--ignore-scripts",
+                "--allow-remote=all",
+                "--",
+                &format!("{base}/files/hostile-1.0.0.tgz"),
+            ])
+            .current_dir(&probe);
+        if let Some(dir) = &npm_dir {
+            by_url.env(
+                "PATH",
+                format!(
+                    "{}:{}",
+                    dir.display(),
+                    std::env::var("PATH").unwrap_or_default()
                 ),
-            )],
-            vec![("hostile-1.0.0.tgz".to_string(), bytes.clone())],
-        )
-    });
+            );
+        }
+        for (k, v) in real_npm_env(&fx, &base) {
+            by_url.env(k, v);
+        }
+        for k in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"] {
+            by_url.env_remove(k);
+        }
+        by_url.env("HOME", &fx.home);
+        let _ = by_url.output();
+        let premise = outside.join("v.tgz").exists();
+        eprintln!("premise (npm writes outside when given the URL): {premise}");
+        let _ = std::fs::remove_file(outside.join("v.tgz"));
+        std::fs::remove_dir_all(&probe).unwrap();
 
-    // The premise: handed the tarball's URL, npm does write there (this npm
-    // may have fixed it, in which case the check below is about Sigil only).
-    let probe = fx.home.join(".sigil").join("quarantine").join("probe");
-    std::fs::create_dir_all(&probe).unwrap();
-    let mut by_url = Command::new("npm");
-    by_url
-        .args([
-            "pack",
-            "--ignore-scripts",
-            "--allow-remote=all",
-            "--",
-            &format!("{base}/files/hostile-1.0.0.tgz"),
-        ])
-        .current_dir(&probe);
-    for (k, v) in real_npm_env(&fx, &base) {
-        by_url.env(k, v);
-    }
-    for k in ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"] {
-        by_url.env_remove(k);
-    }
-    by_url.env("HOME", &fx.home);
-    let _ = by_url.output();
-    let premise = outside.join("v.tgz").exists();
-    eprintln!("premise (npm writes outside when given the URL): {premise}");
-    let _ = std::fs::remove_file(outside.join("v.tgz"));
-    std::fs::remove_dir_all(&probe).unwrap();
-
-    let out = run_with_real_npm(&fx, &["npm", "hostile"], &base);
-    assert!(
-        [0, 1].contains(&code(&out)),
-        "exit {}: {}",
-        code(&out),
-        stderr(&out)
-    );
-    let escaped: Vec<_> = std::fs::read_dir(&outside)
-        .unwrap()
-        .filter_map(Result::ok)
-        .map(|e| e.file_name())
-        .collect();
-    assert!(
-        escaped.is_empty(),
-        "npm wrote outside quarantine: {escaped:?}"
-    );
-    let q = only_item(&fx);
-    assert!(
-        std::fs::read_dir(&q)
+        let out = run_with_npm_in(&fx, &["npm", "hostile"], &base, npm_dir.as_deref());
+        assert!(
+            [0, 1].contains(&code(&out)),
+            "exit {}: {}",
+            code(&out),
+            stderr(&out)
+        );
+        let escaped: Vec<_> = std::fs::read_dir(&outside)
             .unwrap()
             .filter_map(Result::ok)
-            .any(|e| e.file_name().to_string_lossy().starts_with("hostile-1.0.0")),
-        "the tarball is in the quarantine entry"
-    );
-    assert!(stdout(&out).contains("hostile") || stderr(&out).contains("hostile"));
+            .map(|e| e.file_name())
+            .collect();
+        assert!(
+            escaped.is_empty(),
+            "something was written outside quarantine: {escaped:?}"
+        );
+        let q = only_item(&fx);
+        assert!(
+            std::fs::read_dir(&q)
+                .unwrap()
+                .filter_map(Result::ok)
+                .any(|e| e.file_name().to_string_lossy().starts_with("hostile-1.0.0")),
+            "the tarball is in the quarantine entry"
+        );
+        assert!(stdout(&out).contains("hostile") || stderr(&out).contains("hostile"));
+    }
 }
 
 /// A registry whose manifest gives the package a name that is a path is
@@ -2310,39 +2736,71 @@ fn real_npm_is_not_asked_to_pack_a_registry_name_that_is_a_path() {
     assert!(quarantine_items(&fx).is_empty());
 }
 
-/// The release is fetched and scanned end to end by the real npm, by name
-/// (the path that must keep working on every npm, npm 12 included).
+/// The release is resolved by the real npm, downloaded by Sigil and scanned
+/// end to end (on every npm: npm 12 included).
 #[test]
-fn real_npm_packs_a_registry_release_by_name_and_it_is_scanned() {
+fn real_npm_resolves_and_sigil_downloads_a_registry_release_and_it_is_scanned() {
+    for npm_dir in real_npm_installations() {
+        let fx = fixture();
+        let bytes = tarball_bytes("{\"name\":\"plainpkg\",\"version\":\"1.0.0\"}\n");
+        let base = serve_registry(|base| {
+            (
+                vec![(
+                    "plainpkg".to_string(),
+                    packument(
+                        base,
+                        "plainpkg",
+                        "plainpkg",
+                        "1.0.0",
+                        "plainpkg-1.0.0.tgz",
+                        &bytes,
+                    ),
+                )],
+                vec![("plainpkg-1.0.0.tgz".to_string(), bytes.clone())],
+            )
+        });
+        let out = run_with_npm_in(
+            &fx,
+            &["--format", "json", "npm", "plainpkg@1.0.0"],
+            &base,
+            npm_dir.as_deref(),
+        );
+        assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+        let text = stdout(&out);
+        let report: serde_json::Value = serde_json::from_str(&text[text.find('{').expect("a JSON report")..])
+            .expect("JSON report");
+        assert_eq!(report["package"], "plainpkg@1.0.0");
+        let q = only_item(&fx);
+        assert!(q.join("plainpkg-1.0.0").join("package").is_dir());
+    }
+}
+
+/// A scoped package is checked against its scope's registry
+/// (`@scope:registry`), as npm resolves it.
+#[test]
+fn real_npm_scoped_registry_is_the_one_the_tarball_must_be_on() {
     if !real_npm_available() {
         return;
     }
     let fx = fixture();
-    let bytes = tarball_bytes("{\"name\":\"plainpkg\",\"version\":\"1.0.0\"}\n");
+    let bytes = tarball_bytes("{\"name\":\"@acme/pkg\",\"version\":\"1.0.0\"}\n");
     let base = serve_registry(|base| {
         (
             vec![(
-                "plainpkg".to_string(),
-                packument(
-                    base,
-                    "plainpkg",
-                    "plainpkg",
-                    "1.0.0",
-                    "plainpkg-1.0.0.tgz",
-                    &bytes,
-                ),
+                "@acme%2fpkg".to_string(),
+                packument(base, "@acme/pkg", "@acme/pkg", "1.0.0", "pkg-1.0.0.tgz", &bytes),
             )],
-            vec![("plainpkg-1.0.0.tgz".to_string(), bytes.clone())],
+            vec![("pkg-1.0.0.tgz".to_string(), bytes.clone())],
         )
     });
-    let out = run_with_real_npm(&fx, &["--format", "json", "npm", "plainpkg@1.0.0"], &base);
+    // npm's default registry is somewhere else; the scope's is the server.
+    std::fs::write(fx.root.join("user.npmrc"), format!("@acme:registry={base}/\n")).unwrap();
+    let env = real_npm_env(&fx, "http://127.0.0.1:1");
+    let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
+    let path = std::env::var("PATH").unwrap_or_default();
+    let out = sigil_command(&fx, &["--format", "json", "npm", "@acme/pkg"], &path, &env)
+        .output()
+        .expect("run sigil");
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
-    // The real npm prints the name of the tarball it wrote to stdout, ahead
-    // of the report.
-    let text = stdout(&out);
-    let report: serde_json::Value =
-        serde_json::from_str(&text[text.find('{').expect("a JSON report")..]).expect("JSON report");
-    assert_eq!(report["package"], "plainpkg@1.0.0");
-    let q = only_item(&fx);
-    assert!(q.join("plainpkg-1.0.0").join("package").is_dir());
+    assert!(only_item(&fx).join("acme-pkg-1.0.0").join("package").is_dir());
 }

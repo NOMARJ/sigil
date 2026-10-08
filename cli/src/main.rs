@@ -128,8 +128,9 @@ enum Commands {
         allow_build_scripts: bool,
     },
 
-    /// Download and scan an npm package (registry tarball, packed with
-    /// --ignore-scripts: no package code runs before the scan)
+    /// Download and scan an npm package (the registry tarball, downloaded
+    /// by Sigil and checked against the registry's integrity: no package
+    /// code runs before the scan)
     Npm {
         /// Registry package name (scoped allowed), optionally with
         /// @version, @tag or @range (e.g. left-pad, @types/node,
@@ -1863,9 +1864,22 @@ fn run_capturing(cmd: &mut std::process::Command, what: &str) -> Result<String, 
             Err(stderr)
         }
         Err(e) => {
-            eprintln!("{} could not run `{what}`: {e}", "error:".bold().red());
+            eprintln!("{} {}", "error:".bold().red(), spawn_failure(what, &e));
             Err(String::new())
         }
+    }
+}
+
+/// What to print when a package tool could not be started: its name, the
+/// system's reason, and, when there is no such program, that it must be
+/// installed and on PATH (the system's message alone, `No such file or
+/// directory (os error 2)`, does not say which file).
+fn spawn_failure(what: &str, err: &std::io::Error) -> String {
+    let tool = what.split_whitespace().next().unwrap_or(what);
+    if err.kind() == std::io::ErrorKind::NotFound {
+        format!("could not run `{what}`: {err} (is {tool} installed and on PATH?)")
+    } else {
+        format!("could not run `{what}`: {err}")
     }
 }
 
@@ -2027,6 +2041,10 @@ async fn cmd_pip(
     format: &str,
     verbose: bool,
 ) -> i32 {
+    if let Some(why) = acquire::version_flag_conflict(acquire::Manager::Pip, package, version) {
+        eprintln!("{} {why}", "error:".bold().red());
+        return EXIT_ERROR;
+    }
     let pkg_spec = acquire::pip_spec(package, version);
     if let Some(code) = gate_package_spec(acquire::Manager::Pip, &pkg_spec, allow_build_scripts) {
         return code;
@@ -2085,15 +2103,6 @@ async fn cmd_pip(
         allow_prereleases = acquire::pip_config_allows_prereleases(&list);
     }
 
-    print_progress(
-        format,
-        format!(
-            "{} downloading pip package {} into quarantine...",
-            "sigil:".bold().cyan(),
-            pkg_spec.bold()
-        ),
-    );
-
     // An unpinned or ranged spec: the release `pip install` would pick,
     // whatever its format, so a release with no wheel fails here instead of
     // the download quietly falling back to an older one that has a wheel.
@@ -2102,6 +2111,7 @@ async fn cmd_pip(
     // (`PIP_FIND_LINKS=./wheels`) mean the same: the spec check refuses
     // anything pip could read as a file there.
     let mut download_spec = pkg_spec.clone();
+    let mut shown_spec = pkg_spec.clone();
     let mut resolved: Option<String> = None;
     if let Some(req) = requirement.as_ref().filter(|r| !r.is_pinned()) {
         let mut index = std::process::Command::new("pip");
@@ -2137,15 +2147,18 @@ async fn cmd_pip(
             );
             return EXIT_ERROR;
         };
-        download_spec = format!("{}=={best}", req.name);
+        // Pinned by string equality (`===`): `==2.0` also matches `2.0+local1`
+        // on an index that lists both, and pip would take the highest.
+        download_spec = format!("{}==={best}", req.name);
+        shown_spec = format!("{}=={best}", req.name);
         // The index's version is checked like a typed one: a local label
         // that ends like an archive (`1.0+x.zip`) would make pip read the
         // spec as a file in this directory.
-        if let Err(err) = acquire::check_spec(acquire::Manager::Pip, &download_spec, false) {
+        if let Err(err) = acquire::check_spec(acquire::Manager::Pip, &shown_spec, false) {
             eprintln!(
                 "{} {}",
                 "error:".bold().red(),
-                acquire::refusal(acquire::Manager::Pip, &download_spec, &err)
+                acquire::refusal(acquire::Manager::Pip, &shown_spec, &err)
             );
             return EXIT_ERROR;
         }
@@ -2155,16 +2168,24 @@ async fn cmd_pip(
                 "{} {} resolves to {} (the release `pip install` picks here)",
                 "sigil:".bold().cyan(),
                 pkg_spec.bold(),
-                download_spec.bold()
+                shown_spec.bold()
             ),
         );
-        resolved = Some(download_spec.clone());
+        resolved = Some(shown_spec.clone());
     }
+    print_progress(
+        format,
+        format!(
+            "{} downloading pip package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            shown_spec.bold()
+        ),
+    );
 
     // Named for the release that is downloaded: what `sigil list` and
     // `sigil approve` show is the version scanned, not the range typed, and
     // without extras (`pip download --no-deps` fetches the same file).
-    let recorded = acquire::pip_release_name(&download_spec);
+    let recorded = acquire::pip_release_name(&shown_spec);
     let entry = match quarantine::add(&recorded, "pip") {
         Ok(e) => e,
         Err(err) => {
@@ -2207,7 +2228,11 @@ async fn cmd_pip(
             return EXIT_ERROR;
         }
         Err(e) => {
-            eprintln!("{} could not run pip: {e}", "error:".bold().red());
+            eprintln!(
+                "{} {}",
+                "error:".bold().red(),
+                spawn_failure("pip download", &e)
+            );
             return EXIT_ERROR;
         }
     }
@@ -2262,19 +2287,14 @@ async fn cmd_npm(
     format: &str,
     verbose: bool,
 ) -> i32 {
+    if let Some(why) = acquire::version_flag_conflict(acquire::Manager::Npm, package, version) {
+        eprintln!("{} {why}", "error:".bold().red());
+        return EXIT_ERROR;
+    }
     let pkg_spec = acquire::npm_spec(package, version);
     if let Some(code) = gate_package_spec(acquire::Manager::Npm, &pkg_spec, allow_build_scripts) {
         return code;
     }
-
-    print_progress(
-        format,
-        format!(
-            "{} downloading npm package {} into quarantine...",
-            "sigil:".bold().cyan(),
-            pkg_spec.bold()
-        ),
-    );
 
     let entry = match quarantine::add(&pkg_spec, "npm") {
         Ok(e) => e,
@@ -2294,138 +2314,55 @@ async fn cmd_npm(
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    let mut npm = std::process::Command::new("npm");
     let mut scanned = pkg_spec.clone();
-    let mut release = None;
     if allow_build_scripts {
         // As typed, from the caller's directory, so a relative path means
-        // what the user typed; the tarball is written to quarantine.
-        npm.args(acquire::npm_pack_args(&pkg_spec, true, Some(&qdir)));
-    } else {
-        // Ask the registry what the spec resolves to, check what it says
-        // (a registry's metadata can point a version's tarball at a git
-        // repository, which npm would clone and prepare), and pack exactly
-        // that release by name. Run from the quarantine directory, as the
-        // pack is, so both read the same npm config.
-        let mut view = std::process::Command::new("npm");
-        view.args(acquire::npm_view_args(&pkg_spec))
-            .current_dir(&qdir);
-        let Some(out) = run_for_output(&mut view, "npm view") else {
-            eprintln!(
-                "  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it."
-            );
-            return EXIT_ERROR;
-        };
-        let releases = match acquire::parse_npm_view(&out) {
-            Ok(r) => r,
-            Err(why) => {
+        // what the user typed; npm writes the tarball to quarantine.
+        print_progress(
+            format,
+            format!(
+                "{} downloading npm package {} into quarantine...",
+                "sigil:".bold().cyan(),
+                pkg_spec.bold()
+            ),
+        );
+        let mut npm = std::process::Command::new("npm");
+        npm.args(acquire::npm_pack_args(&pkg_spec, &qdir));
+        match npm.status() {
+            Ok(s) if s.success() => {}
+            Ok(_) => {
+                eprintln!("{} npm pack failed", "error:".bold().red());
+                return EXIT_ERROR;
+            }
+            Err(e) => {
                 eprintln!(
-                    "{} could not read what npm resolves `{pkg_spec}` to: {why}",
-                    "error:".bold().red()
+                    "{} {}",
+                    "error:".bold().red(),
+                    spawn_failure("npm pack", &e)
                 );
                 return EXIT_ERROR;
             }
-        };
-        // `npm view <name>` (and `<name>@*`) lists only the `latest` tag, but
-        // npm itself skips a deprecated `latest` for the highest release
-        // that is not deprecated: list them all, so the release scanned is
-        // the one an install gets. Nothing is said when that lookup fails
-        // (a package with only pre-releases lists none); the tag stands.
-        let mut releases = releases;
-        if let [only] = releases.as_slice() {
-            if only.deprecated {
-                if let Some(name) = acquire::npm_name_for_default_pick(&pkg_spec) {
-                    let mut all = std::process::Command::new("npm");
-                    all.args(acquire::npm_view_args(&acquire::npm_all_versions_spec(
-                        &name,
-                    )))
-                    .current_dir(&qdir);
-                    let listed = all
-                        .output()
-                        .ok()
-                        .filter(|o| o.status.success())
-                        .and_then(|o| {
-                            acquire::parse_npm_view(&String::from_utf8_lossy(&o.stdout)).ok()
-                        });
-                    if let Some(listed) = listed {
-                        releases = listed;
+        }
+        if !has_entries(&qdir) {
+            return nothing_downloaded("npm", &pkg_spec, allow_build_scripts);
+        }
+    } else {
+        match download_npm_release(&pkg_spec, &qdir, format).await {
+            Ok(release) => {
+                scanned = release.id();
+                if scanned != pkg_spec {
+                    // The entry was made before the lookup (npm runs from its
+                    // directory): name it for the release now known.
+                    if let Err(err) = quarantine::set_source(&entry.id, &scanned) {
+                        eprintln!(
+                            "{} could not record `{scanned}` on quarantine entry {}: {err}",
+                            "warning:".bold().yellow(),
+                            entry.id
+                        );
                     }
                 }
             }
-        }
-        let Some(picked) = acquire::pick_npm_release(&releases).cloned() else {
-            eprintln!(
-                "{} npm resolved `{pkg_spec}` to no release",
-                "error:".bold().red()
-            );
-            return EXIT_ERROR;
-        };
-        if let Err(why) = acquire::check_npm_tarball_url(&picked.tarball) {
-            eprintln!(
-                "{} {}",
-                "error:".bold().red(),
-                acquire::npm_tarball_refusal(&picked.id(), &why)
-            );
-            return EXIT_ERROR;
-        }
-        scanned = picked.id();
-        if scanned != pkg_spec {
-            // The entry was made before the lookup (npm runs from its
-            // directory): name it for the release now known.
-            if let Err(err) = quarantine::set_source(&entry.id, &scanned) {
-                eprintln!(
-                    "{} could not record `{scanned}` on quarantine entry {}: {err}",
-                    "warning:".bold().yellow(),
-                    entry.id
-                );
-            }
-            print_progress(
-                format,
-                format!(
-                    "{} {} resolves to {}",
-                    "sigil:".bold().cyan(),
-                    pkg_spec.bold(),
-                    scanned.bold()
-                ),
-            );
-        }
-        // The release by registry name, not the tarball's URL: npm names the
-        // file it writes after the manifest it reads, and for a bare tarball
-        // that is the package.json inside it, which its author controls (a
-        // version of `1.0.0/../../x` would write the file outside
-        // quarantine). The name and version were checked in `npm view`'s
-        // output; npm 12 also refuses a URL spec (EALLOWREMOTE).
-        npm.args(acquire::npm_pack_args(&picked.id(), false, None))
-            .current_dir(&qdir);
-        release = Some(picked);
-    }
-
-    match npm.status() {
-        Ok(s) if s.success() => {}
-        Ok(_) => {
-            eprintln!("{} npm pack failed", "error:".bold().red());
-            return EXIT_ERROR;
-        }
-        Err(e) => {
-            eprintln!("{} could not run npm: {e}", "error:".bold().red());
-            return EXIT_ERROR;
-        }
-    }
-    if !has_entries(&qdir) {
-        return nothing_downloaded("npm", &pkg_spec, allow_build_scripts);
-    }
-
-    // The quarantine directory holds the one tarball npm wrote, and it matches
-    // the integrity `npm view` gave for the release: checked before anything
-    // reads it.
-    if let Some(release) = &release {
-        if let Err(why) = check_packed_tarball(&qdir, release) {
-            eprintln!(
-                "{} {}",
-                "error:".bold().red(),
-                acquire::npm_integrity_refusal(&release.id(), &why)
-            );
-            return EXIT_ERROR;
+            Err(code) => return code,
         }
     }
 
@@ -2468,33 +2405,147 @@ async fn cmd_npm(
     acquisition_exit_code(result.verdict)
 }
 
-/// The quarantine directory holds exactly the one tarball `npm pack` wrote,
-/// and it matches the registry's integrity for `release`.
-fn check_packed_tarball(qdir: &Path, release: &acquire::NpmRelease) -> Result<(), String> {
-    let entries: Vec<PathBuf> = std::fs::read_dir(qdir)
-        .map_err(|e| format!("cannot read the quarantine directory: {e}"))?
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .collect();
-    let [tarball] = entries.as_slice() else {
-        return Err(format!(
-            "npm pack left {} files in quarantine, not one tarball",
-            entries.len()
-        ));
+/// The default `sigil npm`: ask the registry what `pkg_spec` resolves to,
+/// check what it says, and download exactly that release's tarball into
+/// `qdir` (no `npm pack`: see the module docs of `acquire`). The release,
+/// once its tarball is in `qdir` and hashes to the registry's integrity; on
+/// any refusal or failure, the message is printed and the exit code given.
+async fn download_npm_release(
+    pkg_spec: &str,
+    qdir: &Path,
+    format: &str,
+) -> Result<acquire::NpmRelease, i32> {
+    let fail = |msg: String| -> i32 {
+        eprintln!("{} {msg}", "error:".bold().red());
+        EXIT_ERROR
     };
-    if !tarball.is_file() || tarball.extension().is_none_or(|x| x != "tgz") {
-        return Err(format!(
-            "npm pack left `{}` in quarantine, not a .tgz file",
-            tarball.display()
-        ));
+    // Ask the registry what the spec resolves to, and check what it says (a
+    // registry's metadata can point a version's tarball at a git repository,
+    // which npm would clone and prepare). Run from the quarantine directory,
+    // an empty one, so no project `.npmrc` of the caller's applies.
+    let mut view = std::process::Command::new("npm");
+    view.args(acquire::npm_view_args(pkg_spec)).current_dir(qdir);
+    let Some(out) = run_for_output(&mut view, "npm view") else {
+        eprintln!(
+            "  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it."
+        );
+        return Err(EXIT_ERROR);
+    };
+    let mut releases = match acquire::parse_npm_view(&out) {
+        Ok(r) => r,
+        Err(why) => {
+            return Err(fail(acquire::npm_view_unreadable(pkg_spec, &why)))
+        }
+    };
+    // `npm view <name>` (and `<name>@*`) lists only the `latest` tag, but npm
+    // itself skips a deprecated `latest` for the highest release that is not
+    // deprecated: list them all, so the release scanned is the one an install
+    // gets. Nothing is said when that lookup fails (a package with only
+    // pre-releases lists none); the tag stands.
+    if let [only] = releases.as_slice() {
+        if only.deprecated {
+            if let Some(name) = acquire::npm_name_for_default_pick(pkg_spec) {
+                let mut all = std::process::Command::new("npm");
+                all.args(acquire::npm_view_args(&acquire::npm_all_versions_spec(
+                    &name,
+                )))
+                .current_dir(qdir);
+                let listed = all
+                    .output()
+                    .ok()
+                    .filter(|o| o.status.success())
+                    .and_then(|o| acquire::parse_npm_view(&String::from_utf8_lossy(&o.stdout)).ok());
+                if let Some(listed) = listed {
+                    releases = listed;
+                }
+            }
+        }
     }
-    let file = std::fs::File::open(tarball)
-        .map_err(|e| format!("cannot read `{}`: {e}", tarball.display()))?;
-    acquire::check_npm_integrity(
-        std::io::BufReader::new(file),
-        release.integrity.as_deref(),
-        release.shasum.as_deref(),
-    )
+    let Some(picked) = acquire::pick_npm_release(&releases).cloned() else {
+        return Err(fail(format!("npm resolved `{pkg_spec}` to no release")));
+    };
+    if let Err(why) = acquire::check_npm_tarball_url(&picked.tarball) {
+        return Err(fail(acquire::npm_tarball_refusal(&picked.id(), &why)));
+    }
+    // Where npm would fetch it from: the tarball must be on that host.
+    let Some(registry) = npm_registry_for(&picked.name, qdir) else {
+        eprintln!(
+            "  Sigil reads npm's registry setting to check that the tarball is on the registry's \
+             own host."
+        );
+        return Err(EXIT_ERROR);
+    };
+    let trusted = match acquire::check_npm_tarball_host(&picked.tarball, &registry) {
+        Ok(host) => host,
+        Err(why) => return Err(fail(acquire::npm_host_refusal(&picked.id(), &why))),
+    };
+    // Whether the registry gives a digest Sigil can check, before anything is
+    // downloaded.
+    let digest = match acquire::NpmDigest::new(picked.integrity.as_deref(), picked.shasum.as_deref())
+    {
+        Ok(d) => d,
+        Err(why) => {
+            return Err(fail(acquire::npm_integrity_refusal(&picked.id(), &why)));
+        }
+    };
+    let scanned = picked.id();
+    if scanned != pkg_spec {
+        print_progress(
+            format,
+            format!(
+                "{} {} resolves to {}",
+                "sigil:".bold().cyan(),
+                pkg_spec.bold(),
+                scanned.bold()
+            ),
+        );
+    }
+    print_progress(
+        format,
+        format!(
+            "{} downloading npm package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            scanned.bold()
+        ),
+    );
+
+    // The tarball, from exactly the URL that was checked: nothing asks the
+    // registry for a second description of the release, and the file's name
+    // is built from the checked name and version, never from the tarball.
+    let dest = qdir.join(acquire::npm_tarball_file_name(&picked.name, &picked.version));
+    let policy = ingest::DownloadPolicy {
+        trusted_host: Some(trusted),
+        ..ingest::DownloadPolicy::from_env()
+    };
+    if let Err(why) = ingest::download(&picked.tarball, &dest, &policy).await {
+        return Err(fail(acquire::npm_download_failure(&scanned, &why)));
+    }
+    let checked = std::fs::File::open(&dest)
+        .map_err(|e| format!("could not read the tarball Sigil downloaded: {e}"))
+        .and_then(|f| digest.verify(std::io::BufReader::new(f)));
+    if let Err(why) = checked {
+        let _ = std::fs::remove_file(&dest);
+        return Err(fail(acquire::npm_integrity_refusal(&scanned, &why)));
+    }
+    Ok(picked)
+}
+
+/// The registry npm resolves a package named `name` from: the registry set
+/// for its scope, else the default one (`npm config get`).
+fn npm_registry_for(name: &str, dir: &Path) -> Option<String> {
+    let get = |key: &str| -> Option<String> {
+        let mut cmd = std::process::Command::new("npm");
+        cmd.args(acquire::npm_config_get_args(key)).current_dir(dir);
+        let out = run_for_output(&mut cmd, &format!("npm config get {key}"))?;
+        let value = out.trim();
+        (!value.is_empty() && value != "undefined" && value != "null").then(|| value.to_string())
+    };
+    if let Some((scope, _)) = name.strip_prefix('@').and_then(|r| r.split_once('/')) {
+        if let Some(registry) = get(&format!("@{scope}:registry")) {
+            return Some(registry);
+        }
+    }
+    get("registry")
 }
 
 /// Exit codes, per ADR-0010. These are the CI interface and a compatibility

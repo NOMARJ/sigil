@@ -1,6 +1,6 @@
 # Getting Started with Sigil
 
-Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it. `sigil pip` fetches only prebuilt wheels and `sigil npm` only registry tarballs, packed with scripts off, so a package's own code does not run while it is downloaded (see [Scanning a pip Package](#scanning-a-pip-package) and [`sigil npm`](cli.md#sigil-npm)); up to 1.3.7, pip could run a source distribution's `setup.py`, and `npm pack` a local directory's or git spec's lifecycle scripts, before the scan.
+Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it. `sigil pip` fetches only prebuilt wheels and `sigil npm` only registry tarballs, which Sigil downloads itself and checks against the registry's integrity, so a package's own code does not run while it is downloaded (see [Scanning a pip Package](#scanning-a-pip-package) and [`sigil npm`](cli.md#sigil-npm)); up to 1.3.7, pip could run a source distribution's `setup.py`, and `npm pack` a local directory's or git spec's lifecycle scripts, before the scan.
 
 ## Prerequisites
 
@@ -152,7 +152,7 @@ Sigil downloads the package (without installing it), extracts it into quarantine
 sigil npm langchain-community-plugin
 ```
 
-Same quarantine-and-scan workflow for npm registry packages: Sigil asks the registry which release the name resolves to, then packs that release by name with `--ignore-scripts`. Directories, tarballs, URLs and git specs (including the `owner/repo` shorthand; a scoped name typed without its `@`, like `langchain/community`, is one) are refused, because npm runs their `prepare` script while packing them even with `--ignore-scripts`, and so is a registry entry whose tarball points at a git repository. The packed tarball is checked against the registry's integrity, as `npm install` checks it. `--allow-build-scripts` accepts them for code you already trust, after the same confirmation and with a warning; for a directory or tarball you already have, `sigil scan <path>` is the way to check it.
+Same quarantine-and-scan workflow for npm registry packages: Sigil asks the registry which release the name resolves to (`npm view`), checks the tarball URL it names (a plain download from the registry's own host), downloads that URL itself, without credentials, and checks the bytes against the registry's integrity, as `npm install` checks them. It never runs `npm pack`, which would ask the registry about the release a second time. Directories, tarballs, URLs and git specs (including the `owner/repo` shorthand; a scoped name typed without its `@`, like `langchain/community`, is one) are refused, because npm runs their `prepare` script while packing them even with `--ignore-scripts`, and so is a registry entry whose tarball points at a git repository. `--allow-build-scripts` accepts them for code you already trust, after the same confirmation and with a warning; for a directory or tarball you already have, `sigil scan <path>` is the way to check it.
 
 ### Scanning a Local Directory
 

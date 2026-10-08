@@ -1622,6 +1622,136 @@ fn asks_before_sigil_lets_package_code_run() {
     );
 }
 
+/// A double-quoted string keeps a `\c`, and the shell it is handed to reads
+/// the unquoted text and drops the backslash: `bash -c "… --allow-build-s\\cripts"`
+/// runs `sigil pip x --allow-build-scripts`. No reading of the outer command
+/// knows what an inner one runs, so a sigil pip/npm call in a nested shell's
+/// text is asked about whenever the text holds a backslash, a quote or an
+/// expansion after it: over-asking is the intended failure.
+#[test]
+fn asks_when_a_nested_shell_may_rewrite_the_flag() {
+    for cmd in [
+        // The reported family: a backtick word, one backslash level.
+        r#"bash -c "`which sigil` pip x --allow-build-s\\cripts""#,
+        r#"sh -c "`which sigil` pip x --allow-build-s\\cripts""#,
+        r#"bash -c "`which sigil` pip x --allow-build-\\scripts""#,
+        r#"bash -c "`which sigil` pip x --allow-bui\\ld-scripts""#,
+        r#"bash -c "`which sigil` pip x \\--allow-build-scripts""#,
+        r#"bash -c "`which sigil` pip x --allow-build-s\\\"\\\"cripts""#,
+        r#"zsh -c "`which sigil` npm x --allow-build-s\\cripts""#,
+        r#"dash -c "`command -v sigil` npm x --allow-build-s\\cripts""#,
+        r#"ksh -c "$(which sigil) pip x --allow-build-s\\cripts""#,
+        r#"/bin/bash -lc "`which sigil` npm x --allow-build-s\\cripts""#,
+        r#"bash -c "command -v sigil >/dev/null && `command -v sigil` pip x --allow-build-s\\cripts""#,
+        // Literal and variable command words, other wrappers.
+        r#"bash -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"bash -c "$SIGIL pip x --allow-build-s\\cripts""#,
+        r#"bash -c "${SIGIL} pip x --allow-build-s\\cripts""#,
+        r#"bash -c 'S=sigil; $S pip x --allow-build-\scripts'"#,
+        r#"eval "sigil pip x --allow-build-s\\cripts""#,
+        r#"eval sigil pip x --allow-build-s\\cripts"#,
+        r#"ssh host sigil pip x --allow-build-s\\cripts"#,
+        r#"ssh host "sigil pip x --allow-build-s\\cripts""#,
+        r#"su -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"sudo bash -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"env X=1 bash -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"timeout 5 bash -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"script -qec "sigil pip x --allow-build-s\\cripts" /dev/null"#,
+        r#"source <(echo "sigil pip x --allow-build-s\\cripts")"#,
+        r#". <(echo "sigil pip x --allow-build-s\\cripts")"#,
+        // Two levels of shell.
+        r#"bash -c 'bash -c "sigil pip x --allow-build-s\\\\cripts"'"#,
+        r#"bash -c "bash -c \"sigil pip x --allow-build-s\\\\\\\\cripts\"""#,
+        r#"bash -c "bash -c 'sigil pip x --allow-build-s\\cripts'""#,
+        // A string fed to a shell on stdin, and a here-document.
+        r#"echo "sigil pip x --allow-build-s\\cripts" | sh"#,
+        r#"printf %s sigil pip x --allow-build-s\\cripts | sh"#,
+        "bash <<'EOF'\nsigil pip x --allow-build-s\\cripts\nEOF",
+        "bash <<EOF\nsigil pip x --allow-build-s\\cripts\nEOF",
+        r#"bash <<< "`which sigil` pip x --allow-build-s\\cripts""#,
+        // The shell itself spelled with quotes, a variable or a flag only.
+        r#"b"as"h -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"$B -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"$SHELL -c "sigil pip x --allow-build-s\\cripts""#,
+        r#"/opt/tools/sh2 -c "sigil pip x --allow-build-s\\cripts""#,
+        // Other spellings of the flag the inner shell rewrites.
+        r#"bash -c "sigil pip x --allow-build-s''cripts""#,
+        r#"bash -c 'sigil pip x $(echo --allow-build-scripts)'"#,
+        r#"bash -c 'F=--allow-build-; sigil pip x ${F}scripts'"#,
+        r#"bash -c 'sigil pip x --allow-build-s{cripts,}'"#,
+        r#"bash -c "sigil pip x --allow-build-s*""#,
+        r#"bash -c $'sigil pip x --allow-build-s\x63ripts'"#,
+        "bash -c \"sigil pip x --allow-build-s\\\ncripts\"",
+        // ANSI-C quoting (`$'…'` keeps `\'` as a quote), and a command word the
+        // shell expands, with global options between it and `pip`.
+        r#"eval $'sh -c $\'S=sigil; F=scripts; ${S} --format json npm x --allow-build-${F}\''"#,
+        r#"S=sigil; F=scripts; ${S} --format json pip 'a b' --allow-build-${F}"#,
+        // (An unrelated `npm` call whose command word holds an expansion and
+        // whose arguments hold another is asked about too.)
+        r#"FOO="$X" npm test $ARGS"#,
+        // Nothing needs the flag to be there to be asked about: it is the
+        // text after the call that may become it.
+        r#"bash -c "sigil npm left-pad \"$EXTRA\"""#,
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd}");
+    }
+    // Plain nested calls, and text that only mentions a call, are allowed.
+    for cmd in [
+        r#"bash -c "sigil pip requests""#,
+        "bash -c 'sigil pip requests==2.32.3'",
+        r#"bash -c "cd /tmp && sigil npm left-pad""#,
+        r#"bash -c "cd /tmp && sigil npm left-pad" && echo "done""#,
+        r#"bash -c 'sigil pip x' && echo "done""#,
+        r#"sh -c "npm test""#,
+        r#"sh -c "pip --version""#,
+        r#"bash -c "cd $DIR && npm test""#,
+        r#"bash -c "echo \"hi\"; npm test""#,
+        r#"ssh host "sigil pip requests""#,
+        r#"sudo bash -c "sigil npm left-pad@1.3.0""#,
+        r#"eval "sigil pip requests""#,
+        // Not nested: the quotes of a top-level call are read as written,
+        // also next to a shell word that is not part of the call.
+        r#"sigil pip "requests>=2,<3""#,
+        r#"sigil pip "requests>=2,<3" && bash run.sh"#,
+        r#"sigil npm 'left-pad' | tee log"#,
+        // Data, not a command line another program reads.
+        r#"echo "sigil pip x --allow-build-s\\cripts""#,
+        r#"git commit -m 'use sigil pip with "quotes"'"#,
+        r#"grep -rn "sigil pip" docs"#,
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
+    }
+    // It never softens a deny elsewhere in the command.
+    assert_eq!(
+        decision(r#"bash -c "sigil pip x --allow-build-s\\cripts"; npm install evil"#),
+        "deny"
+    );
+}
+
+/// The nested-shell reading is linear in the length of the command (a hook
+/// that outlasts its time limit may be treated as an allow).
+#[test]
+fn the_nested_shell_reading_is_linear() {
+    for body in [
+        "sigil pip \"x\" ".repeat(20000),
+        "bash -c 'sigil npm \"x\"' ; ".repeat(10000),
+        "\"pip\" \"npm\" ".repeat(20000),
+        "$(sigil pip x) \\\\ ".repeat(20000),
+        "sh -c \"pip\\\" npm\" | ".repeat(10000),
+    ] {
+        let cmd = format!("echo {body}done");
+        let start = std::time::Instant::now();
+        let _ = nested_obscured_call(&cmd);
+        let limit = if cfg!(debug_assertions) { 10 } else { 1 };
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(limit),
+            "{} bytes took {:?}",
+            cmd.len(),
+            start.elapsed()
+        );
+    }
+}
+
 /// A quoted `;` `&` `|` ` #` or line end in front of the flag is a word of
 /// the call, not the end of it, and an argv list may span lines.
 #[test]

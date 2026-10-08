@@ -23,6 +23,15 @@ fn npm(spec: &str) -> &'static str {
     kind(check_spec(Manager::Npm, spec, false))
 }
 
+/// Whether `data` hashes to what a registry's `integrity` / `shasum` say.
+fn check_npm_integrity(
+    data: impl std::io::Read,
+    integrity: Option<&str>,
+    shasum: Option<&str>,
+) -> Result<(), String> {
+    NpmDigest::new(integrity, shasum)?.verify(data)
+}
+
 fn strings(v: &[OsString]) -> Vec<String> {
     v.iter().map(|s| s.to_string_lossy().into_owned()).collect()
 }
@@ -441,23 +450,172 @@ fn pip_download_args_opt_in_drops_only_binary() {
     );
 }
 
+/// Only the opt-in packs: `spec` as typed, into quarantine, options ended
+/// before it. By default Sigil downloads the tarball `npm view` named
+/// itself.
 #[test]
-fn npm_pack_args_default_ignores_scripts_and_ends_options() {
-    // The release by registry name: npm names the file from the registry's
-    // manifest, and a URL spec is refused by npm 12 (EALLOWREMOTE).
+fn npm_pack_args_are_for_the_opt_in_only() {
+    let dest = PathBuf::from("/q/abc123");
     assert_eq!(
-        strings(&npm_pack_args("left-pad@1.3.0", false, None)),
-        ["pack", "--ignore-scripts", "--", "left-pad@1.3.0"]
+        strings(&npm_pack_args("./dir", &dest)),
+        ["pack", "--pack-destination", "/q/abc123", "--", "./dir"]
     );
 }
 
 #[test]
-fn npm_pack_args_opt_in_drops_ignore_scripts_and_packs_into_quarantine() {
-    let dest = PathBuf::from("/q/abc123");
+fn npm_config_get_args_name_one_setting() {
     assert_eq!(
-        strings(&npm_pack_args("./dir", true, Some(&dest))),
-        ["pack", "--pack-destination", "/q/abc123", "--", "./dir"]
+        strings(&npm_config_get_args("@scope:registry")),
+        ["config", "get", "@scope:registry"]
     );
+}
+
+#[test]
+fn the_tarball_file_name_follows_npm_pack_and_cannot_name_a_path() {
+    assert_eq!(
+        npm_tarball_file_name("left-pad", "1.3.0"),
+        "left-pad-1.3.0.tgz"
+    );
+    assert_eq!(
+        npm_tarball_file_name("@types/node", "20.1.0"),
+        "types-node-20.1.0.tgz"
+    );
+    assert_eq!(
+        npm_tarball_file_name("a", "1.0.0-rc.1+build.5"),
+        "a-1.0.0-rc.1_build.5.tgz"
+    );
+    // Characters of the legacy name rule that a file name should not hold.
+    assert_eq!(npm_tarball_file_name("a*b!c(d)", "1.0.0"), "a_b_c_d_-1.0.0.tgz");
+    // Never hidden (the scanner would skip a dot directory).
+    assert_eq!(npm_tarball_file_name(".hidden", "1.0.0"), "_hidden-1.0.0.tgz");
+    for name in ["a", "@s/n", "...", "x~y", "._."] {
+        let file = npm_tarball_file_name(name, "1.0.0");
+        assert!(file.ends_with(".tgz"), "{file}");
+        assert!(!file.contains(['/', '\\']), "{file}");
+        assert!(!file.starts_with('.'), "{file}");
+    }
+}
+
+#[test]
+fn a_tarball_must_be_on_the_registrys_own_host_and_carry_no_credentials() {
+    let host = |tarball: &str, registry: &str| check_npm_tarball_host(tarball, registry);
+    // npm's own registry, a mirror on another port, a scoped registry, any
+    // scheme (the bytes are checked against the integrity either way).
+    // The host and port the download is made to.
+    assert_eq!(
+        host(
+            "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
+            "https://registry.npmjs.org/\n"
+        ),
+        Ok(("registry.npmjs.org".into(), 443))
+    );
+    assert_eq!(
+        host(
+            "http://127.0.0.1:4873/p/-/p-1.tgz",
+            "http://127.0.0.1:4873/"
+        ),
+        Ok(("127.0.0.1".into(), 4873))
+    );
+    assert_eq!(
+        host(
+            "https://gitlab.com/api/v4/projects/123/packages/npm/@acme/pkg/-/@acme/pkg-1.0.0.tgz",
+            "https://gitlab.com/api/v4/projects/123/packages/npm/"
+        ),
+        Ok(("gitlab.com".into(), 443))
+    );
+    assert!(host("http://Registry.Example/p.tgz", "https://registry.example/npm/").is_ok());
+    assert!(host(
+        "https://registry.example:443/p.tgz",
+        "https://registry.example/"
+    )
+    .is_ok());
+    for (tarball, registry, says) in [
+        // Another host, another port, a host that only ends the same.
+        (
+            "https://evil.example/p.tgz",
+            "https://registry.npmjs.org/",
+            "not the host",
+        ),
+        (
+            "https://registry.npmjs.org:8443/p.tgz",
+            "https://registry.npmjs.org/",
+            "not the host",
+        ),
+        (
+            "https://registry.npmjs.org.evil.example/p.tgz",
+            "https://registry.npmjs.org/",
+            "not the host",
+        ),
+        // A mirror whose metadata still names npm's registry.
+        (
+            "https://registry.npmjs.org/p.tgz",
+            "https://mirror.example/",
+            "not the host",
+        ),
+        // Credentials in the URL are never sent.
+        (
+            "https://user:pw@registry.npmjs.org/p.tgz",
+            "https://registry.npmjs.org/",
+            "user name or password",
+        ),
+        // A scheme's default port is not another port.
+        (
+            "http://registry.example:443/p.tgz",
+            "https://registry.example/",
+            "not the host",
+        ),
+        (
+            "https://token@registry.npmjs.org/p.tgz",
+            "https://registry.npmjs.org/",
+            "user name or password",
+        ),
+        // An unreadable registry setting checks nothing, so it is a refusal.
+        ("https://registry.npmjs.org/p.tgz", "", "not a URL"),
+        ("https://registry.npmjs.org/p.tgz", "undefined", "not a URL"),
+    ] {
+        let why = host(tarball, registry).unwrap_err();
+        assert!(why.contains(says), "{tarball} vs {registry}: {why}");
+        assert!(!why.contains(|c: char| c.is_control()), "{why:?}");
+        // Credentials in the URL are never echoed.
+        assert!(!why.contains("pw@") && !why.contains("token@"), "{why}");
+    }
+    let msg = npm_host_refusal("markreg@1.0.0", "the tarball is elsewhere");
+    assert!(msg.contains("markreg@1.0.0"), "{msg}");
+    assert!(msg.contains("without credentials"), "{msg}");
+    assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
+}
+
+#[test]
+fn credentials_in_a_registrys_url_are_never_echoed() {
+    for url in [
+        "git+https://user:secret@example.invalid/o/r.git",
+        "https://user:secret@github.com/o/r",
+        "https://user:secret@github.com/o/r.tgz",
+        "ssh://git:secret@example.invalid/o/r.git",
+        "https://secret@example.invalid/a b.tgz",
+    ] {
+        let why = check_npm_tarball_url(url).unwrap_err();
+        assert!(!why.contains("secret"), "{url}: {why}");
+        let why = check_npm_tarball_host(url, "https://example.invalid/").unwrap_err();
+        assert!(!why.contains("secret"), "{url}: {why}");
+    }
+    assert_eq!(redact_url("https://u:p@h.example/x@y"), "https://***@h.example/x@y");
+    assert_eq!(redact_url("https://h.example/x@y"), "https://h.example/x@y");
+    assert_eq!(redact_url("not a url\u{1b}"), "not a url\\u{1b}");
+}
+
+#[test]
+fn a_download_failure_explains_credentials_and_proxies() {
+    let denied = npm_download_failure(
+        "pkg@1.0.0",
+        "download failed: HTTP 401 Unauthorized from https://r.example/p.tgz",
+    );
+    assert!(denied.contains("wants credentials"), "{denied}");
+    assert!(denied.contains("sigil scan"), "{denied}");
+    assert!(denied.contains("HTTPS_PROXY"), "{denied}");
+    let other = npm_download_failure("pkg@1.0.0", "download failed: connection refused");
+    assert!(!other.contains("wants credentials"), "{other}");
+    assert!(other.contains("HTTPS_PROXY"), "{other}");
 }
 
 #[test]
@@ -903,7 +1061,7 @@ fn a_tarball_string_npm_could_read_as_a_path_is_refused() {
 }
 
 #[test]
-fn the_packed_tarball_must_match_the_registry_integrity() {
+fn the_downloaded_tarball_must_match_the_registry_integrity() {
     let data: &[u8] = b"tarball bytes";
     // Digests of `data` (openssl dgst), as npm writes them.
     let sha512 = "sha512-B8POa95m3GJFaMFp1MsqEvsPvqIJoPCLbH2k06iUbfIjuNSkCqtohW801kLScBVmPs4lTysbJEGKUysB9lnEYw==";
@@ -934,6 +1092,12 @@ fn the_packed_tarball_must_match_the_registry_integrity() {
     }
     let err = check_npm_integrity(data, Some(mismatch), None).unwrap_err();
     assert!(err.contains(sha512), "{err}");
+    assert!(err.contains("Sigil downloaded"), "{err}");
+    // The digest can be worked out before anything is downloaded.
+    assert!(NpmDigest::new(Some(sha512), None).is_ok());
+    assert!(NpmDigest::new(None, Some(sha1_hex)).is_ok());
+    assert!(NpmDigest::new(Some("md5-abc"), None).is_err());
+    assert!(NpmDigest::new(None, None).is_err());
     let msg = npm_integrity_refusal("plainpkg@1.0.0", &err);
     assert!(msg.contains("plainpkg@1.0.0"), "{msg}");
     assert!(msg.contains("EINTEGRITY"), "{msg}");
@@ -1112,4 +1276,87 @@ fn the_no_wheel_hint_points_at_scanning_the_source_distribution() {
     assert!(hint.contains("sigil scan <URL of the .tar.gz>"), "{hint}");
     assert!(hint.contains("runs nothing from it"), "{hint}");
     assert!(hint.contains(ALLOW_BUILD_SCRIPTS), "{hint}");
+}
+
+/// docs/troubleshooting.md quotes the messages `sigil pip` and `sigil npm`
+/// print; each quoted fragment must be one the code produces, and the other
+/// way round for the npm lookup errors, so the page cannot drift from the
+/// CLI again.
+#[test]
+fn the_troubleshooting_page_quotes_the_messages_the_cli_prints() {
+    let doc = include_str!("../../docs/troubleshooting.md");
+    let section = doc
+        .split("### `sigil pip` or `sigil npm` refuses a package or fails to download it")
+        .nth(1)
+        .and_then(|rest| rest.split("\n### ").next())
+        .expect("the troubleshooting section for sigil pip and sigil npm");
+
+    // What the registry's name or version can be, as the CLI prints it.
+    let bad_name = parse_npm_view(
+        r#"{"name":"../evil","version":"1.0.0","dist.tarball":"https://r.example/x.tgz"}"#,
+    )
+    .unwrap_err();
+    let bad_version = parse_npm_view(
+        r#"{"name":"ok","version":"1.0.0/../../x","dist.tarball":"https://r.example/x.tgz"}"#,
+    )
+    .unwrap_err();
+    let unreadable = npm_view_unreadable("badname", &bad_name);
+    assert!(
+        unreadable
+            .starts_with("could not read what npm resolves `badname` to: the registry gives `"),
+        "{unreadable}"
+    );
+    assert!(unreadable.ends_with("as a package name, which is not a valid npm package name"));
+    assert!(
+        npm_view_unreadable("badver", &bad_version).contains("as the version of `ok`, which"),
+        "{bad_version}"
+    );
+    let tarball = npm_tarball_refusal(
+        "name@1.0.0",
+        &check_npm_tarball_url("git+file:///tmp/repo").unwrap_err(),
+    );
+    assert!(tarball.starts_with("sigil npm will not download `name@1.0.0`: the registry gives `"));
+    assert!(tarball.contains("` as the tarball"), "{tarball}");
+    let host = npm_host_refusal(
+        "name@1.0.0",
+        &check_npm_tarball_host("https://other.example/p.tgz", "https://registry.npmjs.org/")
+            .unwrap_err(),
+    );
+    assert!(host.contains("is not the host of the registry npm resolved the package from"));
+    let digest = NpmDigest::new(Some("sha512-AAAA"), None)
+        .unwrap()
+        .verify(&b"x"[..])
+        .unwrap_err();
+    assert!(digest.starts_with("the tarball Sigil downloaded hashes to "), "{digest}");
+    let none = NpmDigest::new(None, None).unwrap_err();
+    assert!(none.contains("the registry gives no integrity or shasum"), "{none}");
+    let download = npm_download_failure("name@1.0.0", "download failed: HTTP 401 from u");
+    assert!(download.starts_with("sigil npm could not download the tarball of `name@1.0.0`: "));
+    let twice = version_flag_conflict(Manager::Pip, "requests>=2", Some("2.32.3")).unwrap();
+    assert!(twice.starts_with("sigil pip was given a version twice: "), "{twice}");
+
+    // The page quotes each of those, and nothing the CLI does not print.
+    for quoted in [
+        "could not read what npm resolves",
+        "as a package name",
+        "as the version of",
+        "will not download",
+        "as the tarball",
+        "is not the host of the registry npm resolved the package from",
+        "could not download the tarball of",
+        "the tarball Sigil downloaded hashes to",
+        "the registry gives no integrity or shasum",
+        "was given a version twice",
+        "is pip installed and on PATH?",
+    ] {
+        assert!(section.contains(quoted), "troubleshooting.md does not quote `{quoted}`");
+    }
+    assert!(
+        !section.contains("will not download name@version: the registry gives … as a package name"),
+        "the package-name error is not printed with a `will not download` prefix"
+    );
+    assert!(
+        !section.contains("the tarball npm downloaded hashes to"),
+        "Sigil, not npm, downloads the tarball now"
+    );
 }

@@ -490,10 +490,21 @@ mod tests {
             r"bash -c 'sig'\'''\''il npm ./evx --allow-build-scripts'",
             "SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./evx",
             "python3 - <<'EOF'\nsubprocess.run([\n \"sigil\",\n \"npm\",\n \"./evx\",\n \"--allow-build-scripts\",\n])\nEOF",
+            // A nested shell may rewrite the flag (a backslash that a
+            // double-quoted string keeps and the inner shell drops).
+            r#"bash -c "`which sigil` pip x --allow-build-s\\cripts""#,
+            r#"sh -c "sigil npm x --allow-build-s\\cripts""#,
+            r#"eval sigil pip x --allow-build-s\\cripts"#,
+            r#"echo "sigil pip x --allow-build-s\\cripts" | sh"#,
         ] {
             assert_eq!(decision(command), "ask", "{command}");
         }
-        for command in ["sigil npm left-pad", "sigil npm -- --allow-build-scripts"] {
+        for command in [
+            "sigil npm left-pad",
+            "sigil npm -- --allow-build-scripts",
+            r#"bash -c "sigil pip requests""#,
+            r#"bash -c "cd /tmp && sigil npm left-pad""#,
+        ] {
             assert_eq!(decision(command), "allow", "{command}");
         }
     }

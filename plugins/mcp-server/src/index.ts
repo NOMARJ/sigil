@@ -354,16 +354,22 @@ server.tool(
 
 server.tool(
   "sigil_scan_package",
-  "Download and scan an npm or pip package in quarantine before installing it. Use this to assess risk before installation.",
+  "Download and scan an npm or pip package in quarantine before installing it, without running any of its code. Use this to assess risk before installation. Registry packages only: a path, URL, git spec (including owner/repo) or npm: alias is refused, and so is a PyPI release published only as a source distribution or with no wheel for this platform (pip would build it, which runs its setup code; pin a version that has a wheel). The result names the exact release that was scanned: install that version.",
   {
     manager: z
       .enum(["npm", "pip"])
       .describe("Package manager (npm or pip)"),
-    package_name: z.string().describe("Package name to scan"),
+    package_name: z
+      .string()
+      .describe(
+        "Registry package name, never a path, URL or git spec. pip: optional extras and version specifiers (requests, requests[socks], requests>=2,<3). npm: scoped names allowed, optional @version, @tag or @range (left-pad, @types/node, left-pad@^1.3)"
+      ),
     version: z
       .string()
       .optional()
-      .describe("Specific version to scan"),
+      .describe(
+        "pip: an exact version (put a range in package_name). npm: a version, dist-tag or range. Not with a package_name that already names a version"
+      ),
   },
   guardSigil(async ({ manager, package_name, version }) => {
     const args = ["--format", "json", manager, package_name];
@@ -371,7 +377,13 @@ server.tool(
 
     const result = await runSigilJson(args);
 
-    const summary = `Package: ${manager}/${package_name}${version ? `@${version}` : ""}\n${summaryLine(result)}`;
+    // The CLI names the release it scanned (left-pad@1.3.0, requests==2.32.3):
+    // the version to install, which may differ from a range or tag asked for.
+    const scanned =
+      typeof result?.package === "string" && result.package
+        ? `\nScanned release: ${result.package} (install that version)`
+        : "";
+    const summary = `Package: ${manager}/${package_name}${version ? `@${version}` : ""}${scanned}\n${summaryLine(result)}`;
 
     return {
       content: [

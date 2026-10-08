@@ -2724,6 +2724,221 @@ OPTIN_ND='[^][(),[:space:];&|-]'
 OPTIN_TOK="(${OPTIN_ND}${OPTIN_N}*|-|-${OPTIN_ND}${OPTIN_N}*|--${OPTIN_N}+)"
 OPTIN_FLATRE="(^|${OPTIN_D})[\"'{]*(pip|npm)[\"'}]*${OPTIN_D}+(${OPTIN_TOK}${OPTIN_D}+)*[\"']*--allow-build-scripts"
 OPTIN_ENVRE='SIGIL_ALLOW_BUILD_SCRIPTS["'"'"']*\+?='
+# 4. A nested shell (hook.rs nested_obscured_call, which reads the same way).
+#    A double-quoted string keeps `\c` as it is, and the shell it is handed
+#    to reads the unquoted text and drops the backslash:
+#    `bash -c "`which sigil` pip x --allow-build-s\\cripts"` hands that shell
+#    `s\cripts`, which it reads as `scripts`. No reading of the outer command
+#    knows what an inner one runs, and the spellings are endless, so rather
+#    than chase them a `pip` or `npm` word (a maximal run of [A-Za-z0-9_.-])
+#    asks when
+#     - it sits in a quoted string (the outermost '…' or "…" of the command,
+#       a backslash escaping a character outside single quotes) and the
+#       command holds a shell anywhere (a word that is sh bash dash zsh ksh
+#       mksh ash csh tcsh fish busybox ssh su runuser eval source trap watch
+#       script flock or parallel, with a version or extension after it
+#       (ksh93, bash.exe), $SHELL, $BASH, a `.` of its own; also with its
+#       quotes and backslashes removed: b"as"h) or a -c-like flag with a
+#       quote or `$` or backtick after it (`$B -c "…"`), or
+#     - it is unquoted and a shell stands in its own simple command (after
+#       the last `;` `&` `|` `(` or line end), or a pipeline stage starts one
+#       (`printf … | sh`), or the command holds a `<<` and a shell as above,
+#       or its simple command holds a `$`, backtick, `{`, `*`, `?` or `[` in
+#       front of it (a command word the shell expands, `${S} --format json pip`);
+#    and the words of its simple command in front of it (after the last
+#    `;` `&` `|` `(` or line end, quoted or not) hold `sigil` or one of
+#    \ ' " $ ` { * ? [ (a word the shell may spell `sigil`), and the text
+#    after it, to the end of its call (the next `;`, line end, `)`, `&` or
+#    `|`; past the end of its quoted string if the call goes on), holds one
+#    of \ ' " $ ` { * ? [. The quote that opens the string holding the word
+#    and the one that closes it do not count. Over-asking is the intended
+#    failure. Without awk the same is read coarsely, as a superset: a shell
+#    anywhere, then `sigil` or one of those characters, then a `pip` or `npm`
+#    word, then one of them again.
+NS_SQ="'"
+NS_OBS_ERE="[\$\`\\\\${NS_SQ}\"*?[{]"
+NS_NAMES='sh bash dash zsh ksh mksh ash csh tcsh fish busybox ssh su runuser eval source trap watch script flock parallel'
+NS_SHELLS='sh bash dash zsh ksh mksh ash csh tcsh fish busybox'
+NS_SHELL_ERE="(^|[^A-Za-z0-9_.-])(sh|bash|dash|zsh|ksh|mksh|ash|csh|tcsh|fish|busybox|ssh|su|runuser|eval|source|trap|watch|script|flock|parallel)[0-9.]*([^A-Za-z0-9_-]|\$)|[\$][{]?(SHELL|BASH)[}]?|(^|[[:space:];&|(])[.]([[:space:]]|\$)"
+NS_DASHC_ERE="(^|[[:space:]])-[A-Za-z]*c([[:space:]]*[\"${NS_SQ}\$\`]|[\"${NS_SQ}\$\`])"  # coarse: any program
+NS_COARSE_ERE="(sigil|${NS_OBS_ERE}).*(^|[^A-Za-z0-9_.-])(pip|npm)([^A-Za-z0-9_.-]|\$).*${NS_OBS_ERE}"
+# shellcheck disable=SC2016 # an awk program, not shell
+NS_AWK='
+function named(word, list,   k, nm, rest) {
+  nm = split(list, names, " ")
+  for (k = 1; k <= nm; k++) {
+    if (substr(word, 1, length(names[k])) == names[k]) {
+      rest = substr(word, length(names[k]) + 1)
+      while (rest ~ /^[0-9]/) rest = substr(rest, 2)
+      if (rest == "" || substr(rest, 1, 1) == ".") return 1
+    }
+  }
+  return 0
+}
+function wordc(c) { return index(WORDCH, c) > 0 }
+function opens(t) { return t != "" && index(DQ SQ "$`", substr(t, 1, 1)) > 0 }
+# dashc(s): a -c-like flag followed by a quote or an expansion, on a program
+# that is not an interpreter of another language.
+function dashc(s,   nt, k, t, body, l, flag, rest, more, prog, b, j, q) {
+  nt = 0; k = 1; q = length(s)
+  while (k <= q) {
+    while (k <= q && index(" \t\n", substr(s, k, 1)) > 0) k++
+    if (k > q) break
+    j = k
+    while (j <= q && index(" \t\n", substr(s, j, 1)) == 0) j++
+    tok[++nt] = substr(s, k, j - k); k = j
+  }
+  for (k = 1; k <= nt; k++) {
+    t = tok[k]
+    if (substr(t, 1, 1) != "-") continue
+    body = substr(t, 2); l = 0
+    while (l < length(body) && index(LETTERS, substr(body, l + 1, 1)) > 0) l++
+    flag = substr(body, 1, l); rest = substr(body, l + 1)
+    if (substr(flag, length(flag), 1) != "c" || flag == "") continue
+    more = (rest == "") ? opens(tok[k + 1]) : opens(rest)
+    if (!more) continue
+    prog = (k > 1) ? tok[k - 1] : ""
+    while (substr(prog, 1, 1) == DQ || substr(prog, 1, 1) == SQ) prog = substr(prog, 2)
+    while ((b = index(prog, "/")) > 0) prog = substr(prog, b + 1)
+    for (b = 1; b <= 12; b++) if (NOTSH[b] != "" && substr(prog, 1, length(NOTSH[b])) == NOTSH[b]) break
+    if (b <= 12) continue
+    return 1
+  }
+  return 0
+}
+# shells(s, all, out): out[last position of an occurrence] = its first
+# position; the number of occurrences.
+function shells(s, all, out,   n, i, a, w, c, cnt, rest, br, t, nxt) {
+  n = length(s); cnt = 0; i = 1; split("", out)
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (wordc(c)) {
+      a = i
+      while (i <= n && wordc(substr(s, i, 1))) i++
+      w = substr(s, a, i - a)
+      if (named(w, all ? NAMES : SHELLS)) { out[i - 1] = a; cnt++ }
+      else if (all && w == ".") {
+        t = (a == 1) ? " " : substr(s, a - 1, 1)
+        nxt = (i > n) ? " " : substr(s, i, 1)
+        if ((t == " " || t == "\t" || t == "\n" || t == ";" || t == "&" || t == "|" || t == "(") && (nxt == " " || nxt == "\t" || nxt == "\n")) { out[i - 1] = a; cnt++ }
+      }
+    } else {
+      if (all && c == "$") {
+        rest = substr(s, i + 1, 7); br = 0
+        if (substr(rest, 1, 1) == "{") { br = 1; rest = substr(rest, 2) }
+        if (substr(rest, 1, 5) == "SHELL") { out[i + br + 5] = i; cnt++ }
+        else if (substr(rest, 1, 4) == "BASH") { out[i + br + 4] = i; cnt++ }
+      }
+      i++
+    }
+  }
+  return cnt
+}
+BEGIN {
+  SQ = sprintf("%c", 39); DQ = "\""
+  OBS = "$`\\" SQ DQ "{*?["
+  EXPANDING = "$`{*?["
+  WORDCH = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-"
+  LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  split("python node deno bun perl ruby php lua awk gawk mawk sed", NOTSH, " ")
+  buf = ""; seen = 0
+}
+{ buf = (seen ? buf "\n" : "") $0; seen = 1 }
+END {
+  n = length(buf); nm = 0; i = 1
+  while (i <= n) {
+    if (wordc(substr(buf, i, 1))) {
+      st = i
+      while (i <= n && wordc(substr(buf, i, 1))) i++
+      w = substr(buf, st, i - st)
+      if (w == "pip" || w == "npm") mgr[++nm] = st
+    } else i++
+  }
+  if (nm == 0) { print 0; exit }
+  sep[0] = 0; psep[0] = 0; obs[0] = 0; xp[0] = 0; sig[0] = 0
+  for (k = 1; k <= n; k++) {
+    c = substr(buf, k, 1)
+    sep[k] = (c == ";" || c == "&" || c == "|" || c == "(" || c == "\n") ? k : sep[k - 1]
+    psep[k] = (c == ";" || c == "&" || c == "|" || c == "\n") ? k : psep[k - 1]
+    obs[k] = obs[k - 1] + (index(OBS, c) > 0 ? 1 : 0)
+    xp[k] = xp[k - 1] + (index(EXPANDING, c) > 0 ? 1 : 0)
+    sig[k] = (k >= 5 && substr(buf, k - 4, 5) == "sigil") ? k - 4 : sig[k - 1]
+  }
+  # stp[k]: where the call that starts at position k ends: the next ; line
+  # end ) & (not that of 2>&1 <&0 &>f) or | (not that of >|); n + 1: none.
+  stp[n + 1] = n + 1
+  for (k = n; k >= 1; k--) {
+    c = substr(buf, k, 1)
+    pv = (k > 1) ? substr(buf, k - 1, 1) : ""
+    nx = (k < n) ? substr(buf, k + 1, 1) : ""
+    isstop = 0
+    if (c == ";" || c == "\n" || c == ")") isstop = 1
+    else if (c == "&") isstop = !(pv == ">" || pv == "<" || nx == ">")
+    else if (c == "|") isstop = (pv != ">")
+    stp[k] = isstop ? k : stp[k + 1]
+  }
+  occ = shells(buf, 1, ends)
+  for (k = 1; k <= n; k++) shl[k] = (k in ends) ? ends[k] : shl[k - 1]
+  shl[0] = 0
+  tobs = 0
+  pipe = 0
+  cnt = shells(buf, 0, ends2)
+  for (e in ends2) {
+    a = ends2[e]
+    if (psep[a - 1] > 0 && substr(buf, psep[a - 1], 1) == "|") pipe = 1
+  }
+  stripped = buf
+  gsub(DQ, "", stripped); gsub(SQ, "", stripped); gsub("\\\\", "", stripped)
+  g = (occ > 0) || (shells(stripped, 1, ends3) > 0) || dashc(buf)
+  here = (index(buf, "<<") > 0)
+  ne = 0; i = 1
+  while (i <= n) {
+    c = substr(buf, i, 1)
+    if (c == "\\") i += 2
+    else if (c == "$" && substr(buf, i + 1, 1) == SQ) {
+      j = i + 2
+      while (j <= n && substr(buf, j, 1) != SQ) j += (substr(buf, j, 1) == "\\" ? 2 : 1)
+      if (j > n + 1) j = n + 1
+      ne++; eo[ne] = i + 1; ec[ne] = j; i = j + 1
+    } else if (c == SQ) {
+      j = i + 1
+      while (j <= n && substr(buf, j, 1) != SQ) j++
+      ne++; eo[ne] = i; ec[ne] = j; i = j + 1
+    } else if (c == DQ) {
+      j = i + 1
+      while (j <= n && substr(buf, j, 1) != DQ) j += (substr(buf, j, 1) == "\\" ? 2 : 1)
+      if (j > n + 1) j = n + 1
+      ne++; eo[ne] = i; ec[ne] = j; i = j + 1
+    } else i++
+  }
+  e = 1
+  for (m = 1; m <= nm; m++) {
+    p = mgr[m]
+    while (e <= ne && ec[e] < p) e++
+    inside = (e <= ne && eo[e] < p && p < ec[e])
+    st = sep[p - 1] + 1
+    opening = (inside && eo[e] >= st) ? 1 : 0
+    spelled = (sig[p - 1] >= st) || (obs[p - 1] - obs[st - 1] > opening)
+    fin = stp[p + 3] - 1
+    closing = (inside && ec[e] <= n && ec[e] >= p + 3 && ec[e] <= fin) ? 1 : 0
+    if (inside) applies = g
+    else applies = (shl[p - 1] >= st) || pipe || (here && g) || (xp[p - 1] - xp[st - 1] > 0)
+    if (applies && spelled && obs[fin] - obs[p + 2] > closing) { print 1; exit }
+  }
+  print 0
+}'
+ns_check() {
+  if [ -n "$LEX_HAS_AWK" ]; then
+    NS_OUT=$(printf '%s\n' "$CMD" | LC_ALL=C awk -v NAMES="$NS_NAMES" -v SHELLS="$NS_SHELLS" "$NS_AWK" 2>/dev/null) || NS_OUT=1
+    [ "$NS_OUT" = 0 ] || OPTIN=1
+  else
+    ns_flat=$(printf '%s' "$CMD" | tr '\n' ' ')
+    ns_bare=$(printf '%s' "$ns_flat" | tr -d "\"'\\\\")
+    { has_in "$ns_flat" "$NS_SHELL_ERE" || has_in "$ns_bare" "$NS_SHELL_ERE" \
+        || has_in "$ns_flat" "$NS_DASHC_ERE"; } \
+      && has_in "$ns_flat" "$NS_COARSE_ERE" && OPTIN=1
+  fi
+}
 # Only a command that holds one of these words (quotes and backslashes
 # aside) can hold the call; the lexer's pre-filter text is that.
 case $LEX_TXT in
@@ -2742,7 +2957,8 @@ case $LEX_TXT in
     optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
     optin_has "$OPTIN_BRM" && OPTIN=1
     optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
-      && OPTIN=1 ;;
+      && OPTIN=1
+    ns_check ;;
 esac
 allow_unless_opt_in() {
   [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it (or a word here may expand to it, or xargs may append it, or SIGIL_ALLOW_BUILD_SCRIPTS is being set). Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."

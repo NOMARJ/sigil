@@ -30,18 +30,22 @@
 //!   19.0.2) still runs a directory's or git checkout's `prepare` script with
 //!   that flag set, so anything that is not a registry package by name is
 //!   refused before npm runs. A registry's metadata can itself point a
-//!   version's tarball at a git repository, so Sigil resolves the spec with
-//!   `npm view` first, checks the name, the version and the tarball URL
-//!   (a plain http(s) download, as npm-package-arg and hosted-git-info
-//!   classify it), packs `name@version` from the (empty) quarantine
-//!   directory, and checks the packed tarball against the registry's
-//!   `dist.integrity`, as `npm install` would. It packs the registry name,
-//!   not the tarball's URL: npm names the file it writes after the manifest
-//!   it reads, and for a bare tarball that is the `package.json` inside it,
-//!   which the package's author controls (a version of `1.0.0/../../x`
-//!   would put the file outside quarantine); for a registry spec it is the
-//!   registry's own manifest. A URL spec is also refused by npm 12 unless
-//!   `--allow-remote` is given.
+//!   version's tarball at a git repository, and `npm pack <name>@<version>`
+//!   fetches the registry's metadata again (with a different `Accept`
+//!   header than `npm view`, so a registry can answer the two requests
+//!   differently), so by default Sigil does not run `npm pack` at all. It
+//!   resolves the spec with `npm view` (the one metadata request), checks the
+//!   name, the version and the tarball URL it gives (a plain http(s) download
+//!   from the registry's own host, as npm-package-arg and hosted-git-info
+//!   classify it), downloads exactly that URL itself (no credentials, a size
+//!   cap, no redirect off http(s)), and checks the bytes against the
+//!   registry's `dist.integrity`, as `npm install` would, before anything
+//!   reads them. Nothing in that path can run package code, and nothing
+//!   fetches a second description of the release. Handing the URL to `npm
+//!   pack` is no way round it: npm 10.9.7 names the file it writes after the
+//!   `package.json` inside a bare tarball, which its author controls (a
+//!   version of `1.0.0/../../x` puts the file outside quarantine), and npm 12
+//!   refuses a URL spec without `--allow-remote=all`.
 //!
 //! `--allow-build-scripts` lifts the refusals and drops the two options, for
 //! code the user already trusts, and runs npm from the caller's directory
@@ -207,6 +211,34 @@ pub fn npm_spec(package: &str, version: Option<&str>) -> String {
     }
 }
 
+/// `-V <version>` on a package that already names a version or range
+/// (`wheelok>=1 -V 1.0` would be `wheelok>=1==1.0`, `left-pad@1 -V 1.0.0`
+/// `left-pad@1@1.0.0`): which of the two to use is the user's call, so it is
+/// refused with that said, ahead of any other check of the combined spec.
+pub fn version_flag_conflict(
+    manager: Manager,
+    package: &str,
+    version: Option<&str>,
+) -> Option<String> {
+    let version = version?;
+    let package = package.trim();
+    let named = match manager {
+        Manager::Pip => pip_requirement(package)
+            .ok()
+            .filter(|r| !r.specifiers.is_empty())
+            .map(|_| ()),
+        // A scope's `@` starts the name; a second `@` starts a version.
+        Manager::Npm => package.chars().skip(1).any(|c| c == '@').then_some(()),
+    };
+    named?;
+    let cmd = manager.command();
+    Some(format!(
+        "sigil {cmd} was given a version twice: `{package}` already names one, and -V/--version \
+         `{version}` names another. Give the version in the spec (`{package}`) or with \
+         -V/--version, not both."
+    ))
+}
+
 /// Check a spec before anything is created or run. With
 /// `allow_build_scripts`, only [`SpecError::Unusable`] is returned.
 pub fn check_spec(
@@ -282,28 +314,25 @@ pub fn npm_view_args(spec: &str) -> Vec<OsString> {
     .collect()
 }
 
-/// `npm pack` arguments (after the `npm` command word). By default `target`
-/// is the resolved release, `name@version` (npm names the file it writes
-/// from the registry's manifest of it, which [`parse_npm_view`] has checked)
-/// and npm runs in the quarantine directory, where it writes the tarball.
-/// With the opt-in, npm runs in the caller's directory, so
-/// `pack_destination` names the quarantine directory.
-pub fn npm_pack_args(
-    target: &str,
-    allow_build_scripts: bool,
-    pack_destination: Option<&Path>,
-) -> Vec<OsString> {
-    let mut args: Vec<OsString> = vec!["pack".into()];
-    if !allow_build_scripts {
-        args.push("--ignore-scripts".into());
-    }
-    if let Some(dest) = pack_destination {
-        args.push("--pack-destination".into());
-        args.push(dest.as_os_str().to_owned());
-    }
-    args.push("--".into());
-    args.push(target.into());
-    args
+/// `npm config get <key>` arguments: one setting, as npm resolves it from
+/// its command line, environment and `.npmrc` files.
+pub fn npm_config_get_args(key: &str) -> Vec<OsString> {
+    ["config", "get", key].into_iter().map(OsString::from).collect()
+}
+
+/// `npm pack` arguments (after the `npm` command word) for the opt-in
+/// (`--allow-build-scripts`) only: `spec` as typed, packed into
+/// `pack_destination` (npm runs in the caller's directory, so a relative path
+/// means what the user typed). By default Sigil never runs `npm pack`: it
+/// downloads the tarball `npm view` named itself (see the module docs).
+pub fn npm_pack_args(spec: &str, pack_destination: &Path) -> Vec<OsString> {
+    vec![
+        "pack".into(),
+        "--pack-destination".into(),
+        pack_destination.as_os_str().to_owned(),
+        "--".into(),
+        spec.into(),
+    ]
 }
 
 /// The refusal printed (after `error: `) when [`check_spec`] fails.
@@ -1171,6 +1200,23 @@ pub fn pick_npm_release(releases: &[NpmRelease]) -> Option<&NpmRelease> {
     })
 }
 
+/// `url` as it may be shown: the user name and password of an `scheme://user:pw@host`
+/// authority, which a registry's metadata could put there, replaced by
+/// `***`, and control characters escaped.
+pub fn redact_url(url: &str) -> String {
+    let shown = match url.split_once("://") {
+        Some((scheme, rest)) => {
+            let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+            match rest[..end].rfind('@') {
+                Some(at) => format!("{scheme}://***@{}", &rest[at + 1..]),
+                None => url.to_string(),
+            }
+        }
+        None => url.to_string(),
+    };
+    shown.escape_debug().to_string()
+}
+
 /// Check the tarball URL a registry gave for a release: it must be a plain
 /// http(s) download that npm fetches as a tarball. `file:` and git URLs, and
 /// http(s) URLs that npm reads as a git repository, make npm clone or pack
@@ -1186,8 +1232,8 @@ pub fn pick_npm_release(releases: &[NpmRelease]) -> Option<&NpmRelease> {
 /// control character.
 pub fn check_npm_tarball_url(url: &str) -> Result<(), String> {
     // Escaped, so a control character in a registry's string cannot reach
-    // the terminal through the message.
-    let shown = url.escape_debug();
+    // the terminal through the message, and without any credentials in it.
+    let shown = redact_url(url);
     let parsed =
         reqwest::Url::parse(url).map_err(|_| format!("`{shown}` is not a URL npm downloads"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
@@ -1276,20 +1322,23 @@ fn npm_git_repo_host(url: &reqwest::Url) -> Option<&'static str> {
     repo.then_some(name)
 }
 
-/// Check a tarball npm packed against what the registry said it hashes to:
-/// `dist.integrity` (Subresource Integrity: as ssri checks it, the
-/// strongest algorithm listed must match one of its hashes), else
-/// `dist.shasum` (sha1, hex). `npm install <name>` checks the download this
-/// way; npm packs a bare tarball URL without a check, so Sigil checks it.
-pub fn check_npm_integrity(
-    mut data: impl std::io::Read,
-    integrity: Option<&str>,
-    shasum: Option<&str>,
-) -> Result<(), String> {
-    use base64::Engine as _;
-    // What to check against: the strongest SRI algorithm listed with its
-    // hashes (base64), else the sha1 shasum (hex).
-    let (algorithm, wanted, what): (&str, Vec<&str>, String) =
+/// What a registry says its tarball hashes to: `dist.integrity` (Subresource
+/// Integrity: as ssri checks it, the strongest algorithm listed must match
+/// one of its hashes), else `dist.shasum` (sha1, hex). `npm install <name>`
+/// checks the download this way; Sigil checks the tarball it downloads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NpmDigest {
+    /// `sha512`, `sha384`, `sha256`, `sha1` (an SRI hash), or `sha1-hex`.
+    algorithm: &'static str,
+    /// The hashes of that algorithm that would be accepted (base64, or hex).
+    wanted: Vec<String>,
+    /// How the message names it.
+    what: String,
+}
+
+impl NpmDigest {
+    /// The digest to check against, or why there is none Sigil can check.
+    pub fn new(integrity: Option<&str>, shasum: Option<&str>) -> Result<NpmDigest, String> {
         match integrity.map(str::trim).filter(|s| !s.is_empty()) {
             Some(sri) => {
                 // `algorithm-base64digest[?options]`, whitespace separated.
@@ -1305,69 +1354,79 @@ pub fn check_npm_integrity(
                     .find(|a| hashes.iter().any(|(x, _)| x == a))
                 else {
                     return Err(format!(
-                        "the registry's integrity for it (`{sri}`) has no sha512, sha384, sha256 \
-                         or sha1 hash to check"
+                        "the registry's integrity for it (`{}`) has no sha512, sha384, sha256 \
+                         or sha1 hash to check",
+                        sri.escape_debug()
                     ));
                 };
-                let wanted = hashes
-                    .iter()
-                    .filter(|(a, _)| *a == algorithm)
-                    .map(|(_, d)| *d)
-                    .collect();
-                (
+                Ok(NpmDigest {
                     algorithm,
-                    wanted,
-                    format!("integrity the registry gives (`{sri}`)"),
-                )
+                    wanted: hashes
+                        .iter()
+                        .filter(|(a, _)| *a == algorithm)
+                        .map(|(_, d)| (*d).to_string())
+                        .collect(),
+                    what: format!("integrity the registry gives (`{}`)", sri.escape_debug()),
+                })
             }
             None => match shasum.map(str::trim).filter(|s| !s.is_empty()) {
-                Some(hex) => (
-                    "sha1-hex",
-                    vec![hex],
-                    format!("shasum the registry gives ({hex})"),
-                ),
-                None => {
-                    return Err(
-                        "the registry gives no integrity or shasum for it, so what would \
-                                be scanned cannot be tied to what `npm install` accepts"
-                            .into(),
-                    )
-                }
+                Some(hex) => Ok(NpmDigest {
+                    algorithm: "sha1-hex",
+                    wanted: vec![hex.to_string()],
+                    what: format!("shasum the registry gives ({})", hex.escape_debug()),
+                }),
+                None => Err("the registry gives no integrity or shasum for it, so what would \
+                             be scanned cannot be tied to what `npm install` accepts"
+                    .into()),
             },
+        }
+    }
+
+    /// Whether `data` hashes to this digest.
+    pub fn verify(&self, mut data: impl std::io::Read) -> Result<(), String> {
+        use base64::Engine as _;
+        fn hash<D: sha2::Digest + std::io::Write>(
+            r: &mut dyn std::io::Read,
+        ) -> std::io::Result<Vec<u8>> {
+            let mut h = D::new();
+            std::io::copy(r, &mut h)?;
+            Ok(h.finalize().to_vec())
+        }
+        let digest = match self.algorithm {
+            "sha512" => hash::<sha2::Sha512>(&mut data),
+            "sha384" => hash::<sha2::Sha384>(&mut data),
+            "sha256" => hash::<sha2::Sha256>(&mut data),
+            _ => hash::<sha1::Sha1>(&mut data),
+        }
+        .map_err(|e| format!("could not read the tarball Sigil downloaded: {e}"))?;
+        let (got, matches) = if self.algorithm == "sha1-hex" {
+            let got = hex::encode(&digest);
+            let ok = self.wanted.iter().any(|w| w.eq_ignore_ascii_case(&got));
+            (format!("sha1 {got}"), ok)
+        } else {
+            let got = base64::engine::general_purpose::STANDARD.encode(&digest);
+            let ok = self.wanted.iter().any(|w| *w == got);
+            (format!("{}-{got}", self.algorithm), ok)
         };
-    fn hash<D: sha2::Digest + std::io::Write>(
-        r: &mut dyn std::io::Read,
-    ) -> std::io::Result<Vec<u8>> {
-        let mut h = D::new();
-        std::io::copy(r, &mut h)?;
-        Ok(h.finalize().to_vec())
-    }
-    let digest = match algorithm {
-        "sha512" => hash::<sha2::Sha512>(&mut data),
-        "sha384" => hash::<sha2::Sha384>(&mut data),
-        "sha256" => hash::<sha2::Sha256>(&mut data),
-        _ => hash::<sha1::Sha1>(&mut data),
-    }
-    .map_err(|e| format!("could not read the tarball npm wrote: {e}"))?;
-    let (got, matches) = if algorithm == "sha1-hex" {
-        let got = hex::encode(&digest);
-        let ok = wanted.iter().any(|w| w.eq_ignore_ascii_case(&got));
-        (format!("sha1 {got}"), ok)
-    } else {
-        let got = base64::engine::general_purpose::STANDARD.encode(&digest);
-        let ok = wanted.iter().any(|w| *w == got);
-        (format!("{algorithm}-{got}"), ok)
-    };
-    if matches {
-        Ok(())
-    } else {
-        Err(format!(
-            "the tarball npm downloaded hashes to {got}, which is not the {what}"
-        ))
+        if matches {
+            Ok(())
+        } else {
+            Err(format!(
+                "the tarball Sigil downloaded hashes to {got}, which is not the {}",
+                self.what
+            ))
+        }
     }
 }
 
-/// The refusal printed when the packed tarball does not match the
+/// The message printed (after `error: `) when what `npm view` gave for `spec`
+/// cannot be used: not JSON, no tarball, or a name or version that is not
+/// valid (`why` says which). docs/troubleshooting.md quotes it.
+pub fn npm_view_unreadable(spec: &str, why: &str) -> String {
+    format!("could not read what npm resolves `{spec}` to: {why}")
+}
+
+/// The refusal printed when the downloaded tarball does not match the
 /// registry's integrity.
 pub fn npm_integrity_refusal(release: &str, why: &str) -> String {
     format!(
@@ -1382,11 +1441,116 @@ pub fn npm_integrity_refusal(release: &str, why: &str) -> String {
 /// download.
 pub fn npm_tarball_refusal(release: &str, why: &str) -> String {
     format!(
-        "sigil npm will not download `{release}`: {why}.\n  Packing it would run its prepare \
-         script on this machine before Sigil can scan it. Check which registry npm uses here \
-         (`npm config get registry`); for code you already trust, re-run with \
+        "sigil npm will not download `{release}`: {why}.\n  Handing it to npm would clone or pack \
+         it and run its prepare script on this machine before Sigil can scan it. Check which \
+         registry npm uses here (`npm config get registry`); for code you already trust, re-run \
+         with {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm)."
+    )
+}
+
+/// The refusal printed when the tarball is not on the registry's own host, or
+/// the URL carries credentials: Sigil downloads it itself, without any.
+pub fn npm_host_refusal(release: &str, why: &str) -> String {
+    format!(
+        "sigil npm will not download `{release}`: {why}.\n  Sigil downloads the tarball itself, \
+         without credentials and only from the host of the registry npm resolved the package \
+         from. Check which registry npm uses here (`npm config get registry`; \
+         `npm config get replace-registry-host` decides whether npm fetches tarballs that name \
+         registry.npmjs.org from your registry instead); for code you already trust, re-run with \
          {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm)."
     )
+}
+
+/// The message printed (after `error: `) when the download itself failed.
+pub fn npm_download_failure(release: &str, why: &str) -> String {
+    let credentials = if why.contains("HTTP 401") || why.contains("HTTP 403") {
+        "\n  The registry wants credentials for this tarball. Sigil downloads it without any, so \
+         that no token of npm's is sent anywhere but by npm itself. To check a package from a \
+         registry that needs a token, fetch the tarball yourself (`npm pack <name>@<version>` in \
+         an empty directory) and scan the file: `sigil scan <file>.tgz` runs nothing from it."
+    } else {
+        ""
+    };
+    format!(
+        "sigil npm could not download the tarball of `{release}`: {why}.{credentials}\n  Sigil \
+         downloads it itself, so its proxy settings are the environment's (HTTPS_PROXY, \
+         HTTP_PROXY, NO_PROXY), not npm's `proxy` setting."
+    )
+}
+
+/// The file Sigil writes a downloaded tarball to: `<name>-<version>.tgz`
+/// with the leading `@` dropped and `/` made `-`, as `npm pack` names it,
+/// from a name and version [`parse_npm_view`] has checked. Any character a
+/// file name should not hold becomes `_`, and a leading `.` too, so the
+/// scanner never meets a hidden directory.
+pub fn npm_tarball_file_name(name: &str, version: &str) -> String {
+    let base = name.strip_prefix('@').unwrap_or(name).replace('/', "-");
+    let mut file: String = format!("{base}-{version}.tgz")
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if file.starts_with('.') {
+        file.replace_range(..1, "_");
+    }
+    file
+}
+
+/// The host and explicit port of a URL (none for its scheme's default
+/// port), for comparing hosts whatever the scheme.
+fn host_and_port(url: &reqwest::Url) -> Option<(String, Option<u16>)> {
+    Some((
+        url.host_str()?.trim_end_matches('.').to_ascii_lowercase(),
+        url.port(),
+    ))
+}
+
+/// Check that a tarball URL a registry gave is on the host of the registry
+/// npm resolved the package from (`registry`: what `npm config get registry`,
+/// or `@scope:registry`, prints) and carries no credentials, and give that
+/// host and port. Sigil downloads the tarball itself and sends nothing but a
+/// GET, so a registry's metadata cannot make it fetch from another host
+/// (npm 12 applies the same rule to its own downloads). A scheme difference
+/// is not checked: the bytes are checked against the integrity the metadata
+/// gives, over whatever transport.
+pub fn check_npm_tarball_host(tarball: &str, registry: &str) -> Result<(String, u16), String> {
+    let shown = redact_url(tarball);
+    let url = reqwest::Url::parse(tarball)
+        .map_err(|_| format!("`{shown}` is not a URL npm downloads"))?;
+    if !url.username().is_empty() || url.password().is_some() {
+        return Err(format!(
+            "the registry gives `{shown}` as the tarball, a URL with a user name or password in \
+             it"
+        ));
+    }
+    let registry_url = reqwest::Url::parse(registry.trim()).map_err(|_| {
+        format!(
+            "npm's registry setting (`{}`) is not a URL, so the tarball's host cannot be checked \
+             against it",
+            registry.trim().escape_debug()
+        )
+    })?;
+    let (Some(want), Some(got)) = (host_and_port(&registry_url), host_and_port(&url)) else {
+        return Err(format!("`{shown}` has no host to download from"));
+    };
+    if want != got {
+        let show = |(host, port): &(String, Option<u16>)| match port {
+            Some(port) => format!("{host}:{port}"),
+            None => host.clone(),
+        };
+        return Err(format!(
+            "the registry gives `{shown}` as the tarball, on {}, which is not the host of the \
+             registry npm resolved the package from ({})",
+            show(&got).escape_debug(),
+            show(&want).escape_debug()
+        ));
+    }
+    Ok((got.0, url.port_or_known_default().unwrap_or(443)))
 }
 
 /// SemVer 2.0 precedence (what node-semver's compare uses): major, minor,

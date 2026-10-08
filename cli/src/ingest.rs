@@ -662,11 +662,16 @@ fn percent_decode(s: &str) -> String {
 // Downloads
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct DownloadPolicy {
     /// Permit loopback, link-local and private addresses.
     pub allow_private: bool,
     pub max_bytes: u64,
+    /// A host and port the caller has already decided to fetch from (the
+    /// registry the user configured), which may be a non-public address
+    /// without `allow_private`. A redirect to any other host is judged as
+    /// usual.
+    pub trusted_host: Option<(String, u16)>,
 }
 
 impl DownloadPolicy {
@@ -674,6 +679,7 @@ impl DownloadPolicy {
         DownloadPolicy {
             allow_private: std::env::var("SIGIL_ALLOW_PRIVATE_URLS").as_deref() == Ok("1"),
             max_bytes: MAX_DOWNLOAD_BYTES,
+            trusted_host: None,
         }
     }
 }
@@ -767,7 +773,11 @@ async fn vet_hop(
     if addrs.is_empty() {
         return Err(format!("{host} resolved to no addresses"));
     }
-    if !policy.allow_private {
+    let trusted = policy.trusted_host.as_ref().is_some_and(|(h, p)| {
+        let h = h.trim_start_matches('[').trim_end_matches(']');
+        h.eq_ignore_ascii_case(host.trim_end_matches('.')) && *p == port
+    });
+    if !policy.allow_private && !trusted {
         if let Some(bad) = addrs.iter().find(|a| is_non_public(a.ip())) {
             return Err(format!(
                 "refusing to fetch from {host} ({}): a non-public address. \
