@@ -264,6 +264,69 @@ check ask   "-V \$VER unquoted"              'sigil npm left-pad -V $VER'
 check ask   "-V quoted, then \$EXTRA"        'sigil npm left-pad -V "$VER" $EXTRA'
 check ask   "quoted spec from a loop"       'for p in left-pad lodash; do sigil npm "$p"; done'
 check ask   "redirect, then \"\$FLAG\""       'sigil npm x > "$LOG" "$FLAG"'
+# A quoted ; & | or # (or a quoted line end) in front of the flag is a word of
+# the call, not its end.
+check ask   "quoted ; before the flag"     "sigil npm './ev;il' --allow-build-scripts"
+check ask   "quoted & before the flag"     "sigil npm 'a&b' --allow-build-scripts"
+check ask   "quoted | before the flag"     "sigil npm 'a|b' --allow-build-scripts"
+check ask   "double-quoted ;"              'sigil npm "a;b" --allow-build-scripts'
+check ask   "backslashed ;"                'sigil npm a\;b --allow-build-scripts'
+check ask   "quoted ' #' before the flag"  "sigil npm 'a #b' --allow-build-scripts"
+check ask   "double-quoted ' #'"           'sigil npm "a #b" --allow-build-scripts'
+check ask   "quoted line end"              "sigil npm 'a
+b' --allow-build-scripts"
+check ask   "quoted ; before the subcmd"   "sigil --output '/tmp/a;b.json' npm ./evil --allow-build-scripts"
+check ask   "quoted ; in a redirection"    "sigil npm ./evil > 'a;b' --allow-build-scripts"
+check ask   "quoted ; as an option value"  "sigil pip evil --rules 'a;b' --allow-build-scripts"
+check ask   "-V ';' then the flag"         "sigil npm ./evil -V ';' --allow-build-scripts"
+check ask   "-V '1;2' before the spec"     "sigil pip -V '1;2' evil --allow-build-scripts"
+check ask   "expansion after a quoted ;"   "sigil npm './a;b' \$FLAG"
+check ask   "expansion after a quoted #"   "sigil pip x --rules 'a #b' \"\$FLAG\""
+check allow "quoted ; and no flag"         "sigil npm 'a;b'"
+check allow "-V ';' and no flag"           "sigil npm ./evil -V ';'"
+check allow "quoted ;, then another stage" "sigil pip 'a;b' && echo \$HOME"
+check allow "quoted ;, no sigil call"      "echo 'a;b' && echo done"
+check allow "flag after -- and a quoted ;" "sigil npm 'a;b' -- --allow-build-scripts"
+check allow "script's ; ends the call"     "bash -c 'sigil pip x; echo \$HOME'"
+# An argv list over several lines.
+check ask   "python list over lines"       'python3 - <<EOF
+import subprocess
+subprocess.run([
+  "sigil",
+  "npm",
+  "./evx",
+  "--allow-build-scripts",
+])
+EOF'
+check ask   "node list over lines"         "node - <<EOF
+require('child_process').execFileSync('sigil', [
+  'npm',
+  './evx',
+  '--allow-build-scripts',
+])
+EOF"
+# The command word may be spelled any way the shell reads as sigil.
+check ask   "si\${E}gil"                    'si${E}gil npm ./evx --allow-build-scripts'
+check ask   "sig\$(true)il"                 'sig$(true)il npm ./evx --allow-build-scripts'
+check ask   "sig\`true\`il"                 'sig`true`il npm ./evx --allow-build-scripts'
+check ask   "si\$'g'il"                     "si\$'g'il npm ./evx --allow-build-scripts"
+check ask   "bash -c, nested empty quotes" "bash -c 'sig'\\'''\\''il npm ./evx --allow-build-scripts'"
+check ask   "sh -c, nested empty quotes"   "sh -c 'sig'\\'''\\''il npm ./evx --allow-build-scripts'"
+check ask   "here-string, nested quotes"   "bash <<< 'sig'\\'''\\''il npm ./evx --allow-build-scripts'"
+check ask   "bash -c, escaped quote pair"  'bash -c "sig\"\"il npm ./evx --allow-build-scripts"'
+check ask   "glob-spelled sigil, ?"        'sig?l npm ./evx --allow-build-scripts'
+check ask   "glob-spelled sigil, *"        'sig* npm ./evx --allow-build-scripts'
+check ask   "spelled sigil, flag expanded" 'si${E}gil npm ./evx $FLAG'
+check allow "spelled sigil, no flag"       'si${E}gil npm ./evx'
+check allow "two expansions, no manager"   '$S $M x'
+# The variable that confirms the flag where there is no terminal.
+check ask   "confirmation variable, prefix" "SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./evx"
+check ask   "confirmation variable, export" "export SIGIL_ALLOW_BUILD_SCRIPTS=1; sigil pip x"
+check ask   "confirmation variable, env"    "env SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil pip x"
+check ask   "confirmation variable, quoted" "env 'SIGIL_ALLOW_BUILD_SCRIPTS=1' sigil pip x"
+check ask   "confirmation variable, alone"  "SIGIL_ALLOW_BUILD_SCRIPTS=1 true"
+check allow "confirmation variable named"  "grep SIGIL_ALLOW_BUILD_SCRIPTS docs/cli.md"
+check allow "confirmation variable read"   'echo $SIGIL_ALLOW_BUILD_SCRIPTS'
 
 # ── DENY: a download piped or substituted into an interpreter ──────────────
 # Never gated by a sigil call: the server decides per request what it serves.

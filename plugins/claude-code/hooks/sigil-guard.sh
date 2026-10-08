@@ -2509,28 +2509,47 @@ IFS=$IFS_DEFAULT
 # `sigil pip|npm … --allow-build-scripts` lets pip or npm run the package's
 # own setup or lifecycle scripts on this machine before the scan: the
 # user's decision, not an agent's (hook.rs build_scripts_opt_in, which
-# reads the same shapes). Wherever a `sigil` word, or a command word that
-# is an expansion (`$(command -v sigil)`, `$SIGIL`), appears (also inside a
-# quoted string a shell, `find -exec` or a here-string runs, in an
-# interpreter's argv list such as `['sigil','pip',…]`, and in text that
-# only mentions it): `sigil`, then `pip` or `npm` (or, right after `sigil`,
-# a word that may expand to it: `$SUB`, `{pip,npm}`), then, before a `--`,
-# a `# comment` or a `;`/`&`/`|`, a word starting with --allow-build-scripts
-# (a glued redirection included) or a word the shell may expand to it: one
-# with a `$` or backtick, or one that begins like an option or a pattern
-# (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
-# (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
-# `--allow-build-scr?pts`, `--allow-build-scr[i]pts`). Words are split at
-# `[ ] ( ) ,` as well as whitespace; the `&` or `|` of a redirection
-# (`2>&1`, `&>f`, `>|f`) does not end the call. A redirection and its file
-# (`> "$LOG"`) and one quoted word after -V/--version (`-V "$VER"`, its
-# value) are dropped first. A sigil pip/npm call behind xargs counts too.
-# Every allow below becomes this ask; a deny still wins. Read on the
-# command as written, with quotes removed from runs of plain word
-# characters only (so a quoted `">"` or `"$X"` keeps its quotes), and with
-# the quotes of a string a shell hands to an interpreter unspliced (`'\''`,
-# `'"'"'`, `\"`). Not read: a flag a program builds at run time, and a
-# file or variable the call takes its arguments from.
+# reads the same shapes). The CLI asks for its own confirmation as well (a
+# prompt at a terminal, or SIGIL_ALLOW_BUILD_SCRIPTS=1 for a script), so
+# this reading is a second line, not the only one: a pattern reader cannot
+# see a flag a program builds at run time. Three readings, over the command
+# as written, with quotes removed from runs of plain word characters only
+# (so a quoted `">"` or `"$X"` keeps its quotes), with the quotes of a
+# string a shell hands to an interpreter unspliced (`'\''`, `'"'"'`, `\"`),
+# and with the `;` `&` `|` `#` and line ends inside a quoted word masked
+# (hook.rs mask_quoted_separators; needs awk):
+#  1. FLAT: a `pip` or `npm` word, then, before a `--` word of its own, a
+#     word starting with --allow-build-scripts, however the words between
+#     them are quoted or separated (`sigil npm './a;b' --allow-build-scripts`,
+#     an argv list over several lines) and however the command word before
+#     `pip`/`npm` is spelled (`si${E}gil npm …`, `sig$(true)il npm …`). It
+#     asks about more than the shell would run, never less.
+#  2. ENV: the variable the CLI accepts in place of a terminal
+#     (SIGIL_ALLOW_BUILD_SCRIPTS=1) being set.
+#  3. What FLAT cannot see, a word the shell may expand into the flag.
+#     Wherever a `sigil` word, or a command word that is an expansion, a
+#     glob or holds a quote that stayed (`$(command -v sigil)`, `$SIGIL`,
+#     `si${E}gil`), appears (also inside a quoted string a shell, `find
+#     -exec` or a here-string runs, in an interpreter's argv list such as
+#     `['sigil','pip',…]`, and in text that only mentions it): `sigil`, then
+#     `pip` or `npm` (or, right after `sigil`, a word that may expand to it:
+#     `$SUB`, `{pip,npm}`), then, before a `--`, a `# comment` or a
+#     `;`/`&`/`|`, a word starting with --allow-build-scripts (a glued
+#     redirection included) or a word the shell may expand to it: one with
+#     a `$` or backtick, or one that begins like an option or a pattern
+#     (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
+#     (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
+#     `--allow-build-scr?pts`, `--allow-build-scr[i]pts`). Words are split at
+#     `[ ] ( ) ,` as well as whitespace; the `&` or `|` of a redirection
+#     (`2>&1`, `&>f`, `>|f`) does not end the call. A redirection and its file
+#     (`> "$LOG"`) and one quoted word after -V/--version (`-V "$VER"`, its
+#     value) are dropped first. A sigil pip/npm call behind xargs counts too.
+# Every allow below becomes this ask; a deny still wins. Not read: a flag a
+# program builds at run time, a file or variable the call takes its
+# arguments from, a call a script or alias makes without the words
+# appearing in the command (a script written by one tool call and run by
+# the next). Without awk, a `# comment` is not dropped and no quoted word is
+# masked.
 OPTIN=0
 OPTIN_Q='\(["'\'']\)[^"'\''[:space:]]*\1'
 # optin_prep <text>: R is the text with each redirection and its file
@@ -2585,19 +2604,83 @@ optin_unsplice() {
         -e "s/${OPTIN_BS}${OPTIN_BS}${OPTIN_SQ}/${OPTIN_SQ}/g") ;;
   esac
 }
-optin_prep "$CMD"; OPTIN_RAW=$R
-optin_dq "$CMD"; optin_prep "$DQ"; OPTIN_DQ=$R
-OPTIN_UNS=''; OPTIN_UNSDQ=''
-optin_unsplice "$CMD"
-if [ "$UNS" != "$CMD" ]; then
-  optin_prep "$UNS"; OPTIN_UNS=$R
-  optin_dq "$UNS"; optin_prep "$DQ"; OPTIN_UNSDQ=$R
-fi
+# optin_lex <strip|mask> <text>: LX is the text with each `# comment`
+# outside quotes dropped and, in mask mode, the `;` `&` `|` `#` and line
+# ends inside a quoted word replaced (hook.rs mask_quoted_separators); a
+# quoted string that holds a `pip` or `npm` word is a script, whose
+# separators are real, and is read through. The text unchanged without awk.
+# shellcheck disable=SC2016 # an awk program, not shell
+OPTIN_AWK='
+function mentions(s) { return s ~ /(^|[^A-Za-z0-9_.-])(pip|npm)([^A-Za-z0-9_.-]|$)/ }
+function closing(s, n, open,   q, j, c) {
+  q = substr(s, open, 1)
+  for (j = open + 1; j <= n; j++) {
+    c = substr(s, j, 1)
+    if (q == DQ && c == "\\") { j++; continue }
+    if (c == q) return j
+  }
+  return 0
+}
+BEGIN { SQ = sprintf("%c", 39); DQ = "\""; buf = ""; seen = 0 }
+{ buf = (seen ? buf "\n" : "") $0; seen = 1 }
+END {
+  s = buf; n = length(s); out = ""; depth = 0; tdepth = 0; i = 1
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (c == "\\") { out = out substr(s, i, 2); i += 2; continue }
+    if (c == SQ || c == DQ) {
+      if (i in closes) { out = out c; i++; tdepth--; continue }
+      j = closing(s, n, i)
+      if (j > 0) {
+        inner = substr(s, i + 1, j - i - 1)
+        if (mode == "mask" && mentions(inner)) { closes[j] = 1; tdepth++; out = out c; i++; continue }
+        if (mode == "mask" && !mentions(inner)) { gsub(/[;&|#]/, "_", inner); gsub(/\n/, " ", inner) }
+        out = out c inner c; i = j + 1; continue
+      }
+      out = out c; i++; continue
+    }
+    if (c == "#" && tdepth == 0 && (i == 1 || substr(s, i - 1, 1) ~ /[ \t\n;&|()<>]/)) {
+      while (i <= n && substr(s, i, 1) != "\n") i++
+      continue
+    }
+    if (c == "[") depth++
+    else if (c == "]") { if (depth > 0) depth-- }
+    else if (c == "\n" && depth > 0 && mode == "mask") c = " "
+    out = out c; i++
+  }
+  printf "%s\n", out
+}'
+optin_lex() {
+  LX=$2
+  if [ -n "$LEX_HAS_AWK" ]; then
+    LX=$(printf '%s\n' "$2" | LC_ALL=C awk -v mode="$1" "$OPTIN_AWK" 2>/dev/null) || LX=$2
+  fi
+}
+# optin_view <text>: add the text to the views the rules read: OPTIN_ALL
+# (redirections and a -V value dropped; a line is the unit the rules match
+# in, so a line end ends a call) and OPTIN_FLAT (the text on one line).
+OPTIN_ALL=''
+OPTIN_FLAT=''
+optin_view() {
+  optin_prep "$1"
+  OPTIN_ALL=$OPTIN_ALL$NL$R
+  FL=$(printf '%s\n' "$1" | tr '\n' ' ')
+  OPTIN_FLAT=$OPTIN_FLAT$NL$FL
+}
+# optin_views <text>: the text, dequoted, unspliced, and unspliced and
+# dequoted (the last two when the quotes of a string handed to an
+# interpreter change it).
+optin_views() {
+  optin_view "$1"
+  optin_dq "$1"; [ "$DQ" = "$1" ] || optin_view "$DQ"
+  optin_unsplice "$1"
+  if [ "$UNS" != "$1" ]; then
+    optin_view "$UNS"
+    optin_dq "$UNS"; [ "$DQ" = "$UNS" ] || optin_view "$DQ"
+  fi
+}
 optin_has() {
-  has_in "$OPTIN_RAW" "$1" && return 0
-  has_in "$OPTIN_DQ" "$1" && return 0
-  [ -n "$OPTIN_UNS" ] || return 1
-  has_in "$OPTIN_UNS" "$1" || has_in "$OPTIN_UNSDQ" "$1"
+  has_in "$OPTIN_ALL" "$1"
 }
 OPTIN_C='([^][(),[:space:];&|]|[<>][&|]|&>)'
 OPTIN_F='([^]#[(),[:space:];&|-]|[<>][&|]|&>)'
@@ -2610,7 +2693,7 @@ OPTIN_P='[^][:space:];&|()]'
 OPTIN_BR="\\{${OPTIN_P}*(,|\\.\\.)${OPTIN_P}*\\}"
 # `sigil`, any global options, then `pip` or `npm` (a piece of a brace
 # group too: `{sigil,pip}`), or a command word that is an expansion.
-OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|[\$\`]${OPTIN_C}*)${OPTIN_S}[\"'{]*(pip|npm)[\"'}]*"
+OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|${OPTIN_C}*[\$\`*?\"']${OPTIN_C}*)${OPTIN_S}[\"'{]*(pip|npm)[\"'}]*"
 # `sigil` and, right after it, a word that may expand to `pip`/`npm`.
 OPTIN_SUBX="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*${OPTIN_S}[\"']*(${OPTIN_C}*[\$\`]${OPTIN_C}*|${OPTIN_P}*${OPTIN_BR}${OPTIN_P}*)"
 # A word after it that is the flag, or may expand to it: `$` or a backtick.
@@ -2621,14 +2704,36 @@ OPTIN_FLAG="${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])"
 # (`--allow-build-scr[i]pts`) or opens with `[-`, `[!` or `[^`; `['sigil'`
 # and `[sigil,pip]` are the elements of an argv list.
 OPTIN_PAT="[[:space:]()][\"']*((-${OPTIN_P}*)?(${OPTIN_BR}|[*?])|-${OPTIN_P}*\\[[^]'\"[:space:];&|()]|\\[[-!^])"
-optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
-optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
-optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
-optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
-optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
-  && OPTIN=1
+# FLAT: the delimiters are whitespace and `;&|()[],`; a word is the run of
+# anything else. A word that is not exactly `--`: a first character that is
+# not `-`, a lone `-`, `-` and a non-dash, or `--` and more.
+OPTIN_D='[][(),[:space:];&|]'
+OPTIN_N='[^][(),[:space:];&|]'
+OPTIN_ND='[^][(),[:space:];&|-]'
+OPTIN_TOK="(${OPTIN_ND}${OPTIN_N}*|-|-${OPTIN_ND}${OPTIN_N}*|--${OPTIN_N}+)"
+OPTIN_FLATRE="(^|${OPTIN_D})[\"'{]*(pip|npm)[\"'}]*${OPTIN_D}+(${OPTIN_TOK}${OPTIN_D}+)*[\"']*--allow-build-scripts"
+OPTIN_ENVRE='SIGIL_ALLOW_BUILD_SCRIPTS["'"'"']*\+?='
+# Only a command that holds one of these words (quotes and backslashes
+# aside) can hold the call; the lexer's pre-filter text is that.
+case $LEX_TXT in
+  *pip*|*npm*|*sigil*|*SIGIL_ALLOW_BUILD_SCRIPTS*)
+    LEX_HAS_AWK=''
+    command -v awk >/dev/null 2>&1 && LEX_HAS_AWK=1
+    optin_lex strip "$CMD"; OPTIN_BASE=$LX
+    optin_views "$OPTIN_BASE"
+    optin_lex mask "$CMD"
+    [ "$LX" = "$OPTIN_BASE" ] || optin_views "$LX"
+    has_in "$OPTIN_FLAT" "$OPTIN_FLATRE" && OPTIN=1
+    has_in "$OPTIN_FLAT" "$OPTIN_ENVRE" && OPTIN=1
+    optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
+    optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
+    optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
+    optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
+      && OPTIN=1 ;;
+esac
 allow_unless_opt_in() {
-  [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it. Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."
+  [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it (or a word here may expand to it, or xargs may append it, or SIGIL_ALLOW_BUILD_SCRIPTS is being set). Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."
   emit allow "$1"
 }
 

@@ -1621,3 +1621,132 @@ fn asks_before_sigil_lets_package_code_run() {
         "deny"
     );
 }
+
+/// A quoted `;` `&` `|` ` #` or line end in front of the flag is a word of
+/// the call, not the end of it, and an argv list may span lines.
+#[test]
+fn asks_when_quoted_separators_come_before_the_flag() {
+    for cmd in [
+        "sigil npm './ev;il' --allow-build-scripts",
+        "sigil npm 'a&b' --allow-build-scripts",
+        "sigil npm 'a|b' --allow-build-scripts",
+        "sigil npm \"a;b\" --allow-build-scripts",
+        "sigil npm a\;b --allow-build-scripts",
+        "sigil npm 'a #b' --allow-build-scripts",
+        "sigil npm \"a #b\" --allow-build-scripts",
+        "sigil npm 'a\nb' --allow-build-scripts",
+        "sigil npm \"a\nb\" --allow-build-scripts",
+        // Before the subcommand, as an option's value, after a redirection.
+        "sigil --output '/tmp/a;b.json' npm ./evil --allow-build-scripts",
+        "sigil npm ./evil > 'a;b' --allow-build-scripts",
+        "sigil pip evil --rules 'a;b' --allow-build-scripts",
+        // The version value is one word, whatever it holds.
+        "sigil npm ./evil -V ';' --allow-build-scripts",
+        "sigil pip -V '1;2' evil --allow-build-scripts",
+        // An argv list over several lines, in a heredoc.
+        "python3 - <<'EOF'\nimport subprocess\nsubprocess.run([\n  \"sigil\",\n  \"npm\",\n  \"./evx\",\n  \"--allow-build-scripts\",\n])\nEOF",
+        "node - <<'EOF'\nrequire('child_process').execFileSync('sigil', [\n  'npm',\n  './evx',\n  '--allow-build-scripts',\n])\nEOF",
+        "python3 -c 'import subprocess\nsubprocess.run([\"sigil\",\n \"pip\",\n \"x\",\n \"--allow-build-scripts\"])'",
+        // An expansion that spells the flag, after a quoted separator.
+        "sigil npm './a;b' $FLAG",
+        "sigil pip x --rules 'a #b' \"$FLAG\"",
+        "sigil npm 'a|b' --allow-build-{scripts,x}",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+    }
+    // Still the end of the call when the separator is outside the quotes,
+    // and a `--` still ends the options.
+    for cmd in [
+        "sigil npm 'a;b'",
+        "sigil npm ./evil -V ';'",
+        "sigil pip 'a;b' && echo $HOME",
+        "sigil npm 'x y' ; echo $HOME",
+        "echo 'a;b' && echo done",
+        "sigil npm -- --allow-build-scripts",
+        "sigil npm 'a;b' -- --allow-build-scripts",
+        "sigil pip evil # --allow-build-scripts",
+        "bash -c 'sigil pip x; echo $HOME'",
+        "python3 -c \"import subprocess; subprocess.run(['sigil','pip','x']); print('$HOME')\"",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+}
+
+/// The command word that comes before `pip` or `npm` may be spelled any way
+/// the shell reads as `sigil`: the flag is found from `pip`/`npm` on.
+#[test]
+fn asks_whatever_the_command_word_is_spelled_like() {
+    for cmd in [
+        "si${E}gil npm ./evx --allow-build-scripts",
+        "sig$(true)il npm ./evx --allow-build-scripts",
+        "sig`true`il npm ./evx --allow-build-scripts",
+        "si$'g'il npm ./evx --allow-build-scripts",
+        "bash -c 'sig'\\'''\\''il npm ./evx --allow-build-scripts'",
+        "sh -c 'sig'\\'''\\''il npm ./evx --allow-build-scripts'",
+        "bash <<< 'sig'\\'''\\''il npm ./evx --allow-build-scripts'",
+        "bash -c \"sig\\\"\\\"il npm ./evx --allow-build-scripts\"",
+        // Glob spellings (they match a file named sigil in the directory).
+        "sig?l npm ./evx --allow-build-scripts",
+        "sig* npm ./evx --allow-build-scripts",
+        // The flag may then be an expansion too.
+        "si${E}gil npm ./evx $FLAG",
+        "sig'il npm ./evx $FLAG",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+    }
+    for cmd in [
+        "si${E}gil npm ./evx",
+        "$S $M x",
+        "echo done npm",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+}
+
+/// `SIGIL_ALLOW_BUILD_SCRIPTS` is what confirms the flag where there is no
+/// terminal: a command that sets it is asked about, one that only names it
+/// is not.
+#[test]
+fn asks_when_the_confirmation_variable_is_set() {
+    for cmd in [
+        "SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./evx",
+        "export SIGIL_ALLOW_BUILD_SCRIPTS=1; sigil pip x",
+        "env SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil pip x",
+        "env 'SIGIL_ALLOW_BUILD_SCRIPTS=1' sigil pip x",
+        "env \"SIGIL_ALLOW_BUILD_SCRIPTS\"=1 sigil pip x",
+        "SIGIL_ALLOW_BUILD_SCRIPTS+=1 true",
+        "bash -c 'SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm x'",
+        "SIGIL_ALLOW_BUILD_SCRIPTS=1 true",
+    ] {
+        assert_eq!(decision(cmd), "ask", "expected ask: {cmd:?}");
+        assert!(reason(cmd).contains("SIGIL_ALLOW_BUILD_SCRIPTS"), "{cmd}");
+    }
+    for cmd in [
+        "grep SIGIL_ALLOW_BUILD_SCRIPTS docs/cli.md",
+        "echo $SIGIL_ALLOW_BUILD_SCRIPTS",
+        "sigil npm left-pad",
+    ] {
+        assert_eq!(decision(cmd), "allow", "expected allow: {cmd:?}");
+    }
+}
+
+#[test]
+fn quoted_separator_masking_leaves_scripts_alone() {
+    // A quoted string that holds a pip/npm word is a script: its
+    // separators stay.
+    let m = mask_quoted_separators("bash -c 'sigil pip x; echo $HOME'");
+    assert_eq!(m, "bash -c 'sigil pip x; echo $HOME'");
+    // Data: separators and line ends are masked.
+    let m = mask_quoted_separators("sigil npm 'a;b|c&d #e\nf' \"g;h\" i;j");
+    assert_eq!(m, "sigil npm 'a_b_c_d _e f' \"g_h\" i;j");
+    // A line end inside brackets is a space; outside it stays.
+    let m = mask_quoted_separators("x = [\n 'a',\n 'b'\n]\ny");
+    assert_eq!(m, "x = [  'a',  'b' ]\ny");
+    // A lone quote closes nothing.
+    assert_eq!(mask_quoted_separators("it's; fine"), "it's; fine");
+    assert!(sets_opt_in_env("export SIGIL_ALLOW_BUILD_SCRIPTS=1"));
+    assert!(!sets_opt_in_env("echo SIGIL_ALLOW_BUILD_SCRIPTS"));
+    assert!(flat_opt_in("sigil npm a;b --allow-build-scripts"));
+    assert!(!flat_opt_in("sigil npm -- --allow-build-scripts"));
+    assert!(!flat_opt_in("--allow-build-scripts npm"));
+}

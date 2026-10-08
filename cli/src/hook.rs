@@ -848,53 +848,219 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 /// `sigil pip|npm … --allow-build-scripts` lets pip or npm run the
 /// package's own setup or lifecycle scripts on this machine before the scan.
 /// The flag is meant as the user's own decision; a command an agent runs is
-/// not that, so it is put to the user.
+/// not that, so it is put to the user. (The CLI asks for its own
+/// confirmation as well, so this reading is a second line, not the only
+/// one: a pattern reader cannot see a flag a program builds at run time.)
 ///
-/// Read from the words of the stage's text, as written, with literal
-/// quoting removed and with the quotes of a string a shell hands to an
-/// interpreter (`'\''`, `'"'"'`, `\"`) unspliced, wherever a `sigil` word
-/// appears (also in a quoted string that a shell, `find -exec`, `coproc` or
-/// a here-string runs, in an interpreter's argv list such as
-/// `['sigil','pip',…]`, and in text that only mentions it, as the install
-/// rules read `npm install` anywhere): a `sigil` word (or a command word
-/// that is an expansion, such as `$(command -v sigil)`), then `pip` or `npm`
-/// (or, right after `sigil`, a word that may expand to it: `$SUB`,
-/// `{pip,npm}`), then, before a `--`, a `# comment` or a `;`/`&`/`|`, a word
-/// starting with `--allow-build-scripts` (a glued redirection such as
-/// `--allow-build-scripts>log` included) or a word the shell may expand to
-/// it: one with a `$` or backtick, or one that begins like an option or a
-/// pattern (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
-/// (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
-/// `--allow-build-scr?pts`, `--allow-build-scr[i]pts`; a glob expands only
-/// where a file matches, which the command can arrange). A redirection and
-/// its file (`> "$LOG"`, `2>&1`) are not arguments, nor is one quoted word
-/// after `-V`/`--version` (`-V "$VER"`, its value); an unquoted `-V $VER`
-/// can split into more words and is still asked about. A sigil pip/npm call
-/// behind `xargs` is asked about too: xargs appends words it reads. The
-/// shell fallback (`sigil-guard.sh`) reads the same shapes.
+/// Three readings, over the stage's text as written, with literal quoting
+/// removed, with the quotes of a string a shell hands to an interpreter
+/// (`'\''`, `'"'"'`, `\"`) unspliced, and with the `;` `&` `|` `#` and line
+/// ends inside a quoted word masked (see [`mask_quoted_separators`]):
+///
+/// 1. [`flat_opt_in`]: a `pip` or `npm` word, then, before a `--` word of
+///    its own, a word starting with `--allow-build-scripts`, however the
+///    words in between are quoted or separated and whatever the command
+///    word before `pip`/`npm` is spelled like (`si${E}gil npm …`,
+///    `sig$(true)il npm …`, a `sigil` call inside a here-string, an argv
+///    list written over several lines). Nothing here needs a `sigil` word,
+///    so no spelling of the command word hides the flag.
+/// 2. [`sets_opt_in_env`]: the variable the CLI accepts in place of a
+///    terminal (`SIGIL_ALLOW_BUILD_SCRIPTS=1`) being set.
+/// 3. [`opt_in_words`]: what the flat reading cannot see, a word the
+///    shell may expand into the flag. Where a `sigil` word (or a command
+///    word that is an expansion, a glob, or holds a quote that stayed,
+///    such as `$(command -v sigil)`, `si${E}gil`) appears (also inside a
+///    quoted string a shell, `find -exec`, `coproc` or a here-string runs,
+///    in an interpreter's argv list such as `['sigil','pip',…]`, and in text
+///    that only mentions it, as the install rules read `npm install`
+///    anywhere): `sigil`, then `pip` or `npm` (or, right after `sigil`, a
+///    word that may expand to it: `$SUB`, `{pip,npm}`), then, before a `--`,
+///    a `# comment` or a `;`/`&`/`|`, a word starting with
+///    `--allow-build-scripts` (a glued redirection such as
+///    `--allow-build-scripts>log` included) or a word the shell may expand
+///    to it: one with a `$` or backtick, or one that begins like an option
+///    or a pattern (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
+///    (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
+///    `--allow-build-scr?pts`, `--allow-build-scr[i]pts`; a glob expands
+///    only where a file matches, which the command can arrange). A
+///    redirection and its file (`> "$LOG"`, `2>&1`) are not arguments, nor
+///    is one quoted word after `-V`/`--version` (`-V "$VER"`, its value);
+///    an unquoted `-V $VER` can split into more words and is still asked
+///    about. A sigil pip/npm call behind `xargs` is asked about too: xargs
+///    appends words it reads. The shell fallback (`sigil-guard.sh`) reads
+///    the same shapes.
 ///
 /// What it does not read: a flag that a program builds at run time
 /// (`'--allow-build-' + 'scripts'` in an interpreter's code), a file or
-/// variable the call reads its arguments from, and a call a script or alias
-/// makes without the words appearing in the command.
+/// variable the call reads its arguments from, a call a script or alias
+/// makes without the words appearing in the command (a script written by
+/// one tool call and run by the next), a glob-spelled `sigil` (`sigi[l]`)
+/// followed by an expansion, and a quoted word holding a `pip` or `npm`
+/// word that is data, not a script, in front of an expansion that spells
+/// the flag.
 fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
     let unspliced = unsplice_quotes(stage);
-    let views = [
-        Some(stage),
-        (unspliced != stage).then_some(unspliced.as_str()),
-    ];
-    let opted_in = views
-        .into_iter()
-        .flatten()
-        .any(|text| opt_in_words(text) || opt_in_words(&dequote_literals(text)));
+    let mut views: Vec<String> = vec![stage.to_string()];
+    if unspliced != stage {
+        views.push(unspliced);
+    }
+    for i in 0..views.len() {
+        let masked = mask_quoted_separators(&views[i]);
+        if masked != views[i] {
+            views.push(masked);
+        }
+    }
+    let opted_in = views.iter().any(|text| {
+        let dequoted = dequote_literals(text);
+        [text.as_str(), dequoted.as_str()]
+            .into_iter()
+            .any(|t| flat_opt_in(t) || sets_opt_in_env(t) || opt_in_words(t))
+    });
     opted_in.then(|| {
         Decision::Ask(
             "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle \
                  scripts on this machine before Sigil scans it (or a word here may expand to it, \
-                 or xargs may append it). Confirm the package is trusted; without the flag sigil \
-                 pip/npm downloads only what needs no build."
+                 or xargs may append it, or SIGIL_ALLOW_BUILD_SCRIPTS is being set). Confirm the \
+                 package is trusted; without the flag sigil pip/npm downloads only what needs \
+                 no build."
                 .into(),
         )
+    })
+}
+
+/// The environment variable the CLI accepts, in place of a person at a
+/// terminal, as the confirmation of `--allow-build-scripts`.
+const OPT_IN_ENV: &str = "SIGIL_ALLOW_BUILD_SCRIPTS";
+
+/// Whether `text` sets [`OPT_IN_ENV`]: the name, then (quotes aside) `=` or
+/// `+=` (`SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil …`, `export SIGIL_ALLOW_BUILD_SCRIPTS=1`,
+/// `env "SIGIL_ALLOW_BUILD_SCRIPTS=1" …`). A command that only names it
+/// (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`) sets nothing.
+fn sets_opt_in_env(text: &str) -> bool {
+    text.match_indices(OPT_IN_ENV).any(|(i, _)| {
+        let rest = text[i + OPT_IN_ENV.len()..].trim_start_matches(['"', '\'']);
+        rest.starts_with('=') || rest.starts_with("+=")
+    })
+}
+
+/// `pip` or `npm`, also as a piece of a brace expansion (`{sigil,pip}`) or
+/// a quoted word.
+fn is_manager(word: &str) -> bool {
+    matches!(
+        word.trim_matches(|c| matches!(c, '"' | '\'' | '{' | '}')),
+        "pip" | "npm"
+    )
+}
+
+/// The flat reading of the opt-in: a `pip` or `npm` word, then a word
+/// starting with `--allow-build-scripts` (quotes before it aside), with only
+/// a `--` word of its own ending the options between them. Words are
+/// split at whitespace and at `;` `&` `|` `(` `)` `[` `]` `,`, but none of
+/// those ends the call here: a quoted `;` or `#` (`'./a;b'`, `'a #b'`), a
+/// line end in an argv list that spans lines, and a redirection all sit
+/// between the words without hiding the flag. It asks about more than the
+/// shell would run (`sigil pip x; echo --allow-build-scripts`), never less.
+fn flat_opt_in(text: &str) -> bool {
+    let mut after_manager = false;
+    for word in text.split(|c: char| {
+        c.is_whitespace() || matches!(c, ';' | '&' | '|' | '(' | ')' | '[' | ']' | ',')
+    }) {
+        if word.is_empty() {
+            continue;
+        }
+        if word == "--" {
+            after_manager = false;
+        } else if after_manager
+            && word
+                .trim_start_matches(['"', '\''])
+                .starts_with("--allow-build-scripts")
+        {
+            return true;
+        } else if is_manager(word) {
+            after_manager = true;
+        }
+    }
+    false
+}
+
+/// `text` with the characters that would end a call (`;` `&` `|` `#`)
+/// inside a quoted word replaced by `_`, and a line end inside quoted text
+/// or inside `[…]` (an argv list over several lines) by a space, so that the
+/// word is one word of the call it sits in, as the shell passes it:
+/// `sigil npm './a;b' $FLAG`, `sigil pip x --rules 'a #b' $FLAG`. A quoted
+/// string that holds a `pip` or `npm` word is left alone: it is a script or
+/// an argv list that a shell or an interpreter runs, whose separators are
+/// real (`bash -c 'sigil pip x; echo $HOME'`).
+fn mask_quoted_separators(text: &str) -> String {
+    if !text.contains(['\'', '"', '[']) {
+        return text.to_string();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = chars.clone();
+    // Closing quotes of the quoted strings stepped into (scripts).
+    let mut closes = vec![false; chars.len()];
+    let mut depth = 0u32;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        match c {
+            '\\' => {
+                i += 2;
+                continue;
+            }
+            '\'' | '"' if closes[i] => {}
+            '\'' | '"' => {
+                if let Some(j) = closing_quote(&chars, i) {
+                    let inner: String = chars[i + 1..j].iter().collect();
+                    if mentions_manager(&inner) {
+                        closes[j] = true;
+                    } else {
+                        for k in i + 1..j {
+                            match chars[k] {
+                                ';' | '&' | '|' | '#' => out[k] = '_',
+                                '\n' => out[k] = ' ',
+                                _ => {}
+                            }
+                        }
+                        i = j + 1;
+                        continue;
+                    }
+                }
+            }
+            '[' => depth += 1,
+            ']' => depth = depth.saturating_sub(1),
+            '\n' if depth > 0 => out[i] = ' ',
+            _ => {}
+        }
+        i += 1;
+    }
+    out.into_iter().collect()
+}
+
+/// The index of the quote that closes the one at `open`, if any (a
+/// backslash escapes in double quotes only).
+fn closing_quote(chars: &[char], open: usize) -> Option<usize> {
+    let quote = chars[open];
+    let mut j = open + 1;
+    while j < chars.len() {
+        match chars[j] {
+            '\\' if quote == '"' => j += 1,
+            c if c == quote => return Some(j),
+            _ => {}
+        }
+        j += 1;
+    }
+    None
+}
+
+/// Whether `text` holds `pip` or `npm` as a word.
+fn mentions_manager(text: &str) -> bool {
+    ["pip", "npm"].into_iter().any(|m| {
+        text.match_indices(m).any(|(i, _)| {
+            let word_char = |c: char| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-');
+            !text[..i].chars().next_back().is_some_and(word_char)
+                && !text[i + m.len()..].chars().next().is_some_and(word_char)
+        })
     })
 }
 
@@ -1085,13 +1251,6 @@ fn opt_in_words(text: &str) -> bool {
     fn arg<'a>(t: &OptTok<'a>) -> Option<&'a str> {
         t.text.filter(|a| *a != "--" && !a.starts_with('#'))
     }
-    // `pip` or `npm`, also as a piece of a brace expansion (`{sigil,pip}`).
-    let is_manager = |a: &str| {
-        matches!(
-            a.trim_matches(|c| quotes(c) || c == '{' || c == '}'),
-            "pip" | "npm"
-        )
-    };
     // `next_manager[j]`: the first `pip`/`npm` word of the call from `j` on.
     // Worked out once, so a line of many `sigil` words is read in a single
     // pass, not once per word.
@@ -1118,11 +1277,13 @@ fn opt_in_words(text: &str) -> bool {
             continue;
         }
         // `sigil`, `/usr/bin/sigil`, `$(command -v sigil)`, or a command
-        // word that is an expansion right before `pip`/`npm` (`$SIGIL pip`).
+        // word that the shell may spell `sigil` right before `pip`/`npm`:
+        // one holding an expansion, a glob character or a quote that stayed
+        // (`$SIGIL pip`, `si${E}gil npm`, `sig?l npm`, `sig'il npm`).
         let closed = w.trim_end_matches([')', '`', '"', '\'']);
         let named = matches!(name_tail(closed), "sigil" | "sigil.exe");
-        let expansion = w.trim_start_matches(quotes).starts_with(['$', '`']);
-        if !named && !expansion {
+        let spelled = w.contains(['$', '`', '*', '?', '"', '\'', '\\']);
+        if !named && !spelled {
             continue;
         }
         // `sigil [global options] pip|npm …`; right after `sigil`, a word

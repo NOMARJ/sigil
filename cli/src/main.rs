@@ -1737,9 +1737,9 @@ async fn cmd_clone(
 }
 
 /// Refuse a spec that pip or npm would build or run scripts for (a usage
-/// error, exit 2), before any quarantine entry exists or anything runs; warn
-/// loudly when the user opted in with `--allow-build-scripts`. `None` means
-/// go ahead.
+/// error, exit 2), before any quarantine entry exists or anything runs; when
+/// the user opted in with `--allow-build-scripts`, warn loudly and ask for
+/// confirmation (see [`confirm_build_scripts`]). `None` means go ahead.
 fn gate_package_spec(
     manager: acquire::Manager,
     spec: &str,
@@ -1754,13 +1754,59 @@ fn gate_package_spec(
         return Some(EXIT_ERROR);
     }
     if allow_build_scripts {
+        return confirm_build_scripts(manager, spec);
+    }
+    None
+}
+
+/// The user's confirmation of `--allow-build-scripts`, which lets pip or npm
+/// run the package's own code on this machine before the scan. A flag in a
+/// command line is not that: an AI agent's shell, a script or a pipeline
+/// writes flags too. So it takes a person at a terminal (a warning, then
+/// `yes` typed at a prompt), or, for a script or CI job that has decided to
+/// trust the code, [`acquire::ALLOW_BUILD_SCRIPTS_ENV`] set to `1`. With
+/// neither it is a usage error (exit 2) and nothing is downloaded or run.
+/// `None` means go ahead.
+fn confirm_build_scripts(manager: acquire::Manager, spec: &str) -> Option<i32> {
+    use std::io::{BufRead, IsTerminal, Write};
+    let warn = || {
         eprintln!(
             "{} {}",
             "warning:".bold().yellow(),
             acquire::opt_in_warning(manager, spec)
         );
+    };
+    let env = std::env::var_os(acquire::ALLOW_BUILD_SCRIPTS_ENV);
+    if acquire::opt_in_env_confirms(env.as_deref()) {
+        warn();
+        eprintln!(
+            "{} {}=1 is set, so no confirmation is asked for",
+            "note:".bold(),
+            acquire::ALLOW_BUILD_SCRIPTS_ENV
+        );
+        return None;
     }
-    None
+    let stdin = std::io::stdin();
+    if !(stdin.is_terminal() && std::io::stderr().is_terminal()) {
+        eprintln!(
+            "{} {}",
+            "error:".bold().red(),
+            acquire::opt_in_unconfirmed(manager, spec)
+        );
+        return Some(EXIT_ERROR);
+    }
+    warn();
+    eprint!("{} ", acquire::opt_in_prompt(manager, spec));
+    let _ = std::io::stderr().flush();
+    let mut answer = String::new();
+    if stdin.lock().read_line(&mut answer).is_ok() && acquire::answer_confirms(&answer) {
+        return None;
+    }
+    eprintln!(
+        "{} not confirmed. Nothing was downloaded or run.",
+        "error:".bold().red()
+    );
+    Some(EXIT_ERROR)
 }
 
 /// Run a package tool with its stderr passed through and also kept (the
@@ -1799,16 +1845,23 @@ fn run_keeping_stderr(
 /// update notices). `None` (after saying why) when it could not run or
 /// failed.
 fn run_for_output(cmd: &mut std::process::Command, what: &str) -> Option<String> {
+    run_capturing(cmd, what).ok()
+}
+
+/// [`run_for_output`] that also gives back the tool's stderr (already shown)
+/// when it fails, so the caller can explain the failure.
+fn run_capturing(cmd: &mut std::process::Command, what: &str) -> Result<String, String> {
     match cmd.output() {
-        Ok(out) if out.status.success() => Some(String::from_utf8_lossy(&out.stdout).into_owned()),
+        Ok(out) if out.status.success() => Ok(String::from_utf8_lossy(&out.stdout).into_owned()),
         Ok(out) => {
-            eprint!("{}", String::from_utf8_lossy(&out.stderr));
+            let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            eprint!("{stderr}");
             eprintln!("{} `{what}` failed", "error:".bold().red());
-            None
+            Err(stderr)
         }
         Err(e) => {
             eprintln!("{} could not run `{what}`: {e}", "error:".bold().red());
-            None
+            Err(String::new())
         }
     }
 }
@@ -2053,15 +2106,16 @@ async fn cmd_pip(
         for k in &env_removed {
             index.env_remove(k);
         }
-        let listed = run_for_output(&mut index, "pip index versions")
-            .and_then(|out| acquire::parse_pip_index_versions(&out));
-        let Some(versions) = listed else {
+        let listed = run_capturing(&mut index, "pip index versions");
+        let versions = listed
+            .as_ref()
+            .ok()
+            .and_then(|out| acquire::parse_pip_index_versions(out));
+        let Some(versions) = versions else {
+            let pip_said = listed.err().unwrap_or_default();
             eprintln!(
-                "  Sigil asks the index which release `pip install {pkg_spec}` would install, \
-                 then downloads only that release's wheel, and pip listed no release of `{}`. \
-                 With a pip older than 21.2 (no `pip index`), pin a version: \
-                 `sigil pip {}==<version>`.",
-                req.name, req.name
+                "  {}",
+                acquire::pip_index_failure_hint(&pip_said, &req.name)
             );
             return EXIT_ERROR;
         };
@@ -2105,8 +2159,10 @@ async fn cmd_pip(
     }
 
     // Named for the release that is downloaded: what `sigil list` and
-    // `sigil approve` show is the version scanned, not the range typed.
-    let entry = match quarantine::add(&download_spec, "pip") {
+    // `sigil approve` show is the version scanned, not the range typed, and
+    // without extras (`pip download --no-deps` fetches the same file).
+    let recorded = acquire::pip_release_name(&download_spec);
+    let entry = match quarantine::add(&recorded, "pip") {
         Ok(e) => e,
         Err(err) => {
             eprintln!(
@@ -2171,9 +2227,9 @@ async fn cmd_pip(
 
     pending.scanning();
     let mut result = scanner::run_scan(&qdir, None, None);
-    apply_extraction_report(&mut result, &extraction, &download_spec);
-    apply_container_locator(&mut result, "pip", &download_spec);
-    if !print_scan_output(&result, &qdir, format, Some(&download_spec)) {
+    apply_extraction_report(&mut result, &extraction, &recorded);
+    apply_container_locator(&mut result, "pip", &recorded);
+    if !print_scan_output(&result, &qdir, format, Some(&recorded)) {
         return EXIT_ERROR;
     }
 
@@ -2243,11 +2299,11 @@ async fn cmd_npm(
         // what the user typed; the tarball is written to quarantine.
         npm.args(acquire::npm_pack_args(&pkg_spec, true, Some(&qdir)));
     } else {
-        // Ask the registry what the spec resolves to and pack that tarball
-        // URL: a registry's metadata can point a version's tarball at a git
-        // repository, which npm would clone and prepare. Run from the
-        // quarantine directory, as the pack is, so both read the same npm
-        // config.
+        // Ask the registry what the spec resolves to, check what it says
+        // (a registry's metadata can point a version's tarball at a git
+        // repository, which npm would clone and prepare), and pack exactly
+        // that release by name. Run from the quarantine directory, as the
+        // pack is, so both read the same npm config.
         let mut view = std::process::Command::new("npm");
         view.args(acquire::npm_view_args(&pkg_spec))
             .current_dir(&qdir);
@@ -2267,6 +2323,33 @@ async fn cmd_npm(
                 return EXIT_ERROR;
             }
         };
+        // `npm view <name>` (and `<name>@*`) lists only the `latest` tag, but
+        // npm itself skips a deprecated `latest` for the highest release
+        // that is not deprecated: list them all, so the release scanned is
+        // the one an install gets. Nothing is said when that lookup fails
+        // (a package with only pre-releases lists none); the tag stands.
+        let mut releases = releases;
+        if let [only] = releases.as_slice() {
+            if only.deprecated {
+                if let Some(name) = acquire::npm_name_for_default_pick(&pkg_spec) {
+                    let mut all = std::process::Command::new("npm");
+                    all.args(acquire::npm_view_args(&acquire::npm_all_versions_spec(
+                        &name,
+                    )))
+                    .current_dir(&qdir);
+                    let listed = all
+                        .output()
+                        .ok()
+                        .filter(|o| o.status.success())
+                        .and_then(|o| {
+                            acquire::parse_npm_view(&String::from_utf8_lossy(&o.stdout)).ok()
+                        });
+                    if let Some(listed) = listed {
+                        releases = listed;
+                    }
+                }
+            }
+        }
         let Some(picked) = acquire::pick_npm_release(&releases).cloned() else {
             eprintln!(
                 "{} npm resolved `{pkg_spec}` to no release",
@@ -2303,9 +2386,13 @@ async fn cmd_npm(
                 ),
             );
         }
-        // The string exactly as `check_npm_tarball_url` read it above: what
-        // is checked is what npm is given.
-        npm.args(acquire::npm_pack_args(&picked.tarball, false, None))
+        // The release by registry name, not the tarball's URL: npm names the
+        // file it writes after the manifest it reads, and for a bare tarball
+        // that is the package.json inside it, which its author controls (a
+        // version of `1.0.0/../../x` would write the file outside
+        // quarantine). The name and version were checked in `npm view`'s
+        // output; npm 12 also refuses a URL spec (EALLOWREMOTE).
+        npm.args(acquire::npm_pack_args(&picked.id(), false, None))
             .current_dir(&qdir);
         release = Some(picked);
     }
@@ -2325,9 +2412,9 @@ async fn cmd_npm(
         return nothing_downloaded("npm", &pkg_spec, allow_build_scripts);
     }
 
-    // npm fetches a bare tarball URL without checking it against the
-    // registry's integrity, as `npm install <name>` would: check the one
-    // tarball it wrote before anything reads it.
+    // The quarantine directory holds the one tarball npm wrote, and it matches
+    // the integrity `npm view` gave for the release: checked before anything
+    // reads it.
     if let Some(release) = &release {
         if let Err(why) = check_packed_tarball(&qdir, release) {
             eprintln!(

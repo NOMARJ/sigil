@@ -31,16 +31,26 @@
 //!   that flag set, so anything that is not a registry package by name is
 //!   refused before npm runs. A registry's metadata can itself point a
 //!   version's tarball at a git repository, so Sigil resolves the spec with
-//!   `npm view` first, checks the tarball URL is a plain http(s) download
-//!   (as npm-package-arg and hosted-git-info classify it), packs that URL
-//!   from the (empty) quarantine directory, and checks the packed tarball
-//!   against the registry's `dist.integrity`, as `npm install` would.
+//!   `npm view` first, checks the name, the version and the tarball URL
+//!   (a plain http(s) download, as npm-package-arg and hosted-git-info
+//!   classify it), packs `name@version` from the (empty) quarantine
+//!   directory, and checks the packed tarball against the registry's
+//!   `dist.integrity`, as `npm install` would. It packs the registry name,
+//!   not the tarball's URL: npm names the file it writes after the manifest
+//!   it reads, and for a bare tarball that is the `package.json` inside it,
+//!   which the package's author controls (a version of `1.0.0/../../x`
+//!   would put the file outside quarantine); for a registry spec it is the
+//!   registry's own manifest. A URL spec is also refused by npm 12 unless
+//!   `--allow-remote` is given.
 //!
 //! `--allow-build-scripts` lifts the refusals and drops the two options, for
 //! code the user already trusts, and runs npm from the caller's directory
 //! so a relative path means what the user typed; the command then prints a
 //! warning that the package's own code may run on this machine before the
-//! scan. A file or directory the user already has is better scanned where
+//! scan. It needs a person's confirmation first (a prompt at a terminal, or
+//! `SIGIL_ALLOW_BUILD_SCRIPTS=1` for a script or CI job that has decided to
+//! trust the code), so a shell with no terminal, such as an AI agent's, does
+//! not pass it by writing the flag. A file or directory the user already has is better scanned where
 //! it is (`sigil scan <path>`), which runs nothing from it: the refusal for
 //! a local path says so.
 //!
@@ -55,6 +65,60 @@ use crate::pep440::{self, Specifier};
 
 /// The opt-in flag, as the user types it.
 pub const ALLOW_BUILD_SCRIPTS: &str = "--allow-build-scripts";
+
+/// The environment variable that confirms [`ALLOW_BUILD_SCRIPTS`] where
+/// there is no terminal to ask on (a script or CI job that has decided to
+/// trust the code). The Claude Code hook and the MCP `check_command` tool
+/// ask about a command that sets it.
+pub const ALLOW_BUILD_SCRIPTS_ENV: &str = "SIGIL_ALLOW_BUILD_SCRIPTS";
+
+/// Whether the value of [`ALLOW_BUILD_SCRIPTS_ENV`] confirms the opt-in:
+/// exactly `1`.
+pub fn opt_in_env_confirms(value: Option<&std::ffi::OsStr>) -> bool {
+    value.is_some_and(|v| v == "1")
+}
+
+/// Whether a line typed at the confirmation prompt says yes: the word
+/// `yes`, in any case, and nothing else.
+pub fn answer_confirms(answer: &str) -> bool {
+    answer.trim().eq_ignore_ascii_case("yes")
+}
+
+/// The prompt shown (after the warning) at a terminal.
+pub fn opt_in_prompt(manager: Manager, spec: &str) -> String {
+    format!(
+        "Run {}'s own code for `{spec}` on this machine before it is scanned? Type yes to \
+         continue:",
+        manager.command()
+    )
+}
+
+/// The refusal printed (after `error: `) when [`ALLOW_BUILD_SCRIPTS`] is
+/// given and nothing confirms it: no terminal to ask on, and
+/// [`ALLOW_BUILD_SCRIPTS_ENV`] is not `1`.
+pub fn opt_in_unconfirmed(manager: Manager, spec: &str) -> String {
+    let cmd = manager.command();
+    format!(
+        "{ALLOW_BUILD_SCRIPTS} runs {cmd}'s build or lifecycle code for `{spec}` on this machine \
+         before Sigil scans it, so it needs a person to confirm, and there is no terminal to ask \
+         on (stdin or stderr is not one). Run it at a terminal and answer the prompt. A script or \
+         CI job that has decided to trust this code can set {ALLOW_BUILD_SCRIPTS_ENV}=1 for the \
+         command. Nothing was downloaded or run."
+    )
+}
+
+/// `s` as one shell word: unchanged when it holds only characters a shell
+/// leaves alone, else in single quotes.
+pub fn shell_quote(s: &str) -> String {
+    let plain = !s.is_empty()
+        && s.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '@' | '%' | '+' | '=' | ':' | ',' | '.' | '/' | '~' | '-'));
+    if plain {
+        s.to_string()
+    } else {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    }
+}
 
 /// pip's archive suffixes (`pip._internal.utils.filetypes`): a requirement
 /// ending in one is read as a file path, built if it is a source archive.
@@ -207,9 +271,11 @@ pub fn npm_view_args(spec: &str) -> Vec<OsString> {
 }
 
 /// `npm pack` arguments (after the `npm` command word). By default `target`
-/// is a resolved tarball URL and npm runs in the quarantine directory, where
-/// it writes the tarball. With the opt-in, npm runs in the caller's
-/// directory, so `pack_destination` names the quarantine directory.
+/// is the resolved release, `name@version` (npm names the file it writes
+/// from the registry's manifest of it, which [`parse_npm_view`] has checked)
+/// and npm runs in the quarantine directory, where it writes the tarball.
+/// With the opt-in, npm runs in the caller's directory, so
+/// `pack_destination` names the quarantine directory.
 pub fn npm_pack_args(
     target: &str,
     allow_build_scripts: bool,
@@ -266,8 +332,9 @@ pub fn refusal(manager: Manager, spec: &str, err: &SpecError) -> String {
             format!(
                 "sigil {cmd} will not download `{spec}`: {why}.\n  sigil {cmd} fetches packages \
                  from {from} by name, e.g. {example}. To check a file or directory you already \
-                 have, scan it where it is: `sigil scan {path}` reads it (archives included) and \
-                 runs nothing from it."
+                 have, scan it where it is: `sigil scan {}` reads it (archives included) and \
+                 runs nothing from it.",
+                shell_quote(path)
             )
         }
         SpecError::Alias(target) => format!(
@@ -340,8 +407,49 @@ pub fn pip_wheel_only_hint(spec: &str, resolved: Option<&str>) -> String {
     format!(
         "Sigil asks pip for prebuilt wheels only (--only-binary=:all:), because building a \
          source distribution runs the package's own setup code on this machine before the scan. \
-         {what} for code you already trust, re-run with {ALLOW_BUILD_SCRIPTS}."
+         {what} for code you already trust, re-run with {ALLOW_BUILD_SCRIPTS}.\n  To read the \
+         source distribution without building it, scan its file from the index: \
+         `sigil scan <URL of the .tar.gz>` (the link is on the project's PyPI download page); \
+         that reads the archive and runs nothing from it."
     )
+}
+
+/// What to tell the user (after pip's own messages) when `pip index versions`
+/// failed, or listed no release, for `name`. `stderr` is pip's.
+pub fn pip_index_failure_hint(stderr: &str, name: &str) -> String {
+    if stderr.contains("unknown command \"index\"") {
+        format!(
+            "Sigil asks the index which release `pip install {name}` would install, then \
+             downloads only that release's wheel. `pip index` exists from pip 21.2 on and this \
+             pip does not have it: upgrade pip, or pin a version: `sigil pip {name}==<version>`."
+        )
+    } else if pip_found_no_distribution(stderr) {
+        format!(
+            "The index has no release of `{name}` that pip can install here. Check the \
+             spelling of the name (pinning a version will not help a package that is not \
+             there)."
+        )
+    } else {
+        format!(
+            "Sigil asks the index which release `pip install {name}` would install, then \
+             downloads only that release's wheel, and pip listed no release of `{name}`. If it \
+             exists, pin a version: `sigil pip {name}==<version>`."
+        )
+    }
+}
+
+/// `spec` without its extras (`requests[socks]==2.32.3` is recorded as
+/// `requests==2.32.3`): the name of the release that was scanned. `pip
+/// download --no-deps` fetches the same file either way.
+pub fn pip_release_name(spec: &str) -> String {
+    let spec = spec.trim();
+    let Some(open) = spec.find('[') else {
+        return spec.to_string();
+    };
+    let Some(close) = spec[open..].find(']') else {
+        return spec.to_string();
+    };
+    format!("{}{}", spec[..open].trim_end(), &spec[open + close + 1..])
 }
 
 // ---------------------------------------------------------------------------
@@ -529,13 +637,20 @@ fn check_pip(spec: &str) -> Result<PipRequirement, SpecError> {
             path: trimmed.to_string(),
         });
     }
-    if trimmed.contains("://") || has_scheme(trimmed) {
-        return Err(SpecError::NotRegistry("it is a URL".into()));
-    }
-    if trimmed.contains('@') {
+    // `name @ https://…` is a direct reference; the `@` of a URL's userinfo
+    // (`https://user@host/…`) comes after the scheme.
+    let direct_reference = match (trimmed.find('@'), trimmed.find("://")) {
+        (Some(at), Some(url)) => at < url,
+        (Some(_), None) => true,
+        _ => false,
+    };
+    if direct_reference {
         return Err(SpecError::NotRegistry(
             "it is a direct reference (`name @ url`)".into(),
         ));
+    }
+    if trimmed.contains("://") || has_scheme(trimmed) {
+        return Err(SpecError::NotRegistry("it is a URL".into()));
     }
     if trimmed.contains('/')
         || trimmed.contains('\\')
@@ -564,7 +679,8 @@ fn check_pip(spec: &str) -> Result<PipRequirement, SpecError> {
             path: path.to_string(),
         });
     }
-    parse_pip_requirement(spec).map_err(SpecError::Malformed)
+    // Trimmed, as pip reads it: ` six==1.17.0` is a spec pip accepts.
+    parse_pip_requirement(trimmed).map_err(SpecError::Malformed)
 }
 
 const MARKER_REFUSAL: &str = "it has an environment marker (`; …`), which Sigil does not \
@@ -726,6 +842,10 @@ fn is_npm_segment(s: &str) -> bool {
 
 fn check_npm(spec: &str) -> Result<(), SpecError> {
     let lower = spec.to_ascii_lowercase();
+    // `npm:left-pad@1.3.0` on its own: the alias target with no alias name.
+    if lower.starts_with("npm:") {
+        return Err(SpecError::Alias(spec[4..].to_string()));
+    }
     if ["github:", "gitlab:", "bitbucket:", "gist:", "git:", "git+"]
         .iter()
         .any(|p| lower.starts_with(p))
@@ -898,6 +1018,56 @@ impl NpmRelease {
     }
 }
 
+/// Whether `name` is a package name safe to print and to make part of a file
+/// name: `name` or `@scope/name`, each part of letters, digits and
+/// `. _ ~ ! ' ( ) * -` (npm's legacy name rule: what `encodeURIComponent`
+/// leaves alone), neither part `.` or `..`, at most 214 characters.
+fn npm_name_is_safe(name: &str) -> bool {
+    let part = |p: &str| {
+        !p.is_empty()
+            && p != "."
+            && p != ".."
+            && p.chars().all(|c| {
+                c.is_ascii_alphanumeric()
+                    || matches!(c, '.' | '_' | '~' | '!' | '\'' | '(' | ')' | '*' | '-')
+            })
+    };
+    name.len() <= 214
+        && match name.strip_prefix('@') {
+            Some(scoped) => scoped
+                .split_once('/')
+                .is_some_and(|(scope, rest)| part(scope) && part(rest)),
+            None => part(name),
+        }
+}
+
+/// Whether `version` is made only of what a semver version holds (letters,
+/// digits, `.`, `+`, `-`): it can be made part of a file name.
+fn npm_version_is_safe(version: &str) -> bool {
+    !version.is_empty()
+        && version.len() <= 256
+        && version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '+' | '-'))
+}
+
+/// When a bare name (or `name@*`) resolves, npm skips a `latest` tag that is
+/// deprecated (npm-pick-manifest) in favour of the highest version that is
+/// not, but `npm view <name>` shows only the tag. For such a spec, the
+/// package name to ask about in the range form (see
+/// [`npm_all_versions_spec`]).
+pub fn npm_name_for_default_pick(spec: &str) -> Option<String> {
+    let name = spec.strip_suffix("@*").unwrap_or(spec);
+    // A bare name has no `@` after its first character (a scope's `@`).
+    (!name.is_empty() && !name[1..].contains('@')).then(|| name.to_string())
+}
+
+/// The spec that makes `npm view` list every release of `name` (a range
+/// lists them; a bare name or `*` lists only the `latest` tag).
+pub fn npm_all_versions_spec(name: &str) -> String {
+    format!("{name}@>=0")
+}
+
 /// Parse `npm view --json <spec> name version dist.tarball dist.integrity
 /// dist.shasum deprecated dist-tags.latest`: one object for a version or
 /// tag, an array of them for a range that several versions match.
@@ -926,6 +1096,23 @@ pub fn parse_npm_view(stdout: &str) -> Result<Vec<NpmRelease>, String> {
                 "npm view did not give a name, version and tarball URL for every version".into(),
             );
         };
+        // The name and version are printed, recorded in the quarantine index
+        // and made into the file name `npm pack` writes
+        // (`<name>-<version>.tgz`): a registry that gives one a path
+        // separator or a control character could put the file elsewhere or
+        // write to the terminal.
+        if !npm_name_is_safe(&name) {
+            return Err(format!(
+                "the registry gives `{}` as a package name, which is not a valid npm package name",
+                name.escape_debug()
+            ));
+        }
+        if !npm_version_is_safe(&version) {
+            return Err(format!(
+                "the registry gives `{}` as the version of `{name}`, which is not a valid version",
+                version.escape_debug()
+            ));
+        }
         out.push(NpmRelease {
             name,
             version,
