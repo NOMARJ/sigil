@@ -2424,18 +2424,15 @@ async fn download_npm_release(
     // which npm would clone and prepare). Run from the quarantine directory,
     // an empty one, so no project `.npmrc` of the caller's applies.
     let mut view = std::process::Command::new("npm");
-    view.args(acquire::npm_view_args(pkg_spec)).current_dir(qdir);
+    view.args(acquire::npm_view_args(pkg_spec))
+        .current_dir(qdir);
     let Some(out) = run_for_output(&mut view, "npm view") else {
-        eprintln!(
-            "  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it."
-        );
+        eprintln!("  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it.");
         return Err(EXIT_ERROR);
     };
     let mut releases = match acquire::parse_npm_view(&out) {
         Ok(r) => r,
-        Err(why) => {
-            return Err(fail(acquire::npm_view_unreadable(pkg_spec, &why)))
-        }
+        Err(why) => return Err(fail(acquire::npm_view_unreadable(pkg_spec, &why))),
     };
     // `npm view <name>` (and `<name>@*`) lists only the `latest` tag, but npm
     // itself skips a deprecated `latest` for the highest release that is not
@@ -2454,7 +2451,9 @@ async fn download_npm_release(
                     .output()
                     .ok()
                     .filter(|o| o.status.success())
-                    .and_then(|o| acquire::parse_npm_view(&String::from_utf8_lossy(&o.stdout)).ok());
+                    .and_then(|o| {
+                        acquire::parse_npm_view(&String::from_utf8_lossy(&o.stdout)).ok()
+                    });
                 if let Some(listed) = listed {
                     releases = listed;
                 }
@@ -2481,13 +2480,13 @@ async fn download_npm_release(
     };
     // Whether the registry gives a digest Sigil can check, before anything is
     // downloaded.
-    let digest = match acquire::NpmDigest::new(picked.integrity.as_deref(), picked.shasum.as_deref())
-    {
-        Ok(d) => d,
-        Err(why) => {
-            return Err(fail(acquire::npm_integrity_refusal(&picked.id(), &why)));
-        }
-    };
+    let digest =
+        match acquire::NpmDigest::new(picked.integrity.as_deref(), picked.shasum.as_deref()) {
+            Ok(d) => d,
+            Err(why) => {
+                return Err(fail(acquire::npm_integrity_refusal(&picked.id(), &why)));
+            }
+        };
     let scanned = picked.id();
     if scanned != pkg_spec {
         print_progress(
@@ -2512,7 +2511,10 @@ async fn download_npm_release(
     // The tarball, from exactly the URL that was checked: nothing asks the
     // registry for a second description of the release, and the file's name
     // is built from the checked name and version, never from the tarball.
-    let dest = qdir.join(acquire::npm_tarball_file_name(&picked.name, &picked.version));
+    let dest = qdir.join(acquire::npm_tarball_file_name(
+        &picked.name,
+        &picked.version,
+    ));
     let policy = ingest::DownloadPolicy {
         trusted_host: Some(trusted),
         ..ingest::DownloadPolicy::from_env()

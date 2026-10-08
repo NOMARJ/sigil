@@ -317,7 +317,10 @@ pub fn npm_view_args(spec: &str) -> Vec<OsString> {
 /// `npm config get <key>` arguments: one setting, as npm resolves it from
 /// its command line, environment and `.npmrc` files.
 pub fn npm_config_get_args(key: &str) -> Vec<OsString> {
-    ["config", "get", key].into_iter().map(OsString::from).collect()
+    ["config", "get", key]
+        .into_iter()
+        .map(OsString::from)
+        .collect()
 }
 
 /// `npm pack` arguments (after the `npm` command word) for the opt-in
@@ -1219,17 +1222,21 @@ pub fn redact_url(url: &str) -> String {
 
 /// Check the tarball URL a registry gave for a release: it must be a plain
 /// http(s) download that npm fetches as a tarball. `file:` and git URLs, and
-/// http(s) URLs that npm reads as a git repository, make npm clone or pack
-/// a directory and run its prepare script.
+/// http(s) URLs that npm reads as a git repository, make `npm install` clone
+/// or pack a directory (running its prepare script) instead of downloading a
+/// tarball, so there is no tarball for Sigil to check against the registry's
+/// digest.
 ///
-/// The caller hands npm this same string, so what is checked here is what
-/// npm reads. That needs more than a parse: [`reqwest::Url::parse`] drops
-/// leading spaces and control characters and any tab or line break, but
-/// npm-package-arg takes a string as a URL only when it starts with
-/// `[a-z]+:`, and reads anything else (` https://x/../../dir`, `ht<TAB>tps://…`)
-/// as a local path, a directory it would prepare. So the string must begin
-/// with `http://` or `https://` at its first byte and hold no whitespace or
-/// control character.
+/// Sigil downloads the URL itself and never hands it to npm, so this check
+/// does not keep package code from running (nothing runs); it keeps Sigil
+/// from scanning something other than what an install would get, and from
+/// fetching a string npm would not read as that URL. That needs more than a
+/// parse: [`reqwest::Url::parse`] drops leading spaces and control
+/// characters and any tab or line break, but npm-package-arg takes a string
+/// as a URL only when it starts with `[a-z]+:`, and reads anything else
+/// (` https://x/../../dir`, `ht<TAB>tps://…`) as a local path. So the string
+/// must begin with `http://` or `https://` at its first byte and hold no
+/// whitespace or control character.
 pub fn check_npm_tarball_url(url: &str) -> Result<(), String> {
     // Escaped, so a control character in a registry's string cannot reach
     // the terminal through the message, and without any credentials in it.
@@ -1375,9 +1382,11 @@ impl NpmDigest {
                     wanted: vec![hex.to_string()],
                     what: format!("shasum the registry gives ({})", hex.escape_debug()),
                 }),
-                None => Err("the registry gives no integrity or shasum for it, so what would \
+                None => Err(
+                    "the registry gives no integrity or shasum for it, so what would \
                              be scanned cannot be tied to what `npm install` accepts"
-                    .into()),
+                        .into(),
+                ),
             },
         }
     }
@@ -1405,7 +1414,7 @@ impl NpmDigest {
             (format!("sha1 {got}"), ok)
         } else {
             let got = base64::engine::general_purpose::STANDARD.encode(&digest);
-            let ok = self.wanted.iter().any(|w| *w == got);
+            let ok = self.wanted.contains(&got);
             (format!("{}-{got}", self.algorithm), ok)
         };
         if matches {
@@ -1441,10 +1450,11 @@ pub fn npm_integrity_refusal(release: &str, why: &str) -> String {
 /// download.
 pub fn npm_tarball_refusal(release: &str, why: &str) -> String {
     format!(
-        "sigil npm will not download `{release}`: {why}.\n  Handing it to npm would clone or pack \
-         it and run its prepare script on this machine before Sigil can scan it. Check which \
-         registry npm uses here (`npm config get registry`); for code you already trust, re-run \
-         with {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm)."
+        "sigil npm will not download `{release}`: {why}.\n  `npm install` would clone or pack it \
+         (running its prepare script on this machine) instead of downloading a tarball, so there \
+         is no tarball for Sigil to check against the registry's digest. Check which registry npm \
+         uses here (`npm config get registry`); for code you already trust, re-run with \
+         {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm)."
     )
 }
 
@@ -1466,8 +1476,9 @@ pub fn npm_download_failure(release: &str, why: &str) -> String {
     let credentials = if why.contains("HTTP 401") || why.contains("HTTP 403") {
         "\n  The registry wants credentials for this tarball. Sigil downloads it without any, so \
          that no token of npm's is sent anywhere but by npm itself. To check a package from a \
-         registry that needs a token, fetch the tarball yourself (`npm pack <name>@<version>` in \
-         an empty directory) and scan the file: `sigil scan <file>.tgz` runs nothing from it."
+         registry that needs a token, download the tarball yourself with your own tool (its URL \
+         is the `dist.tarball` of `npm view <name>@<version> --json`) and scan the file: \
+         `sigil scan <file>.tgz` runs nothing from it."
     } else {
         ""
     };

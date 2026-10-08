@@ -419,16 +419,25 @@ fn a_version_flag_on_a_spec_that_names_a_version_is_refused_plainly() {
     let fx = fixture();
     for (args, spec) in [
         (vec!["pip", "wheelok>=1", "-V", "1.0"], "wheelok>=1"),
-        (vec!["pip", "wheelok==1.0", "--version", "2.0"], "wheelok==1.0"),
+        (
+            vec!["pip", "wheelok==1.0", "--version", "2.0"],
+            "wheelok==1.0",
+        ),
         (vec!["pip", "wheelok[x]<2", "-V", "1.0"], "wheelok[x]<2"),
         (vec!["npm", "plainpkg@1", "-V", "1.0.0"], "plainpkg@1"),
-        (vec!["npm", "@types/node@20", "-V", "20.1.0"], "@types/node@20"),
+        (
+            vec!["npm", "@types/node@20", "-V", "20.1.0"],
+            "@types/node@20",
+        ),
     ] {
         let out = sigil(&fx, &args, &[OPT_IN]);
         assert_eq!(code(&out), 2, "{args:?}: {}", stderr(&out));
         let err = stderr(&out);
         assert!(err.contains("was given a version twice"), "{err}");
-        assert!(err.contains(&format!("`{spec}` already names one")), "{err}");
+        assert!(
+            err.contains(&format!("`{spec}` already names one")),
+            "{err}"
+        );
         assert!(!err.contains("environment marker"), "{err}");
     }
     assert!(ran_nothing(&fx, "pip") && ran_nothing(&fx, "npm"));
@@ -699,7 +708,12 @@ fn a_download_that_saves_nothing_is_an_error_not_a_clean_scan() {
     let fx = fixture();
     let out = sigil(
         &fx,
-        &["npm", "./local-dir", "--allow-build-scripts", "--auto-approve"],
+        &[
+            "npm",
+            "./local-dir",
+            "--allow-build-scripts",
+            "--auto-approve",
+        ],
         &[OPT_IN],
     );
     assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
@@ -781,12 +795,7 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
 fn npm_downloads_the_resolved_registry_tarball_and_never_runs_npm_pack() {
     let fx = fixture();
     let served = serve_tarball(&fx, "types-node", "20.1.0");
-    let view = npm_view(
-        "@types/node",
-        "20.1.0",
-        &served.tarball,
-        &served.integrity,
-    );
+    let view = npm_view("@types/node", "20.1.0", &served.tarball, &served.integrity);
     let out = sigil(
         &fx,
         &["--format", "json", "npm", "@types/node", "-V", "20.1.0"],
@@ -938,7 +947,10 @@ fn npm_refuses_a_tarball_off_the_registry_host_or_with_credentials() {
     let on_registry = served.tarball.clone();
     let with_user = on_registry.replacen("http://", "http://token:pw@", 1);
     for (tarball, says) in [
-        ("http://evil.example/plainpkg-1.0.0.tgz".to_string(), "not the host"),
+        (
+            "http://evil.example/plainpkg-1.0.0.tgz".to_string(),
+            "not the host",
+        ),
         // npm's own registry in the metadata of another registry.
         (
             "https://registry.npmjs.org/plainpkg/-/plainpkg-1.0.0.tgz".to_string(),
@@ -970,13 +982,20 @@ fn npm_refuses_a_tarball_off_the_registry_host_or_with_credentials() {
         &[
             ("SIGIL_TEST_NPM_VIEW", &view),
             ("SIGIL_TEST_NPM_REGISTRY", &served.registry),
-            ("SIGIL_TEST_NPM_SCOPED_REGISTRY", "https://npm.acme.example/"),
+            (
+                "SIGIL_TEST_NPM_SCOPED_REGISTRY",
+                "https://npm.acme.example/",
+            ),
         ],
     );
     assert_eq!(code(&out), 2, "{}", stderr(&out));
     assert!(stderr(&out).contains("not the host"), "{}", stderr(&out));
     let (argv, _) = recorded(&fx, "npm-config").expect("npm config ran");
-    assert_eq!(argv, ["config", "get", "@acme:registry"], "the scope's registry is asked first");
+    assert_eq!(
+        argv,
+        ["config", "get", "@acme:registry"],
+        "the scope's registry is asked first"
+    );
 }
 
 /// A registry that wants a token for tarballs is not sent one: the 401 is
@@ -1015,12 +1034,18 @@ fn npm_explains_a_tarball_that_needs_credentials() {
         &["npm", "secretpkg"],
         &[
             ("SIGIL_TEST_NPM_VIEW", &view),
-            ("SIGIL_TEST_NPM_REGISTRY", &format!("http://127.0.0.1:{port}/")),
+            (
+                "SIGIL_TEST_NPM_REGISTRY",
+                &format!("http://127.0.0.1:{port}/"),
+            ),
         ],
     );
     assert_eq!(code(&out), 2, "{}", stderr(&out));
     let err = stderr(&out);
-    assert!(err.contains("could not download the tarball of `secretpkg@1.0.0`"), "{err}");
+    assert!(
+        err.contains("could not download the tarball of `secretpkg@1.0.0`"),
+        "{err}"
+    );
     assert!(err.contains("HTTP 401"), "{err}");
     assert!(err.contains("wants credentials"), "{err}");
     assert!(quarantine_items(&fx).is_empty());
@@ -1099,7 +1124,10 @@ fn parallel_runs_that_fail_leave_a_whole_index_and_no_pending_entry() {
     assert_eq!(outputs.len(), 24);
     for (name, status, err) in &outputs {
         assert_eq!(*status, 2, "{name}: {err}");
-        assert!(err.contains("could not download the tarball"), "{name}: {err}");
+        assert!(
+            err.contains("could not download the tarball"),
+            "{name}: {err}"
+        );
         assert!(!err.contains("quarantine index"), "{name}: {err}");
         assert!(!err.contains("quarantine entry"), "{name}: {err}");
     }
@@ -1497,12 +1525,7 @@ fn mcp_scan_package_names_the_release_it_scanned() {
     assert_eq!(result["structuredContent"]["package"], "markerpkg==2.0");
 
     let served = serve_tarball(&fx, "left-pad", "1.3.0");
-    let view = npm_view(
-        "left-pad",
-        "1.3.0",
-        &served.tarball,
-        &served.integrity,
-    );
+    let view = npm_view("left-pad", "1.3.0", &served.tarball, &served.integrity);
     let result = mcp_scan_package(
         &fx,
         serde_json::json!({ "ecosystem": "npm", "name": "left-pad", "version": "^1" }),
@@ -1754,9 +1777,15 @@ fn real_pip_downloads_the_resolved_release_not_its_local_variant() {
     );
     let q = only_item(&fx);
     assert!(
-        q.join("markerpkg-2.0-py3-none-any").join("markerpkg").is_dir(),
+        q.join("markerpkg-2.0-py3-none-any")
+            .join("markerpkg")
+            .is_dir(),
         "the 2.0 wheel was downloaded: {:?}",
-        std::fs::read_dir(&q).unwrap().filter_map(Result::ok).map(|e| e.file_name()).collect::<Vec<_>>()
+        std::fs::read_dir(&q)
+            .unwrap()
+            .filter_map(Result::ok)
+            .map(|e| e.file_name())
+            .collect::<Vec<_>>()
     );
     assert!(
         !q.join("markerpkg-2.0+local1-py3-none-any").exists(),
@@ -1764,7 +1793,11 @@ fn real_pip_downloads_the_resolved_release_not_its_local_variant() {
     );
     // The entry names the release that was downloaded.
     let list = sigil(&fx, &["list"], &[]);
-    assert!(stdout(&list).contains("markerpkg==2.0 (pip)"), "{}", stdout(&list));
+    assert!(
+        stdout(&list).contains("markerpkg==2.0 (pip)"),
+        "{}",
+        stdout(&list)
+    );
 }
 
 /// A constraint from the environment that names a local project, and a
@@ -2025,12 +2058,7 @@ fn the_variable_does_not_lift_the_unusable_spec_refusals() {
 fn npm_is_never_asked_to_pack_by_default() {
     let fx = fixture();
     let served = serve_tarball(&fx, "left-pad", "1.3.0");
-    let view = npm_view(
-        "left-pad",
-        "1.3.0",
-        &served.tarball,
-        &served.integrity,
-    );
+    let view = npm_view("left-pad", "1.3.0", &served.tarball, &served.integrity);
     let out = sigil(
         &fx,
         &["npm", "left-pad@1.3.0"],
@@ -2340,7 +2368,8 @@ fn serve_registry_logged(
                     .lines()
                     .find_map(|l| {
                         let (k, v) = l.split_once(':')?;
-                        k.eq_ignore_ascii_case("accept").then(|| v.trim().to_string())
+                        k.eq_ignore_ascii_case("accept")
+                            .then(|| v.trim().to_string())
                     })
                     .unwrap_or_default();
                 if let Ok(mut log) = log.lock() {
@@ -2555,7 +2584,14 @@ fn a_registry_that_answers_the_metadata_requests_differently_cannot_make_sigil_r
             };
             let bytes = tarball_bytes("{\"name\":\"acc-split\",\"version\":\"1.0.0\"}\n");
             let (base, log) = serve_registry_logged(|base| {
-                let benign = packument(base, "acc-split", "acc-split", "1.0.0", "acc-split-1.0.0.tgz", &bytes);
+                let benign = packument(
+                    base,
+                    "acc-split",
+                    "acc-split",
+                    "1.0.0",
+                    "acc-split-1.0.0.tgz",
+                    &bytes,
+                );
                 let mut evil = benign.clone();
                 evil["versions"]["1.0.0"]["dist"]["tarball"] = evil_url.clone().into();
                 (
@@ -2577,7 +2613,10 @@ fn a_registry_that_answers_the_metadata_requests_differently_cannot_make_sigil_r
             // The benign tarball, the one that was checked, is what was
             // scanned.
             let q = only_item(&fx);
-            assert!(q.join("acc-split-1.0.0").join("package").is_dir(), "{which}");
+            assert!(
+                q.join("acc-split-1.0.0").join("package").is_dir(),
+                "{which}"
+            );
             // The registry was asked about the release once, for the full
             // metadata, and the tarball fetched once, by Sigil.
             let seen = log.lock().unwrap().clone();
@@ -2588,7 +2627,9 @@ fn a_registry_that_answers_the_metadata_requests_differently_cannot_make_sigil_r
                 "{which}: the one metadata request asked for the abbreviated document: {seen:?}"
             );
             assert_eq!(
-                seen.iter().filter(|(p, _)| p.starts_with("/files/")).count(),
+                seen.iter()
+                    .filter(|(p, _)| p.starts_with("/files/"))
+                    .count(),
                 1,
                 "{which}: {seen:?}"
             );
@@ -2767,8 +2808,9 @@ fn real_npm_resolves_and_sigil_downloads_a_registry_release_and_it_is_scanned() 
         );
         assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
         let text = stdout(&out);
-        let report: serde_json::Value = serde_json::from_str(&text[text.find('{').expect("a JSON report")..])
-            .expect("JSON report");
+        let report: serde_json::Value =
+            serde_json::from_str(&text[text.find('{').expect("a JSON report")..])
+                .expect("JSON report");
         assert_eq!(report["package"], "plainpkg@1.0.0");
         let q = only_item(&fx);
         assert!(q.join("plainpkg-1.0.0").join("package").is_dir());
@@ -2788,13 +2830,24 @@ fn real_npm_scoped_registry_is_the_one_the_tarball_must_be_on() {
         (
             vec![(
                 "@acme%2fpkg".to_string(),
-                packument(base, "@acme/pkg", "@acme/pkg", "1.0.0", "pkg-1.0.0.tgz", &bytes),
+                packument(
+                    base,
+                    "@acme/pkg",
+                    "@acme/pkg",
+                    "1.0.0",
+                    "pkg-1.0.0.tgz",
+                    &bytes,
+                ),
             )],
             vec![("pkg-1.0.0.tgz".to_string(), bytes.clone())],
         )
     });
     // npm's default registry is somewhere else; the scope's is the server.
-    std::fs::write(fx.root.join("user.npmrc"), format!("@acme:registry={base}/\n")).unwrap();
+    std::fs::write(
+        fx.root.join("user.npmrc"),
+        format!("@acme:registry={base}/\n"),
+    )
+    .unwrap();
     let env = real_npm_env(&fx, "http://127.0.0.1:1");
     let env: Vec<(&str, &str)> = env.iter().map(|(k, v)| (*k, v.as_str())).collect();
     let path = std::env::var("PATH").unwrap_or_default();
@@ -2802,5 +2855,8 @@ fn real_npm_scoped_registry_is_the_one_the_tarball_must_be_on() {
         .output()
         .expect("run sigil");
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
-    assert!(only_item(&fx).join("acme-pkg-1.0.0").join("package").is_dir());
+    assert!(only_item(&fx)
+        .join("acme-pkg-1.0.0")
+        .join("package")
+        .is_dir());
 }

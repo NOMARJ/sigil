@@ -384,8 +384,10 @@ sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    refused with exit 2, and so is a URL npm reads as a git
    repository: on GitHub, GitLab, Bitbucket, Gist or sourcehut, a path that
    names a repository (`https://github.com/owner/repo`, `…/repo.tgz`,
-   `…/tree/<ref>`), as npm's hosted-git-info reads it. npm would clone such a
-   URL and run its `prepare` script. Downloads on those hosts are fetched like
+   `…/tree/<ref>`), as npm's hosted-git-info reads it. `npm install` would
+   clone such a URL (running its `prepare` script) instead of downloading a
+   tarball, so there is no tarball for Sigil to check against the registry's
+   digest; Sigil never fetches it. Downloads on those hosts are fetched like
    any tarball: GitLab's npm package registry (`…/-/…`), GitHub release
    assets (`…/releases/download/…`) and archive URLs.
 4. Checks that the tarball is on the host (and port) of the registry npm

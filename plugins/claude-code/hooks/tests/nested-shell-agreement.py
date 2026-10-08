@@ -302,7 +302,11 @@ def mcp_decisions(sigil, cmds):
             )
         )
     p = subprocess.run(
-        [sigil, "mcp"], input="\n".join(lines) + "\n", capture_output=True, text=True, timeout=600
+        [sigil, "mcp"],
+        input="\n".join(lines) + "\n",
+        capture_output=True,
+        text=True,
+        timeout=600,
     )
     by_id = {}
     for line in p.stdout.splitlines():
@@ -338,15 +342,21 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--count", type=int, default=200)
-    ap.add_argument("--sigil", default=os.environ.get("SIGIL_BIN") or shutil.which("sigil"))
+    ap.add_argument(
+        "--sigil", default=os.environ.get("SIGIL_BIN") or shutil.which("sigil")
+    )
     ap.add_argument("--guard", default=DEFAULT_GUARD)
     ap.add_argument("--show", type=int, default=15, help="how many problems to print")
     args = ap.parse_args()
     if not args.sigil or not os.path.exists(args.sigil):
         sys.exit("no sigil binary: pass --sigil or set SIGIL_BIN")
     guard = os.path.abspath(args.guard)
-    if shutil.which("sigil") and os.path.realpath(shutil.which("sigil")) != os.path.realpath(args.sigil):
-        print("note: another sigil is on PATH; the fallback is run with a PATH that has none")
+    if shutil.which("sigil") and os.path.realpath(
+        shutil.which("sigil")
+    ) != os.path.realpath(args.sigil):
+        print(
+            "note: another sigil is on PATH; the fallback is run with a PATH that has none"
+        )
 
     rng = random.Random(args.seed)
     shells = ["bash", "sh"] + (["dash"] if shutil.which("dash") else [])
@@ -378,7 +388,9 @@ def main():
     ran = sum(truth)
     benign = [i for i, t in enumerate(truth) if not t]
     over = sum(1 for i in benign if asks(native[i]))
-    print(f"seed {args.seed}: {len(cmds)} generated commands, {ran} really run the flag under bash")
+    print(
+        f"seed {args.seed}: {len(cmds)} generated commands, {ran} really run the flag under bash"
+    )
     print(
         f"native: {sum(asks(n) for n in native)} ask/deny; mcp: {sum(asks(m) for m in mcp)}; "
         f"fallback: {sum(asks(f) for f in fallback)}"

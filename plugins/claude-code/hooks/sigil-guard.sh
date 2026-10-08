@@ -2743,8 +2743,8 @@ OPTIN_ENVRE='SIGIL_ALLOW_BUILD_SCRIPTS["'"'"']*\+?='
 #     - it is unquoted and a shell stands in its own simple command (after
 #       the last `;` `&` `|` `(` or line end), or a pipeline stage starts one
 #       (`printf … | sh`), or the command holds a `<<` and a shell as above,
-#       or its simple command holds a `$`, backtick, `{`, `*`, `?` or `[` in
-#       front of it (a command word the shell expands, `${S} --format json pip`);
+#       or its simple command holds a `$`, backtick, `{`, `*` or `?` in front
+#       of it (a command word the shell expands, `${S} --format json pip`);
 #    and the words of its simple command in front of it (after the last
 #    `;` `&` `|` `(` or line end, quoted or not) hold `sigil` or one of
 #    \ ' " $ ` { * ? [ (a word the shell may spell `sigil`), and the text
@@ -2837,7 +2837,7 @@ function shells(s, all, out,   n, i, a, w, c, cnt, rest, br, t, nxt) {
 BEGIN {
   SQ = sprintf("%c", 39); DQ = "\""
   OBS = "$`\\" SQ DQ "{*?["
-  EXPANDING = "$`{*?["
+  EXPANDING = "$`{*?"
   WORDCH = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-"
   LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
   split("python node deno bun perl ruby php lua awk gawk mawk sed", NOTSH, " ")

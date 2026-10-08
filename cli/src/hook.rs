@@ -945,9 +945,10 @@ const NS_OTHERS: &[&str] = &[
 const NS_OBSCURING: &[char] = &['\\', '\'', '"', '$', '`', '{', '*', '?', '['];
 
 /// The ones that make a command word something else when the shell expands
-/// it (not the quotes and backslashes it removes): in front of a `pip` or
-/// `npm` word they may be `sigil` (`${S} --format json pip …`).
-const NS_EXPANDING: &[char] = &['$', '`', '{', '*', '?', '['];
+/// it (not the quotes and backslashes it removes, and not `[`, which is also
+/// an argv list's bracket): in front of a `pip` or `npm` word they may be
+/// `sigil` (`${S} --format json pip …`).
+const NS_EXPANDING: &[char] = &['$', '`', '{', '*', '?'];
 
 fn ns_word_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')
@@ -980,11 +981,12 @@ fn ns_shell_occurrences(chars: &[char], shells_only: bool) -> Vec<(usize, usize)
                 i += 1;
             }
             let word: String = chars[start..i].iter().collect();
-            let named = ns_is_named(&word, NS_SHELLS)
-                || (!shells_only && ns_is_named(&word, NS_OTHERS));
+            let named =
+                ns_is_named(&word, NS_SHELLS) || (!shells_only && ns_is_named(&word, NS_OTHERS));
             let dot = !shells_only
                 && word == "."
-                && (start == 0 || matches!(chars[start - 1], ' ' | '\t' | '\n' | ';' | '&' | '|' | '('))
+                && (start == 0
+                    || matches!(chars[start - 1], ' ' | '\t' | '\n' | ';' | '&' | '|' | '('))
                 && (i == n || matches!(chars[i], ' ' | '\t' | '\n'));
             if named || dot {
                 out.push((start, i));
@@ -993,7 +995,11 @@ fn ns_shell_occurrences(chars: &[char], shells_only: bool) -> Vec<(usize, usize)
             if !shells_only && chars[i] == '$' {
                 let rest: String = chars[i + 1..n.min(i + 8)].iter().collect();
                 let rest = rest.strip_prefix('{').unwrap_or(&rest);
-                let braces = if chars[i + 1..].first() == Some(&'{') { 1 } else { 0 };
+                let braces = if chars[i + 1..].first() == Some(&'{') {
+                    1
+                } else {
+                    0
+                };
                 for name in ["SHELL", "BASH"] {
                     if rest.starts_with(name) {
                         out.push((i, i + 1 + braces + name.len()));
@@ -1062,13 +1068,14 @@ fn ns_dash_c(cmd: &str) -> bool {
 ///  - it is unquoted, and a shell stands in its own simple command (after
 ///    the last `;` `&` `|` `(` or line end), or a pipeline stage starts one
 ///    (`printf … | sh`), or the command holds a `<<` and a shell as above,
-///    or its simple command holds a `$`, backtick, `{`, `*`, `?` or `[` in
-///    front of it (a command word the shell expands, `${S} --format json pip`);
-/// and, in either place, the words of its simple command in front of it
-/// (after the last separator character, quoted or not) hold `sigil` or an
+///    or its simple command holds a `$`, backtick, `{`, `*` or `?` in front
+///    of it (a command word the shell expands, `${S} --format json pip`).
+///
+/// In either place, the words of its simple command in front of it
+/// (after the last separator character, quoted or not) must hold `sigil` or an
 /// [`NS_OBSCURING`] character (a word the shell may spell `sigil`), and the
 /// text after it, to the end of its call (the next `;`, line end, `)`, `&` or
-/// `|`, past the end of its quoted string if the call goes on), holds an
+/// `|`, past the end of its quoted string if the call goes on), must hold an
 /// [`NS_OBSCURING`] character. The quote that opens the string holding the
 /// word and the one that closes it do not count. A separator that is not one
 /// needs a backslash, a quote, `$` or a backtick in front of it, which is that
@@ -1089,7 +1096,10 @@ fn nested_obscured_call(cmd: &str) -> bool {
             while i < n && ns_word_char(chars[i]) {
                 i += 1;
             }
-            if matches!(chars[start..i].iter().collect::<String>().as_str(), "pip" | "npm") {
+            if matches!(
+                chars[start..i].iter().collect::<String>().as_str(),
+                "pip" | "npm"
+            ) {
                 managers.push(start);
             }
         } else {
@@ -1203,7 +1213,10 @@ fn nested_obscured_call(cmd: &str) -> bool {
     let mut next_extent = 0;
     for &p in &managers {
         // The extents and the managers are both in order.
-        while extents.get(next_extent).is_some_and(|&(_, close)| close < p) {
+        while extents
+            .get(next_extent)
+            .is_some_and(|&(_, close)| close < p)
+        {
             next_extent += 1;
         }
         let enclosing = extents

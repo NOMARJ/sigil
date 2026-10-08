@@ -485,9 +485,15 @@ fn the_tarball_file_name_follows_npm_pack_and_cannot_name_a_path() {
         "a-1.0.0-rc.1_build.5.tgz"
     );
     // Characters of the legacy name rule that a file name should not hold.
-    assert_eq!(npm_tarball_file_name("a*b!c(d)", "1.0.0"), "a_b_c_d_-1.0.0.tgz");
+    assert_eq!(
+        npm_tarball_file_name("a*b!c(d)", "1.0.0"),
+        "a_b_c_d_-1.0.0.tgz"
+    );
     // Never hidden (the scanner would skip a dot directory).
-    assert_eq!(npm_tarball_file_name(".hidden", "1.0.0"), "_hidden-1.0.0.tgz");
+    assert_eq!(
+        npm_tarball_file_name(".hidden", "1.0.0"),
+        "_hidden-1.0.0.tgz"
+    );
     for name in ["a", "@s/n", "...", "x~y", "._."] {
         let file = npm_tarball_file_name(name, "1.0.0");
         assert!(file.ends_with(".tgz"), "{file}");
@@ -523,7 +529,11 @@ fn a_tarball_must_be_on_the_registrys_own_host_and_carry_no_credentials() {
         ),
         Ok(("gitlab.com".into(), 443))
     );
-    assert!(host("http://Registry.Example/p.tgz", "https://registry.example/npm/").is_ok());
+    assert!(host(
+        "http://Registry.Example/p.tgz",
+        "https://registry.example/npm/"
+    )
+    .is_ok());
     assert!(host(
         "https://registry.example:443/p.tgz",
         "https://registry.example/"
@@ -599,7 +609,10 @@ fn credentials_in_a_registrys_url_are_never_echoed() {
         let why = check_npm_tarball_host(url, "https://example.invalid/").unwrap_err();
         assert!(!why.contains("secret"), "{url}: {why}");
     }
-    assert_eq!(redact_url("https://u:p@h.example/x@y"), "https://***@h.example/x@y");
+    assert_eq!(
+        redact_url("https://u:p@h.example/x@y"),
+        "https://***@h.example/x@y"
+    );
     assert_eq!(redact_url("https://h.example/x@y"), "https://h.example/x@y");
     assert_eq!(redact_url("not a url\u{1b}"), "not a url\\u{1b}");
 }
@@ -1012,6 +1025,7 @@ fn only_a_plain_http_tarball_url_is_packed() {
     let msg = npm_tarball_refusal("markreg@1.0.0", &why);
     assert!(msg.contains("markreg@1.0.0"), "{msg}");
     assert!(msg.contains("prepare script"), "{msg}");
+    assert!(msg.contains("no tarball for Sigil to check"), "{msg}");
     assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
     let why = check_npm_tarball_url("https://gitlab.com/o/r.tgz").unwrap_err();
     assert!(why.contains("git repository on gitlab.com"), "{why}");
@@ -1327,13 +1341,22 @@ fn the_troubleshooting_page_quotes_the_messages_the_cli_prints() {
         .unwrap()
         .verify(&b"x"[..])
         .unwrap_err();
-    assert!(digest.starts_with("the tarball Sigil downloaded hashes to "), "{digest}");
+    assert!(
+        digest.starts_with("the tarball Sigil downloaded hashes to "),
+        "{digest}"
+    );
     let none = NpmDigest::new(None, None).unwrap_err();
-    assert!(none.contains("the registry gives no integrity or shasum"), "{none}");
+    assert!(
+        none.contains("the registry gives no integrity or shasum"),
+        "{none}"
+    );
     let download = npm_download_failure("name@1.0.0", "download failed: HTTP 401 from u");
     assert!(download.starts_with("sigil npm could not download the tarball of `name@1.0.0`: "));
     let twice = version_flag_conflict(Manager::Pip, "requests>=2", Some("2.32.3")).unwrap();
-    assert!(twice.starts_with("sigil pip was given a version twice: "), "{twice}");
+    assert!(
+        twice.starts_with("sigil pip was given a version twice: "),
+        "{twice}"
+    );
 
     // The page quotes each of those, and nothing the CLI does not print.
     for quoted in [
@@ -1349,7 +1372,10 @@ fn the_troubleshooting_page_quotes_the_messages_the_cli_prints() {
         "was given a version twice",
         "is pip installed and on PATH?",
     ] {
-        assert!(section.contains(quoted), "troubleshooting.md does not quote `{quoted}`");
+        assert!(
+            section.contains(quoted),
+            "troubleshooting.md does not quote `{quoted}`"
+        );
     }
     assert!(
         !section.contains("will not download name@version: the registry gives … as a package name"),
