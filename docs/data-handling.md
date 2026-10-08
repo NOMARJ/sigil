@@ -105,9 +105,13 @@ transmit source code by design:
   API deployed before the update that added CLI compatibility stores the
   request, files included, with the scan record, and its scan-detail
   endpoint (`GET /v1/scans/{id}`) returns them to the account that sent the
-  scan and to its team for as long as the record is kept. Its LLM step does not
+  scan and to its team for as long as the record is kept, or until the
+  database migration that ships with the update
+  (`api/migrations/011_remove_uploaded_files_from_scan_metadata.sql`) is
+  applied, which removes them from every stored scan. Its LLM step does not
   currently run for this endpoint, so it answers with its static analysis;
-  the CLI reports that rather than an analysis.
+  the CLI reports that rather than an analysis (CLI 1.3.7 reports a failed
+  enhanced analysis).
 - The investigation service (`api/services/finding_investigator.py`) builds
   LLM prompts containing the finding's `code_snippet` plus surrounding
   context lines.

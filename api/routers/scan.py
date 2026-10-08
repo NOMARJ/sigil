@@ -40,6 +40,7 @@ from api.gates import check_scan_quota, get_user_plan, require_llm_access, requi
 from api.middleware.tier_check import get_scan_capabilities
 from api.models import (
     DashboardStats,
+    EnhancedScanResponse,
     ErrorResponse,
     GateError,
     PlanTier,
@@ -585,7 +586,7 @@ async def submit_scan_v2(
 
 @router.post(
     "/scan-enhanced",
-    response_model=ScanResponse,
+    response_model=EnhancedScanResponse,
     status_code=status.HTTP_200_OK,
     summary="Enhanced scan with Pro features (LLM analysis)",
     responses={
@@ -600,7 +601,7 @@ async def submit_enhanced_scan(
     request: ScanRequest,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     capabilities: Annotated[dict[str, Any], Depends(get_scan_capabilities)],
-) -> ScanResponse:
+) -> EnhancedScanResponse:
     """
     Enhanced scan with AI-powered analysis for Pro users.
 
@@ -608,6 +609,8 @@ async def submit_enhanced_scan(
     for users with Pro, Team, or Enterprise subscriptions.
 
     For Free users, returns static analysis results with upgrade prompts.
+    `metadata.llm_analysis_performed` says whether LLM analysis ran; the
+    response carries the `id` alias only when it did (EnhancedScanResponse).
     """
     current_tier = await get_user_plan(current_user.id)
     await check_scan_quota(current_user.id, current_tier)
@@ -652,7 +655,7 @@ async def submit_enhanced_scan(
         logger.info(
             f"Enhanced scan completed for Free user {current_user.id}: static analysis only"
         )
-        return basic_response
+        return EnhancedScanResponse.from_scan(basic_response)
 
     # Pro user - perform LLM analysis
     try:
@@ -713,7 +716,7 @@ async def submit_enhanced_scan(
             enhanced_risk_score, enhanced_verdict = compute_verdict(all_findings)
 
             # Update response with enhanced results
-            enhanced_response = ScanResponse(
+            enhanced_response = EnhancedScanResponse(
                 scan_id=basic_response.scan_id,
                 target=basic_response.target,
                 target_type=basic_response.target_type,
@@ -758,7 +761,7 @@ async def submit_enhanced_scan(
                 "reason": "No file contents provided for analysis",
                 "user_tier": current_tier.value,
             }
-            return basic_response
+            return EnhancedScanResponse.from_scan(basic_response)
 
     except Exception as e:
         logger.exception(f"Enhanced scan failed for Pro user {current_user.id}: {e}")
@@ -771,7 +774,7 @@ async def submit_enhanced_scan(
             "fallback_to_static": True,
             "user_tier": current_tier.value,
         }
-        return basic_response
+        return EnhancedScanResponse.from_scan(basic_response)
 
 
 @router.get(

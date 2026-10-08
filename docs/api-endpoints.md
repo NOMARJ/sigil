@@ -73,7 +73,8 @@ Source: `api/routers/scan.py`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| POST | `/v1/scan` | No | Submit scan results for threat intel enrichment |
+| POST | `/v1/scan` | Yes | Submit a scan's findings, each with its flagged source line (`sigil scan --submit`, `sigil explain`); the API scores and stores the scan. 30/min, counts against the monthly scan quota |
+| POST | `/v1/scan-enhanced` | Yes | `sigil scan --enhanced`: the `/v1/scan` request plus source files for LLM analysis (Pro; the plan is checked after the upload, and the LLM step does not run yet). 20/min |
 | POST | `/v1/scans` | No | Submit scan results (legacy v1 compat) |
 | POST | `/scans` | No | Submit scan results (dashboard path) |
 | GET | `/scans` | Yes | List scans with pagination and filtering |
@@ -93,14 +94,16 @@ Source: `api/routers/threat.py` — Prefix: `/v1`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| GET | `/v1/threat/{package_hash}` | No | Look up package hash in threat database |
-| GET | `/v1/threats` | No | List known threats with pagination/filters |
-| GET | `/v1/signatures` | No | Download detection signatures (supports delta sync via `since`) |
-| POST | `/v1/signatures` | Yes | Create or update a detection signature |
-| DELETE | `/v1/signatures/{sig_id}` | Yes | Delete a detection signature |
-| GET | `/v1/threat-reports` | Yes | List threat reports with status filtering |
-| GET | `/v1/threat-reports/{report_id}` | Yes | Get single threat report details |
-| PATCH | `/v1/threat-reports/{report_id}` | Yes | Update threat report status (review workflow) |
+| GET | `/v1/threat/{package_hash}` | Pro | Look up a hash in the threat database (`sigil scan --enrich`); 404 when unknown, 403 below Pro |
+| GET | `/v1/threats` | Pro | List known threats with pagination/filters |
+| GET | `/v1/signatures` | Pro | Download detection signatures (supports delta sync via `since`) |
+| POST | `/v1/signatures` | Pro, admin | Create or update a detection signature |
+| DELETE | `/v1/signatures/{sig_id}` | Pro, admin | Delete a detection signature |
+| GET | `/v1/threat-reports` | Pro | List threat reports with status filtering |
+| GET | `/v1/threat-reports/{report_id}` | Pro | Get single threat report details |
+| PATCH | `/v1/threat-reports/{report_id}` | Pro, reviewer | Update threat report status (review workflow); confirming creates a threat entry |
+
+"Pro" means a Bearer token for an account on the Pro plan or higher; "admin" and "reviewer" are account roles (admin or owner; reviewer, admin or owner).
 
 ---
 
@@ -120,7 +123,7 @@ Source: `api/routers/report.py` — Prefix: `/v1`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| POST | `/v1/report` | Yes | Submit a threat report for community review |
+| POST | `/v1/report` | No | Submit a threat report for review (`sigil report`, the dashboard); the API does not check a token. Also at `POST /threats/report`. Accepts `{package_name, reason, ...}` and CLI 1.3.7's `{hash, threat_type, description}` |
 
 ---
 

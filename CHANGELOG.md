@@ -40,7 +40,9 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   with the Sigil API: the CLI and the API now agree on what is sent.** The API
   refused each request, or the CLI could not read its answer. Both sides
   changed, and the API stays compatible with CLI 1.3.7, which needs only the
-  API update deployed.
+  API update deployed; once it is, 1.3.7 writes its `--submit` and `--enrich`
+  messages to stdout after a `-f json` or `-f sarif` report (last item
+  below).
   The request and response bodies of both CLI versions are kept as shared
   test fixtures (`tests/fixtures/api_contract/`), checked by
   `cli/src/api.rs` and `api/tests/test_cli_contract.py`.
@@ -52,7 +54,9 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `cli-scan` rather than the scanned path. It prints the scan id. The API
     accepts both spellings and files a 1.3.7 body, which has no target, under
     `cli-scan`; its scan response also carries the `id` and `status` that
-    1.3.7 reads.
+    1.3.7 reads. Scan history shows the score and verdict the API computes
+    for the findings, which can differ from the CLI's; the CLI's are kept in
+    the scan's metadata (`cli_score`, `cli_verdict`).
   - The API had no value for the Inference Security phase (`INFER-*` rules),
     so any scan with such a finding was refused, from `--submit`,
     `--enhanced` and `sigil explain` alike (1.3.7's `explain` sent
@@ -71,11 +75,17 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     which the API's response model used to drop, so the CLI prints
     `enhanced LLM analysis completed` only when it did and otherwise says the
     API returned static analysis only, and why. The API's LLM step does not
-    run for this endpoint yet, so that is what it says for now. When the LLM
-    step fails, the API returns the exception type, not its message. The API
-    no longer keeps the uploaded files: it stored them in the scan record,
-    which its scan-detail endpoint returns to the account and its team; now
-    only the LLM step sees them.
+    run for this endpoint yet, so that is what it says for now. CLI 1.3.7
+    prints `Enhanced LLM analysis completed` for any response it can parse,
+    so the API includes the `id` it needs only when LLM analysis ran; 1.3.7
+    otherwise prints `Enhanced analysis failed: failed to parse response` and
+    keeps its static results. When the LLM step fails, the API returns the
+    exception type, not its message. The API no longer keeps the uploaded
+    files: it stored them in the scan record, which its scan-detail endpoint
+    returns to the account and its team; now only the LLM step sees them.
+    Migration `api/migrations/011_remove_uploaded_files_from_scan_metadata.sql`
+    removes the copies already stored (it has not been run against MSSQL);
+    until it is applied, scans stored before the update keep their files.
   - `sigil report` posted `{hash, threat_type, description}`, but the API
     expects a package name and a reason (HTTP 422), and the CLI expected an
     `id` the API does not return. The CLI now files the hash as package
@@ -105,13 +115,29 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     only an entry recorded for that exact directory, since the database is
     keyed by package-artifact hashes. The lookup response carries no control
     characters: 1.3.7 prints the description raw, and a community entry's
-    description is the reporter's text. A match, like an LLM finding from
+    description is the reporter's text, which the response now prefixes with
+    `Community report: `, or `Community report (unverified hash): ` for a
+    hash report, so 1.3.7 shows whose text it is. A match, like an LLM finding from
     `--enhanced`, is printed for information and does not change the
     verdict, the exit code or the `-f` report.
   - `sigil explain` named the scan after the report file, which can carry a
     user or project name. It now sends the fixed target `sigil-explain`.
-  - With `-f json`, the CLI writes these cloud messages to stderr, keeping
-    stdout to the JSON report.
+  - With any `-f` other than `text` (`json`, `sarif`, ...), the CLI writes
+    these cloud messages to stderr, keeping stdout to the report. CLI 1.3.7
+    prints its success messages to stdout after the report:
+    `results submitted to Sigil cloud`, an `--enrich` match, and
+    `Enhanced LLM analysis completed` when LLM analysis runs. Against the API
+    before this update those requests failed, so its stdout stayed a valid
+    report; once the update is deployed, 1.3.7's stdout with `-f json` or
+    `-f sarif` is not valid JSON or SARIF (for example
+    `sigil scan . --submit -f json > report.json`). With 1.3.7, write the
+    report with `-o FILE`, or upgrade the CLI.
+  - `docs/CLI_LLM_FEATURES.md`, `docs/api-reference.md` and
+    `docs/api-endpoints.md` describe these endpoints as they now work: the
+    request and response bodies, `id` and `status`, the plan and token each
+    needs (`/v1/scan` needs a token, `/v1/threat/{hash}` a Pro plan, and
+    `/v1/report` none), and that `/v1/scan` requests carry each finding's
+    flagged source line.
 
 ### 🔧 CI
 

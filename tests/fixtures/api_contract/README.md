@@ -7,10 +7,14 @@ API for `sigil scan --submit`, `--enhanced`, `--enrich`, `sigil report` and
 - `cli/src/api.rs` (`contract_fixture_tests`): the current CLI builds
   `cli-current/` from the scan in `cli-1.3.7/scan_submit.json` and parses
   every response in `api-patched/` and `api-deployed/`, including the 403
-  body for a Free plan's threat lookup.
+  body for a Free plan's threat lookup. It also checks that CLI 1.3.7's
+  response type parses the `api-patched/` scan response but not the
+  `--enhanced` one, for which no LLM analysis ran.
 - `api/tests/test_cli_contract.py`: every request body here is accepted by the
   API models and endpoints, including the released CLI's, and the API's 403
-  body for a Free plan's threat lookup is the one captured here.
+  body for a Free plan's threat lookup is the one captured here. An
+  `--enhanced` response carries the `id` CLI 1.3.7 needs only when LLM
+  analysis ran.
 - `cli-current/phases.json` lists every phase the CLI has (`Phase::ALL`), in
   the serde spelling (`InstallHooks`) and the API spelling the CLI sends
   (`install_hooks`). The Rust test `phases_fixture_lists_every_cli_phase`
@@ -34,6 +38,10 @@ loopback proxy to the API app running locally with its in-memory store; the
 proxy recorded each request and response body. `cli-current/explain_scan.json`
 was captured again the same way on the same day, after `sigil explain` was
 changed to send the fixed target `sigil-explain`; only `target` changed.
+`api-patched/scan_enhanced_response_free_plan.json` was captured again the
+same way on the same day, after `/v1/scan-enhanced` stopped sending the `id`
+alias when no LLM analysis ran; only `id` (now absent), `scan_id` and
+`created_at` changed.
 
 The `api-deployed/` responses come from the CLI built from this tree talking
 to the API at the PR's base. That API refuses the Inference Security phase

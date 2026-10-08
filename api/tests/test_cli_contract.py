@@ -22,14 +22,26 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.database import db
-from api.models import Finding, ScanPhase, Severity
+from api.models import EnhancedScanResponse, Finding, ScanPhase, Severity
 from api.services.scanner import _RUST_PHASE_MAP, _map_rust_finding
 
 CONTRACT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "api_contract"
+MIGRATIONS = Path(__file__).resolve().parents[1] / "migrations"
 
 
 def fixture(rel: str) -> Any:
     return json.loads((CONTRACT / rel).read_text())
+
+
+def cli_1_3_7_reads_as_success(body: dict[str, Any]) -> bool:
+    """Whether CLI 1.3.7 parses *body* as a successful scan response.
+
+    1.3.7's `ScanResponse` is `{id: String, status: String, message:
+    Option<String>}` (cli/src/api.rs at v1.3.7). When a scan or enhanced
+    response parses, it prints success ("results submitted to Sigil cloud",
+    "Enhanced LLM analysis completed") without reading anything else.
+    """
+    return isinstance(body.get("id"), str) and isinstance(body.get("status"), str)
 
 
 SCAN_BODIES = [
@@ -69,6 +81,7 @@ class TestScanSubmission:
         assert data["scan_id"]
         assert data["id"] == data["scan_id"]
         assert data["status"] == "completed"
+        assert cli_1_3_7_reads_as_success(data)
         assert {f["phase"] for f in data["findings"]} == CAPTURED_PHASES
         assert {f["severity"] for f in data["findings"]} <= {s.value for s in Severity}
 
@@ -231,9 +244,13 @@ class TestEnhancedScan:
         )
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert data["id"] == data["scan_id"]
+        assert data["scan_id"]
         assert data["metadata"]["upgrade_required"] is True
         assert data["metadata"].get("llm_analysis_performed") is not True
+        # No LLM analysis ran, so CLI 1.3.7 must not be able to read this as
+        # its success ("Enhanced LLM analysis completed"): no `id` alias.
+        assert "id" not in data
+        assert not cli_1_3_7_reads_as_success(data)
 
     @staticmethod
     def _assert_files_not_kept(
@@ -297,6 +314,60 @@ class TestEnhancedScan:
         assert meta["fallback_to_static"] is True
         assert meta["llm_error"] == "RuntimeError"
         assert "internal-detail-canary" not in resp.text
+        assert resp.json()["scan_id"]
+        assert not cli_1_3_7_reads_as_success(resp.json())
+
+    def test_pro_llm_step_as_deployed_is_not_reported_as_analysis(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        # The real LLM step, unpatched: it is called without a path or
+        # content and raises, so the response is the static fallback.
+        self._as_pro(client)
+        resp = client.post(
+            "/v1/scan-enhanced",
+            json=fixture("cli-1.3.7/scan_enhanced.json"),
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["metadata"]["llm_analysis_performed"] is False
+        assert data["metadata"]["llm_error"] == "ValueError"
+        assert not cli_1_3_7_reads_as_success(data)
+
+    def test_pro_without_files_is_not_reported_as_analysis(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        self._as_pro(client)
+        body = fixture("cli-current/scan_submit.json")
+        assert "file_contents" not in body["metadata"]
+        resp = client.post("/v1/scan-enhanced", json=body, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["metadata"]["llm_analysis_performed"] is False
+        assert data["metadata"]["reason"]
+        assert not cli_1_3_7_reads_as_success(data)
+
+    def test_response_schema_keeps_the_fields_and_an_optional_id(self) -> None:
+        # The OpenAPI document is built from this schema.
+        schema = EnhancedScanResponse.model_json_schema(mode="serialization")
+        assert {"scan_id", "id", "status", "metadata", "findings"} <= set(
+            schema["properties"]
+        )
+        assert "scan_id" in schema["required"]
+        assert "id" not in schema["required"]
+
+    def test_migration_removes_the_keys_no_longer_stored(self) -> None:
+        # Scans stored before the fix kept the uploaded files in
+        # metadata_json; migration 011 removes the same keys the endpoint
+        # now drops. (SQL not executed here: the tests use the memory store.)
+        from api.routers.scan import _UPLOADED_SOURCE_KEYS
+
+        sql = (
+            MIGRATIONS / "011_remove_uploaded_files_from_scan_metadata.sql"
+        ).read_text()
+        for key in _UPLOADED_SOURCE_KEYS:
+            assert f"'$.{key}', NULL" in sql, key
+            assert f"N'{key}'" in sql, key
 
     def test_pro_llm_success_is_marked_and_adds_llm_findings(
         self, client: TestClient, auth_headers: dict[str, str]
@@ -329,7 +400,9 @@ class TestEnhancedScan:
         assert data["metadata"]["llm_analysis_performed"] is True
         llm = [f for f in data["findings"] if f["phase"] == "llm_analysis"]
         assert [f["rule"] for f in llm] == ["LLM-TEST-1"]
+        # LLM analysis ran: CLI 1.3.7's "completed" is true, so it may parse.
         assert data["id"] == data["scan_id"]
+        assert cli_1_3_7_reads_as_success(data)
         # The LLM step still gets the uploaded files; the scan record does not.
         context = llm_step.call_args.kwargs["repository_context"]
         assert context["file_contents"] == body["metadata"]["file_contents"]
@@ -448,6 +521,11 @@ class TestReportPromotion:
         assert resp.status_code == 200, resp.text
         assert resp.json()["package_name"] == f"sha256:{digest}"
         assert resp.json()["source"] == "community"
+        # CLI 1.3.7 prints only the description: it says whose text it is.
+        reason = fixture("cli-1.3.7/report.json")["description"]
+        assert resp.json()["description"] == (
+            f"Community report (unverified hash): {reason}"
+        )
         # No import-matching signature for a hash, and the CLI-composed
         # evidence is never used as a regex.
         assert not db._memory_store.get("signatures")
@@ -465,6 +543,11 @@ class TestReportPromotion:
         assert threat["package_name"] == "contract-test-pkg"
         (signature,) = db._memory_store["signatures"].values()
         assert signature["id"] == f"sig-community-{threat['id']}"
+
+        resp = client.get(f"/v1/threat/{threat['hash']}", headers=reviewer_auth_headers)
+        assert resp.status_code == 200, resp.text
+        reason = fixture("dashboard/report.json")["reason"]
+        assert resp.json()["description"] == f"Community report: {reason}"
 
 
 # ---------------------------------------------------------------------------
@@ -499,6 +582,35 @@ class TestThreatLookupContract:
         # Every field the deployed API returned is still there, unchanged.
         deployed = fixture("api-deployed/threat_lookup_response.json")
         assert {k: data[k] for k in deployed} == deployed
+
+    @pytest.mark.parametrize(
+        ("package_name", "description", "expected"),
+        [
+            ("sha256:" + "a" * 64, "", "Community report (unverified hash)"),
+            ("evil-pkg", "  ", "Community report"),
+            ("sha256:not-a-digest", "text", "Community report: text"),
+        ],
+    )
+    def test_community_entry_text_is_attributed(
+        self,
+        client: TestClient,
+        pro_auth_headers: dict[str, str],
+        package_name: str,
+        description: str,
+        expected: str,
+    ) -> None:
+        digest = "e" * 64
+        db._memory_store.setdefault("threats", {})["community-1"] = {
+            "id": "community-1",
+            "hash": digest,
+            "package_name": package_name,
+            "severity": "HIGH",
+            "source": "community",
+            "description": description,
+        }
+        resp = client.get(f"/v1/threat/{digest}", headers=pro_auth_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["description"] == expected
 
     def test_unknown_hash_is_still_404(
         self, client: TestClient, pro_auth_headers: dict[str, str]

@@ -1365,4 +1365,26 @@ mod contract_fixture_tests {
             EnhancedOutcome::UpgradeRequired
         );
     }
+
+    /// CLI 1.3.7's scan response type (`cli/src/api.rs` at v1.3.7). 1.3.7
+    /// prints success for any `--submit` or `--enhanced` response that
+    /// deserializes into it, without reading anything else.
+    #[derive(Deserialize)]
+    #[allow(dead_code)]
+    struct ReleasedCliScanResponse {
+        id: String,
+        status: String,
+        message: Option<String>,
+    }
+
+    #[test]
+    fn released_cli_reads_success_only_where_it_is_true() {
+        let parses =
+            |rel: &str| serde_json::from_value::<ReleasedCliScanResponse>(fixture(rel)).is_ok();
+        // The scan was stored: 1.3.7's "results submitted" is true.
+        assert!(parses("api-patched/scan_response.json"));
+        // No LLM analysis ran: 1.3.7 must not print "Enhanced LLM analysis
+        // completed", so the API leaves out the `id` it needs.
+        assert!(!parses("api-patched/scan_enhanced_response_free_plan.json"));
+    }
 }

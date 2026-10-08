@@ -13,7 +13,16 @@ import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    computed_field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 def utcnow() -> datetime:
@@ -227,9 +236,48 @@ class ScanResponse(BaseModel):
         return self.scan_id
 
 
+def _id_alias_not_required(schema: Dict[str, Any]) -> None:
+    schema["required"] = [k for k in schema.get("required", []) if k != "id"]
+
+
+class EnhancedScanResponse(ScanResponse):
+    """Response returned from POST /v1/scan-enhanced.
+
+    The `id` alias is sent only when `metadata.llm_analysis_performed` is
+    true. CLI 1.3.7 cannot parse a response without `id`, and when it can, it
+    prints "Enhanced LLM analysis completed" whatever the metadata says.
+    Without `id` it reports that the enhanced analysis failed and continues
+    with its static results, which is what happened. Current CLIs read
+    `scan_id` and the metadata, so they are unaffected.
+    """
+
+    model_config = ConfigDict(json_schema_extra=_id_alias_not_required)
+
+    # No return annotation: pydantic would take it as the response schema,
+    # and the OpenAPI document would lose the model's fields.
+    @model_serializer(mode="wrap")
+    def _id_only_after_llm_analysis(self, handler: SerializerFunctionWrapHandler):
+        data = handler(self)
+        if (
+            isinstance(data, dict)
+            and self.metadata.get("llm_analysis_performed") is not True
+        ):
+            data.pop("id", None)
+        return data
+
+    @classmethod
+    def from_scan(cls, response: ScanResponse) -> "EnhancedScanResponse":
+        """The /v1/scan-enhanced form of a scan response."""
+        return cls(**response.model_dump(exclude={"id"}))
+
+
 # ---------------------------------------------------------------------------
 # Threat Intelligence
 # ---------------------------------------------------------------------------
+
+
+# `source` of a threat entry promoted from a confirmed community report.
+COMMUNITY_SOURCE = "community"
 
 
 class ThreatEntry(BaseModel):
@@ -240,7 +288,7 @@ class ThreatEntry(BaseModel):
     version: str = Field("", description="Affected version or range")
     severity: Severity = Field(Severity.HIGH)
     source: str = Field(
-        "community", description="Intel source (community, nvd, internal)"
+        COMMUNITY_SOURCE, description="Intel source (community, nvd, internal)"
     )
     confirmed_at: Optional[datetime] = Field(
         None, description="When the threat was confirmed"
@@ -280,6 +328,27 @@ class ThreatLookupResponse(ThreatEntry):
     @classmethod
     def _printable_text(cls, value: str) -> str:
         return without_control_characters(value)
+
+    @classmethod
+    def from_entry(cls, entry: ThreatEntry) -> "ThreatLookupResponse":
+        """The lookup response for *entry*, a community entry's text attributed.
+
+        A community entry's description is the reporter's text, and CLI 1.3.7
+        prints the description alone, without the source. It is prefixed with
+        where it came from: "Community report: ", or for a `sigil report
+        <hash>` report, whose hash a reviewer cannot check without the
+        artifact, "Community report (unverified hash): ".
+        """
+        data = entry.model_dump()
+        if entry.source == COMMUNITY_SOURCE:
+            label = (
+                "Community report (unverified hash)"
+                if reported_sha256(entry.package_name) is not None
+                else "Community report"
+            )
+            text = entry.description.strip()
+            data["description"] = f"{label}: {text}" if text else label
+        return cls(**data)
 
 
 class SignatureEntry(BaseModel):

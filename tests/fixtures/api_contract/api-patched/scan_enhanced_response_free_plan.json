@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-10-05T08:32:10.160092",
+  "created_at": "2026-10-05T12:52:29.380776",
   "disclaimer": "Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms.",
   "files_scanned": 5,
   "findings": [
@@ -64,7 +64,6 @@
       "weight": 3.0
     }
   ],
-  "id": "8f8b4c0b-18d3-452a-b31e-c2774f3b8f4b",
   "metadata": {
     "missing_features": [
       "LLM-powered threat analysis",
@@ -84,7 +83,7 @@
     "upgrade_url": "https://app.sigilsec.ai/upgrade"
   },
   "risk_score": 304.0,
-  "scan_id": "8f8b4c0b-18d3-452a-b31e-c2774f3b8f4b",
+  "scan_id": "ce58226c-3317-4e28-9194-107146289bb5",
   "status": "completed",
   "target": "cli-scan",
   "target_type": "directory",

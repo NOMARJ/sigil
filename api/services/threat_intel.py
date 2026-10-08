@@ -17,6 +17,7 @@ from uuid import uuid4
 
 from api.database import cache, db
 from api.models import (
+    COMMUNITY_SOURCE,
     ScanPhase,
     Severity,
     SignatureEntry,
@@ -581,7 +582,7 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
         "package_name": package_name,
         "version": report.get("package_version", ""),
         "severity": "CRITICAL",
-        "source": "community",
+        "source": COMMUNITY_SOURCE,
         "confirmed_at": now.isoformat(),
         "description": report.get("reason", "Community-confirmed threat"),
         "created_at": now.isoformat(),
