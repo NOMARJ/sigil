@@ -26,7 +26,7 @@ Specialized security agents for deep analysis:
 
 The plugin enforces the quarantine-first workflow by default:
 
-- **PreToolUse gate** - Blocks `git clone`, `npm install <pkg>`, `pip install <pkg>`, `cargo`/`gem`/`go` installs, and curl-pipe-to-shell, redirecting to `sigil clone` / `sigil npm` / `sigil pip`. Lockfile restores (`npm ci`, `pip install -r`) and one-shot runners (`npx`, `dlx`, `pipx run`) prompt for confirmation instead of being blocked
+- **PreToolUse gate** - Blocks `git clone`, `npm install <pkg>`, `pip install <pkg>`, `cargo`/`gem`/`go` installs, and curl-pipe-to-shell, redirecting to `sigil clone` / `sigil npm` / `sigil pip`. Lockfile restores (`npm ci`, `pip install -r`) and one-shot runners (`npx`, `dlx`, `pipx run`) prompt for confirmation instead of being blocked. So does a `sigil pip` / `sigil npm` command that carries `--allow-build-scripts`, which lets pip or npm run the package's own code before the scan: that flag is the user's decision, not the agent's
 - **SessionStart check** - Verifies the `sigil` binary is available when a session starts
 - **Advisory prompts** - Suggests Sigil skills when you mention "clone", "install", "security", "scan", "package", or "malware"
 

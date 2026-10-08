@@ -24,8 +24,9 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     does not pin a version, it first asks the index which versions exist
     (`pip index versions --pre`, which builds nothing; pip 21.2 or later),
     picks the one `pip install <spec>` would pick (PEP 440 matching, as pip's
-    `packaging` does it), checks it like a typed spec, and prints it. When that release has no wheel for the platform, the command fails
-    (exit 2) and says why: a wheel-only download of the unpinned spec would
+    `packaging` does it), checks it like a typed spec, and prints it. When
+    that release has no wheel for the platform, the command fails (exit 2) and
+    says why: a wheel-only download of the unpinned spec would
     otherwise have scanned an older release that has a wheel while `pip
     install` builds the newer one (tested with real pip 24.0 against a local
     index holding a 1.0 wheel and a 2.0 sdist). `--only-binary` does not
@@ -121,9 +122,12 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   public registry's metadata (only over https from `registry.npmjs.org`) and
   checks it against `dist.integrity` (or `dist.shasum`); it then only
   unpacks them. Anything but a registry name, or an exact version or
-  dist-tag on the registry, is refused (tested with a local mock registry
-  serving `file:` and `git+file:` tarballs whose `prepare` script would
-  create a marker file: refused, no marker).
+  dist-tag on the registry, is refused. Tested with registry metadata from a
+  local mock registry (through a fetch shim, since the crawler only talks to
+  registry.npmjs.org) naming `file:` and `git+file:` tarballs whose `prepare`
+  script would create a marker file: refused, no marker, no subprocess; and
+  with the real registries (`left-pad@1.3.0`, `@types/node@20.1.0`, `six
+  1.17.0`).
 
 ### 🐛 Fixed
 

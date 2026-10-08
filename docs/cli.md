@@ -80,7 +80,7 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
-| `sigil pip … --allow-build-scripts`, `sigil npm … --allow-build-scripts` (also with a redirection glued on, inside a string a shell, `find -exec` or a here-string runs, or in text that only mentions it); a `sigil pip`/`npm` call with a `$` or backtick word after `pip`/`npm`, or behind `xargs` | ask | the flag lets the package's own code run before the scan; an expansion or xargs could supply it |
+| `sigil pip … --allow-build-scripts`, `sigil npm … --allow-build-scripts` (also with a redirection glued on, inside a string a shell, `find -exec` or a here-string runs, in an interpreter's argv list such as `subprocess.run(['sigil','pip',…])`, or in text that only mentions it); a `sigil pip`/`npm` call with a `$` or backtick word after `pip`/`npm` (not a redirection's file, as in `> "$LOG"`, or one quoted `-V "$VER"` value), or behind `xargs` | ask | the flag lets the package's own code run before the scan; an expansion or xargs could supply it |
 | `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
 | `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
 | downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
@@ -248,8 +248,9 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    nothing; it needs pip 21.2 or later) and picks the one `pip install <spec>`
    would pick: the highest that matches, with pre-releases only when the spec
    names one or pip's config sets `pre`. It prints the result, for example
-   `requests<2.32 resolves to requests==2.31.0`. The resolved version is
-   checked like a typed one. Nothing is added to quarantine before this.
+   ``requests<2.32 resolves to requests==2.31.0 (the release `pip install`
+   picks here)``. The resolved version is checked like a typed one. Nothing is
+   added to quarantine before this.
 4. Runs `pip download --no-deps --only-binary=:all: --dest <quarantine> -- <name>==<version>`
    from your working directory, as `pip install` runs, so relative pip
    settings (`PIP_FIND_LINKS=./wheels`, a relative `find-links` or `cert` in
@@ -395,18 +396,26 @@ sigil npm @langchain/community
 In the Claude Code PreToolUse hook (and the MCP server's `check_command`), a
 `sigil pip` or `sigil npm` command carrying `--allow-build-scripts` is asked
 about rather than allowed: the flag is meant to be your decision, not an
-agent's. The native hook and the shell fallback both read it wherever a
-`sigil … pip|npm` call appears in the command: with a redirection glued to it
-(`--allow-build-scripts>log`), inside a string a shell, `find -exec` or a
-here-string runs, and in text that only mentions it (`echo sigil pip x
---allow-build-scripts` is asked about too, as `echo npm install x` is denied).
-They also ask when a word after `pip`/`npm` is a `$` or backtick expansion,
-which could expand to the flag, when `xargs` feeds the call, and when the
-command word right before `pip`/`npm` is itself an expansion (`$SIGIL pip …`,
-`$(command -v sigil) pip …`). The ask is not a hard boundary: a subcommand
-that itself comes from a variable (`sigil $CMD`) is not read, and the hook allows `npm pack <directory or git spec>` and
-`pip download <path, URL or package>` run directly, which run the same package
-code without a quarantine or scan.
+agent's. The native hook, the shell fallback and the MCP server's
+`check_command` all read it wherever a `sigil … pip|npm` call appears in the
+command: with a redirection glued to it (`--allow-build-scripts>log`; a
+redirection before the flag, `2>&1` included, does not end the call), inside a
+string a shell, `find -exec` or a here-string runs, in an interpreter's argv
+list (`subprocess.run(['sigil','pip',…,'--allow-build-scripts'])`), and in text
+that only mentions it (`echo sigil pip x --allow-build-scripts` is asked about
+too, as `echo npm install x` is denied). They also ask when a word after
+`pip`/`npm` is a `$` or backtick expansion, which could expand to the flag,
+when `xargs` feeds the call, and when the command word right before
+`pip`/`npm` is itself an expansion (`$SIGIL pip …`, `$(command -v sigil) pip
+…`); a redirection's file (`sigil pip x > "$LOG"`) and one quoted value after
+`-V` (`-V "$VER"`) are not asked about. The ask is not a hard boundary: a
+subcommand or argv list built in a variable (`sigil $CMD`) is not read, and
+the hook allows `npm pack <directory or git spec>` and `pip download <path,
+URL or package>` run directly, which run the same package code without a
+quarantine or scan. The package-scan tools of the MCP servers never pass the
+flag. For `deno run npm:<package>/<subpath>` the deny names the package
+without the subpath (`sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main`),
+since npm reads `chalk@5.3.0/main` as a git shorthand.
 
 ---
 
@@ -1203,9 +1212,9 @@ artifacts you trust as a unit, use `sigil approve` and the trust ledger.
 for a LOW RISK verdict, `1` for any higher verdict (MEDIUM RISK included), and
 `2` when the clone or download failed or the scan could not run, or (`pip` and
 `npm`) the spec, pip configuration, registry tarball or tarball integrity was
-refused, or nothing was downloaded. `sigil scan`
-of a repository URL runs the `sigil clone` workflow and exits the same way,
-ignoring `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete`.
+refused, or nothing was downloaded. `sigil scan` of a repository URL runs the
+`sigil clone` workflow and exits the same way, ignoring `--fail-on`,
+`--fail-on-verdict` and `--fail-on-incomplete`.
 
 `sigil residue scan` uses the same three codes against its own `--fail-on` level (which also accepts `info`).
 

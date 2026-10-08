@@ -2569,8 +2569,9 @@ fn print_progress(format: &str, msg: String) {
 /// JSON document (see `output::print_scan_result_json`). Goes to stdout, or
 /// to the global `--output` file. Returns false when the report could not be
 /// written, which the caller turns into exit 2.
-/// Print a clone or download scan's report. `package`: the package version
-/// `sigil pip`/`npm` downloaded and scanned, named in the JSON report.
+///
+/// `package`: the release `sigil pip`/`npm` downloaded and scanned, which the
+/// JSON report names (`None` for a clone).
 fn print_scan_output(
     result: &scanner::ScanResult,
     path: &Path,

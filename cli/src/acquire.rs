@@ -160,9 +160,9 @@ pub fn check_spec(
     }
 }
 
-/// `pip download` arguments (after the `pip` command word). By default it
-/// is run with the quarantine directory as the working directory too, so
-/// nothing in the caller's directory can be picked up as a local archive.
+/// `pip download` arguments (after the `pip` command word). pip runs in the
+/// caller's directory, as `pip install` would: [`check_spec`] has refused
+/// anything pip could read as a file there, and `dest` is where it saves.
 pub fn pip_download_args(dest: &Path, spec: &str, allow_build_scripts: bool) -> Vec<OsString> {
     let mut args: Vec<OsString> = vec!["download".into(), "--no-deps".into()];
     if !allow_build_scripts {
@@ -1114,9 +1114,10 @@ pub fn check_npm_integrity(
 /// registry's integrity.
 pub fn npm_integrity_refusal(release: &str, why: &str) -> String {
     format!(
-        "sigil npm will not scan `{release}`: {why}.\n  `npm install` would refuse it \
-         (EINTEGRITY), so a scan of it says nothing about what would be installed. Try again \
-         later or check which registry npm uses here (`npm config get registry`)."
+        "sigil npm will not scan `{release}`: {why}.\n  Sigil scans a tarball only when it \
+         matches the digest the registry lists, as `npm install` requires (it refuses a mismatch \
+         with EINTEGRITY); a scan of any other bytes says nothing about what would be installed. \
+         Try again later or check which registry npm uses here (`npm config get registry`)."
     )
 }
 
