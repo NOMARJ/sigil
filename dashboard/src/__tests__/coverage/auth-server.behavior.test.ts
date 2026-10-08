@@ -15,14 +15,14 @@ beforeEach(() => {
   global.fetch = http;
   process.env.NEXT_PUBLIC_API_URL = 'https://api.invalid';
   session.mockResolvedValue({ user: { sub: 'MOCK-user', email: 'nobody@example.invalid', name: 'Mock User' } } as never);
-  access.mockResolvedValue({ token: 'MOCK-UNUSABLE-NOT-A-TOKEN' } as never);
+  access.mockResolvedValue({ token: 'MOCK' } as never);
   http.mockImplementation((url: string) => Promise.resolve({ ok: true, json: async () => url.endsWith('/auth/me') ? { id: 'MOCK-backend', role: 'admin' } : { plan: 'team' } }));
 });
 it('maps backend identity and subscription using private uncached requests', async () => {
   const response = await me();
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual(expect.objectContaining({ id: 'MOCK-backend', email: 'nobody@example.invalid', role: 'admin', plan: 'team', avatar_url: null, team_id: null }));
-  expect(http).toHaveBeenCalledWith('https://api.invalid/auth/me', { headers: { Authorization: 'Bearer MOCK-UNUSABLE-NOT-A-TOKEN', Accept: 'application/json' }, cache: 'no-store' });
+  expect(http).toHaveBeenCalledWith('https://api.invalid/auth/me', { headers: { Authorization: 'Bearer MOCK', Accept: 'application/json' }, cache: 'no-store' });
 });
 it('normalizes unsupported role and plan and uses session fallbacks', async () => {
   http.mockResolvedValue({ ok: true, json: async () => ({ role: 'root', plan: 'unlimited' }) });
@@ -57,8 +57,7 @@ it.each(['nobody@example.invalid', 42])('reports unverified email with sanitized
   expect(await response.json()).toEqual({ error: 'email_unverified', email: typeof email === 'string' ? email : null });
 });
 it('returns the SDK access token contract', async () => {
-  // sigil:ignore-next-line CRED-007 -- mock access token for the SDK contract test, marked as unusable
-  expect(await (await token()).json()).toEqual({ accessToken: 'MOCK-UNUSABLE-NOT-A-TOKEN' });
+  expect(await (await token()).json()).toEqual({ accessToken: 'MOCK' });
 });
 it.each(['login', 'logout', 'callback', 'signup'])('redirects legacy %s preserving query on the same origin', async action => {
   const response = await legacy(new NextRequest(`https://dashboard.invalid/api/auth/${action}?returnTo=%2Fscans`), { params: Promise.resolve({ auth0: action }) });
