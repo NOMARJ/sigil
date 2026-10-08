@@ -311,7 +311,7 @@ fn summarise_report(target: &str, code: i32, stdout: &str, stderr: &str) -> Resu
             };
             format!(
                 "sigil exited {code} without a JSON report for {target}: {}",
-                truncate(detail, 600)
+                abridge(detail, 200, 1400)
             )
         })?;
 
@@ -389,6 +389,21 @@ fn severity_rank(finding: &Value) -> u8 {
         Some("Low") => 1,
         _ => 0,
     }
+}
+
+/// `s` cut down to its first `head` and last `tail` characters when it is
+/// longer than both together, with `…` between. A failed run's stderr starts
+/// with the tools' own progress and errors and ends with Sigil's
+/// explanation and advice (what to pin, what flag to re-run with); the
+/// advice is what an agent has to see.
+fn abridge(s: &str, head: usize, tail: usize) -> String {
+    let n = s.chars().count();
+    if n <= head + tail {
+        return s.to_string();
+    }
+    let first: String = s.chars().take(head).collect();
+    let last: String = s.chars().skip(n - tail).collect();
+    format!("{}… {}", first.trim_end(), last.trim_start())
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -539,6 +554,28 @@ mod tests {
         let s = summarise_report("x", 0, stdout, "").unwrap();
         assert_eq!(s["safe_to_install"], true);
         assert_eq!(s["decision"], "allow");
+    }
+
+    #[test]
+    fn a_failure_without_a_report_keeps_the_advice_at_the_end_of_stderr() {
+        let noise =
+            "Collecting idx-pkg\n  Looking in indexes: https://pypi.example/simple\n".repeat(30);
+        let stderr = format!(
+            "{noise}ERROR: No matching distribution found for idx-pkg==2.0\n\
+             error: pip download failed\n  Pin a version that has a wheel, or re-run with \
+             --allow-build-scripts."
+        );
+        let err = summarise_report("pypi:idx-pkg", 2, "", &stderr).unwrap_err();
+        assert!(
+            err.contains("Collecting idx-pkg"),
+            "the start is kept: {err}"
+        );
+        assert!(err.contains("Pin a version that has a wheel"), "{err}");
+        assert!(err.contains("--allow-build-scripts"), "{err}");
+        assert!(err.chars().count() < 1800, "{}", err.chars().count());
+        // Short output is shown whole.
+        let err = summarise_report("x", 2, "", "error: nope").unwrap_err();
+        assert!(err.ends_with("error: nope"), "{err}");
     }
 
     #[test]

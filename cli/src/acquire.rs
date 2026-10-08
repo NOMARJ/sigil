@@ -496,6 +496,14 @@ fn has_scheme(s: &str) -> bool {
     false
 }
 
+/// A Windows drive path (`C:\x`, `c:/x`): a letter, a colon, a separator. It
+/// reads as a URL scheme to [`has_scheme`], but it is a local path, and is
+/// reported (and pointed at `sigil scan`) as one.
+fn is_drive_path(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() >= 3 && b[0].is_ascii_alphabetic() && b[1] == b':' && matches!(b[2], b'\\' | b'/')
+}
+
 /// A PEP 508 name: ASCII letters and digits, with `.`, `_` and `-` inside.
 fn is_pep508_name(s: &str) -> bool {
     let b = s.as_bytes();
@@ -514,6 +522,12 @@ fn check_pip(spec: &str) -> Result<PipRequirement, SpecError> {
         if lower.starts_with(vcs) {
             return Err(SpecError::NotRegistry("it is a VCS reference".into()));
         }
+    }
+    if is_drive_path(trimmed) {
+        return Err(SpecError::LocalPath {
+            why: "it is a local path (a Windows drive path)".into(),
+            path: trimmed.to_string(),
+        });
     }
     if trimmed.contains("://") || has_scheme(trimmed) {
         return Err(SpecError::NotRegistry("it is a URL".into()));
@@ -552,6 +566,10 @@ fn check_pip(spec: &str) -> Result<PipRequirement, SpecError> {
     }
     parse_pip_requirement(spec).map_err(SpecError::Malformed)
 }
+
+const MARKER_REFUSAL: &str = "it has an environment marker (`; …`), which Sigil does not \
+                              evaluate (environment markers are not accepted): name the package \
+                              and its version specifiers only";
 
 /// `name [extras] [specifier ("," specifier)*]`, or the specifiers in
 /// parentheses (`name (>=2)`), whitespace allowed between tokens. A version
@@ -603,6 +621,9 @@ fn parse_pip_requirement(spec: &str) -> Result<PipRequirement, String> {
     loop {
         skip_ws(b, &mut i);
         let rest = &spec[i..];
+        if rest.starts_with(';') {
+            return Err(MARKER_REFUSAL.into());
+        }
         let op = ["===", "~=", "==", "!=", "<=", ">=", "<", ">"]
             .into_iter()
             .find(|op| rest.starts_with(op))
@@ -633,6 +654,8 @@ fn parse_pip_requirement(spec: &str) -> Result<PipRequirement, String> {
                 skip_ws(b, &mut i);
                 return if i == b.len() {
                     Ok(req)
+                } else if b[i] == b';' {
+                    Err(MARKER_REFUSAL.into())
                 } else {
                     Err("it has text after the version specifiers \
                          (environment markers are not accepted)"
@@ -641,6 +664,7 @@ fn parse_pip_requirement(spec: &str) -> Result<PipRequirement, String> {
             }
             Some(b',') => i += 1,
             None => return Err("the `(` before the version specifiers is not closed".into()),
+            Some(b';') => return Err(MARKER_REFUSAL.into()),
             Some(_) => {
                 return Err("it has text after the version specifiers \
                             (environment markers are not accepted)"
@@ -717,6 +741,12 @@ fn check_npm(spec: &str) -> Result<(), SpecError> {
         return Err(SpecError::LocalPath {
             why: "it is a local file: spec".into(),
             path: path.to_string(),
+        });
+    }
+    if is_drive_path(spec) {
+        return Err(SpecError::LocalPath {
+            why: "it is a local path (a Windows drive path)".into(),
+            path: spec.to_string(),
         });
     }
     if spec.contains("://") || has_scheme(spec) {
@@ -945,18 +975,45 @@ pub fn pick_npm_release(releases: &[NpmRelease]) -> Option<&NpmRelease> {
 /// http(s) download that npm fetches as a tarball. `file:` and git URLs, and
 /// http(s) URLs that npm reads as a git repository, make npm clone or pack
 /// a directory and run its prepare script.
+///
+/// The caller hands npm this same string, so what is checked here is what
+/// npm reads. That needs more than a parse: [`reqwest::Url::parse`] drops
+/// leading spaces and control characters and any tab or line break, but
+/// npm-package-arg takes a string as a URL only when it starts with
+/// `[a-z]+:`, and reads anything else (` https://x/../../dir`, `ht<TAB>tps://…`)
+/// as a local path, a directory it would prepare. So the string must begin
+/// with `http://` or `https://` at its first byte and hold no whitespace or
+/// control character.
 pub fn check_npm_tarball_url(url: &str) -> Result<(), String> {
+    // Escaped, so a control character in a registry's string cannot reach
+    // the terminal through the message.
+    let shown = url.escape_debug();
     let parsed =
-        reqwest::Url::parse(url).map_err(|_| format!("`{url}` is not a URL npm downloads"))?;
+        reqwest::Url::parse(url).map_err(|_| format!("`{shown}` is not a URL npm downloads"))?;
     if !matches!(parsed.scheme(), "http" | "https") {
         return Err(format!(
-            "the registry gives `{url}` as the tarball, which npm would not fetch as a plain \
+            "the registry gives `{shown}` as the tarball, which npm would not fetch as a plain \
              download (it is not an http(s) URL)"
+        ));
+    }
+    let starts = |prefix: &str| {
+        url.get(..prefix.len())
+            .is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+    };
+    if !(starts("http://") || starts("https://"))
+        || url
+            .bytes()
+            .any(|b| b.is_ascii_whitespace() || b.is_ascii_control())
+    {
+        return Err(format!(
+            "the registry gives `{shown}` as the tarball, which is not written as a plain \
+             `http://` or `https://` URL (with no space or control character in it), so npm \
+             could read it as a local path, which it packs and prepares"
         ));
     }
     if let Some(host) = npm_git_repo_host(&parsed) {
         return Err(format!(
-            "the registry gives `{url}` as the tarball, and npm reads that URL as a git \
+            "the registry gives `{shown}` as the tarball, and npm reads that URL as a git \
              repository on {host} (not a tarball download), which it clones and prepares"
         ));
     }

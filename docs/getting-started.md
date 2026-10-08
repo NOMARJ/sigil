@@ -7,7 +7,7 @@ Sigil is an automated security auditing CLI for AI agent code. It scans reposito
 - **Operating system:** macOS or Linux; on Windows, the native x64 `sigil.exe` from the release zip (see the [Installation Guide](installation.md#windows)) or WSL
 - **Shell:** Bash or Zsh, only for the optional `sigil setup shell` aliases
 - **Git:** Required for `sigil clone` and provenance analysis
-- **pip / npm:** Required only for `sigil pip` / `sigil npm`
+- **pip / npm:** Required only for `sigil pip` / `sigil npm`. A `sigil pip` spec that does not pin a version (`requests`, `"requests>=2"`) needs pip 21.2 or later (it asks the index with `pip index versions`); `requests==2.32.3` works with any pip
 
 ## Installation
 

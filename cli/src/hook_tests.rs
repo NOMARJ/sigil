@@ -1416,6 +1416,30 @@ fn a_command_of_thousands_of_stages_is_judged_quickly() {
     );
 }
 
+#[test]
+fn many_sigil_words_are_read_in_linear_time() {
+    // Each `sigil` word used to rescan every word after it up to the next
+    // separator: a few tens of thousands of them took longer than a hook
+    // is given.
+    for body in [
+        "sigil x ".repeat(40000),
+        "sigil pip x ".repeat(20000),
+        "sigil --format json npm x ".repeat(10000),
+    ] {
+        let cmd = format!("echo {body}done");
+        let start = std::time::Instant::now();
+        let d = decision(&cmd);
+        let limit = if cfg!(debug_assertions) { 30 } else { 3 };
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(limit),
+            "{} bytes took {:?}",
+            cmd.len(),
+            start.elapsed()
+        );
+        assert_ne!(d, "deny", "{}", &cmd[..40]);
+    }
+}
+
 /// The opt-in that lets pip or npm run package code before the scan is the
 /// user's decision, not an agent's: it is asked, wherever it appears.
 #[test]
@@ -1487,7 +1511,38 @@ fn asks_before_sigil_lets_package_code_run() {
         "sigil pip x <<EOF --allow-build-scripts",
         // A quoted `>` is an argument, not a redirection.
         "sigil pip x \">\" --allow-\"build\"-scripts",
-        // An interpreter's argv list.
+        // A word the shell expands to the flag: a brace expansion, or a glob
+        // (which matches where a file of that name exists, as the command
+        // can arrange).
+        "sigil pip evil --allow-build-{scripts,x}",
+        "sigil pip evil --{allow-build-scripts,x}",
+        "sigil pip evil -{-allow-build-scripts,}",
+        "sigil pip evil {--allow-build-scripts,}",
+        "sigil npm evil {a,--allow-build-scripts}",
+        "sigil pip evil --allow-build-s*",
+        "sigil pip evil --allow-build-scr?pts",
+        "sigil pip evil --allow-build-scr[i]pts",
+        "sigil pip evil [-]-allow-build-scripts",
+        "sigil pip evil [!x]-allow-build-scripts",
+        "sigil pip evil -[-]allow-build-scripts",
+        "sigil pip evil *allow-build-scripts",
+        "touch ./--allow-build-scripts && sigil pip evil --allow-build-scr*",
+        // `pip` or `npm` from an expansion, right after `sigil`, or the
+        // whole call from one brace group.
+        "P=pip; sigil $P evil --allow-build-scripts",
+        "P=pip; sigil \"$P\" evil --allow-build-scripts",
+        "sigil `echo pip` evil --allow-build-scripts",
+        "sigil {pip,npm} evil --allow-build-scripts",
+        "sigil p{ip,} evil --allow-build-scripts",
+        "{sigil,pip} evil --allow-build-scripts",
+        "{sigil,npm,evil,--allow-build-scripts}",
+        // An interpreter's argv list, also with the shell's quoting spliced
+        // into the quoted program text.
+        "python3 -c 'subprocess.run(['\''sigil'\'','\''pip'\'','\''x'\'','\''--allow-build-scripts'\''])'",
+        "python3 -c 'subprocess.run(['\"'\"'sigil'\"'\"','\"'\"'pip'\"'\"','\"'\"'x'\"'\"','\"'\"'--allow-build-scripts'\"'\"'])'",
+        "python3 -c 'subprocess.run([\"sigil\",'\"'\"'pip'\"'\"',\"x\",\"--allow-build-scripts\"])'",
+        "python3 -c \"subprocess.run([\\\"sigil\\\", \\\"pip\\\", \\\"x\\\", \\\"--allow-build-scripts\\\"])\"",
+        "node -e \"spawn(\\\"sigil\\\",[\\\"npm\\\",\\\"x\\\",\\\"--allow-build-scripts\\\"])\"",
         "python3 -c \"import subprocess; subprocess.run(['sigil','pip','./x','--allow-build-scripts'])\"",
         "python3 -c 'import subprocess; subprocess.run([\"sigil\", \"pip\", \"./x\", \"--allow-build-scripts\"])'",
         "node -e \"require('child_process').execFileSync('sigil',['npm','./x','--allow-build-scripts'])\"",
@@ -1530,6 +1585,33 @@ fn asks_before_sigil_lets_package_code_run() {
         "sigil npm left-pad -V '$VER'",
         // An argv list without the flag.
         "python3 -c \"import subprocess; subprocess.run(['sigil','pip','requests'])\"",
+        "python3 -c 'subprocess.run(['\''sigil'\'','\''pip'\'','\''requests'\''])'",
+        "python3 -c \"subprocess.run([\\\"sigil\\\", \\\"pip\\\", \\\"requests\\\"])\"",
+        // Extras and ranges are not patterns, and a pattern is only one
+        // that could spell the flag (it begins like an option or a pattern).
+        "sigil pip 'requests[security]'",
+        "sigil pip requests[security]",
+        "sigil pip \"requests[socks]>=2\"",
+        "sigil npm 'lodash@*'",
+        "sigil npm @types/node@*",
+        "sigil npm left-pad@1.x",
+        "sigil pip \"six>=1.10,<1.17\"",
+        // An argv list is not a bracket pattern, with or without its quotes
+        // (the quotes of a plain word come off in one reading).
+        "echo [sigil,pip,foo]",
+        "echo ['sigil','pip','foo'] ['b']",
+        // Options objects and dicts after an argv list.
+        "node -e \"require('child_process').spawnSync('sigil',['npm','x'],{stdio:'inherit'})\"",
+        "python3 -c \"subprocess.run(['sigil','pip','x'],env={'A':'b','C':'d'})\"",
+        // `sigil` followed by an expansion that is not pip/npm's place, or
+        // by another command's words.
+        "sigil scan \"$A\" \"$B\"",
+        "sigil \"$@\"",
+        "sigil $ARGS",
+        "sigil --format json scan $DIR",
+        "sigil list",
+        // Commands other than sigil.
+        "$CC $CFLAGS $SRC -o out",
     ] {
         assert_eq!(decision(cmd), "allow", "expected allow: {cmd}");
     }

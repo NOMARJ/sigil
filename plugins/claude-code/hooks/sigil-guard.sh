@@ -2513,17 +2513,24 @@ IFS=$IFS_DEFAULT
 # is an expansion (`$(command -v sigil)`, `$SIGIL`), appears (also inside a
 # quoted string a shell, `find -exec` or a here-string runs, in an
 # interpreter's argv list such as `['sigil','pip',…]`, and in text that
-# only mentions it): `sigil`, then `pip` or `npm`, then, before a `--`, a
-# `# comment` or a `;`/`&`/`|`, a word starting with --allow-build-scripts
-# (a glued redirection included) or a word with a `$` or backtick, which
-# could expand to it. Words are split at `[ ] ( ) ,` as well as whitespace;
-# the `&` or `|` of a redirection (`2>&1`, `&>f`, `>|f`) does not end the
-# call. A redirection and its file (`> "$LOG"`) and one quoted word after
-# -V/--version (`-V "$VER"`, its value) are dropped first. A sigil pip/npm
-# call behind xargs counts too. Every allow below becomes this ask; a deny
-# still wins. Read on the command as written and with quotes removed from
-# runs of plain word characters only (so a quoted `">"` or `"$X"` keeps its
-# quotes).
+# only mentions it): `sigil`, then `pip` or `npm` (or, right after `sigil`,
+# a word that may expand to it: `$SUB`, `{pip,npm}`), then, before a `--`,
+# a `# comment` or a `;`/`&`/`|`, a word starting with --allow-build-scripts
+# (a glued redirection included) or a word the shell may expand to it: one
+# with a `$` or backtick, or one that begins like an option or a pattern
+# (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
+# (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
+# `--allow-build-scr?pts`, `--allow-build-scr[i]pts`). Words are split at
+# `[ ] ( ) ,` as well as whitespace; the `&` or `|` of a redirection
+# (`2>&1`, `&>f`, `>|f`) does not end the call. A redirection and its file
+# (`> "$LOG"`) and one quoted word after -V/--version (`-V "$VER"`, its
+# value) are dropped first. A sigil pip/npm call behind xargs counts too.
+# Every allow below becomes this ask; a deny still wins. Read on the
+# command as written, with quotes removed from runs of plain word
+# characters only (so a quoted `">"` or `"$X"` keeps its quotes), and with
+# the quotes of a string a shell hands to an interpreter unspliced (`'\''`,
+# `'"'"'`, `\"`). Not read: a flag a program builds at run time, and a
+# file or variable the call takes its arguments from.
 OPTIN=0
 OPTIN_Q='\(["'\'']\)[^"'\''[:space:]]*\1'
 # optin_prep <text>: R is the text with each redirection and its file
@@ -2550,27 +2557,74 @@ optin_prep() {
     -e "s/[[:space:]]--version[[:space:]][[:space:]]*$OPTIN_Q/ -V V/g" \
     -e "s/[[:space:]]--version=$OPTIN_Q/ -V V/g")
 }
-optin_prep "$CMD"; OPTIN_RAW=$R
+# optin_dq <text>: DQ is the text with quotes removed from each run of
+# plain word characters (hook.rs dequote_literals).
 OPTIN_LIT='[^]'\''"[:space:]$`<>&|;()[,]*'
-OPTIN_DQ=$CMD
-case $CMD in
-  *[\"\'\\]*)
-    OPTIN_DQ=$(printf '%s\n' "$CMD" | LC_ALL=C sed \
-      -e "s/'\\($OPTIN_LIT\\)'/\\1/g" \
-      -e "s/\"\\($OPTIN_LIT\\)\"/\\1/g" \
-      -e 's/\\\([A-Za-z0-9_./-]\)/\1/g') ;;
-esac
-optin_prep "$OPTIN_DQ"; OPTIN_DQ=$R
+optin_dq() {
+  DQ=$1
+  case $1 in
+    *[\"\'\\]*)
+      DQ=$(printf '%s\n' "$1" | LC_ALL=C sed \
+        -e "s/'\\($OPTIN_LIT\\)'/\\1/g" \
+        -e "s/\"\\($OPTIN_LIT\\)\"/\\1/g" \
+        -e 's/\\\([A-Za-z0-9_./-]\)/\1/g') ;;
+  esac
+}
+# optin_unsplice <text>: UNS is the text a shell hands to an interpreter
+# when the interpreter's own quotes sit inside a quoted string (hook.rs
+# unsplice_quotes): `'\''` and `'"'"'` are one `'`, `\"` and `\'` a quote.
+optin_unsplice() {
+  UNS=$1
+  OPTIN_SQ="'"; OPTIN_BS='\'
+  case $1 in
+    *\\*|*\"*)
+      UNS=$(printf '%s\n' "$1" | LC_ALL=C sed \
+        -e "s/${OPTIN_SQ}${OPTIN_BS}${OPTIN_BS}${OPTIN_SQ}${OPTIN_SQ}/${OPTIN_SQ}/g" \
+        -e "s/${OPTIN_SQ}\"${OPTIN_SQ}\"${OPTIN_SQ}/${OPTIN_SQ}/g" \
+        -e 's/\\"/"/g' \
+        -e "s/${OPTIN_BS}${OPTIN_BS}${OPTIN_SQ}/${OPTIN_SQ}/g") ;;
+  esac
+}
+optin_prep "$CMD"; OPTIN_RAW=$R
+optin_dq "$CMD"; optin_prep "$DQ"; OPTIN_DQ=$R
+OPTIN_UNS=''; OPTIN_UNSDQ=''
+optin_unsplice "$CMD"
+if [ "$UNS" != "$CMD" ]; then
+  optin_prep "$UNS"; OPTIN_UNS=$R
+  optin_dq "$UNS"; optin_prep "$DQ"; OPTIN_UNSDQ=$R
+fi
 optin_has() {
-  has_in "$OPTIN_RAW" "$1" || has_in "$OPTIN_DQ" "$1"
+  has_in "$OPTIN_RAW" "$1" && return 0
+  has_in "$OPTIN_DQ" "$1" && return 0
+  [ -n "$OPTIN_UNS" ] || return 1
+  has_in "$OPTIN_UNS" "$1" || has_in "$OPTIN_UNSDQ" "$1"
 }
 OPTIN_C='([^][(),[:space:];&|]|[<>][&|]|&>)'
 OPTIN_F='([^]#[(),[:space:];&|-]|[<>][&|]|&>)'
 OPTIN_S='[][(),[:space:]]+'
 OPTIN_W="(-|-?${OPTIN_F}${OPTIN_C}*|--${OPTIN_C}+)"
-OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|[\$\`]${OPTIN_C}*)${OPTIN_S}[\"']?(pip|npm)[\"']?"
-optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])" \
-  && OPTIN=1
+# A shell word's characters: not whitespace, `;&|` or a parenthesis (a `,`
+# and `[]` stay in it: `--allow-build-{scripts,x}`).
+OPTIN_P='[^][:space:];&|()]'
+# A brace expansion inside a shell word: `{a,b}`, `{1..3}`.
+OPTIN_BR="\\{${OPTIN_P}*(,|\\.\\.)${OPTIN_P}*\\}"
+# `sigil`, any global options, then `pip` or `npm` (a piece of a brace
+# group too: `{sigil,pip}`), or a command word that is an expansion.
+OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|[\$\`]${OPTIN_C}*)${OPTIN_S}[\"'{]*(pip|npm)[\"'}]*"
+# `sigil` and, right after it, a word that may expand to `pip`/`npm`.
+OPTIN_SUBX="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*${OPTIN_S}[\"']*(${OPTIN_C}*[\$\`]${OPTIN_C}*|${OPTIN_P}*${OPTIN_BR}${OPTIN_P}*)"
+# A word after it that is the flag, or may expand to it: `$` or a backtick.
+OPTIN_FLAG="${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])"
+# A shell word that begins like an option or a pattern (`-`, `{`, `*`, `?`,
+# `[`) and holds a brace expansion or a glob, which the shell may expand to
+# the flag. A bracket pattern counts in a word that starts with `-`
+# (`--allow-build-scr[i]pts`) or opens with `[-`, `[!` or `[^`; `['sigil'`
+# and `[sigil,pip]` are the elements of an argv list.
+OPTIN_PAT="[[:space:]()][\"']*((-${OPTIN_P}*)?(${OPTIN_BR}|[*?])|-${OPTIN_P}*\\[[^]'\"[:space:];&|()]|\\[[-!^])"
+optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
+optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
+optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
+optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
 optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
   && OPTIN=1
 allow_unless_opt_in() {

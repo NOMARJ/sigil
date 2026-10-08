@@ -77,6 +77,9 @@ fn pip_refuses_what_pip_would_build_or_run() {
         "pkg/sub",
         "~/pkg",
         "pkg\\sub",
+        // A Windows drive path looks like a URL scheme, but is a path.
+        "C:\\pkg",
+        "c:/pkg",
         // Names pip reads as an archive in the working directory.
         "markerpkg.tgz",
         "pkg.tar.gz",
@@ -96,8 +99,6 @@ fn pip_refuses_what_pip_would_build_or_run() {
         assert_eq!(pip(spec), "local-path", "{spec}");
     }
     for spec in [
-        // A drive letter reads as a URL scheme.
-        "C:\\pkg",
         // URLs and VCS references.
         "https://example.invalid/pkg-1.0.tar.gz",
         "http://example.invalid/pkg",
@@ -113,6 +114,30 @@ fn pip_refuses_what_pip_would_build_or_run() {
         "pkg @ git+https://github.com/owner/repo",
     ] {
         assert_eq!(pip(spec), "not-registry", "{spec}");
+    }
+}
+
+#[test]
+fn an_environment_marker_is_named_as_one() {
+    for spec in [
+        "six; python_version<'3'",
+        "six ; os_name=='nt'",
+        "six==1.0; python_version<'3'",
+        "six==1.0 ; python_version<'3'",
+        "six[x]; os_name=='nt'",
+        "six (>=1); os_name=='nt'",
+        "six>=1,<2; os_name=='nt'",
+    ] {
+        match check_spec(Manager::Pip, spec, false) {
+            Err(SpecError::Malformed(why)) => {
+                assert!(why.contains("environment marker"), "{spec}: {why}");
+                assert!(
+                    !why.contains("expected a version specifier"),
+                    "{spec}: {why}"
+                );
+            }
+            other => panic!("{spec}: {other:?}"),
+        }
     }
 }
 
@@ -276,6 +301,9 @@ fn npm_refuses_what_npm_would_build_or_run() {
         "~/dir",
         ".foo",
         "dir\\sub",
+        // A Windows drive path looks like a URL scheme, but is a path.
+        "C:\\dir",
+        "c:/dir",
         "file:../dir",
         "file:pkg.tgz",
         "FILE:../dir",
@@ -296,8 +324,6 @@ fn npm_refuses_what_npm_would_build_or_run() {
         assert_eq!(npm(spec), "local-path", "{spec}");
     }
     for spec in [
-        // A drive letter reads as a URL scheme.
-        "C:\\dir",
         // Tarball URLs.
         "https://registry.npmjs.org/x/-/x-1.0.0.tgz",
         "http://example.invalid/x.tgz",
@@ -831,6 +857,49 @@ fn only_a_plain_http_tarball_url_is_packed() {
     assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
     let why = check_npm_tarball_url("https://gitlab.com/o/r.tgz").unwrap_err();
     assert!(why.contains("git repository on gitlab.com"), "{why}");
+}
+
+#[test]
+fn a_tarball_string_npm_could_read_as_a_path_is_refused() {
+    // The URL parser drops a leading space or control character and any tab
+    // or line break; npm-package-arg does not, and reads such a string as a
+    // relative path (a directory it prepares). What is checked is what npm
+    // is given, so each of these is refused as written.
+    for bad in [
+        " https://x/../../tmp/dir",
+        "\u{1}https://x/a.tgz",
+        "\thttps://x/a.tgz",
+        "\nhttps://x/a.tgz",
+        "\u{c}https://x/a.tgz",
+        "ht\ttps://x/a.tgz",
+        "ht\ntps://x/a.tgz",
+        "ht\rtps://x/a.tgz",
+        "https\t://x/a.tgz",
+        "https://x/a.tgz\n",
+        "https://x/a.tgz ",
+        "https://x/a b.tgz",
+        "https://x/a\u{1}b.tgz",
+        "https://x/a\u{7f}b.tgz",
+        // A scheme the URL parser accepts without its slashes.
+        "http:/x/a.tgz",
+        "https:x/a.tgz",
+        "https:\\\\x\\a.tgz",
+        "\u{feff}https://x/a.tgz",
+    ] {
+        let why = check_npm_tarball_url(bad).unwrap_err();
+        assert!(!why.contains(|c: char| c.is_control()), "{bad:?}: {why:?}");
+    }
+    let why = check_npm_tarball_url(" https://x/../../tmp/dir").unwrap_err();
+    assert!(why.contains("local path"), "{why}");
+    // Plain downloads, in either case of the scheme.
+    for ok in [
+        "https://registry.example/pkg/-/pkg-1.0.0.tgz",
+        "HTTPS://registry.example/pkg/-/pkg-1.0.0.tgz",
+        "http://127.0.0.1:4873/pkg/-/pkg-1.0.0.tgz",
+        "https://registry.example/pkg/-/pkg-1.0.0.tgz?x=%20y",
+    ] {
+        assert!(check_npm_tarball_url(ok).is_ok(), "{ok}");
+    }
 }
 
 #[test]

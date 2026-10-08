@@ -365,3 +365,108 @@ def test_npm_target_that_is_not_a_registry_package_is_refused(
     assert ok is False
     assert recorder["http"] == []
     assert recorder["exec"] == []
+
+
+# ---------------------------------------------------------------------------
+# The bot worker takes the same downloaders and has no pip/npm fallback
+# ---------------------------------------------------------------------------
+
+BOT_DIR = Path(__file__).resolve().parents[2] / "bot"
+PACKAGE_MANAGERS = {"pip", "pip3", "pipx", "uv", "npm", "npx", "yarn", "pnpm"}
+
+
+def _spawned_package_managers(source: str) -> list[str]:
+    """Package managers named in an argv handed to a subprocess API."""
+    import ast
+
+    spawners = {
+        "create_subprocess_exec",
+        "create_subprocess_shell",
+        "run",
+        "Popen",
+        "call",
+        "check_call",
+        "check_output",
+        "system",
+        "popen",
+        "execv",
+        "execvp",
+    }
+    found: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", "")
+        if name not in spawners:
+            continue
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Constant) and isinstance(sub.value, str):
+                words = sub.value.split()
+                if words and words[0].rsplit("/", 1)[-1] in PACKAGE_MANAGERS:
+                    found.append(sub.value)
+    return found
+
+
+def test_bot_never_spawns_a_package_manager() -> None:
+    """`pip download` builds sdists and `npm pack <name>` can prepare a git
+    or directory tarball: the bot (which feeds on freshly published
+    packages) gets its files from the crawler's HTTP downloaders only."""
+    sources = sorted(BOT_DIR.rglob("*.py"))
+    assert sources, f"no bot sources under {BOT_DIR}"
+    spawned = {
+        str(p.relative_to(BOT_DIR.parent)): _spawned_package_managers(
+            p.read_text(encoding="utf-8")
+        )
+        for p in sources
+    }
+    assert {k: v for k, v in spawned.items() if v} == {}
+    worker = (BOT_DIR / "worker" / "__init__.py").read_text(encoding="utf-8")
+    assert "_download_fallback" not in worker
+
+
+def test_the_package_manager_check_sees_what_it_looks_for() -> None:
+    assert _spawned_package_managers(
+        "await asyncio.create_subprocess_exec('npm', 'pack', spec)"
+    ) == ["npm"]
+    assert _spawned_package_managers("subprocess.run(['pip', 'download', spec])") == [
+        "pip"
+    ]
+    assert _spawned_package_managers("os.system('npm pack x')") == ["npm pack x"]
+    assert (
+        _spawned_package_managers(
+            "await asyncio.create_subprocess_exec(sigil_bin, 'scan', d)"
+        )
+        == []
+    )
+
+
+def test_bot_download_fails_without_the_crawler_instead_of_shelling_out(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With the crawler's downloaders unavailable the job fails; no pip or
+    npm subprocess is started in their place."""
+    import sys
+
+    pytest.importorskip("redis")
+    pytest.importorskip("pydantic_settings")
+    monkeypatch.syspath_prepend(str(BOT_DIR.parent))
+    try:
+        from bot import worker
+    except ImportError as exc:  # the bot's other dependencies are not installed
+        pytest.skip(f"bot.worker is not importable here: {exc}")
+
+    spawned: list[Any] = []
+
+    async def fake_exec(*cmd: str, **kwargs: Any) -> _Proc:
+        spawned.append(cmd)
+        return _Proc()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    # `None` in sys.modules makes `from api.services.crawler import ...` raise
+    # ImportError, as it does where the api package is not shipped.
+    monkeypatch.setitem(sys.modules, "api.services.crawler", None)
+    for ecosystem in ("npm", "pip", "pypi", "github"):
+        job = worker.ScanJob(ecosystem=ecosystem, name="demo", version="1.0")
+        assert asyncio.run(worker._download_and_extract(job, "/nonexistent")) is False
+    assert spawned == []

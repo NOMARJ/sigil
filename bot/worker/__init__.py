@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 async def _download_and_extract(job: ScanJob, dest: str) -> bool:
     """Download and extract a package to dest directory.
 
-    Delegates to the existing crawler's download functions.
+    Delegates to the existing crawler's download functions, which never run
+    the package's own code (no pip build, no npm lifecycle script).
     """
     try:
         from api.services.crawler import (
@@ -58,87 +59,21 @@ async def _download_and_extract(job: ScanJob, dest: str) -> bool:
         else:
             return await _download_git(target, dest)
 
-    except ImportError:
-        # Fallback: use subprocess commands directly
-        return await _download_fallback(job, dest)
-
-
-async def _download_fallback(job: ScanJob, dest: str) -> bool:
-    """Fallback download using subprocess commands."""
-    try:
-        if job.ecosystem == "npm":
-            pkg_spec = f"{job.name}@{job.version}" if job.version else job.name
-            proc = await asyncio.create_subprocess_exec(
-                "npm",
-                "pack",
-                pkg_spec,
-                "--pack-destination",
-                dest,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=120)
-            if proc.returncode != 0:
-                return False
-            # Extract tarballs
-            for tgz in Path(dest).glob("*.tgz"):
-                await asyncio.create_subprocess_exec(
-                    "tar",
-                    "xzf",
-                    str(tgz),
-                    "-C",
-                    dest,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-            return True
-
-        elif job.ecosystem in ("pip", "pypi"):
-            pkg_spec = f"{job.name}=={job.version}" if job.version else job.name
-            proc = await asyncio.create_subprocess_exec(
-                "pip",
-                "download",
-                "--no-deps",
-                "-d",
-                dest,
-                pkg_spec,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=120)
-            if proc.returncode != 0:
-                return False
-            for archive in Path(dest).glob("*.tar.gz"):
-                await asyncio.create_subprocess_exec(
-                    "tar",
-                    "xzf",
-                    str(archive),
-                    "-C",
-                    dest,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-            return True
-
-        else:
-            # Git clone
-            url = job.download_url or f"https://github.com/{job.name}.git"
-            proc = await asyncio.create_subprocess_exec(
-                "git",
-                "clone",
-                "--depth",
-                "1",
-                url,
-                f"{dest}/repo",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(proc.communicate(), timeout=120)
-            return proc.returncode == 0
-
-    except Exception as e:
-        logger.warning(
-            "Download fallback failed for %s/%s: %s", job.ecosystem, job.name, e
+    except ImportError as exc:
+        # There is no subprocess fallback. `pip download` builds a source
+        # distribution (running its setup.py or build backend), and
+        # `npm pack <name>` follows whatever tarball the registry names,
+        # including a git checkout or directory whose prepare script it runs:
+        # package code on this host, before the scan. The crawler's
+        # downloaders fetch the registry's files over HTTP, check their
+        # digests and only unpack them, so without them the job fails (and is
+        # retried or dead-lettered) rather than fetching an unchecked way.
+        logger.error(
+            "Cannot download %s/%s: the crawler's downloaders are unavailable "
+            "(%s); not falling back to pip or npm subprocesses",
+            job.ecosystem,
+            job.name,
+            exc,
         )
         return False
 

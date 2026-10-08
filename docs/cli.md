@@ -247,7 +247,9 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    which versions exist (`pip index versions --pre -- <name>`, which builds
    nothing; it needs pip 21.2 or later) and picks the one `pip install <spec>`
    would pick: the highest that matches, with pre-releases only when the spec
-   names one or pip's config sets `pre`. It prints the result, for example
+   names one, pip's config sets `pre` (or `PIP_PRE` is set), or the index has
+   no final release of the package and the spec has no version specifier
+   (pip then takes the newest pre-release, and so does Sigil). It prints the result, for example
    ``requests<2.32 resolves to requests==2.31.0 (the release `pip install`
    picks here)``. The resolved version is checked like a typed one. Nothing is
    added to quarantine before this.
@@ -267,7 +269,11 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 6. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
    anything worse, 2 when the spec or pip's config was refused, the lookup or
    download failed, pip saved nothing to quarantine, or the scan failed. A
-   failure before the scan removes the quarantine entry it created. With
+   failure before the scan, or an interrupt (Ctrl-C, SIGTERM; exit 130 or
+   143), removes the quarantine entry it created (a process killed outright,
+   with SIGKILL, cannot). The entry is named for the release downloaded
+   (`requests==2.31.0`), not the range typed, so `sigil list` and `sigil
+   approve` show the version that was scanned. With
    `--auto-approve`, a LOW RISK result is approved. With `--format json`, the
    report's `package` field names the release scanned (`requests==2.32.3`).
 
@@ -343,8 +349,12 @@ sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    not). It prints the release when it differs from what you typed:
    `left-pad@^1.2 resolves to left-pad@1.3.0`.
 3. Checks that release's tarball URL. It must be an `http(s)` URL that npm
-   downloads as a tarball. A registry entry whose tarball is a git URL or a
-   `file:` path is refused with exit 2, and so is a URL npm reads as a git
+   downloads as a tarball, written as one: the string starts with `http://` or
+   `https://` and holds no space or control character, because npm reads any
+   other string (` https://x/../dir`, `ht<TAB>tps://…`) as a local path, which
+   it packs and prepares, however a URL parser would tidy it. A registry
+   entry whose tarball is a git URL, a `file:` path or such a string is
+   refused with exit 2, and so is a URL npm reads as a git
    repository: on GitHub, GitLab, Bitbucket, Gist or sourcehut, a path that
    names a repository (`https://github.com/owner/repo`, `…/repo.tgz`,
    `…/tree/<ref>`), as npm's hosted-git-info reads it. npm would clone such a
@@ -364,7 +374,10 @@ sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 7. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
    anything worse, 2 when the spec, the registry's tarball or its integrity
    was refused, the lookup or download failed, or the scan failed. A failure
-   before the scan removes the quarantine entry it created. With
+   before the scan, or an interrupt (Ctrl-C, SIGTERM; exit 130 or 143),
+   removes the quarantine entry it created (a process killed outright, with
+   SIGKILL, cannot); it is named for the release downloaded
+   (`left-pad@1.3.0`), not the range typed. With
    `--auto-approve`, a LOW RISK result is approved. With `--format json`,
    the report's `package` field names the release scanned (`left-pad@1.3.0`):
    install that version.
@@ -404,15 +417,24 @@ string a shell, `find -exec` or a here-string runs, in an interpreter's argv
 list (`subprocess.run(['sigil','pip',…,'--allow-build-scripts'])`), and in text
 that only mentions it (`echo sigil pip x --allow-build-scripts` is asked about
 too, as `echo npm install x` is denied). They also ask when a word after
-`pip`/`npm` is a `$` or backtick expansion, which could expand to the flag,
-when `xargs` feeds the call, and when the command word right before
+`pip`/`npm` is a `$` or backtick expansion, which could expand to the flag, or
+one that begins like an option or a pattern (`-`, `{`, `*`, `?`, `[`) and holds
+a brace expansion (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`;
+a glob expands only where a file of that name exists, which the command can
+arrange); when `xargs` feeds the call; when the command word right before
 `pip`/`npm` is itself an expansion (`$SIGIL pip …`, `$(command -v sigil) pip
-…`); a redirection's file (`sigil pip x > "$LOG"`) and one quoted value after
-`-V` (`-V "$VER"`) are not asked about. The ask is not a hard boundary: a
-subcommand or argv list built in a variable (`sigil $CMD`) is not read, and
-the hook allows `npm pack <directory or git spec>` and `pip download <path,
-URL or package>` run directly, which run the same package code without a
-quarantine or scan. The package-scan tools of the MCP servers never pass the
+…`); and when the word right after `sigil` is one that may expand to `pip` or
+`npm` (`sigil $SUB x`, `sigil {pip,npm} x`). Quoting the shell splices into a
+string it hands to an interpreter (`'\''`, `'"'"'`, `\"`) is undone before
+the argv list is read. A redirection's file (`sigil pip x > "$LOG"`), one
+quoted value after `-V` (`-V "$VER"`) and a version range or extras
+(`'requests[security]'`, `'lodash@*'`) are not asked about. The ask is not a
+hard boundary. It does not read a flag a program builds at run time
+(`'--allow-build-' + 'scripts'` in an interpreter's code), a file or variable
+the call takes its arguments from, or an expansion that is not right after
+`sigil` (`sigil --format json $SUB x`). The hook allows `npm pack <directory or
+git spec>` and `pip download <path, URL or package>` run directly, which run
+the same package code without a quarantine or scan. The package-scan tools of the MCP servers never pass the
 flag. For `deno run npm:<package>/<subpath>` the deny names the package
 without the subpath (`sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main`),
 since npm reads `chalk@5.3.0/main` as a git shorthand.

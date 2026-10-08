@@ -202,6 +202,52 @@ check ask   "opt-in in a python argv list" "python3 -c \"import subprocess; subp
 check ask   "opt-in, python list, spaces"  "python3 -c 'import subprocess; subprocess.run([\"sigil\", \"pip\", \"./x\", \"--allow-build-scripts\"])'"
 check ask   "opt-in in a node argv list"   "node -e \"require('child_process').execFileSync('sigil',['npm','./x','--allow-build-scripts'])\""
 check allow "argv list without the flag"   "python3 -c \"import subprocess; subprocess.run(['sigil','pip','requests'])\""
+# A word the shell expands to the flag: a brace expansion, or a glob (which
+# matches where a file of that name exists, as the command can arrange).
+check ask   "opt-in, brace expansion"      'sigil pip evil --allow-build-{scripts,x}'
+check ask   "opt-in, brace in the middle"  'sigil pip evil --{allow-build-scripts,x}'
+check ask   "opt-in, brace after a dash"   'sigil pip evil -{-allow-build-scripts,}'
+check ask   "opt-in, brace-led word"       'sigil pip evil {--allow-build-scripts,}'
+check ask   "opt-in, brace with an empty"  'sigil npm evil {a,--allow-build-scripts}'
+check ask   "opt-in, star glob"             'sigil pip evil --allow-build-s*'
+check ask   "opt-in, question-mark glob"   'sigil pip evil --allow-build-scr?pts'
+check ask   "opt-in, bracket glob"         'sigil pip evil --allow-build-scr[i]pts'
+check ask   "opt-in, bracket-led glob"     'sigil pip evil [-]-allow-build-scripts'
+check ask   "opt-in, negated bracket glob" 'sigil pip evil [!x]-allow-build-scripts'
+check ask   "opt-in, dash-led bracket"     'sigil pip evil -[-]allow-build-scripts'
+check ask   "opt-in, star-led glob"        'sigil pip evil *allow-build-scripts'
+check ask   "opt-in, file made, then glob" 'touch ./--allow-build-scripts && sigil pip evil --allow-build-scr*'
+# pip or npm from an expansion right after sigil, or one brace group.
+check ask   "subcommand from a variable"   'P=pip; sigil $P evil --allow-build-scripts'
+check ask   "subcommand, quoted variable"  'P=pip; sigil "$P" evil --allow-build-scripts'
+check ask   "subcommand from backticks"    'sigil `echo pip` evil --allow-build-scripts'
+check ask   "subcommand from a brace group" 'sigil {pip,npm} evil --allow-build-scripts'
+check ask   "subcommand, brace in a word"  'sigil p{ip,} evil --allow-build-scripts'
+check ask   "sigil and pip in one braces"  '{sigil,pip} evil --allow-build-scripts'
+check ask   "whole call in one braces"     '{sigil,npm,evil,--allow-build-scripts}'
+# An argv list with the shell's quoting spliced into the program text.
+check ask   "list, '\'' spliced"           "python3 -c 'subprocess.run(['\''sigil'\'','\''pip'\'','\''x'\'','\''--allow-build-scripts'\''])'"
+check ask   "list, '\"'\"' spliced"         "python3 -c 'subprocess.run(['\"'\"'sigil'\"'\"','\"'\"'pip'\"'\"','\"'\"'x'\"'\"','\"'\"'--allow-build-scripts'\"'\"'])'"
+check ask   "list, mixed splices"          "python3 -c 'subprocess.run([\"sigil\",'\"'\"'pip'\"'\"',\"x\",\"--allow-build-scripts\"])'"
+check ask   "list, escaped double quotes"  "python3 -c \"subprocess.run([\\\"sigil\\\", \\\"pip\\\", \\\"x\\\", \\\"--allow-build-scripts\\\"])\""
+check ask   "node list, escaped quotes"    "node -e \"spawn(\\\"sigil\\\",[\\\"npm\\\",\\\"x\\\",\\\"--allow-build-scripts\\\"])\""
+check allow "spliced list without the flag" "python3 -c 'subprocess.run(['\''sigil'\'','\''pip'\'','\''requests'\''])'"
+check allow "escaped list without the flag" "python3 -c \"subprocess.run([\\\"sigil\\\", \\\"pip\\\", \\\"requests\\\"])\""
+# Extras, ranges and options objects are not patterns that spell the flag.
+check allow "extras, quoted"               "sigil pip 'requests[security]'"
+check allow "extras, unquoted"             "sigil pip requests[security]"
+check allow "extras with a range"          'sigil pip "requests[socks]>=2"'
+check allow "npm wildcard range, quoted"   "sigil npm 'lodash@*'"
+check allow "npm scoped wildcard"          "sigil npm @types/node@*"
+check allow "npm x-range"                  "sigil npm left-pad@1.x"
+check allow "argv list, plain word"        'echo [sigil,pip,foo]'
+check allow "two argv lists"               "echo ['sigil','pip','foo'] ['b']"
+check allow "node options object"          "node -e \"require('child_process').spawnSync('sigil',['npm','x'],{stdio:'inherit'})\""
+check allow "python dict after the list"   "python3 -c \"subprocess.run(['sigil','pip','x'],env={'A':'b','C':'d'})\""
+check allow "sigil scan, two expansions"   'sigil scan "$A" "$B"'
+check allow "sigil with only \"\$@\""       'sigil "$@"'
+check allow "sigil with one expansion"     'sigil $ARGS'
+check allow "other command, expansions"    '$CC $CFLAGS $SRC -o out'
 # A redirection's file and one quoted -V value are never the flag; an
 # unquoted expansion, or a quoted one that is an argument, can be.
 check allow "redirect file is \$LOG"        'sigil pip requests > "$LOG" 2>&1'

@@ -22,7 +22,9 @@ use std::process::{Command, Output};
 /// success a download saves a placeholder file into `--dest` (unless
 /// `$SIGIL_TEST_PIP_SAVES` is 0) and a pack copies `$SIGIL_TEST_PACK_FILE`,
 /// when set, to `--pack-destination` or its working directory, as the real
-/// tools would.
+/// tools would. With `$SIGIL_TEST_FAKE_SLEEP` set, a download or pack writes
+/// its pid to `<tool>-<sub>.pid` and sleeps that many seconds instead (a
+/// slow transfer a test can interrupt).
 const FAKE_TOOL: &str = r#"#!/bin/sh
 tool=$(basename "$0")
 sub=$1
@@ -34,6 +36,10 @@ case "$tool $sub" in
   "pip index") printf '%s\n' "${SIGIL_TEST_PIP_INDEX:-}"; exit 0 ;;
   "npm view") printf '%s\n' "${SIGIL_TEST_NPM_VIEW:-}"; exit 0 ;;
 esac
+if [ -n "${SIGIL_TEST_FAKE_SLEEP:-}" ]; then
+  echo $$ > "$SIGIL_TEST_LOG_DIR/$tool-$sub.pid"
+  exec sleep "$SIGIL_TEST_FAKE_SLEEP"
+fi
 if [ -n "${SIGIL_TEST_FAKE_STDERR:-}" ]; then printf '%s\n' "$SIGIL_TEST_FAKE_STDERR" >&2; fi
 status=${SIGIL_TEST_FAKE_EXIT:-0}
 if [ "$status" = 0 ]; then
@@ -94,6 +100,12 @@ fn sigil(fx: &Fixture, args: &[&str], env: &[(&str, &str)]) -> Output {
 }
 
 fn run_sigil(fx: &Fixture, args: &[&str], path: &str, env: &[(&str, &str)]) -> Output {
+    sigil_command(fx, args, path, env)
+        .output()
+        .expect("run sigil")
+}
+
+fn sigil_command(fx: &Fixture, args: &[&str], path: &str, env: &[(&str, &str)]) -> Command {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_sigil"));
     cmd.args(args)
         .current_dir(&fx.root)
@@ -114,7 +126,7 @@ fn run_sigil(fx: &Fixture, args: &[&str], path: &str, env: &[(&str, &str)]) -> O
     for (k, v) in env {
         cmd.env(k, v);
     }
-    cmd.output().expect("run sigil")
+    cmd
 }
 
 fn code(o: &Output) -> i32 {
@@ -289,6 +301,14 @@ fn pip_resolves_an_unpinned_spec_to_the_release_pip_install_picks() {
             stdout(&out).contains("resolves to"),
             "{spec}: {}",
             stdout(&out)
+        );
+        // `sigil list` names the release that was downloaded, not the spec
+        // that was typed.
+        let list = sigil(&fx, &["list"], &[]);
+        assert!(
+            stdout(&list).contains(&format!("{pinned} (pip)")),
+            "{spec}: {}",
+            stdout(&list)
         );
     }
 }
@@ -573,6 +593,8 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
         vec!["pip", "git+https://example.invalid/owner/repo"],
         vec!["pip", "pkg @ https://example.invalid/pkg-1.0.tar.gz"],
         vec!["pip", "markerpkg.tgz"],
+        vec!["pip", "C:\\x\\y"],
+        vec!["pip", "six; python_version<'3'"],
         vec!["pip", "x==1.zip "],
         vec!["pip", "requests>=2", "-V", "2.32.3"],
         vec![
@@ -605,6 +627,16 @@ fn pip_refusals_run_nothing_and_quarantine_nothing() {
     let err = stderr(&out);
     assert!(err.contains("`sigil scan ./local-project`"), "{err}");
     assert!(!err.contains("--allow-build-scripts"), "{err}");
+    // A Windows drive path is a path, not a URL.
+    let out = sigil(&fx, &["pip", "C:\\x\\y"], &[]);
+    let err = stderr(&out);
+    assert!(err.contains("`sigil scan C:\\x\\y`"), "{err}");
+    assert!(!err.contains("it is a URL"), "{err}");
+    // An environment marker is named as one.
+    let out = sigil(&fx, &["pip", "six; python_version<'3'"], &[]);
+    let err = stderr(&out);
+    assert!(err.contains("environment marker"), "{err}");
+    assert!(!err.contains("expected a version specifier"), "{err}");
     let out = sigil(&fx, &["pip", "git+https://example.invalid/o/r"], &[]);
     assert!(
         stderr(&out).contains("--allow-build-scripts"),
@@ -693,6 +725,14 @@ fn npm_says_which_release_a_range_resolves_to() {
         argv.last().map(String::as_str),
         Some("https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz")
     );
+    // The quarantine entry is named for the release, not the range typed.
+    let list = sigil(&fx, &["list"], &[]);
+    assert!(
+        stdout(&list).contains("left-pad@1.3.0 (npm)"),
+        "{}",
+        stdout(&list)
+    );
+    assert!(!stdout(&list).contains("^1.2"), "{}", stdout(&list));
 }
 
 /// A tarball that does not hash to the registry's integrity is what
@@ -774,6 +814,39 @@ fn npm_refuses_a_registry_tarball_that_is_not_a_plain_download() {
 }
 
 #[test]
+fn npm_refuses_a_tarball_string_that_npm_would_read_as_a_path() {
+    // The registry's string reaches `npm pack` as it is, and npm reads a
+    // string that does not start with `http:` or `https:` as a path (a
+    // directory, whose prepare script it runs), however a URL parser would
+    // tidy it. None of these may start `npm pack`.
+    for tarball in [
+        " https://x/../../tmp/dir",
+        "\u{1}https://x/../../tmp/dir",
+        "ht\ttps://x/../../tmp/dir",
+        "ht\ntps://x/../../tmp/dir",
+        "\thttps://x/a.tgz",
+        "https://x/a.tgz\n",
+    ] {
+        let fx = fixture();
+        let view = npm_view("pathpkg", "1.0.0", tarball, "");
+        let out = sigil(&fx, &["npm", "pathpkg"], &[("SIGIL_TEST_NPM_VIEW", &view)]);
+        assert_eq!(code(&out), 2, "{tarball:?}: {}", stderr(&out));
+        let err = stderr(&out);
+        assert!(err.contains("will not download `pathpkg@1.0.0`"), "{err}");
+        assert!(err.contains("local path"), "{err}");
+        assert!(
+            !err.contains(|c: char| c.is_control() && c != '\n'),
+            "a control character reached the terminal: {err:?}"
+        );
+        assert!(
+            recorded(&fx, "npm-pack").is_none(),
+            "{tarball:?} was packed"
+        );
+        assert!(quarantine_items(&fx).is_empty(), "{tarball:?}");
+    }
+}
+
+#[test]
 fn npm_packs_a_package_registry_url_on_a_git_host() {
     // GitLab's npm package registry serves tarballs from gitlab.com; npm
     // downloads such a URL as a tarball (hosted-git-info reads a `/-/` path
@@ -795,6 +868,166 @@ fn npm_packs_a_package_registry_url_on_a_git_host() {
     assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
     let (argv, _) = recorded(&fx, "npm-pack").expect("npm pack ran");
     assert_eq!(argv.last().map(String::as_str), Some(tarball));
+}
+
+#[test]
+fn parallel_runs_that_fail_leave_a_whole_index_and_no_pending_entry() {
+    // Every run adds its quarantine entry and, its `npm pack` failing,
+    // discards it again: two index writes per run, from eight processes
+    // sharing one quarantine. Without a lock on the index, runs fail with
+    // "failed to parse quarantine index" or leave entries behind.
+    let fx = fixture();
+    let tarball = "https://registry.example/pkg/-/pkg-1.0.0.tgz";
+    let outputs: Vec<(String, i32, String)> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..8)
+            .map(|n| {
+                let fx = &fx;
+                scope.spawn(move || {
+                    let mut seen = Vec::new();
+                    for round in 0..3 {
+                        let name = format!("par{n}x{round}");
+                        let view = npm_view(&name, "1.0.0", tarball, "");
+                        let out = sigil(
+                            fx,
+                            &["npm", &name],
+                            &[
+                                ("SIGIL_TEST_NPM_VIEW", &view),
+                                ("SIGIL_TEST_FAKE_EXIT", "1"),
+                            ],
+                        );
+                        seen.push((name, code(&out), stderr(&out)));
+                    }
+                    seen
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().expect("worker"))
+            .collect()
+    });
+    assert_eq!(outputs.len(), 24);
+    for (name, status, err) in &outputs {
+        assert_eq!(*status, 2, "{name}: {err}");
+        assert!(err.contains("npm pack failed"), "{name}: {err}");
+        assert!(!err.contains("quarantine index"), "{name}: {err}");
+        assert!(!err.contains("quarantine entry"), "{name}: {err}");
+    }
+    assert!(
+        quarantine_items(&fx).is_empty(),
+        "{:?}",
+        quarantine_items(&fx)
+    );
+    let list = sigil(&fx, &["list"], &[]);
+    assert_eq!(code(&list), 0, "{}", stderr(&list));
+    assert!(!stdout(&list).contains("PENDING"), "{}", stdout(&list));
+}
+
+/// Wait (up to `secs`) for `path` to exist.
+fn wait_for_file(path: &Path, secs: u64) -> bool {
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(secs);
+    while std::time::Instant::now() < deadline {
+        if path.exists() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(25));
+    }
+    path.exists()
+}
+
+#[test]
+fn an_interrupted_download_leaves_no_pending_entry() {
+    // Ctrl-C (SIGINT) or a `timeout` (SIGTERM) during a slow transfer ends
+    // the process at once unless it is caught: no drop runs, and the empty
+    // PENDING entry stays for `sigil list` and `sigil approve`.
+    for (tool, signal, want) in [
+        ("npm", "INT", 130),
+        ("npm", "TERM", 143),
+        ("pip", "TERM", 143),
+    ] {
+        let fx = fixture();
+        let view = npm_view(
+            "slowpkg",
+            "1.0.0",
+            "https://registry.example/slowpkg/-/slowpkg-1.0.0.tgz",
+            "",
+        );
+        let path = format!(
+            "{}:{}",
+            fx.bin.display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+        let args: &[&str] = if tool == "npm" {
+            &["npm", "slowpkg"]
+        } else {
+            &["pip", "slowpkg==1.0"]
+        };
+        let mut child = sigil_command(
+            &fx,
+            args,
+            &path,
+            &[
+                ("SIGIL_TEST_NPM_VIEW", &view),
+                ("SIGIL_TEST_FAKE_SLEEP", "30"),
+            ],
+        )
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("run sigil");
+        let transfer_pid = fx.logs.join(format!(
+            "{tool}-{}.pid",
+            if tool == "npm" { "pack" } else { "download" }
+        ));
+        assert!(
+            wait_for_file(&transfer_pid, 20),
+            "{tool}: the transfer never started"
+        );
+        assert_eq!(
+            quarantine_items(&fx).len(),
+            1,
+            "{tool}: an entry exists mid-download"
+        );
+
+        let sent = Command::new("kill")
+            .args(["-s", signal, &child.id().to_string()])
+            .status()
+            .expect("kill");
+        assert!(sent.success());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let status = loop {
+            if let Some(status) = child.try_wait().expect("try_wait") {
+                break status;
+            }
+            if std::time::Instant::now() > deadline {
+                let _ = child.kill();
+                panic!("{tool} {signal}: sigil did not exit after the signal");
+            }
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        };
+        // The transfer's own process (it inherited sigil's stderr) is not
+        // the test's to leave running; stderr only ends once it is gone.
+        if let Ok(pid) = std::fs::read_to_string(&transfer_pid) {
+            let _ = Command::new("kill").arg(pid.trim()).status();
+        }
+        let mut err = String::new();
+        if let Some(mut pipe) = child.stderr.take() {
+            use std::io::Read;
+            let _ = pipe.read_to_string(&mut err);
+        }
+        assert_eq!(status.code(), Some(want), "{tool} {signal}: {err}");
+        assert!(
+            err.contains("removed the unscanned quarantine entry"),
+            "{tool} {signal}: {err}"
+        );
+        assert!(quarantine_items(&fx).is_empty(), "{tool} {signal}");
+        let list = sigil(&fx, &["list"], &[]);
+        assert!(
+            !stdout(&list).contains("PENDING"),
+            "{tool} {signal}: {}",
+            stdout(&list)
+        );
+    }
 }
 
 #[test]
@@ -847,6 +1080,7 @@ fn npm_refusals_run_nothing_and_quarantine_nothing() {
         ("./local-dir", Some("./local-dir")),
         ("../local-dir", Some("../local-dir")),
         ("/abs/dir", Some("/abs/dir")),
+        ("C:\\x", Some("C:\\x")),
         ("owner/repo", None),
         ("npmdir/", Some("npmdir/")),
         ("github:owner/repo", None),
@@ -975,6 +1209,34 @@ fn mcp_scan_package_gets_the_same_defaults() {
     assert!(argv.iter().any(|a| a == "--only-binary=:all:"), "{argv:?}");
     assert_eq!(argv.last().map(String::as_str), Some("requests==2.32.3"));
     assert_eq!(result["structuredContent"]["package"], "requests==2.32.3");
+}
+
+#[test]
+fn mcp_scan_package_explains_a_missing_wheel_in_full() {
+    // pip's own progress and ERROR lines come first; the advice (pin a
+    // version that has a wheel) comes last and must reach the agent.
+    let fx = fixture();
+    let noise = "Looking in indexes: https://pypi.example/simple\n".repeat(30);
+    let result = mcp_scan_package(
+        &fx,
+        serde_json::json!({ "ecosystem": "pypi", "name": "idx-pkg" }),
+        &[
+            (
+                "SIGIL_TEST_PIP_INDEX",
+                "idx-pkg (2.0)\nAvailable versions: 2.0, 1.0",
+            ),
+            ("SIGIL_TEST_FAKE_EXIT", "1"),
+            (
+                "SIGIL_TEST_FAKE_STDERR",
+                &format!("{noise}ERROR: No matching distribution found for idx-pkg==2.0"),
+            ),
+        ],
+    );
+    assert_eq!(result["isError"], true, "{result}");
+    let text = result["content"][0]["text"].as_str().unwrap_or_default();
+    assert!(text.contains("`idx-pkg==2.0` is the release"), "{text}");
+    assert!(text.contains("Pin a version that has a wheel"), "{text}");
+    assert!(text.contains("--allow-build-scripts"), "{text}");
 }
 
 #[test]

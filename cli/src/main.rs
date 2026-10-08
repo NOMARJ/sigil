@@ -1823,7 +1823,9 @@ fn absolute_entry_path(path: &Path) -> PathBuf {
 /// A quarantine entry whose download has not reached its scan. Unless
 /// [`PendingEntry::scanning`] is called first, it is discarded when dropped
 /// (files and index record), so a failed lookup, refusal or download leaves
-/// no empty PENDING entry behind for `sigil approve`.
+/// no empty PENDING entry behind for `sigil approve`. An interrupt (Ctrl-C,
+/// SIGTERM) during the download discards it too, which a drop cannot do: see
+/// [`watch_for_interrupt`].
 struct PendingEntry {
     id: String,
     keep: bool,
@@ -1831,6 +1833,10 @@ struct PendingEntry {
 
 impl PendingEntry {
     fn new(id: &str) -> Self {
+        watch_for_interrupt();
+        if let Ok(mut active) = ACTIVE_ENTRY.lock() {
+            *active = Some(id.to_string());
+        }
         PendingEntry {
             id: id.to_string(),
             keep: false,
@@ -1840,11 +1846,13 @@ impl PendingEntry {
     /// The download is in quarantine and is about to be scanned: keep it.
     fn scanning(&mut self) {
         self.keep = true;
+        clear_active_entry();
     }
 }
 
 impl Drop for PendingEntry {
     fn drop(&mut self) {
+        clear_active_entry();
         if !self.keep {
             if let Err(err) = quarantine::discard(&self.id) {
                 eprintln!(
@@ -1855,6 +1863,82 @@ impl Drop for PendingEntry {
             }
         }
     }
+}
+
+/// The quarantine entry an interrupt discards: set while a download has not
+/// reached its scan.
+static ACTIVE_ENTRY: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn clear_active_entry() {
+    if let Ok(mut active) = ACTIVE_ENTRY.lock() {
+        *active = None;
+    }
+}
+
+/// Start (once) a thread that waits for SIGINT or SIGTERM (Ctrl-C on
+/// Windows). The default action ends the process at once, with no drop
+/// running, and would leave the empty PENDING entry that `sigil list` and
+/// `sigil approve` then show; this discards it first and exits with the
+/// usual `128 + signal` status. The thread has a runtime of its own, since
+/// the download waits on pip or npm and may be holding the only worker of
+/// the main one. Returns once the handlers are installed.
+fn watch_for_interrupt() {
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+        let spawned = std::thread::Builder::new()
+            .name("interrupt-watch".into())
+            .spawn(move || {
+                let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                else {
+                    return;
+                };
+                let status = rt.block_on(wait_for_interrupt(|| {
+                    let _ = ready_tx.send(());
+                }));
+                let active = ACTIVE_ENTRY.lock().ok().and_then(|mut a| a.take());
+                if let Some(id) = active {
+                    let _ = quarantine::discard(&id);
+                    eprintln!(
+                        "{} interrupted: removed the unscanned quarantine entry {id}",
+                        "sigil:".bold().yellow()
+                    );
+                }
+                std::process::exit(status);
+            });
+        if spawned.is_ok() {
+            let _ = ready_rx.recv_timeout(std::time::Duration::from_secs(2));
+        }
+    });
+}
+
+/// Wait for an interrupt and give the exit status for it. `installed` runs
+/// once the handlers are in place.
+#[cfg(unix)]
+async fn wait_for_interrupt(installed: impl FnOnce()) -> i32 {
+    use tokio::signal::unix::{signal, SignalKind};
+    let (Ok(mut int), Ok(mut term)) = (
+        signal(SignalKind::interrupt()),
+        signal(SignalKind::terminate()),
+    ) else {
+        installed();
+        return std::future::pending().await;
+    };
+    installed();
+    tokio::select! {
+        _ = int.recv() => 130,
+        _ = term.recv() => 143,
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_for_interrupt(installed: impl FnOnce()) -> i32 {
+    let ctrl_c = tokio::signal::ctrl_c();
+    installed();
+    let _ = ctrl_c.await;
+    130
 }
 
 /// Whether pip or npm left anything in the quarantine directory.
@@ -2020,7 +2104,9 @@ async fn cmd_pip(
         resolved = Some(download_spec.clone());
     }
 
-    let entry = match quarantine::add(&pkg_spec, "pip") {
+    // Named for the release that is downloaded: what `sigil list` and
+    // `sigil approve` show is the version scanned, not the range typed.
+    let entry = match quarantine::add(&download_spec, "pip") {
         Ok(e) => e,
         Err(err) => {
             eprintln!(
@@ -2198,6 +2284,15 @@ async fn cmd_npm(
         }
         scanned = picked.id();
         if scanned != pkg_spec {
+            // The entry was made before the lookup (npm runs from its
+            // directory): name it for the release now known.
+            if let Err(err) = quarantine::set_source(&entry.id, &scanned) {
+                eprintln!(
+                    "{} could not record `{scanned}` on quarantine entry {}: {err}",
+                    "warning:".bold().yellow(),
+                    entry.id
+                );
+            }
             print_progress(
                 format,
                 format!(
@@ -2208,6 +2303,8 @@ async fn cmd_npm(
                 ),
             );
         }
+        // The string exactly as `check_npm_tarball_url` read it above: what
+        // is checked is what npm is given.
         npm.args(acquire::npm_pack_args(&picked.tarball, false, None))
             .current_dir(&qdir);
         release = Some(picked);

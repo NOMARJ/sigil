@@ -42,7 +42,15 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     `no-binary` setting in pip's config or `PIP_NO_BINARY` does not override
     the command-line option (tested).
   - `sigil npm` now asks the registry what the spec resolves to (`npm view`),
-    checks that the release's tarball URL is a plain `http(s)` download, runs
+    checks that the release's tarball URL is a plain `http(s)` download (the
+    string starts with `http://` or `https://` and holds no space or control
+    character: npm-package-arg reads any other string, such as `' https://x/../dir'`
+    or `ht<TAB>tps://…`, as a local path, which npm packs and prepares even
+    with `--ignore-scripts`, so the string is checked as written and that same
+    string is handed to npm; verified with npm-package-arg 12.0.2, and with a
+    local mock registry that served such a tarball string, where the
+    unchecked build ran a marker-writing `prepare` script and this one
+    refuses it before `npm pack` starts), runs
     `npm pack --ignore-scripts -- <tarball URL>`, and checks the packed
     tarball against the registry's `dist.integrity` (the strongest hash
     listed, as `npm install` checks it; `dist.shasum` when there is no
@@ -84,7 +92,25 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     result to auto-approve.
   - With `--format json` the report names the release that was scanned
     (`"package": "left-pad@1.3.0"`), and the MCP server's `scan_package`
-    returns it too: the version to install.
+    returns it too: the version to install. The quarantine entry is named
+    for that release too (`sigil list` shows `left-pad@1.3.0`, not the
+    `left-pad@^1.2` that was typed), so `sigil approve` records which
+    version was approved. When `scan_package` fails, the message it returns
+    keeps the end of the tools' stderr, where Sigil's advice (pin a version
+    that has a wheel) comes, instead of cutting it off after 600
+    characters.
+  - Several Sigil processes can share a quarantine: every change to
+    `quarantine/index.json` is made under an exclusive lock on `index.lock`
+    beside it, and the file is replaced by a rename, so a reader never sees a
+    half-written index. (Eight parallel `sigil npm` runs sharing one HOME,
+    each failing at `npm pack`, hit "failed to parse quarantine index" in 12
+    to 19 of 24 runs and left 7 PENDING entries behind, in three runs of the
+    build without the lock.) A Ctrl-C or SIGTERM during the download also
+    removes the unscanned entry (exit 130 or 143); only SIGKILL leaves an
+    empty one.
+  - A Windows drive path (`C:\x\y`) is refused as the local path it is, with
+    the `sigil scan <path>` pointer, not as a URL, and a PEP 508 environment
+    marker (`six; python_version<'3'`) is named as one.
   - `--allow-build-scripts` (on both commands) restores the old behaviour for
     code you already trust: any spec, no `--only-binary` / `--ignore-scripts`,
     no configuration check or registry lookup, and npm runs from your
@@ -101,15 +127,27 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     mentions it, including an interpreter's argv list (`subprocess.run(['sigil',
     'pip', …])`); a redirection before the flag, `2>&1` and `>|` included,
     does not end the call. They also ask when a word after `pip`/`npm` is a
-    `$` or backtick expansion, when `xargs` feeds the call, and when the
-    command word before `pip`/`npm` is an expansion (`$(command -v sigil)
-    pip …`), but not for a redirection's file (`> "$LOG"`) or a quoted
-    version value (`-V "$VER"`). It is not a hard boundary: a subcommand or
-    argv list built in a variable (`sigil $CMD`) is not read, and the hook
-    still allows `npm pack <dir or git spec>` and `pip download <path, URL or
-    package>` run directly. The MCP servers' package-scan tools never pass
-    the flag. The hook's suggestion for `deno run npm:<pkg>/<subpath>` now
-    names the package without the subpath (`sigil npm chalk@5.3.0`).
+    `$` or backtick expansion, or begins like an option or a pattern (`-`,
+    `{`, `*`, `?`, `[`) and holds a brace expansion
+    (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`, which
+    expands where a file of that name exists, as the command can arrange);
+    when `xargs` feeds the call; when the command word before `pip`/`npm` is
+    an expansion (`$(command -v sigil) pip …`); and when the word right after
+    `sigil` may expand to `pip` or `npm` (`sigil $SUB x`, `sigil {pip,npm}
+    x`). The quoting a shell splices into a string it hands to an
+    interpreter (`'\''`, `'"'"'`, `\"`) is undone before an argv list is
+    read. They do not ask for a redirection's file (`> "$LOG"`), a quoted
+    version value (`-V "$VER"`), or a range or extras (`'requests[security]'`,
+    `'lodash@*'`). It is not a hard boundary: a flag a program builds at run
+    time, an argv list read from a file or variable, and an expansion that is
+    not right after `sigil` (`sigil --format json $SUB x`) are not read, and
+    the hook still allows `npm pack <dir or git spec>` and `pip download
+    <path, URL or package>` run directly. The native hook reads the words of
+    a command in a single pass (a line of 40,000 `sigil` words took 15 s
+    when each rescanned those after it, and 0.4 s now). The MCP servers'
+    package-scan tools never pass the flag. The hook's suggestion for
+    `deno run npm:<pkg>/<subpath>` now names the package without the subpath
+    (`sigil npm chalk@5.3.0`).
 - **The package crawler no longer runs package code on the API host.**
   `api/services/crawler.py` downloaded PyPI packages with `pip download
   --no-binary :all:`, which builds every source distribution (running its
@@ -127,7 +165,13 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   registry.npmjs.org) naming `file:` and `git+file:` tarballs whose `prepare`
   script would create a marker file: refused, no marker, no subprocess; and
   with the real registries (`left-pad@1.3.0`, `@types/node@20.1.0`, `six
-  1.17.0`).
+  1.17.0`). The bot worker (`bot/worker`), which feeds on freshly published
+  packages, took these downloaders but kept a subprocess fallback for when
+  they could not be imported that ran `pip download` (building source
+  distributions) and `npm pack <name>` (no `--ignore-scripts`, no checks);
+  the fallback is gone, and a job whose downloaders are unavailable now fails
+  and is retried or dead-lettered. A test fails if anything under `bot/`
+  starts `pip`, `npm` or another package manager.
 
 ### 🐛 Fixed
 

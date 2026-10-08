@@ -850,24 +850,43 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 /// The flag is meant as the user's own decision; a command an agent runs is
 /// not that, so it is put to the user.
 ///
-/// Read from the words of the stage's text, as written and with literal
-/// quoting removed, wherever a `sigil` word appears (also in a quoted string
-/// that a shell, `find -exec`, `coproc` or a here-string runs, in an
-/// interpreter's argv list such as `['sigil','pip',…]`, and in text that
-/// only mentions it, as the install rules read `npm install` anywhere): a
-/// `sigil` word (or a command word that is an expansion, such as
-/// `$(command -v sigil)`), then `pip` or `npm`, then, before a `--`, a `#
-/// comment` or a `;`/`&`/`|`, a word starting with `--allow-build-scripts`
-/// (a glued redirection such as `--allow-build-scripts>log` included) or a
-/// word with a `$` or backtick, whose expansion could be the flag. A
-/// redirection and its file (`> "$LOG"`, `2>&1`) are not arguments, nor is
-/// one quoted word after `-V`/`--version` (`-V "$VER"`, its value); an
-/// unquoted `-V $VER` can split into more words and is still asked about.
-/// A sigil pip/npm call behind `xargs` is asked about too: xargs appends
-/// words it reads. The shell fallback (`sigil-guard.sh`) reads the same
-/// shapes.
+/// Read from the words of the stage's text, as written, with literal
+/// quoting removed and with the quotes of a string a shell hands to an
+/// interpreter (`'\''`, `'"'"'`, `\"`) unspliced, wherever a `sigil` word
+/// appears (also in a quoted string that a shell, `find -exec`, `coproc` or
+/// a here-string runs, in an interpreter's argv list such as
+/// `['sigil','pip',…]`, and in text that only mentions it, as the install
+/// rules read `npm install` anywhere): a `sigil` word (or a command word
+/// that is an expansion, such as `$(command -v sigil)`), then `pip` or `npm`
+/// (or, right after `sigil`, a word that may expand to it: `$SUB`,
+/// `{pip,npm}`), then, before a `--`, a `# comment` or a `;`/`&`/`|`, a word
+/// starting with `--allow-build-scripts` (a glued redirection such as
+/// `--allow-build-scripts>log` included) or a word the shell may expand to
+/// it: one with a `$` or backtick, or one that begins like an option or a
+/// pattern (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
+/// (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
+/// `--allow-build-scr?pts`, `--allow-build-scr[i]pts`; a glob expands only
+/// where a file matches, which the command can arrange). A redirection and
+/// its file (`> "$LOG"`, `2>&1`) are not arguments, nor is one quoted word
+/// after `-V`/`--version` (`-V "$VER"`, its value); an unquoted `-V $VER`
+/// can split into more words and is still asked about. A sigil pip/npm call
+/// behind `xargs` is asked about too: xargs appends words it reads. The
+/// shell fallback (`sigil-guard.sh`) reads the same shapes.
+///
+/// What it does not read: a flag that a program builds at run time
+/// (`'--allow-build-' + 'scripts'` in an interpreter's code), a file or
+/// variable the call reads its arguments from, and a call a script or alias
+/// makes without the words appearing in the command.
 fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
-    let opted_in = opt_in_words(stage) || opt_in_words(&dequote_literals(stage));
+    let unspliced = unsplice_quotes(stage);
+    let views = [
+        Some(stage),
+        (unspliced != stage).then_some(unspliced.as_str()),
+    ];
+    let opted_in = views
+        .into_iter()
+        .flatten()
+        .any(|text| opt_in_words(text) || opt_in_words(&dequote_literals(text)));
     opted_in.then(|| {
         Decision::Ask(
             "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle \
@@ -877,6 +896,21 @@ fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
                 .into(),
         )
     })
+}
+
+/// The text a shell hands to an interpreter when the interpreter's own
+/// quotes sit inside a quoted string: `'\''` and `'"'"'` (a single-quoted
+/// string closed, a quote, reopened) are one `'`, and `\"` and `\'` (in a
+/// double-quoted one) are a quote. A shell command that holds an argv list
+/// written that way reads as the list it holds.
+fn unsplice_quotes(s: &str) -> String {
+    if !s.contains(['\\', '"']) && !s.contains("'\"'") {
+        return s.to_string();
+    }
+    s.replace("'\\''", "'")
+        .replace("'\"'\"'", "'")
+        .replace("\\\"", "\"")
+        .replace("\\'", "'")
 }
 
 /// [`cmdline::dequote`] for [`opt_in_words`]: quotes come off only a run of
@@ -909,40 +943,127 @@ fn name_tail(word: &str) -> &str {
         .unwrap_or(word)
 }
 
+/// One word of the text [`opt_in_words`] reads, or a separator.
+struct OptTok<'a> {
+    /// The word; `None` for a `;`, `&`, `|` or line end.
+    text: Option<&'a str>,
+    /// The shell word it was cut from holds a brace expansion (`{a,b}`,
+    /// `{1..3}`).
+    brace: bool,
+    /// That shell word begins like an option or a pattern (`-`, `{`, `*`,
+    /// `?`, `[`) and holds a brace expansion or a glob: the shell may expand
+    /// it to the flag.
+    pattern: bool,
+}
+
+/// Whether a shell word holds a brace expansion: `{`, then a `,` or `..`,
+/// then `}`.
+fn has_brace_expansion(word: &str) -> bool {
+    word.match_indices('{').any(|(i, _)| {
+        word[i + 1..]
+            .split_once('}')
+            .is_some_and(|(inner, _)| inner.contains(',') || inner.contains(".."))
+    })
+}
+
+/// Whether a shell word holds a glob that could match an option: `*`, `?`,
+/// or, in a word that starts with `-` (`--allow-build-scr[i]pts`), a `[…]`
+/// bracket pattern.
+fn has_glob(word: &str) -> bool {
+    word.contains(['*', '?'])
+        || (word.starts_with('-')
+            && word.match_indices('[').any(|(i, _)| {
+                let rest = &word[i + 1..];
+                !rest.starts_with(['\'', '"', ']']) && rest.contains(']')
+            }))
+}
+
+/// [`OptTok::brace`] and [`OptTok::pattern`] of a shell word.
+fn expansion_shape(word: &str) -> (bool, bool) {
+    let word = word.trim_start_matches(['"', '\'']);
+    let brace = has_brace_expansion(word);
+    // A word that opens with `[` is a bracket pattern that starts with a
+    // range or negation (`[-]-allow…`, `[!x]…`), or an argv list
+    // (`['sigil','pip'],env={'A':'b','C':'d'}`, or `[sigil,pip]` once the
+    // quotes of plain words are removed), whose later braces and brackets
+    // expand nothing.
+    let pattern = if let Some(rest) = word.strip_prefix('[') {
+        rest.starts_with(['-', '!', '^']) && rest.contains(']')
+    } else {
+        word.starts_with(['-', '{', '*', '?']) && (brace || has_glob(word))
+    };
+    (brace, pattern)
+}
+
 /// The words [`opt_in_words`] reads: split at whitespace, with `;`, `&`,
 /// `|` and line ends as separators of their own (`None`) except the `&` or
 /// `|` of a redirection operator (`2>&1`, `>&2`, `<&0`, `&>f`, `>|f`), which
 /// stays in its word; and split at `[`, `]`, `(`, `)` and `,` too, so the
-/// quoted elements of an argv list (`['sigil','pip',…]`) are words.
-fn opt_in_tokens(text: &str) -> Vec<Option<&str>> {
-    let mut toks: Vec<Option<&str>> = Vec::new();
+/// quoted elements of an argv list (`['sigil','pip',…]`) are words. Each
+/// word also records what its shell word (the text between whitespace,
+/// separators and parentheses) would expand to.
+fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
+    fn word<'a>(text: &'a str) -> OptTok<'a> {
+        OptTok {
+            text: Some(text),
+            brace: false,
+            pattern: false,
+        }
+    }
+    fn separator<'a>() -> OptTok<'a> {
+        OptTok {
+            text: None,
+            brace: false,
+            pattern: false,
+        }
+    }
+    // Set the expansion shape of the tokens made from one shell word.
+    fn shape(toks: &mut [OptTok<'_>], shell_word: &str) {
+        if toks.is_empty() || !shell_word.contains(['{', '*', '?', '[']) {
+            return;
+        }
+        let (brace, pattern) = expansion_shape(shell_word);
+        for t in toks {
+            t.brace = brace;
+            t.pattern = pattern;
+        }
+    }
+    let mut toks: Vec<OptTok<'_>> = Vec::new();
     for line in text.lines() {
         for w in line.split_whitespace() {
             let b = w.as_bytes();
             let mut start = 0;
+            let mut shell_start = 0;
+            let mut shell_toks = toks.len();
             for (i, &c) in b.iter().enumerate() {
                 let prev = i.checked_sub(1).map(|p| b[p]);
-                let separator = match c {
+                let separator_char = match c {
                     b';' => true,
                     b'&' => !matches!(prev, Some(b'>' | b'<')) && b.get(i + 1) != Some(&b'>'),
                     b'|' => prev != Some(b'>'),
                     _ => false,
                 };
-                if separator || matches!(c, b'[' | b']' | b'(' | b')' | b',') {
+                if separator_char || matches!(c, b'[' | b']' | b'(' | b')' | b',') {
                     if start < i {
-                        toks.push(Some(&w[start..i]));
+                        toks.push(word(&w[start..i]));
                     }
-                    if separator {
-                        toks.push(None);
+                    if separator_char {
+                        toks.push(separator());
                     }
                     start = i + 1;
                 }
+                if separator_char || matches!(c, b'(' | b')') {
+                    shape(&mut toks[shell_toks..], &w[shell_start..i]);
+                    shell_start = i + 1;
+                    shell_toks = toks.len();
+                }
             }
             if start < w.len() {
-                toks.push(Some(&w[start..]));
+                toks.push(word(&w[start..]));
             }
+            shape(&mut toks[shell_toks..], &w[shell_start..]);
         }
-        toks.push(None);
+        toks.push(separator());
     }
     toks
 }
@@ -961,12 +1082,33 @@ fn opt_in_words(text: &str) -> bool {
     let toks = opt_in_tokens(text);
     let quotes = |c: char| c == '"' || c == '\'';
     // A word of this call: not a separator, a `--` or a `# comment`.
-    fn arg(t: Option<&str>) -> Option<&str> {
-        t.filter(|a| *a != "--" && !a.starts_with('#'))
+    fn arg<'a>(t: &OptTok<'a>) -> Option<&'a str> {
+        t.text.filter(|a| *a != "--" && !a.starts_with('#'))
     }
+    // `pip` or `npm`, also as a piece of a brace expansion (`{sigil,pip}`).
+    let is_manager = |a: &str| {
+        matches!(
+            a.trim_matches(|c| quotes(c) || c == '{' || c == '}'),
+            "pip" | "npm"
+        )
+    };
+    // `next_manager[j]`: the first `pip`/`npm` word of the call from `j` on.
+    // Worked out once, so a line of many `sigil` words is read in a single
+    // pass, not once per word.
+    let mut next_manager: Vec<Option<usize>> = vec![None; toks.len() + 1];
+    for j in (0..toks.len()).rev() {
+        next_manager[j] = match arg(&toks[j]) {
+            None => None,
+            Some(a) if is_manager(a) => Some(j),
+            Some(_) => next_manager[j + 1],
+        };
+    }
+    // Where the words after `pip`/`npm` were already read (and held no
+    // flag): a later call reaching one stops there.
+    let mut read = vec![false; toks.len() + 1];
     let mut xargs = false;
     for (i, t) in toks.iter().enumerate() {
-        let Some(w) = arg(*t) else {
+        let Some(w) = arg(t) else {
             xargs = false;
             continue;
         };
@@ -983,26 +1125,32 @@ fn opt_in_words(text: &str) -> bool {
         if !named && !expansion {
             continue;
         }
-        // `sigil [global options] pip|npm …`
-        let mut j = i + 1;
-        let mut sub = false;
-        while let Some(a) = toks.get(j).copied().and_then(arg) {
-            j += 1;
-            if matches!(a.trim_matches(quotes), "pip" | "npm") {
-                sub = true;
-                break;
+        // `sigil [global options] pip|npm …`; right after `sigil`, a word
+        // that may expand to `pip`/`npm` (`sigil $SUB x`, `sigil {pip,npm} x`).
+        let first = toks.get(i + 1);
+        let manager = if named {
+            match first {
+                Some(f) if arg(f).is_some_and(|a| a.contains(['$', '`']) || f.brace) => Some(i + 1),
+                _ => next_manager[i + 1],
             }
-            if !named {
-                break;
-            }
-        }
-        if !sub {
+        } else {
+            first
+                .filter(|f| arg(f).is_some_and(is_manager))
+                .map(|_| i + 1)
+        };
+        let Some(manager) = manager else {
             continue;
-        }
+        };
         if xargs {
             return true;
         }
-        while let Some(a) = toks.get(j).copied().and_then(arg) {
+        let mut j = manager + 1;
+        while let Some(a) = toks.get(j).and_then(arg) {
+            if read[j] {
+                break;
+            }
+            read[j] = true;
+            let tok = &toks[j];
             j += 1;
             if a.trim_start_matches(quotes)
                 .starts_with("--allow-build-scripts")
@@ -1011,7 +1159,7 @@ fn opt_in_words(text: &str) -> bool {
             }
             // A redirection and its file are not arguments.
             if let Some(r) = cmdline::redirection(a) {
-                if r.takes_next && toks.get(j).copied().and_then(arg).is_some() {
+                if r.takes_next && toks.get(j).and_then(arg).is_some() {
                     j += 1;
                 }
                 continue;
@@ -1019,7 +1167,7 @@ fn opt_in_words(text: &str) -> bool {
             // `-V "$VER"`, `--version="$VER"`, `-V"$VER"`: one quoted word
             // is the version's value, never a flag.
             if matches!(a, "-V" | "--version")
-                && toks.get(j).copied().flatten().is_some_and(quoted_word)
+                && toks.get(j).and_then(|n| n.text).is_some_and(quoted_word)
             {
                 j += 1;
                 continue;
@@ -1031,7 +1179,7 @@ fn opt_in_words(text: &str) -> bool {
             {
                 continue;
             }
-            if a.contains(['$', '`']) {
+            if a.contains(['$', '`']) || tok.pattern {
                 return true;
             }
         }
