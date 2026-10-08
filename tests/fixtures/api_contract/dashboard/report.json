@@ -1,0 +1,6 @@
+{
+  "ecosystem": "npm",
+  "evidence": "Threat type: malware\nSeverity: high\nIndicator: postinstall script downloads and runs a remote file\nReference: https://example.invalid/advisory",
+  "package_name": "contract-test-pkg",
+  "reason": "contract test report, not a real threat"
+}

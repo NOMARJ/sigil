@@ -1387,7 +1387,10 @@ _RUST_PHASE_MAP: dict[str, ScanPhase] = {
     "Provenance": ScanPhase.PROVENANCE,
     "PromptInjection": ScanPhase.PROMPT_INJECTION,
     "SkillSecurity": ScanPhase.SKILL_SECURITY,
-    "InferenceSecurity": ScanPhase.LLM_ANALYSIS,
+    # Static INFER-* rules, not an LLM verdict: the same phase a CLI-submitted
+    # finding gets (api/models.py). /v1/scan-enhanced treats llm_analysis
+    # findings as new LLM results, so these must not land there.
+    "InferenceSecurity": ScanPhase.INFERENCE_SECURITY,
 }
 
 # Rust ``Severity`` (serde PascalCase) -> Python ``Severity``.

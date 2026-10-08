@@ -36,6 +36,183 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
 - **The unknown-phase warning for cloud signatures no longer suggests
   `sigil install --update`**, a flag that does not exist. It now says to update
   sigil to the latest release.
+- **`sigil scan --submit`, `--enhanced`, `--enrich` and `sigil report` work
+  with the Sigil API: the CLI and the API now agree on what is sent.** The API
+  refused each request, or the CLI could not read its answer. Both sides
+  changed, and the API stays compatible with CLI 1.3.7, which needs only the
+  API update deployed; once it is, 1.3.7 writes its `--submit` and `--enrich`
+  messages to stdout after a `-f json` or `-f sarif` report (the `-f` item
+  below).
+  The request and response bodies of both CLI versions are kept as shared
+  test fixtures (`tests/fixtures/api_contract/`), checked by
+  `cli/src/api.rs` and `api/tests/test_cli_contract.py`.
+  - `--submit` posted the raw scan result: no `target`, and phases and
+    severities in the Rust spellings (`InstallHooks`, `High`), so the API
+    answered HTTP 422. The CLI now sends the API's scan request: the active
+    findings in the API's spellings (the normalisation `sigil explain` used),
+    the file count, its own score and verdict, and the fixed target name
+    `cli-scan` rather than the scanned path. It prints the scan id. The API
+    accepts both spellings and files a 1.3.7 body, which has no target, under
+    `cli-scan`; its scan response also carries the `id` and `status` that
+    1.3.7 reads. Scan history shows the score and verdict the API computes
+    for the findings, not the CLI's; the CLI's are kept in the scan's
+    metadata (`cli_score`, `cli_verdict`). The API's verdict for a CLI
+    submission is typically higher. The API scores each finding as severity ×
+    phase weight × the finding's `weight` × a file-context factor (0.1 under
+    `node_modules`, 0.2 for docs, README and text files, 0.3 for test paths,
+    otherwise 1), but the CLI's `weight` already
+    includes its phase weight, so the phase weight counts twice; the API also
+    counts Low findings, which the CLI's verdict ignores, and has no cap on
+    findings of one rule in one file. The five findings of the contract
+    fixture are 58, HIGH RISK, for the CLI and 384.0, `CRITICAL_RISK`, for the
+    API. The dashboard's blocked-threat count (`threats_blocked`) includes
+    both `HIGH_RISK` and `CRITICAL_RISK` scans, so read a submitted scan's
+    verdict in the dashboard as the API's scoring, not as the CLI's. The API
+    formula is unchanged.
+  - **`sigil scan --enhanced --submit` records one scan.** `--enhanced`
+    already stores the scan (the API stores every scan it receives, whatever
+    the plan or whether LLM analysis ran), so `--submit` prints that scan's id
+    and sends nothing more; it used to upload a second request, which made two
+    scan records and counted twice against the monthly scan quota. `--submit`
+    still uploads when `--enhanced` failed or the API returned no scan id.
+  - CLI 1.3.7's `sigil explain` prints the adjudication text the API returns
+    (rationale, classification, error strings) as it is, control characters
+    included; the API strips them from threat-lookup text only, and the
+    current CLI strips them from every piece of API text it prints.
+  - The API had no value for the Inference Security phase (`INFER-*` rules),
+    so any scan with such a finding was refused, from `--submit`,
+    `--enhanced` and `sigil explain` alike (1.3.7's `explain` sent
+    `inferencesecurity`). The API now has `inference_security`. Its own
+    Rust-engine scans (`SIGIL_RUST_ENGINE`) filed the same `INFER-*` findings
+    as `llm_analysis`, which `/v1/scan-enhanced` treats as new LLM results;
+    they now get `inference_security` too. A test fails when the CLI gains a
+    phase the API does not list. The API's scoring weighs the phase 5, as the
+    CLI does (it had fallen back to 1.0, so an `INFER-*` finding scored a fifth
+    of a code-pattern finding of the same severity), and its threat correlator
+    files it with the other AI threats instead of `unknown_threats`. The
+    dashboard's scan detail now groups
+    Inference Security findings, and the Prompt Injection, Skill Security and
+    LLM Analysis findings it already dropped, under their phase. (Its finding
+    rows still read `title`, `file_path` and `line_number`, which the API's
+    findings do not have; that is a separate fix.)
+  - `--enhanced` sent the same raw findings (HTTP 422 whenever the scan had
+    one). It now sends the `--submit` request plus the files. Its scan
+    response now includes the `metadata` that says whether LLM analysis ran,
+    which the API's response model used to drop, so the CLI prints
+    `enhanced LLM analysis completed` only when it did and otherwise says the
+    API returned static analysis only, and why. The API's LLM step does not
+    run for this endpoint yet, so that is what it says for now. CLI 1.3.7
+    prints `Enhanced LLM analysis completed` for any response it can parse,
+    so the API includes the `id` it needs only when LLM analysis ran; 1.3.7
+    otherwise prints `Enhanced analysis failed: failed to parse response` and
+    keeps its static results. When the LLM step fails, the API returns the
+    exception type, not its message. The API no longer keeps the uploaded
+    files: it stored them in the scan record, and the endpoints that return a
+    stored scan return its metadata to the account (the detail endpoints
+    `GET /v1/scans/{id}` and `GET /scans/{id}` also to its team) and the list
+    endpoints `GET /scans` and `GET /v1/scans` carry it in each item, where
+    their query reads it: the in-memory store does, while the MSSQL list query
+    selects only the columns a list item shows and leaves `metadata_json` out
+    (read from the code, not tested against MSSQL). Now it stores only the
+    scan's own metadata keys (`source`, `cli_score`, `cli_verdict`, `hash`, `hashes`,
+    `publisher`, `publisher_id`), whatever else a client sends, and only the
+    LLM step sees the files.
+    Migration `api/migrations/011_remove_uploaded_files_from_scan_metadata.sql`
+    removes the copies already stored: the keys `file_contents` and `content`,
+    from every stored scan that has them (it has not been run against MSSQL;
+    dry-run it on a copy first); until it is applied, scans stored before the
+    update keep their files, which the endpoints above return.
+  - `sigil report` posted `{hash, threat_type, description}`, but the API
+    expects a package name and a reason (HTTP 422), and the CLI expected an
+    `id` the API does not return. The CLI now files the hash as package
+    `sha256:<hash>`, with the description as the reason and the threat type
+    and hash as evidence; the API files a 1.3.7 body the same way and adds
+    `id` to its response. The dashboard's reports are unchanged. The hash must
+    be a SHA-256 digest (64 hex characters): the CLI refuses anything else
+    before sending, and the API refuses it in a 1.3.7 body. The CLI tells a
+    hash of the wrong length from one with characters outside `0-9a-f` (`got N
+    characters` is no longer printed for a 64-character hash that is not
+    hexadecimal). The API does not require a token on a report (the CLI only
+    requires one to be stored) and records a hash report for review exactly as
+    it records any report. The CLI prints a warning and exits 1 when the API
+    answers 2xx without a report id (a proxy or captive portal answering in
+    its place), instead of `threat reported successfully`; `--submit`
+    likewise warns, without changing the exit code, when the answer has no
+    scan id.
+    **A confirmed hash report is not findable by its hash.** Confirming a
+    report creates a threat entry keyed by a hash of the report's package
+    identity (the SHA-256 of `ecosystem:name:version`, here
+    `unknown:sha256:<hash>:`), as it does for every report; the hash typed
+    into `sigil report` is not the key. So `sigil scan --enrich`,
+    `POST /v1/verify` and `POST /v1/scan` do not match the reported hash, and
+    confirming the report changes no verdict or scan score for that hash (a
+    test pins this). This is how promotion worked before this change and it
+    is unchanged here apart from the ids described below, including that a
+    confirmed report's evidence becomes a detection signature, which `sigil fetch` serves to clients for their later
+    scans. `sigil report` builds the evidence from the threat type, which is
+    free text, and evidence with regular-expression characters is used as the
+    pattern itself, so a reviewer should read the evidence before confirming.
+    The API now gives a report, and the threat entry made when it is confirmed,
+    a full GUID as their id (they were 12 and 16 hexadecimal characters). In
+    `api/schema.sql` `threat_reports.id` and `threats.id` are
+    `UNIQUEIDENTIFIER`, and a truncated hex string does not convert to one (the
+    failure `scans.id` had). Tests pin the format, but they use the in-memory
+    store: recording a report and confirming it have not been run against MSSQL,
+    and a database whose tables differ from `schema.sql` is untested.
+  - `--enrich` could not parse a match: the CLI required `known_malicious` and
+    `references`, which the API's threat entry does not have, and printed the
+    failure only with `-v`. The CLI now reads the threat entry and prints its
+    description, package, severity and source; it says when there is no
+    match, and warns whenever the lookup fails (HTTP 403 on a Free plan, 401
+    for an expired token). The API's lookup response adds
+    `known_malicious: true` and `references: []` for 1.3.7. The lookup key is
+    unchanged: a hash of the directory's file paths and sizes, which matches
+    only an entry recorded for that exact directory, since the database is
+    keyed by package-artifact hashes. The lookup response carries no control
+    characters, format characters (bidirectional overrides and isolates,
+    zero-width characters) or line and paragraph separators (U+2028, U+2029):
+    1.3.7 prints the description raw, and a community entry's description is
+    the reporter's text. The same characters are replaced in the other readers
+    that look a hash up (`POST /v1/verify`, the `threat_intel_hits` of
+    `POST /v1/scan`). The dashboard list (`GET /v1/threats`, `GET /threats`) is
+    not one of them: it returns entries as stored, control characters
+    included. The CLI replaces these characters before it prints anything the
+    API sent. A 2xx answer that names no entry (no `hash` and no
+    `package_name`, and no `known_malicious`), such as `{}` from a proxy or
+    captive portal, is not a match; it used to print `is a known threat: no
+    description`. The CLI warns
+    `threat-intel lookup returned an unrecognised answer`: the Sigil API
+    answers 404 for an unknown hash, so it is not a lookup result, and "no
+    match" stays for the 404 and for `known_malicious: false`. A match, like
+    an LLM finding from `--enhanced`, is printed for information and does not
+    change the verdict, the exit code or the `-f` report.
+  - `sigil explain` named the scan after the report file, which can carry a
+    user or project name. It now sends the fixed target `sigil-explain`. It
+    also prints the API's text (an error body, the verdict's rationale,
+    classification and model, the upgrade message) with control, format and
+    separator characters replaced by spaces, and cuts an error body at 600
+    characters.
+  - With any `-f` other than `text` (`json`, `sarif`, ...), the CLI writes
+    these cloud messages to stderr, keeping stdout to the report. CLI 1.3.7
+    prints its success messages to stdout after the report:
+    `results submitted to Sigil cloud`, an `--enrich` match, and
+    `Enhanced LLM analysis completed` when LLM analysis runs. Against the API
+    before this update those requests failed, so its stdout stayed a valid
+    report; once the update is deployed, 1.3.7's stdout with `-f json` or
+    `-f sarif` is not valid JSON or SARIF (for example
+    `sigil scan . --submit -f json > report.json`). With 1.3.7, write the
+    report with `-o FILE`, or upgrade the CLI.
+  - **A re-scan served from the cache says it skipped the cloud options.**
+    `--submit`, `--enrich` and `--enhanced` run on a fresh scan only, and a
+    cache hit used to skip them without a word, so a repeated `--submit`
+    stored no scan and looked as if it had. The CLI now warns on stderr, naming
+    the options skipped and `--no-cache`; the exit code is unchanged.
+  - `docs/CLI_LLM_FEATURES.md`, `docs/api-reference.md` and
+    `docs/api-endpoints.md` describe these endpoints as they now work: the
+    request and response bodies, `id` and `status`, the plan and token each
+    needs (`/v1/scan` needs a token, `/v1/threat/{hash}` a Pro plan, and
+    `/v1/report` none), and that `/v1/scan` requests carry each finding's
+    flagged source line.
 
 ### 🔧 CI
 
@@ -152,11 +329,11 @@ the next release, or a manual dispatch with `tag: v1.3.7`.
   and that it expires, and that `sigil pip`/`npm` can run package code while
   downloading (an sdist's `setup.py`, or the lifecycle scripts of a local
   directory or git spec, `owner/repo` shorthands included, given to
-  `sigil npm`). `--enhanced` sends the scan result as well as the files. The
-  docs no longer promise scan history for `--submit`: the current API rejects
-  its payload (HTTP 422), rejects `sigil report`'s, and rejects an `--enhanced`
-  request when the scan has any finding. They also say that an `--enrich` match
-  is not shown, because the CLI cannot parse the current API's match response.
+  `sigil npm`). `--enhanced` sends the scan result as well as the files. They
+  describe `--submit`, `--enhanced`, `--enrich` and `sigil report` as they
+  work after the CLI and API fix above, including what CLI 1.3.7 gets before
+  the API update is deployed, that `--enhanced` returns no LLM findings yet,
+  and that `--enrich` matches only an entry recorded for the exact directory.
 - **Smaller corrections:** `.gitignore` exclusion, `fail_on_incomplete`, the
   Claude Code MCP config location, v1.3.7 version pins and the Docker tag, the
   roadmap, the real supplementary checks, HIGH-gate figures labelled as

@@ -71,6 +71,10 @@ const phaseLabels: Record<ScanPhase, string> = {
   credentials: "Credentials",
   obfuscation: "Obfuscation",
   provenance: "Provenance",
+  prompt_injection: "Prompt Injection",
+  skill_security: "Skill Security",
+  inference_security: "Inference Security",
+  llm_analysis: "LLM Analysis",
 };
 
 // ---------------------------------------------------------------------------

@@ -1,0 +1,13 @@
+{
+  "phases": [
+    {"serde": "InstallHooks", "api": "install_hooks"},
+    {"serde": "CodePatterns", "api": "code_patterns"},
+    {"serde": "NetworkExfil", "api": "network_exfil"},
+    {"serde": "Credentials", "api": "credentials"},
+    {"serde": "Obfuscation", "api": "obfuscation"},
+    {"serde": "Provenance", "api": "provenance"},
+    {"serde": "PromptInjection", "api": "prompt_injection"},
+    {"serde": "SkillSecurity", "api": "skill_security"},
+    {"serde": "InferenceSecurity", "api": "inference_security"}
+  ]
+}

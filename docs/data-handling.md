@@ -48,13 +48,28 @@ it.
 
 With `--submit` (normally after `sigil login`, whose token it sends), the CLI
 submits scan results to the Sigil API (`SigilClient::submit_scan`,
-`cli/src/api.rs`). The submitted `ScanResult`
-contains each `Finding`, and a `Finding` includes:
+`scan_request_body`, `cli/src/api.rs`). The request carries the number of
+files scanned, the CLI's own score and verdict, the fixed target name
+`cli-scan` (not the scanned path), and each active `Finding` (findings
+suppressed by a policy, a trust-ledger approval or a `sigil:ignore` marker
+are not sent). A `Finding` includes:
 
 - `rule`, `phase`, `severity`, `weight` — pattern metadata
 - `file`, `line` — the path and line number of the match
 - `snippet` — **the flagged source line itself** (`cli/src/scanner/mod.rs`,
   `Finding.snippet`)
+- `fingerprint`, and where they apply the advisory's `kev` and `epss`
+  values, the `locator` inside an archive, and the rule's `evidence` class
+
+CLI 1.3.7 posted its whole `ScanResult` instead: the same findings, score
+and verdict, plus any ledger- or inline-suppressed findings (snippets
+included) with their attributions: the ledger approval (`suppressed_by`: the
+approved source, its ledger id and the approval date) and each inline
+suppression's `file:line RULE-ID — reason` note (`inline_suppressions`),
+whose reason is the text written in the `sigil:ignore` marker; and the scan
+duration, the platform it detected, and the engine version, corpus digest,
+rule count and rule IDs. The API keeps only the active findings and the
+file count from such a request.
 
 So authenticated submissions transmit *excerpts of your source code*: the
 specific lines that triggered a rule, exactly as they appear in your scan
@@ -64,7 +79,8 @@ tier as "metadata only" without also disclosing the flagged-line excerpts.
 `sigil explain <scan.json>` (`cmd_explain`, `cli/src/explain.rs`) sends the
 same kind of data, read from a saved `-f json` report: with the stored token
 it posts every finding in that report, `snippet` included, to
-`POST /v1/scan`, then asks the API to adjudicate one finding (`--finding`,
+`POST /v1/scan` under the fixed target name `sigil-explain` (CLI 1.3.7 named
+the scan after the report file, its name without the extension), then asks the API to adjudicate one finding (`--finding`,
 default the first) at `POST /v1/scans/{id}/findings/{n}/adjudicate`
 (`api/routers/scan.py`). The API passes that finding and its flagged line to
 the configured LLM provider (`api/services/fp_adjudicator.py`).
@@ -79,10 +95,36 @@ transmit source code by design:
   collects up to 50 eligible text files under the target directory; this
   collection does not apply scanner exclusions such as `.sigilignore`.
   Ignored files can therefore be uploaded. Review the target directory
-  before requesting enhanced analysis. The same request carries the scan
-  result's `findings`, each with its `snippet` (the flagged source line),
-  including findings in files outside the uploaded ones (a secret flagged in
-  `.env`, for example).
+  before requesting enhanced analysis. The same request carries what
+  `--submit` sends (section 2): the active `findings`, each with its
+  `snippet` (the flagged source line), including findings in files outside
+  the uploaded ones (a secret flagged in `.env`, for example). With
+  `--submit` as well, the current CLI sends this one request and not a second
+  one, since this request already stores the scan (CLI 1.3.7 sends both).
+  The API holds the uploaded files only while it handles the request, for
+  its LLM step:
+  the scan record it stores keeps the findings and the scan's own metadata
+  keys (`source`, `cli_score`, `cli_verdict`, and `hash`, `hashes`,
+  `publisher` and `publisher_id` when present) but not the files, nor any
+  other key of the request's metadata (`submit_enhanced_scan`,
+  `api/routers/scan.py`). An API without the update stores the request,
+  files included, with the scan record, and the endpoints that return a
+  stored scan return that record's metadata, files included, to the account
+  that sent the scan: the detail endpoints (`GET /v1/scans/{id}`,
+  `GET /scans/{id}`), also to the account's team, and the list endpoints
+  (`GET /scans`, `GET /v1/scans`), which carry it in each item wherever their
+  query reads it. The in-memory store does; the MSSQL list query selects only
+  the columns a list item shows and leaves `metadata_json` out (read from
+  `list_scans` in `api/routers/scan.py`; not tested against MSSQL). This holds
+  for as long as the record is kept, or
+  until the database migration that ships with the update
+  (`api/migrations/011_remove_uploaded_files_from_scan_metadata.sql`) is
+  applied, which removes the keys `file_contents` and `content` from every
+  stored scan (see [API update rollout](cli.md#api-update-rollout)). The
+  API's LLM step does not
+  currently run for this endpoint, so it answers with its static analysis;
+  the CLI reports that rather than an analysis (CLI 1.3.7 reports a failed
+  enhanced analysis).
 - The investigation service (`api/services/finding_investigator.py`) builds
   LLM prompts containing the finding's `code_snippet` plus surrounding
   context lines.

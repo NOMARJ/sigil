@@ -10,14 +10,18 @@ export type Verdict =
   | "HIGH_RISK"
   | "CRITICAL_RISK";
 
-/** Scan phases as defined by the Sigil scanner. */
+/** Scan phases as defined by the Sigil scanner (the API's ScanPhase). */
 export type ScanPhase =
   | "install_hooks"
   | "code_patterns"
   | "network_exfil"
   | "credentials"
   | "obfuscation"
-  | "provenance";
+  | "provenance"
+  | "prompt_injection"
+  | "skill_security"
+  | "inference_security"
+  | "llm_analysis";
 
 /** Source from which a package was scanned. */
 export type ScanSource = "pip" | "npm" | "git" | "local";

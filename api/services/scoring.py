@@ -10,6 +10,7 @@ Phase weights (from the Sigil PRD):
     Credentials    — 2x  (Medium)
     Obfuscation    — 5x  (High)
     Provenance     — 1-3x (Low, variable)
+    Inference Security — 5x (High): static INFER-* rules of the Rust CLI
 
 Risk classification thresholds:
     0  – 9   → LOW_RISK
@@ -44,6 +45,10 @@ PHASE_WEIGHTS: dict[ScanPhase, float] = {
     ScanPhase.PROVENANCE: 2.0,  # Default mid-range for provenance (1-3x)
     ScanPhase.PROMPT_INJECTION: 10.0,  # Critical — the key differentiator vs VirusTotal
     ScanPhase.SKILL_SECURITY: 5.0,  # High — tool poisoning, shell execution
+    # High — hijackable LLM client endpoints. The Rust CLI weights these 5
+    # (cli/src/scanner/mod.rs); without an entry here they scored at the
+    # default 1.0, five times lower than a same-severity code_patterns finding.
+    ScanPhase.INFERENCE_SECURITY: 5.0,
 }
 
 # ---------------------------------------------------------------------------

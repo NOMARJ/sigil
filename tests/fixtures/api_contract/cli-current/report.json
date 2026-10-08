@@ -1,0 +1,5 @@
+{
+  "evidence": "Threat type: malware\nSHA-256: fd2700a6089b86f14a55ea95af129db3c39b114e10002e293cc8268d764808bd",
+  "package_name": "sha256:fd2700a6089b86f14a55ea95af129db3c39b114e10002e293cc8268d764808bd",
+  "reason": "contract test report, not a real threat"
+}

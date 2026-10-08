@@ -1,0 +1,11 @@
+{
+  "confirmed_at": "2026-10-01T00:00:00",
+  "description": "seeded contract-test threat entry",
+  "hash": "0529ae7c5118983272f1fce4ca862408bdcf403b6a6d4483cb2b34e83a64d548",
+  "known_malicious": true,
+  "package_name": "contract-test-pkg",
+  "references": [],
+  "severity": "CRITICAL",
+  "source": "internal",
+  "version": "0.0.1"
+}
