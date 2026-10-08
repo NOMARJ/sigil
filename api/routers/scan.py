@@ -630,9 +630,9 @@ async def submit_enhanced_scan(
     await check_scan_quota(current_user.id, current_tier)
 
     # Start with basic scan implementation. The uploaded source files are
-    # kept out of the stored scan record (which the scan list and detail APIs
-    # return to the account and its team): only the LLM step below reads them,
-    # from `request`.
+    # kept out of the stored scan record (whose metadata the scan detail API
+    # returns to the account and its team, and the list API in each item where
+    # its query reads it): only the LLM step below reads them, from `request`.
     stored_request = request.model_copy(
         update={
             "metadata": {

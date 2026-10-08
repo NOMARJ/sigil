@@ -191,7 +191,7 @@ Submit a scan's findings. The API scores them, looks up any package hashes in th
 | `target_type` | string | No | Default `directory`; for example `git`, `pip`, `npm` |
 | `files_scanned` | integer | No | Default 0 |
 | `findings` | array | No | Finding objects (below); default empty |
-| `metadata` | object | No | Stored with the scan and returned by every endpoint that returns the scan: `GET /v1/scans/{id}`, `GET /scans/{id}` and the list endpoints `GET /scans` and `GET /v1/scans`. The CLI sends `source`, `cli_score` and `cli_verdict` (its own score and verdict). `hash` or `hashes` are looked up in the threat database |
+| `metadata` | object | No | Stored with the scan and returned by the detail endpoints `GET /v1/scans/{id}` and `GET /scans/{id}` (as `metadata_json`) and by the list endpoints `GET /scans` and `GET /v1/scans` (in each item's `metadata`, where their query reads it: the in-memory store does, the MSSQL list query leaves it out). The CLI sends `source`, `cli_score` and `cli_verdict` (its own score and verdict). `hash` or `hashes` are looked up in the threat database |
 
 **Finding Object:**
 
@@ -249,7 +249,7 @@ Other fields (the CLI's `fingerprint`, for example) are ignored.
 ```
 
 - `risk_score` and `verdict` are the API's own (`api/services/scoring.py`), computed from the submitted findings; scan history shows the API's. For a CLI submission they are typically higher than the score and verdict the CLI printed, which it sends as `metadata.cli_score` and `metadata.cli_verdict`. The API scores a finding as severity × phase weight × the finding's `weight`, and the CLI's `weight` already includes its phase weight, so the phase weight counts twice; the API also counts Low findings and caps nothing per rule and file, where the CLI's verdict ignores Low findings and counts at most three findings of one rule in one file. The five findings above are score 58, HIGH RISK, in the CLI and 384.0, `CRITICAL_RISK`, here. The formula is unchanged by the CLI contract fix.
-- `threat_intel_hits` holds the threat entries that `metadata.hash` or `metadata.hashes` matched; each match adds 10 to `risk_score`. The entries read as in `GET /v1/threat/{hash}` below: control, format and separator characters replaced by spaces, a community entry's description prefixed with where it came from. A confirmed `sigil report <hash>` report is keyed by the reported hash, so a scan that lists that hash matches it.
+- `threat_intel_hits` holds the threat entries that `metadata.hash` or `metadata.hashes` matched; each match adds 10 to `risk_score`. The entries read as in `GET /v1/threat/{hash}` below: control, format and separator characters replaced by spaces. A confirmed `sigil report <hash>` report is not a match for the hash it names: the threat entry is keyed by a hash of the report's package identity, so a scan that lists the reported hash gets no hit and no extra score.
 - `id` is a copy of `scan_id` and `status` is always `completed`: CLI 1.3.7 reads them.
 - `metadata` holds the API's notes about the scan, not the request's metadata.
 
@@ -445,7 +445,7 @@ Look up a hash in the threat intelligence database. `sigil scan --enrich` calls 
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `hash` | string | The hash to look up. Entries are keyed by the SHA-256 of a package artifact; a confirmed `sigil report <hash>` report is keyed by the reported hash |
+| `hash` | string | The hash to look up. Entries are keyed by the SHA-256 of a package artifact; an entry made by confirming a report is keyed by a hash of the report's ecosystem, name and version |
 
 **Response (200 OK)** (`ThreatLookupResponse`), as captured for a seeded entry (`tests/fixtures/api_contract/api-patched/threat_lookup_response.json`):
 
@@ -464,9 +464,9 @@ Look up a hash in the threat intelligence database. `sigil scan --enrich` calls 
 ```
 
 - Every 200 response is a match: an unknown hash returns 404. `known_malicious` is always `true` and `references` is always empty (none are recorded); CLI 1.3.7 needs both fields.
-- A community entry (`source: "community"`, made when a reviewer confirms a report; `community-unverified` for a `sigil report <hash>` report) has the reporter's text as its description. The response prefixes it with `Community report: `, or `Community report (unverified hash): ` for a `sigil report <hash>` report, whose hash a reviewer cannot check without the artifact. An entry whose description is empty keeps it empty.
-- In the text fields, control characters (including terminal escapes), format characters (bidirectional overrides and isolates, zero-width characters) and the line and paragraph separators U+2028 and U+2029 are replaced with spaces.
-- A confirmed hash report is keyed by the reported hash, which the reporter chose and a reviewer cannot check without the artifact (`POST /v1/report` needs no token, so anyone can file one for any hash). This endpoint shows it, as `community-unverified`. The other readers of the threat database ignore it: `POST /v1/verify` does not flag an artifact with that hash, and `POST /v1/scan` does not add to the risk score of a scan that lists it in `metadata.hash` or `metadata.hashes`. Every other entry is a match for all three, and all three return it with the attribution and character filtering above.
+- A community entry (`source: "community"`, made when a reviewer confirms a report) has the reporter's text as its description.
+- In the text fields, control characters (including terminal escapes), format characters (bidirectional overrides and isolates, zero-width characters) and the line and paragraph separators U+2028 and U+2029 are replaced with spaces. `POST /v1/verify` and the `threat_intel_hits` of `POST /v1/scan` show entries the same way.
+- A confirmed `sigil report <hash>` report is **not findable by that hash**: confirming a report creates the entry keyed by the SHA-256 of `ecosystem:name:version` (for a hash report, `unknown:sha256:<hash>:`), as for every report, so a lookup of the hash given to `sigil report` returns 404, `POST /v1/verify` with that `artifact_hash` finds no threat, and `POST /v1/scan` with that hash in `metadata.hash` or `metadata.hashes` adds nothing to the risk score.
 
 **Status Codes:** 200 OK, 401 Missing or invalid token, 403 Plan below Pro, 404 Hash not found
 
@@ -583,11 +583,11 @@ Look up the reputation of a package publisher/author.
 
 ### POST /v1/report
 
-Submit a threat report. Reports are queued for review; when a reviewer confirms one (`PATCH /v1/threat-reports/{id}`), it becomes a threat database entry with source `community` (`community-unverified` for a `sigil report <hash>` report: see `GET /v1/threat/{hash}`). `sigil report` and the dashboard call it.
+Submit a threat report. Reports are queued for review; when a reviewer confirms one (`PATCH /v1/threat-reports/{id}`), it becomes a threat database entry with source `community`. `sigil report` and the dashboard call it.
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | No. A valid Bearer token is optional: when one is sent, the reporting account is recorded with the report (`reporter_user_id`); a missing or invalid token files the report anonymously |
+| **Auth required** | No |
 | **Also available at** | `POST /threats/report` and `POST /report` |
 
 **Request Body** (`ThreatReport`, `api/models.py`):
@@ -603,14 +603,14 @@ Submit a threat report. Reports are queued for review; when a reviewer confirms 
 
 The body CLI 1.3.7 sends, `{"hash": "<sha256>", "threat_type": "<type>", "description": "<text>"}`, is also accepted and stored the same way as the current CLI's report: package `sha256:<hash>`, the description as the reason, and `Threat type: <type>` and `SHA-256: <hash>` as evidence. Its `hash` must be a SHA-256 digest (64 hexadecimal characters, any case); anything else is refused (422).
 
-A confirmed report is keyed in the threat database by the reported hash for a `sha256:<hash>` package, as an unverified entry that `POST /v1/verify` and the hash enrichment of `POST /v1/scan` ignore (a reporter could otherwise flag any artifact hash), and otherwise by a SHA-256 of its ecosystem, name and version, which a reporter cannot choose to match an artifact. A package report (not a hash report) with evidence also gets a detection signature built from that evidence. Confirming needs the reviewer role (see the note on account roles in [API endpoints](api-endpoints.md)); the reviewer's account is recorded with the report.
+A confirmed report is keyed in the threat database by a SHA-256 of its ecosystem, name and version, for a hash report too (`unknown:sha256:<hash>:`), never by the hash that was typed: a confirmed hash report is not findable by that hash (see `GET /v1/threat/{hash}`), and changes no `POST /v1/verify` verdict or `POST /v1/scan` score for it. A confirmed report with evidence also gets a detection signature built from that evidence. Confirming needs the reviewer role.
 
 **Response (201 Created)** (`ThreatReportResponse`), captured (`tests/fixtures/api_contract/api-patched/report_response.json`):
 
 ```json
 {
-  "report_id": "6251eae9-db72-4ee2-8470-cead497721af",
-  "id": "6251eae9-db72-4ee2-8470-cead497721af",
+  "report_id": "36d5a8357323",
+  "id": "36d5a8357323",
   "status": "received",
   "message": "Thank you for your report. Our team will review it."
 }
@@ -653,12 +653,12 @@ Verify a package for a marketplace trust badge. It checks the artifact hash agai
   "verdict": "CRITICAL_RISK",
   "risk_score": 50.0,
   "badge_url": null,
-  "findings_summary": "Known threat: Community report: steals tokens (severity=CRITICAL)",
+  "findings_summary": "Known threat: steals tokens (severity=CRITICAL)",
   "verified_at": "2026-10-08T16:12:37.211559"
 }
 ```
 
-- A match on `artifact_hash` adds 50 to `risk_score`, which is `CRITICAL_RISK` on its own, and names the entry in `findings_summary` (its description, or the package name when it has none). A confirmed `sigil report <hash>` report is not a match: its hash is whatever the reporter typed, and a reviewer cannot check a hash without the artifact, so it does not move the verdict (a hash such a report named gets `LOW_RISK`, risk score 0 and `No issues found.`, like any hash that is not in the database). A community entry's description is prefixed with where it came from, and control, format and separator characters in it are replaced with spaces (see `GET /v1/threat/{hash}`). The endpoint needs no token, so anyone can ask whether a hash is flagged.
+- A match on `artifact_hash` adds 50 to `risk_score`, which is `CRITICAL_RISK` on its own, and names the entry in `findings_summary` (its description, or the package name when it has none). Control, format and separator characters in the description are replaced with spaces (see `GET /v1/threat/{hash}`). A confirmed `sigil report <hash>` report is not a match for the hash it names, because its threat entry is keyed by a hash of the report's package identity: confirming it changes nothing here (a request with that hash gets `LOW_RISK`, risk score 0 and `No issues found.`, as before the report; a test pins this). The endpoint needs no token, so anyone can ask whether a hash is flagged.
 - With no match and no publisher findings, `findings_summary` is `No issues found.`
 
 **Status Codes:** 200 OK, 422 Validation error, 429 Rate limit exceeded
@@ -669,7 +669,7 @@ Verify a package for a marketplace trust badge. It checks the artifact hash agai
 
 ### GET /team
 
-Get the current user's team with all members. A user with no team gets a personal team, which records them as its owner (`teams.owner_id`, shown as role `owner` in the response); this does not change their account role (`users.role`), which the reviewer and signature-admin gates read.
+Get the current user's team with all members.
 
 | Property | Value |
 |----------|-------|
@@ -746,7 +746,7 @@ Remove a member from the team. Only admins and owners can remove members. The te
 
 ### PATCH /team/members/{id}/role
 
-Update a team member's role. Only admins and the team's owner can change roles. Only the current owner can assign the `owner` role. The team owner's own role cannot be changed (403).
+Update a team member's role. Only admins and owners can change roles. Only the current owner can assign the `owner` role.
 
 | Property | Value |
 |----------|-------|

@@ -94,11 +94,10 @@ async def get_threat(
     The hash should be the SHA-256 digest of the package artifact.
     Returns 404 when the hash is not present in the threat database. A match
     also carries `known_malicious: true` and `references`, which `sigil scan
-    --enrich` in CLI 1.3.7 needs to show it, and a community entry's
-    description says it is a community report.
+    --enrich` in CLI 1.3.7 needs to show it. Text fields carry no control
+    characters.
     """
-    # Shown here, as an unverified entry; the readers that score a match ignore it.
-    entry = await lookup_threat(package_hash, include_unverified=True)
+    entry = await lookup_threat(package_hash)
     if entry is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -282,7 +281,6 @@ async def update_report(
         return await update_report_status(
             report_id=report_id,
             new_status=body.status,
-            reviewer_id=current_user.id,
             notes=body.notes,
         )
     except ValueError as exc:

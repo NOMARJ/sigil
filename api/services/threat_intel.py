@@ -17,8 +17,6 @@ from uuid import uuid4
 
 from api.database import cache, db
 from api.models import (
-    COMMUNITY_SOURCE,
-    COMMUNITY_UNVERIFIED_SOURCE,
     ScanPhase,
     Severity,
     SignatureEntry,
@@ -26,9 +24,7 @@ from api.models import (
     ThreatEntry,
     ThreatReport,
     ThreatReportResponse,
-    attributed_threat_entry,
-    is_unverified_hash_entry,
-    reported_sha256,
+    printable_threat_entry,
 )
 
 logger = logging.getLogger(__name__)
@@ -144,47 +140,30 @@ _BUILTIN_SIGNATURES: list[dict[str, Any]] = [
 # ---------------------------------------------------------------------------
 
 
-async def lookup_threat(
-    package_hash: str, *, include_unverified: bool = False
-) -> ThreatEntry | None:
+async def lookup_threat(package_hash: str) -> ThreatEntry | None:
     """Look up a package hash in the threat database.
 
     Checks Redis cache first, then falls back to the database (MSSQL).
     Returns ``None`` when no matching threat is found.
 
-    The entry is returned in the form a client may be shown
-    (``attributed_threat_entry``): control characters removed from its text,
-    and a community report's description attributed to the community. Every
-    reader of the threat database goes through here (GET /v1/threat/{hash},
-    POST /v1/verify, the hash enrichment of POST /v1/scan), and a community
-    entry's text is whatever its reporter wrote. The cache holds the entry as
-    stored, so entries cached before this form existed are covered too.
-
-    An entry promoted from a ``sigil report <hash>`` report is keyed by a hash
-    the reporter chose, which no reviewer can check without the artifact. It
-    is not a match unless the caller asks for it with
-    ``include_unverified=True`` (GET /v1/threat/{hash} does, to show it): a
-    reader that turns a match into a verdict or a score gets ``None``.
+    The entry is returned without control characters in its text
+    (``printable_threat_entry``): a community entry's text is whatever its
+    reporter wrote, and CLI 1.3.7 prints it. Every reader of the threat
+    database goes through here (GET /v1/threat/{hash}, POST /v1/verify, the
+    hash enrichment of POST /v1/scan). The cache holds the entry as stored, so
+    entries cached before this form existed are covered too.
     """
-    entry = await _lookup_stored_threat(package_hash)
-    if entry is None:
-        return None
-    if not include_unverified and is_unverified_hash_entry(entry):
-        return None
-    return attributed_threat_entry(entry)
-
-
-async def _lookup_stored_threat(package_hash: str) -> ThreatEntry | None:
-    """The threat entry for *package_hash* as stored (cache, then database)."""
     cache_key = f"{_THREAT_CACHE_PREFIX}{package_hash}"
 
     # 1. Check cache
     cached = await cache.get(cache_key)
     if cached is not None:
         try:
-            return ThreatEntry.model_validate_json(cached)
+            cached_entry = ThreatEntry.model_validate_json(cached)
         except Exception:
             pass
+        else:
+            return printable_threat_entry(cached_entry)
 
     # 2. Query DB
     row = await db.select_one(THREAT_TABLE, {"hash": package_hash})
@@ -193,21 +172,17 @@ async def _lookup_stored_threat(package_hash: str) -> ThreatEntry | None:
 
     entry = ThreatEntry(**row)
 
-    # 3. Populate cache
+    # 3. Populate cache (the entry as stored)
     await cache.set(cache_key, entry.model_dump_json(), ttl=3600)
 
-    return entry
+    return printable_threat_entry(entry)
 
 
 async def lookup_threats_for_hashes(hashes: list[str]) -> list[ThreatEntry]:
-    """Batch lookup — returns all matching threat entries.
-
-    The scan score takes +10 per match, so a hash a reporter chose
-    (``sigil report <hash>``) is not a match here: see ``lookup_threat``.
-    """
+    """Batch lookup — returns all matching threat entries."""
     results: list[ThreatEntry] = []
     for h in hashes:
-        entry = await lookup_threat(h, include_unverified=False)
+        entry = await lookup_threat(h)
         if entry is not None:
             results.append(entry)
     return results
@@ -374,17 +349,9 @@ async def reload_signatures_from_json(json_path: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-async def submit_report(
-    report: ThreatReport, reporter_user_id: str | None = None
-) -> ThreatReportResponse:
-    """Persist a user-submitted threat report and return an acknowledgement.
-
-    *reporter_user_id* is the signed-in reporter, when the request carried a
-    valid token (POST /v1/report needs none): it is recorded with the report.
-    """
-    # Full GUID: threat_reports.id is UNIQUEIDENTIFIER (schema.sql), and a
-    # truncated hex does not convert (the same failure scans.id had).
-    report_id = str(uuid4())
+async def submit_report(report: ThreatReport) -> ThreatReportResponse:
+    """Persist a user-submitted threat report and return an acknowledgement."""
+    report_id = uuid4().hex[:12]
 
     row = {
         "id": report_id,
@@ -397,8 +364,6 @@ async def submit_report(
         "status": "received",
         "created_at": _utcnow_iso(),
     }
-    if reporter_user_id:
-        row["reporter_user_id"] = reporter_user_id
 
     await db.insert(REPORT_TABLE, row)
 
@@ -604,31 +569,18 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     ecosystem = report.get("ecosystem", "unknown")
     now = _utcnow()
 
-    # A `sigil report <hash>` report (package `sha256:<hash>`) is keyed by the
-    # reported hash itself, so lookups of that hash match it, but as an
-    # unverified entry: the hash is whatever the reporter typed, so it may be
-    # shown (GET /v1/threat/{hash}) and never moves a verdict or a score. Any
-    # other report gets a synthetic hash of its package identity, which a
-    # reporter cannot choose.
-    reported_hash = reported_sha256(package_name)
-    source = COMMUNITY_SOURCE
-    if reported_hash is not None:
-        pkg_hash = reported_hash
-        source = COMMUNITY_UNVERIFIED_SOURCE
-    else:
-        pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
-        pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
+    # Create a synthetic hash from the package identity
+    pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
+    pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
 
-    # Full GUID: threats.id is UNIQUEIDENTIFIER (schema.sql), and a truncated
-    # hex does not convert.
-    threat_id = str(uuid4())
+    threat_id = uuid4().hex[:16]
     threat_row = {
         "id": threat_id,
         "hash": pkg_hash,
         "package_name": package_name,
         "version": report.get("package_version", ""),
         "severity": "CRITICAL",
-        "source": source,
+        "source": "community",
         "confirmed_at": now.isoformat(),
         "description": report.get("reason", "Community-confirmed threat"),
         "created_at": now.isoformat(),
@@ -640,11 +592,9 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     except Exception:
         logger.exception("Failed to create threat entry for %s", package_name)
 
-    # Create a detection signature from the report evidence. A hash report
-    # names no package to match imports of, and its evidence is text the CLI
-    # composed (threat type and hash), not a pattern, so it gets none.
+    # Create a detection signature from the report evidence
     evidence = report.get("evidence", "")
-    if evidence and reported_hash is None:
+    if evidence:
         sig_id = f"sig-community-{threat_id}"
         sig_row = {
             "id": sig_id,

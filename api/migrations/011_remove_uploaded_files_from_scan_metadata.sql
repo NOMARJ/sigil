@@ -3,10 +3,14 @@
 -- Before the CLI/API contract fix, POST /v1/scan-enhanced stored the request's
 -- metadata as scans.metadata_json, including the source files that
 -- `sigil scan --enhanced` uploads for LLM analysis (`file_contents`, or the
--- single-file `content`). Every scan endpoint that returns a stored scan
--- returns metadata_json with it: the detail endpoint (GET /v1/scans/{id}) and
--- the list endpoints (GET /scans, GET /v1/scans), to the account and its
--- team. The API no longer stores those files (_STORED_ENHANCED_METADATA_KEYS
+-- single-file `content`). The scan endpoints return metadata_json with a
+-- stored scan: the detail endpoints (GET /v1/scans/{id}, GET /scans/{id}) to
+-- the account and its team, and the list endpoints (GET /scans, GET /v1/scans)
+-- to the account, in each item's `metadata`, wherever their query reads it
+-- (the in-memory store does; the MSSQL list query selects only the columns a
+-- list item shows and leaves metadata_json out, per list_scans in
+-- api/routers/scan.py, not tested against MSSQL). The API no longer stores
+-- those files (_STORED_ENHANCED_METADATA_KEYS
 -- in api/routers/scan.py keeps an allow-list of keys for /v1/scan-enhanced);
 -- this removes the copies already stored. Every other metadata key is kept.
 --

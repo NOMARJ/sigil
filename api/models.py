@@ -276,17 +276,6 @@ class EnhancedScanResponse(ScanResponse):
 # ---------------------------------------------------------------------------
 
 
-# `source` of a threat entry promoted from a confirmed community report.
-COMMUNITY_SOURCE = "community"
-
-# `source` of a threat entry promoted from a confirmed `sigil report <hash>`
-# report. Its hash is whatever the reporter typed, and a reviewer cannot check
-# it without the artifact, so the entry is shown by GET /v1/threat/{hash} but
-# never moves a POST /v1/verify verdict or a POST /v1/scan score
-# (`is_unverified_hash_entry`).
-COMMUNITY_UNVERIFIED_SOURCE = "community-unverified"
-
-
 class ThreatEntry(BaseModel):
     """A known-malicious package record in the threat database."""
 
@@ -295,7 +284,7 @@ class ThreatEntry(BaseModel):
     version: str = Field("", description="Affected version or range")
     severity: Severity = Field(Severity.HIGH)
     source: str = Field(
-        COMMUNITY_SOURCE, description="Intel source (community, nvd, internal)"
+        "community", description="Intel source (community, nvd, internal)"
     )
     confirmed_at: Optional[datetime] = Field(
         None, description="When the threat was confirmed"
@@ -325,48 +314,19 @@ def without_control_characters(text: str) -> str:
 _THREAT_TEXT_FIELDS = ("hash", "package_name", "version", "source", "description")
 
 
-def is_unverified_hash_entry(entry: ThreatEntry) -> bool:
-    """Whether *entry* was keyed by a hash a reporter chose.
+def printable_threat_entry(entry: ThreatEntry) -> ThreatEntry:
+    """*entry* with no control characters in its text fields.
 
-    That is an entry promoted from a `sigil report <hash>` report: source
-    `community-unverified`, or `community` with a `sha256:<hash>` package name
-    (the form a report confirmed before the distinct source existed has).
+    A threat entry's text is whatever its source wrote (a community entry's
+    description is the reporter's own), and CLI 1.3.7 prints it raw. Only the
+    characters `without_control_characters` replaces change; the entry is
+    otherwise as stored. `lookup_threat` returns entries in this form, so
+    every reader of the threat database gets it: GET /v1/threat/{hash},
+    POST /v1/verify and the hash enrichment of POST /v1/scan.
     """
-    source = without_control_characters(entry.source).strip()
-    if source == COMMUNITY_UNVERIFIED_SOURCE:
-        return True
-    return (
-        source == COMMUNITY_SOURCE and reported_sha256(entry.package_name) is not None
-    )
-
-
-def attributed_threat_entry(entry: ThreatEntry) -> ThreatEntry:
-    """*entry* as it may be shown to a client.
-
-    Its text carries no control characters (`without_control_characters`), and
-    a community entry's description says whose text it is. That description is
-    the reporter's own, and the clients that print it (CLI 1.3.7 prints the
-    description alone, without the source) cannot tell it from Sigil's. It is
-    prefixed with where it came from: "Community report: ", or for a `sigil
-    report <hash>` report, whose hash a reviewer cannot check without the
-    artifact, "Community report (unverified hash): ". An empty description
-    stays empty: there is no reporter text to attribute, and the readers that
-    name the package in its place (POST /v1/verify) still can.
-
-    `lookup_threat` returns entries in this form, so every reader of the
-    threat database gets it: GET /v1/threat/{hash}, POST /v1/verify and the
-    hash enrichment of POST /v1/scan.
-    """
-    unverified = is_unverified_hash_entry(entry)
     data = entry.model_dump()
     for key in _THREAT_TEXT_FIELDS:
         data[key] = without_control_characters(data[key])
-    if unverified or data["source"].strip() == COMMUNITY_SOURCE:
-        label = (
-            "Community report (unverified hash)" if unverified else "Community report"
-        )
-        text = data["description"].strip()
-        data["description"] = f"{label}: {text}" if text else ""
     return ThreatEntry(**data)
 
 
@@ -396,8 +356,7 @@ class ThreatLookupResponse(ThreatEntry):
 
     @classmethod
     def from_entry(cls, entry: ThreatEntry) -> "ThreatLookupResponse":
-        """The lookup response for *entry*, as `lookup_threat` returns it
-        (already attributed by `attributed_threat_entry`)."""
+        """The lookup response for *entry*, as `lookup_threat` returns it."""
         return cls(**entry.model_dump())
 
 
@@ -454,14 +413,6 @@ _SHA256_HEX = re.compile(r"[0-9a-f]{64}")
 
 # Package-name prefix of a `sigil report <hash>` report.
 HASH_REPORT_PREFIX = "sha256:"
-
-
-def reported_sha256(package_name: str) -> Optional[str]:
-    """The digest of a hash report's package name (`sha256:<64 hex>`), else None."""
-    if not package_name.startswith(HASH_REPORT_PREFIX):
-        return None
-    digest = package_name[len(HASH_REPORT_PREFIX) :]
-    return digest if _SHA256_HEX.fullmatch(digest) else None
 
 
 class ThreatReport(BaseModel):

@@ -52,6 +52,11 @@ Security phase its weight of 5 (it had defaulted to 1.0). Only `risk_score`
 (304.0 to 384.0), the ids and `created_at` changed; the verdict is
 `CRITICAL_RISK` in both.
 
+`api-patched/report_response.json` was captured again on 2026-10-08, in
+process with the API's test client and its in-memory store, from
+`cli-current/report.json`; only `id` and `report_id` changed (the report id
+is the 12-character hex id, as in `api-deployed/`, not a GUID).
+
 The `api-deployed/` responses come from the CLI built from this tree talking
 to the API at the PR's base. That API refuses the Inference Security phase
 (HTTP 422 on the five-file scan), so its scan and `--enhanced` responses are

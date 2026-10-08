@@ -103,7 +103,7 @@ Source: `api/routers/threat.py` — Prefix: `/v1`
 | GET | `/v1/threat-reports/{report_id}` | Pro | Get single threat report details |
 | PATCH | `/v1/threat-reports/{report_id}` | Pro, reviewer | Update threat report status (review workflow); confirming creates a threat entry |
 
-"Pro" means a Bearer token for an account on the Pro plan or higher; "admin" and "reviewer" are account roles (admin or owner; reviewer, admin or owner). These gates read the account role (`users.role`) and are not scoped to a team. Reading `GET /team` creates a personal team and records the user as its owner without changing that role, so it does not make the user a reviewer; an operator assigns `reviewer`, `admin` and `owner`, and a team admin on the Team plan can assign `admin` to the members of their team (`PATCH /team/members/{id}/role`), which passes the same gates.
+"Pro" means a Bearer token for an account on the Pro plan or higher; "admin" and "reviewer" are account roles (admin or owner; reviewer, admin or owner).
 
 ---
 
@@ -113,7 +113,7 @@ Source: `api/routers/verify.py` — Prefix: `/v1`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| POST | `/v1/verify` | No | Verify package for marketplace badge: checks the artifact hash against the threat database (a confirmed `sigil report <hash>` report does not match: its hash is the reporter's choice) and the publisher's reputation |
+| POST | `/v1/verify` | No | Verify package for marketplace badge: checks the artifact hash against the threat database and the publisher's reputation |
 
 ---
 
@@ -123,7 +123,7 @@ Source: `api/routers/report.py` — Prefix: `/v1`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| POST | `/v1/report` | No | Submit a threat report for review (`sigil report`, the dashboard); a valid token is optional and, when sent, the reporting account is recorded. Also at `POST /threats/report` and `POST /report`. Accepts `{package_name, reason, ...}` and CLI 1.3.7's `{hash, threat_type, description}` |
+| POST | `/v1/report` | No | Submit a threat report for review (`sigil report`, the dashboard); no token is needed. Also at `POST /threats/report` and `POST /report`. Accepts `{package_name, reason, ...}` and CLI 1.3.7's `{hash, threat_type, description}` |
 
 ---
 

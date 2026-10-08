@@ -166,5 +166,8 @@ two scan records, two units of the quota.
   refresh it.
 - **`API error: 401 ...`**: the token expired. Run `sigil login` again.
 - **Offline**: the request fails with a warning and the scan result stands.
-- **No output about `--enhanced` at all**: the result came from the cache;
-  add `--no-cache`.
+- **`warning: --enhanced was skipped: the result came from the cache ...`**
+  (on stderr): the scan was served from the cache, so nothing was uploaded and
+  no scan was stored. Add `--no-cache`. The warning names every cloud option
+  the run skipped (`--submit`, `--enrich`, `--enhanced`), and the exit code is
+  that of the cached result. CLI 1.3.7 skips them without a message.

@@ -483,7 +483,7 @@ Nothing goes to the Sigil API unless you use a cloud option, logged in or not (a
 - `sigil scan --submit`: the scan's active findings, each with its rule, phase, severity, file path, line and the flagged source line, plus the number of files scanned and the score and verdict, under the target name `cli-scan` rather than the scanned path. Flagged lines are source code, and can include a secret the line contains
 - `sigil scan --enhanced` (Pro): the contents of up to 50 eligible text files under the target directory, collected independently of scan exclusions, for LLM analysis, plus the scan result: every finding with its flagged source line, including findings in files outside those 50 (a secret flagged in `.env`, for example)
 - `sigil explain <scan.json>`: every finding in that saved scan report, including each flagged source line, so the server can have a model adjudicate one of them
-- `sigil report <hash>`: the hash (a SHA-256 digest; the CLI refuses anything else before sending), threat type and description you give it, filed for review under the package name `sha256:<hash>`. Whether the API records it depends on its version ([API update rollout](cli.md#api-update-rollout)). The API records your account with the report when you are logged in
+- `sigil report <hash>`: the hash (a SHA-256 digest; the CLI refuses anything else before sending), threat type and description you give it, filed for review under the package name `sha256:<hash>`. Whether the API records it depends on its version ([API update rollout](cli.md#api-update-rollout))
 
 ---
 

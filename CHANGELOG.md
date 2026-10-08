@@ -101,60 +101,47 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     otherwise prints `Enhanced analysis failed: failed to parse response` and
     keeps its static results. When the LLM step fails, the API returns the
     exception type, not its message. The API no longer keeps the uploaded
-    files: it stored them in the scan record, and every endpoint that returns
-    a stored scan returns its metadata to the account and its team (the detail
-    endpoints `GET /v1/scans/{id}` and `GET /scans/{id}`, and the list
-    endpoints `GET /scans` and `GET /v1/scans`); now it stores only the scan's
-    own metadata keys (`source`, `cli_score`, `cli_verdict`, `hash`, `hashes`,
+    files: it stored them in the scan record, and the endpoints that return a
+    stored scan return its metadata to the account (the detail endpoints
+    `GET /v1/scans/{id}` and `GET /scans/{id}` also to its team) and the list
+    endpoints `GET /scans` and `GET /v1/scans` carry it in each item, where
+    their query reads it: the in-memory store does, while the MSSQL list query
+    selects only the columns a list item shows and leaves `metadata_json` out
+    (read from the code, not tested against MSSQL). Now it stores only the
+    scan's own metadata keys (`source`, `cli_score`, `cli_verdict`, `hash`, `hashes`,
     `publisher`, `publisher_id`), whatever else a client sends, and only the
     LLM step sees the files.
     Migration `api/migrations/011_remove_uploaded_files_from_scan_metadata.sql`
     removes the copies already stored: the keys `file_contents` and `content`,
     from every stored scan that has them (it has not been run against MSSQL;
     dry-run it on a copy first); until it is applied, scans stored before the
-    update keep their files, and the list endpoints return them too.
+    update keep their files, which the endpoints above return.
   - `sigil report` posted `{hash, threat_type, description}`, but the API
     expects a package name and a reason (HTTP 422), and the CLI expected an
     `id` the API does not return. The CLI now files the hash as package
     `sha256:<hash>`, with the description as the reason and the threat type
     and hash as evidence; the API files a 1.3.7 body the same way and adds
-    `id` to its response. The dashboard's reports are unchanged. Report ids are
-    now full GUIDs: `threat_reports.id` is a `UNIQUEIDENTIFIER` in
-    `schema.sql`, which a 12-character id does not convert to (not tested
-    against MSSQL), so before this update a report from any CLI version can
-    fail with a server error on that database. The hash must be a SHA-256
-    digest (64 hex characters): the CLI refuses anything else before sending,
-    and the API refuses it in a 1.3.7 body. Confirming a report now creates
-    its threat entry with a full GUID as well (the 16-character id it used
-    does not fit `threats.id` either), keys a hash report by the reported
-    hash so a lookup of that hash matches it, and makes no detection
-    signature from a hash report, whose evidence the CLI composed and which
-    names no package. The API does not require a token on a report; it records
-    the reporting account (`threat_reports.reporter_user_id`) when the request
-    carries a valid one, and files the report anonymously otherwise, so an
-    expired token does not stop it. The CLI only requires a token to be
-    stored. It tells a hash of the wrong length from one with characters
-    outside `0-9a-f` (`got N characters` is no longer printed for a 64-character
-    hash that is not hexadecimal). Confirming a report records the reviewer.
-    The CLI prints a warning and exits 1 when the API answers 2xx without a report
-    id (a proxy or captive portal answering in its place), instead of
-    `threat reported successfully`; `--submit` likewise warns, without
-    changing the exit code, when the answer has no scan id.
-    **A confirmed hash report is an unverified entry: `GET /v1/threat/{hash}`
-    (and so `--enrich`) shows it, and `POST /v1/verify` and the hash
-    enrichment of `POST /v1/scan` ignore it.** It is keyed by the reported
-    hash, so a lookup of that hash matches it; its source is
-    `community-unverified`, and its description is prefixed
-    `Community report (unverified hash): `. Before this change a confirmed
-    report was stored under a hash of its package identity, which no artifact
-    hash matched. `POST /v1/report` needs no token, so anyone can file a
-    report for any artifact hash, and a reviewer cannot check a hash without
-    the artifact: if the entry counted for the other readers, a confirmed
-    report would make an unauthenticated `POST /v1/verify` for that artifact
-    return `CRITICAL_RISK` and add 10 to every scan that lists the hash. It
-    does neither. A report that names a package (the dashboard's) is still
-    keyed by a hash of its identity, which a reporter cannot choose to match
-    an artifact, and still counts.
+    `id` to its response. The dashboard's reports are unchanged. The hash must
+    be a SHA-256 digest (64 hex characters): the CLI refuses anything else
+    before sending, and the API refuses it in a 1.3.7 body. The CLI tells a
+    hash of the wrong length from one with characters outside `0-9a-f` (`got N
+    characters` is no longer printed for a 64-character hash that is not
+    hexadecimal). The API does not require a token on a report (the CLI only
+    requires one to be stored) and records a hash report for review exactly as
+    it records any report. The CLI prints a warning and exits 1 when the API
+    answers 2xx without a report id (a proxy or captive portal answering in
+    its place), instead of `threat reported successfully`; `--submit`
+    likewise warns, without changing the exit code, when the answer has no
+    scan id.
+    **A confirmed hash report is not findable by its hash.** Confirming a
+    report creates a threat entry keyed by a hash of the report's package
+    identity (the SHA-256 of `ecosystem:name:version`, here
+    `unknown:sha256:<hash>:`), as it does for every report; the hash typed
+    into `sigil report` is not the key. So `sigil scan --enrich`,
+    `POST /v1/verify` and `POST /v1/scan` do not match the reported hash, and
+    confirming the report changes no verdict or scan score for that hash (a
+    test pins this). This is how promotion worked before this change and it
+    is unchanged here.
   - `--enrich` could not parse a match: the CLI required `known_malicious` and
     `references`, which the API's threat entry does not have, and printed the
     failure only with `-v`. The CLI now reads the threat entry and prints its
@@ -168,14 +155,13 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     characters, format characters (bidirectional overrides and isolates,
     zero-width characters) or line and paragraph separators (U+2028, U+2029):
     1.3.7 prints the description raw, and a community entry's description is
-    the reporter's text, which the response now prefixes with
-    `Community report: `, or `Community report (unverified hash): ` for a
-    hash report, so 1.3.7 shows whose text it is. The CLI replaces the same
-    characters before it prints anything the API sent. A community entry with
-    no description keeps it empty (and `POST /v1/verify` names its package).
-    A 2xx answer that names no entry (no `hash` and no `package_name`, and no
-    `known_malicious`), such as `{}` from a proxy or captive portal, is not a
-    match; it used to print `is a known threat: no description`. The CLI warns
+    the reporter's text. The same characters are replaced wherever the API
+    shows a threat entry (`POST /v1/verify`, the `threat_intel_hits` of
+    `POST /v1/scan`), and the CLI replaces them before it prints anything the
+    API sent. A 2xx answer that names no entry (no `hash` and no
+    `package_name`, and no `known_malicious`), such as `{}` from a proxy or
+    captive portal, is not a match; it used to print `is a known threat: no
+    description`. The CLI warns
     `threat-intel lookup returned an unrecognised answer`: the Sigil API
     answers 404 for an unknown hash, so it is not a lookup result, and "no
     match" stays for the 404 and for `known_malicious: false`. A match, like
@@ -202,19 +188,6 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     cache hit used to skip them without a word, so a repeated `--submit`
     stored no scan and looked as if it had. The CLI now warns on stderr, naming
     the options skipped and `--no-cache`; the exit code is unchanged.
-  - **Reading `GET /team` no longer makes the caller an `owner`.** The first
-    `GET /team` of any user created a personal team and wrote the user's
-    account role as `owner`, which the reviewer and signature-admin gates
-    accept (`api/permissions.py`): a Pro account could confirm threat reports
-    after one read. The team now records its owner (`teams.owner_id`), who
-    manages the team as before and is shown as `owner` in the team's member
-    list, and the account role is left alone. The team owner's own role cannot
-    be changed through `PATCH /team/members/{id}/role`. Accounts that read
-    `GET /team` before this change already have `users.role = 'owner'` stored:
-    review those rows, and reset the ones an operator did not assign. A team
-    admin on the Team plan can still give a member the `admin` role, which
-    passes the same gates; the gates are account-wide and not scoped to a
-    team, and separating the roles is not part of this change.
   - `docs/CLI_LLM_FEATURES.md`, `docs/api-reference.md` and
     `docs/api-endpoints.md` describe these endpoints as they now work: the
     request and response bodies, `id` and `status`, the plan and token each

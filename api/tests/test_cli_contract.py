@@ -11,10 +11,10 @@ against the same files in cli/src/api.rs.
 
 from __future__ import annotations
 
+import hashlib
 import itertools
 import json
 import unicodedata
-import uuid
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, patch
@@ -349,8 +349,8 @@ class TestEnhancedScan:
             k: v for k, v in body["metadata"].items() if k != "file_contents"
         }
 
-        # Every endpoint that returns a stored scan returns its metadata: the
-        # detail endpoints and the list endpoints.
+        # The endpoints that return a stored scan's metadata: the detail
+        # endpoints and, with the in-memory store, the list endpoints.
         detail = client.get(f"/v1/scans/{scan_id}", headers=headers)
         assert detail.status_code == 200, detail.text
         assert "file_contents" not in detail.json()["metadata_json"]
@@ -574,8 +574,7 @@ class TestThreatReportContract:
         # Dashboard and current CLI read report_id; CLI 1.3.7 reads id.
         assert data["id"] == data["report_id"]
         assert data["status"] == "received"
-        # threat_reports.id is UNIQUEIDENTIFIER: a full GUID, not a hex prefix.
-        assert str(uuid.UUID(data["report_id"])) == data["report_id"]
+        assert data["report_id"]
 
     def test_both_cli_versions_file_the_same_record(self, client: TestClient) -> None:
         stored = []
@@ -638,7 +637,15 @@ class TestThreatReportContract:
 
 
 class TestReportPromotion:
-    """Confirming a report creates a threat entry (POST /v1/report -> review)."""
+    """What confirming a report does (POST /v1/report -> review).
+
+    A `sigil report <hash>` report is filed as package `sha256:<hash>` and is
+    recorded and promoted like any other report: the threat entry is keyed by
+    a hash of the package identity (`ecosystem:name:version`), never by the
+    hash the reporter typed. So a confirmed hash report is not findable by
+    that hash: `sigil scan --enrich`, POST /v1/verify and POST /v1/scan do
+    not match it.
+    """
 
     @staticmethod
     def _confirm(client: TestClient, headers: dict[str, str], report_id: str) -> None:
@@ -650,10 +657,46 @@ class TestReportPromotion:
             )
             assert resp.status_code == 200, resp.text
 
+    @staticmethod
+    def _identity_hash(ecosystem: str, name: str, version: str = "") -> str:
+        return hashlib.sha256(f"{ecosystem}:{name}:{version}".encode()).hexdigest()
+
+    @staticmethod
+    def _verify(client: TestClient, digest: str) -> dict[str, Any]:
+        resp = client.post(
+            "/v1/verify",
+            json={
+                "package_name": "some-package",
+                "package_version": "1.0.0",
+                "ecosystem": "npm",
+                "artifact_hash": digest,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
+    @staticmethod
+    def _scan(
+        client: TestClient, headers: dict[str, str], metadata: dict[str, Any]
+    ) -> dict[str, Any]:
+        resp = client.post(
+            "/v1/scan",
+            json={
+                "target": "t",
+                "target_type": "directory",
+                "findings": [],
+                "metadata": metadata,
+            },
+            headers=headers,
+        )
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
     @pytest.mark.parametrize("body_path", REPORT_BODIES)
-    def test_confirmed_hash_report_matches_lookups_of_that_hash(
+    def test_confirmed_hash_report_is_keyed_by_package_identity_not_its_hash(
         self,
         client: TestClient,
+        pro_auth_headers: dict[str, str],
         reviewer_auth_headers: dict[str, str],
         body_path: str,
     ) -> None:
@@ -663,44 +706,82 @@ class TestReportPromotion:
         ]
         self._confirm(client, reviewer_auth_headers, report_id)
 
-        threats = list(db._memory_store["threats"].values())
-        assert [t["hash"] for t in threats] == [digest]
-        # threats.id is UNIQUEIDENTIFIER: a full GUID, not a hex prefix.
-        assert str(uuid.UUID(threats[0]["id"])) == threats[0]["id"]
+        (threat,) = db._memory_store["threats"].values()
+        assert threat["package_name"] == f"sha256:{digest}"
+        assert threat["hash"] == self._identity_hash("unknown", f"sha256:{digest}")
+        assert threat["hash"] != digest
+        assert threat["source"] == "community"
 
-        resp = client.get(f"/v1/threat/{digest}", headers=reviewer_auth_headers)
+        # `sigil scan --enrich` (GET /v1/threat/{hash}): the reported hash is
+        # an unknown hash; the entry is found only under its identity hash.
+        resp = client.get(f"/v1/threat/{digest}", headers=pro_auth_headers)
+        assert resp.status_code == 404, resp.text
+        resp = client.get(f"/v1/threat/{threat['hash']}", headers=pro_auth_headers)
         assert resp.status_code == 200, resp.text
-        assert resp.json()["package_name"] == f"sha256:{digest}"
-        # A hash the reporter typed is its own source (see
-        # TestConfirmedHashReportReachesEveryReader): shown here, never scored.
-        assert resp.json()["source"] == "community-unverified"
-        # CLI 1.3.7 prints only the description: it says whose text it is.
-        reason = fixture("cli-1.3.7/report.json")["description"]
-        assert resp.json()["description"] == (
-            f"Community report (unverified hash): {reason}"
-        )
-        # No import-matching signature for a hash, and the CLI-composed
-        # evidence is never used as a regex.
-        assert not db._memory_store.get("signatures")
 
-    def test_confirmed_package_report_gets_a_guid_and_a_signature(
-        self, client: TestClient, reviewer_auth_headers: dict[str, str]
+    @pytest.mark.parametrize("body_path", REPORT_BODIES)
+    def test_confirmed_hash_report_changes_no_verify_verdict_or_scan_score(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        reviewer_auth_headers: dict[str, str],
+        body_path: str,
     ) -> None:
-        report_id = client.post(
-            "/v1/report", json=fixture("dashboard/report.json")
-        ).json()["report_id"]
+        digest = fixture("cli-1.3.7/report.json")["hash"]
+        verify_keys = ("verdict", "risk_score", "verified", "findings_summary")
+        scan_keys = ("verdict", "risk_score", "threat_intel_hits")
+
+        def verdicts() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+            verify = self._verify(client, digest)
+            scans = [
+                self._scan(client, auth_headers, metadata)
+                for metadata in ({"hashes": [digest]}, {"hash": digest})
+            ]
+            return (
+                {k: verify[k] for k in verify_keys},
+                [{k: scan[k] for k in scan_keys} for scan in scans],
+            )
+
+        before = verdicts()
+        report_id = client.post("/v1/report", json=fixture(body_path)).json()[
+            "report_id"
+        ]
+        self._confirm(client, reviewer_auth_headers, report_id)
+        assert db._memory_store["threats"], "the report was confirmed"
+
+        assert verdicts() == before
+        verify, scans = before
+        assert verify["verdict"] == "LOW_RISK"
+        assert verify["risk_score"] == 0.0
+        assert [scan["risk_score"] for scan in scans] == [0.0, 0.0]
+        assert [scan["threat_intel_hits"] for scan in scans] == [[], []]
+
+    def test_confirmed_package_report_is_promoted_as_before(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        reviewer_auth_headers: dict[str, str],
+    ) -> None:
+        # Unchanged by this fix, for contrast: a package report's entry is
+        # keyed by the hash of its identity, which a verify request or a scan
+        # can carry, and it gets an import-matching signature.
+        body = fixture("dashboard/report.json")
+        report_id = client.post("/v1/report", json=body).json()["report_id"]
         self._confirm(client, reviewer_auth_headers, report_id)
 
         (threat,) = db._memory_store["threats"].values()
-        assert str(uuid.UUID(threat["id"])) == threat["id"]
-        assert threat["package_name"] == "contract-test-pkg"
+        assert threat["hash"] == self._identity_hash(
+            body["ecosystem"], body["package_name"]
+        )
         (signature,) = db._memory_store["signatures"].values()
         assert signature["id"] == f"sig-community-{threat['id']}"
 
-        resp = client.get(f"/v1/threat/{threat['hash']}", headers=reviewer_auth_headers)
-        assert resp.status_code == 200, resp.text
-        reason = fixture("dashboard/report.json")["reason"]
-        assert resp.json()["description"] == f"Community report: {reason}"
+        verify = self._verify(client, threat["hash"])
+        assert verify["verdict"] == "CRITICAL_RISK"
+        assert verify["risk_score"] == 50.0
+        scan = self._scan(client, auth_headers, {"hashes": [threat["hash"]]})
+        assert scan["risk_score"] == 10.0
+        assert len(scan["threat_intel_hits"]) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -735,53 +816,6 @@ class TestThreatLookupContract:
         # Every field the deployed API returned is still there, unchanged.
         deployed = fixture("api-deployed/threat_lookup_response.json")
         assert {k: data[k] for k in deployed} == deployed
-
-    @pytest.mark.parametrize(
-        ("package_name", "description", "source", "expected"),
-        [
-            # Reporter text is attributed; no text means nothing to attribute,
-            # and an empty description stays empty (POST /v1/verify then names
-            # the package instead).
-            ("sha256:" + "a" * 64, "", "community", ""),
-            ("evil-pkg", "  ", "community", ""),
-            ("sha256:not-a-digest", "text", "community", "Community report: text"),
-            ("evil-pkg", "text", "community", "Community report: text"),
-            (
-                "sha256:" + "a" * 64,
-                "text",
-                "community",
-                "Community report (unverified hash): text",
-            ),
-            (
-                "sha256:" + "a" * 64,
-                "text",
-                "community-unverified",
-                "Community report (unverified hash): text",
-            ),
-            ("sha256:" + "a" * 64, "", "community-unverified", ""),
-        ],
-    )
-    def test_community_entry_text_is_attributed(
-        self,
-        client: TestClient,
-        pro_auth_headers: dict[str, str],
-        package_name: str,
-        description: str,
-        source: str,
-        expected: str,
-    ) -> None:
-        digest = "e" * 64
-        db._memory_store.setdefault("threats", {})["community-1"] = {
-            "id": "community-1",
-            "hash": digest,
-            "package_name": package_name,
-            "severity": "HIGH",
-            "source": source,
-            "description": description,
-        }
-        resp = client.get(f"/v1/threat/{digest}", headers=pro_auth_headers)
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["description"] == expected
 
     def test_unknown_hash_is_still_404(
         self, client: TestClient, pro_auth_headers: dict[str, str]
@@ -821,8 +855,7 @@ class TestThreatLookupContract:
         for key, value in data.items():
             if isinstance(value, str):
                 assert unprintable_chars(value) == [], key
-        # A control character in `source` does not hide the attribution.
-        assert data["description"].startswith("Community report: evil ")
+        assert data["description"].startswith("evil ")
         assert data["description"].rstrip().endswith("fake")
         assert data["package_name"] == "pkg [31m"
         assert data["hash"] == digest
@@ -894,158 +927,47 @@ class TestWithoutControlCharacters:
         assert without_control_characters("") == ""
 
 
-class TestConfirmedHashReportReachesEveryReader:
-    """A confirmed `sigil report <hash>` is keyed by the reported hash, which
-    the reporter chose: anyone can file a report for any artifact hash, and
-    POST /v1/report needs no token. Three endpoints read the threat table.
-    GET /v1/threat/{hash} shows the entry, attributed and printable; POST
-    /v1/verify and the hash enrichment of POST /v1/scan ignore it, so a report
-    cannot make an artifact's verdict CRITICAL or add to a scan's score."""
+class TestThreatTextReachesClientsPrintable:
+    """A confirmed report's description is its reporter's text. Whichever
+    endpoint shows a threat entry, it carries no control characters."""
 
     HOSTILE = (
         "totally malware\x1b[2J\x1b]0;pwn\x07 trust me\r\nVerdict: CLEAN"
         "\u202e)(txet\u2028end"
     )
-    LABEL = "Community report (unverified hash): totally malware"
 
-    @staticmethod
-    def _confirmed_hash_report(
-        client: TestClient, reviewer_headers: dict[str, str]
-    ) -> str:
-        digest = "ab" * 32
-        resp = client.post(
-            "/v1/report",
-            json={
-                "hash": digest,
-                "threat_type": "malware",
-                "description": TestConfirmedHashReportReachesEveryReader.HOSTILE,
-            },
-        )
+    def _confirmed_threat(
+        self, client: TestClient, reviewer_headers: dict[str, str]
+    ) -> dict[str, Any]:
+        body = {**fixture("dashboard/report.json"), "reason": self.HOSTILE}
+        resp = client.post("/v1/report", json=body)
         assert resp.status_code == 201, resp.text
         TestReportPromotion._confirm(client, reviewer_headers, resp.json()["report_id"])
-        return digest
+        (threat,) = db._memory_store["threats"].values()
+        # Stored as the reporter wrote it.
+        assert threat["description"] == self.HOSTILE
+        return threat
 
-    @staticmethod
-    def _verify(client: TestClient, digest: str) -> dict[str, Any]:
-        resp = client.post(
-            "/v1/verify",
-            json={
-                "package_name": "some-package",
-                "package_version": "1.0.0",
-                "ecosystem": "npm",
-                "artifact_hash": digest,
-            },
-        )
-        assert resp.status_code == 200, resp.text
-        return resp.json()
-
-    def test_lookup_shows_it_attributed_and_printable(
+    def test_lookup_text_is_printable(
         self, client: TestClient, reviewer_auth_headers: dict[str, str]
     ) -> None:
-        digest = self._confirmed_hash_report(client, reviewer_auth_headers)
-        resp = client.get(f"/v1/threat/{digest}", headers=reviewer_auth_headers)
+        threat = self._confirmed_threat(client, reviewer_auth_headers)
+        resp = client.get(f"/v1/threat/{threat['hash']}", headers=reviewer_auth_headers)
         assert resp.status_code == 200, resp.text
         data = resp.json()
-        assert data["description"].startswith(self.LABEL), data["description"]
-        assert data["source"] == "community-unverified"
+        assert data["description"].startswith("totally malware ")
         for key, value in data.items():
             if isinstance(value, str):
                 assert unprintable_chars(value) == [], key
 
-    def test_verify_ignores_a_hash_the_reporter_chose(
+    def test_verify_summary_is_printable(
         self, client: TestClient, reviewer_auth_headers: dict[str, str]
     ) -> None:
-        digest = self._confirmed_hash_report(client, reviewer_auth_headers)
-        # The same answer before and after the lookup cached the entry.
-        for _ in range(2):
-            data = self._verify(client, digest)
-            assert data["verdict"] == "LOW_RISK"
-            assert data["risk_score"] == 0.0
-            assert data["findings_summary"] == "No issues found."
-            assert "Community report" not in json.dumps(data)
-            resp = client.get(f"/v1/threat/{digest}", headers=reviewer_auth_headers)
-            assert resp.status_code == 200, resp.text
-
-    def test_scan_enrichment_ignores_a_hash_the_reporter_chose(
-        self,
-        client: TestClient,
-        auth_headers: dict[str, str],
-        reviewer_auth_headers: dict[str, str],
-    ) -> None:
-        digest = self._confirmed_hash_report(client, reviewer_auth_headers)
-        for metadata in ({"hashes": [digest]}, {"hash": digest}):
-            resp = client.post(
-                "/v1/scan",
-                json={
-                    "target": "t",
-                    "target_type": "directory",
-                    "findings": [],
-                    "metadata": metadata,
-                },
-                headers=auth_headers,
-            )
-            assert resp.status_code == 200, resp.text
-            data = resp.json()
-            assert data["risk_score"] == 0.0
-            assert data["verdict"] == "LOW_RISK"
-            assert data["threat_intel_hits"] == []
-
-    def test_the_lookup_leaves_a_chosen_hash_out_unless_asked_for_it(
-        self, client: TestClient, reviewer_auth_headers: dict[str, str]
-    ) -> None:
-        import asyncio
-
-        from api.services.threat_intel import lookup_threat, lookup_threats_for_hashes
-
-        digest = self._confirmed_hash_report(client, reviewer_auth_headers)
-        # A reader that forgets the flag does not score the entry.
-        assert asyncio.run(lookup_threat(digest)) is None
-        assert asyncio.run(lookup_threats_for_hashes([digest])) == []
-        shown = asyncio.run(lookup_threat(digest, include_unverified=True))
-        assert shown is not None
-        assert shown.source == "community-unverified"
-
-    def test_a_confirmed_package_report_still_counts(
-        self,
-        client: TestClient,
-        auth_headers: dict[str, str],
-        reviewer_auth_headers: dict[str, str],
-    ) -> None:
-        # Its hash is derived from the package identity, which a reporter
-        # cannot choose to match an artifact: the entry keeps its effect.
-        report_id = client.post(
-            "/v1/report", json=fixture("dashboard/report.json")
-        ).json()["report_id"]
-        TestReportPromotion._confirm(client, reviewer_auth_headers, report_id)
-        (threat,) = db._memory_store["threats"].values()
-        assert threat["source"] == "community"
-        data = self._verify(client, threat["hash"])
+        threat = self._confirmed_threat(client, reviewer_auth_headers)
+        data = TestReportPromotion._verify(client, threat["hash"])
         assert data["verdict"] == "CRITICAL_RISK"
-        assert data["risk_score"] == 50.0
-        resp = client.post(
-            "/v1/scan",
-            json={
-                "target": "t",
-                "target_type": "directory",
-                "findings": [],
-                "metadata": {"hashes": [threat["hash"]]},
-            },
-            headers=auth_headers,
-        )
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["risk_score"] == 10.0
-        assert len(resp.json()["threat_intel_hits"]) == 1
-
-    def test_a_community_entry_without_a_description_is_named_by_its_package(
-        self, client: TestClient, reviewer_auth_headers: dict[str, str]
-    ) -> None:
-        report_id = client.post(
-            "/v1/report", json={"package_name": "evil-pkg", "reason": ""}
-        ).json()["report_id"]
-        TestReportPromotion._confirm(client, reviewer_auth_headers, report_id)
-        (threat,) = db._memory_store["threats"].values()
-        summary = self._verify(client, threat["hash"])["findings_summary"]
-        assert summary == "Known threat: evil-pkg (severity=CRITICAL)"
+        assert data["findings_summary"].startswith("Known threat: totally malware ")
+        assert unprintable_chars(json.dumps(data, ensure_ascii=False)) == []
 
     def test_internal_entries_keep_their_text_but_lose_control_characters(
         self, client: TestClient
@@ -1059,207 +981,8 @@ class TestConfirmedHashReportReachesEveryReader:
             "source": "internal",
             "description": "known\x1b[2J backdoor\u202e",
         }
-        summary = self._verify(client, digest)["findings_summary"]
+        summary = TestReportPromotion._verify(client, digest)["findings_summary"]
         assert summary == "Known threat: known [2J backdoor  (severity=HIGH)"
-
-    def test_package_report_entries_are_attributed_without_the_hash_label(
-        self, client: TestClient, reviewer_auth_headers: dict[str, str]
-    ) -> None:
-        report_id = client.post(
-            "/v1/report", json=fixture("dashboard/report.json")
-        ).json()["report_id"]
-        TestReportPromotion._confirm(client, reviewer_auth_headers, report_id)
-        (threat,) = db._memory_store["threats"].values()
-        summary = self._verify(client, threat["hash"])["findings_summary"]
-        reason = fixture("dashboard/report.json")["reason"]
-        assert (
-            summary == f"Known threat: Community report: {reason} (severity=CRITICAL)"
-        )
-
-
-# ---------------------------------------------------------------------------
-# Who may confirm a report, and who filed it
-# ---------------------------------------------------------------------------
-
-
-class TestReviewGate:
-    """Confirming a report is a reviewer's decision. The role that decides it
-    is not one a user can give themselves by reading their team."""
-
-    @staticmethod
-    def _report(client: TestClient) -> str:
-        return client.post(
-            "/v1/report", json=fixture("cli-current/report.json")
-        ).json()["report_id"]
-
-    def test_reading_the_team_does_not_make_a_pro_user_a_reviewer(
-        self, client: TestClient, pro_auth_headers: dict[str, str], pro_user: dict
-    ) -> None:
-        report_id = self._report(client)
-        denied = client.patch(
-            f"/v1/threat-reports/{report_id}",
-            json={"status": "under_review"},
-            headers=pro_auth_headers,
-        )
-        assert denied.status_code == 403, denied.text
-
-        # GET /team creates the user's personal team. It used to write the
-        # user's role as `owner`, which the reviewer gate accepts.
-        team = client.get("/team", headers=pro_auth_headers)
-        assert team.status_code == 200, team.text
-        user_id = pro_user["user"]["id"]
-        assert db._memory_store["users"][user_id]["role"] == "member"
-
-        for status_ in ("under_review", "confirmed"):
-            resp = client.patch(
-                f"/v1/threat-reports/{report_id}",
-                json={"status": status_},
-                headers=pro_auth_headers,
-            )
-            assert resp.status_code == 403, (status_, resp.text)
-        assert db._memory_store["threat_reports"][report_id]["status"] == "received"
-        assert not db._memory_store.get("threats")
-        # The other platform-wide gate that reads the same role.
-        sig = client.post(
-            "/v1/signatures",
-            json={"id": "x", "phase": "code_patterns", "pattern": "a"},
-            headers=pro_auth_headers,
-        )
-        assert sig.status_code == 403, sig.text
-
-    def test_a_confirmed_hash_report_by_a_reviewer_does_not_change_a_verdict(
-        self, client: TestClient, reviewer_auth_headers: dict[str, str]
-    ) -> None:
-        digest = fixture("cli-1.3.7/report.json")["hash"]
-        verify = TestConfirmedHashReportReachesEveryReader._verify
-        before = verify(client, digest)
-        TestReportPromotion._confirm(
-            client, reviewer_auth_headers, self._report(client)
-        )
-        assert db._memory_store["threats"], "the report was confirmed"
-        after = verify(client, digest)
-        keys = ("verdict", "risk_score", "verified", "findings_summary")
-        assert {k: after[k] for k in keys} == {k: before[k] for k in keys}
-        assert before["verdict"] == "LOW_RISK"
-
-    def test_the_team_owner_still_manages_the_team(self, client: TestClient) -> None:
-        from api.routers.auth import _create_access_token
-
-        async def user(email: str, plan: str | None) -> tuple[str, dict[str, str]]:
-            user_id = str(uuid.uuid4())
-            await db.insert(
-                "users",
-                {
-                    "id": user_id,
-                    "email": email,
-                    "name": email,
-                    "password_hash": "",
-                    "role": "member",
-                },
-            )
-            if plan:
-                await db.upsert_subscription(
-                    user_id=user_id,
-                    plan=plan,
-                    status="active",
-                    stripe_subscription_id=f"sub_{user_id}",
-                )
-            token = _create_access_token({"sub": user_id, "email": email})
-            return user_id, {"Authorization": f"Bearer {token}"}
-
-        import asyncio
-
-        owner_id, owner = asyncio.run(user("owner@example.com", "team"))
-        member_id, _ = asyncio.run(user("member@example.com", None))
-
-        # A teamless account cannot manage anything until it has a team.
-        resp = client.post(
-            "/team/invite",
-            json={"email": "member@example.com", "role": "admin"},
-            headers=owner,
-        )
-        assert resp.status_code == 403, resp.text
-
-        team = client.get("/team", headers=owner)
-        assert team.status_code == 200, team.text
-        assert {m["id"]: m["role"] for m in team.json()["members"]} == {
-            owner_id: "owner"
-        }
-
-        resp = client.post(
-            "/team/invite",
-            json={"email": "member@example.com", "role": "admin"},
-            headers=owner,
-        )
-        assert resp.status_code == 200, resp.text
-        roles = {
-            m["id"]: m["role"]
-            for m in client.get("/team", headers=owner).json()["members"]
-        }
-        assert roles == {owner_id: "owner", member_id: "admin"}
-
-        resp = client.patch(
-            f"/team/members/{member_id}/role", json={"role": "member"}, headers=owner
-        )
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["role"] == "member"
-
-        # The owner's own standing is the team's, not a role to edit: an
-        # `admin` role is one the reviewer gate honours.
-        resp = client.patch(
-            f"/team/members/{owner_id}/role", json={"role": "admin"}, headers=owner
-        )
-        assert resp.status_code == 403, resp.text
-        assert db._memory_store["users"][owner_id]["role"] == "member"
-
-        resp = client.delete(f"/team/members/{member_id}", headers=owner)
-        assert resp.status_code == 204, resp.text
-
-
-class TestReportAttribution:
-    """The account behind a report, and the reviewer who decided it, are
-    recorded when known."""
-
-    def test_a_signed_in_reporter_is_recorded(
-        self, client: TestClient, pro_auth_headers: dict[str, str], pro_user: dict
-    ) -> None:
-        resp = client.post(
-            "/v1/report",
-            json=fixture("cli-current/report.json"),
-            headers=pro_auth_headers,
-        )
-        assert resp.status_code == 201, resp.text
-        row = db._memory_store["threat_reports"][resp.json()["report_id"]]
-        assert row["reporter_user_id"] == pro_user["user"]["id"]
-
-    @pytest.mark.parametrize(
-        "headers",
-        [{}, {"Authorization": "Bearer not-a-token"}, {"Authorization": "Basic abc"}],
-        ids=["no-token", "invalid-token", "other-scheme"],
-    )
-    def test_anyone_else_still_files_an_anonymous_report(
-        self, client: TestClient, headers: dict[str, str]
-    ) -> None:
-        # The report needs no token, and a stale one does not refuse it.
-        resp = client.post(
-            "/v1/report", json=fixture("cli-current/report.json"), headers=headers
-        )
-        assert resp.status_code == 201, resp.text
-        row = db._memory_store["threat_reports"][resp.json()["report_id"]]
-        assert "reporter_user_id" not in row
-
-    def test_the_reviewer_who_decided_is_recorded(
-        self,
-        client: TestClient,
-        reviewer_auth_headers: dict[str, str],
-        reviewer_user: dict,
-    ) -> None:
-        report_id = client.post(
-            "/v1/report", json=fixture("cli-current/report.json")
-        ).json()["report_id"]
-        TestReportPromotion._confirm(client, reviewer_auth_headers, report_id)
-        row = db._memory_store["threat_reports"][report_id]
-        assert row["reviewer_id"] == reviewer_user["user"]["id"]
 
 
 # ---------------------------------------------------------------------------

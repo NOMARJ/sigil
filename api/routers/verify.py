@@ -53,9 +53,7 @@ async def verify_package(request: VerifyRequest) -> VerifyResponse:
 
     # --- 1. Threat intel check ----------------------------------------------
     if request.artifact_hash:
-        # An entry keyed by a hash a reporter chose (`sigil report <hash>`)
-        # is not a match: anyone could file a report for any artifact hash.
-        threat = await lookup_threat(request.artifact_hash, include_unverified=False)
+        threat = await lookup_threat(request.artifact_hash)
         if threat is not None:
             risk_score += 50.0  # Instant CRITICAL
             findings_parts.append(
