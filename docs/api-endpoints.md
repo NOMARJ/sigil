@@ -75,8 +75,8 @@ Source: `api/routers/scan.py`
 |--------|------|:----:|-------------|
 | POST | `/v1/scan` | Yes | Submit a scan's findings, each with its flagged source line (`sigil scan --submit`, `sigil explain`); the API scores and stores the scan. 30/min, counts against the monthly scan quota |
 | POST | `/v1/scan-enhanced` | Yes | `sigil scan --enhanced`: the `/v1/scan` request plus source files for LLM analysis (Pro; the plan is checked after the upload, and the LLM step does not run yet). 20/min |
-| POST | `/v1/scans` | No | Submit scan results (legacy v1 compat) |
-| POST | `/scans` | No | Submit scan results (dashboard path) |
+| POST | `/v1/scans` | Yes | Submit scan results (legacy v1 compat) |
+| POST | `/scans` | Yes | Submit scan results (dashboard path) |
 | GET | `/scans` | Yes | List scans with pagination and filtering |
 | GET | `/v1/scans` | Yes | List scans (legacy v1 compat) |
 | GET | `/scans/{scan_id}` | Yes | Get single scan details |
@@ -113,7 +113,7 @@ Source: `api/routers/verify.py` — Prefix: `/v1`
 
 | Method | Path | Auth | Description |
 |--------|------|:----:|-------------|
-| POST | `/v1/verify` | Yes | Verify package for marketplace badge |
+| POST | `/v1/verify` | No | Verify package for marketplace badge: checks the artifact hash against the threat database (a confirmed `sigil report <hash>` report matches) and the publisher's reputation |
 
 ---
 

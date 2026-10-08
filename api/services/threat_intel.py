@@ -25,6 +25,7 @@ from api.models import (
     ThreatEntry,
     ThreatReport,
     ThreatReportResponse,
+    attributed_threat_entry,
     reported_sha256,
 )
 
@@ -146,7 +147,21 @@ async def lookup_threat(package_hash: str) -> ThreatEntry | None:
 
     Checks Redis cache first, then falls back to Supabase.  Returns ``None``
     when no matching threat is found.
+
+    The entry is returned in the form a client may be shown
+    (``attributed_threat_entry``): control characters removed from its text,
+    and a community report's description attributed to the community. Every
+    reader of the threat database goes through here (GET /v1/threat/{hash},
+    POST /v1/verify, the hash enrichment of POST /v1/scan), and a community
+    entry's text is whatever its reporter wrote. The cache holds the entry as
+    stored, so entries cached before this form existed are covered too.
     """
+    entry = await _lookup_stored_threat(package_hash)
+    return None if entry is None else attributed_threat_entry(entry)
+
+
+async def _lookup_stored_threat(package_hash: str) -> ThreatEntry | None:
+    """The threat entry for *package_hash* as stored (cache, then database)."""
     cache_key = f"{_THREAT_CACHE_PREFIX}{package_hash}"
 
     # 1. Check cache

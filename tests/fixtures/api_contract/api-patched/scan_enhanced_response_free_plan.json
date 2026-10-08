@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-10-05T12:52:29.380776",
+  "created_at": "2026-10-08T13:22:03.392208",
   "disclaimer": "Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms.",
   "files_scanned": 5,
   "findings": [
@@ -82,8 +82,8 @@
     "upgrade_required": true,
     "upgrade_url": "https://app.sigilsec.ai/upgrade"
   },
-  "risk_score": 304.0,
-  "scan_id": "ce58226c-3317-4e28-9194-107146289bb5",
+  "risk_score": 384.0,
+  "scan_id": "ddb112e9-029f-42e7-8b69-702b6249f1fa",
   "status": "completed",
   "target": "cli-scan",
   "target_type": "directory",

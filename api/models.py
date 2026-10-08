@@ -296,13 +296,55 @@ class ThreatEntry(BaseModel):
     description: str = Field("", description="Human-readable description of the threat")
 
 
-def without_control_characters(text: str) -> str:
-    """*text* with every control character (Unicode category Cc) as a space.
+# Unicode general categories `without_control_characters` replaces.
+_UNPRINTABLE_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
 
-    Covers terminal escapes (ESC, BEL), carriage returns and newlines: the
-    same set the CLI's `terminal_text` replaces before printing.
+
+def without_control_characters(text: str) -> str:
+    """*text* with every character that is unsafe to print as a space.
+
+    That is control characters (Unicode category Cc: terminal escapes, BEL,
+    carriage returns, newlines), format characters (Cf: the bidirectional
+    overrides and isolates, zero-width and joining characters) and the line
+    and paragraph separators U+2028 and U+2029 (Zl, Zp): the same set the
+    CLI's `terminal_text` replaces before printing.
     """
-    return "".join(" " if unicodedata.category(c) == "Cc" else c for c in text)
+    return "".join(
+        " " if unicodedata.category(c) in _UNPRINTABLE_CATEGORIES else c for c in text
+    )
+
+
+# The text fields of a threat entry that reach a client.
+_THREAT_TEXT_FIELDS = ("hash", "package_name", "version", "source", "description")
+
+
+def attributed_threat_entry(entry: ThreatEntry) -> ThreatEntry:
+    """*entry* as it may be shown to a client.
+
+    Its text carries no control characters (`without_control_characters`), and
+    a community entry's description says whose text it is. That description is
+    the reporter's own, and the clients that print it (CLI 1.3.7 prints the
+    description alone, without the source) cannot tell it from Sigil's. It is
+    prefixed with where it came from: "Community report: ", or for a `sigil
+    report <hash>` report, whose hash a reviewer cannot check without the
+    artifact, "Community report (unverified hash): ".
+
+    `lookup_threat` returns entries in this form, so every reader of the
+    threat database gets it: GET /v1/threat/{hash}, POST /v1/verify and the
+    hash enrichment of POST /v1/scan.
+    """
+    data = entry.model_dump()
+    for key in _THREAT_TEXT_FIELDS:
+        data[key] = without_control_characters(data[key])
+    if data["source"].strip() == COMMUNITY_SOURCE:
+        label = (
+            "Community report (unverified hash)"
+            if reported_sha256(data["package_name"]) is not None
+            else "Community report"
+        )
+        text = data["description"].strip()
+        data["description"] = f"{label}: {text}" if text else label
+    return ThreatEntry(**data)
 
 
 class ThreatLookupResponse(ThreatEntry):
@@ -331,24 +373,9 @@ class ThreatLookupResponse(ThreatEntry):
 
     @classmethod
     def from_entry(cls, entry: ThreatEntry) -> "ThreatLookupResponse":
-        """The lookup response for *entry*, a community entry's text attributed.
-
-        A community entry's description is the reporter's text, and CLI 1.3.7
-        prints the description alone, without the source. It is prefixed with
-        where it came from: "Community report: ", or for a `sigil report
-        <hash>` report, whose hash a reviewer cannot check without the
-        artifact, "Community report (unverified hash): ".
-        """
-        data = entry.model_dump()
-        if entry.source == COMMUNITY_SOURCE:
-            label = (
-                "Community report (unverified hash)"
-                if reported_sha256(entry.package_name) is not None
-                else "Community report"
-            )
-            text = entry.description.strip()
-            data["description"] = f"{label}: {text}" if text else label
-        return cls(**data)
+        """The lookup response for *entry*, as `lookup_threat` returns it
+        (already attributed by `attributed_threat_entry`)."""
+        return cls(**entry.model_dump())
 
 
 class SignatureEntry(BaseModel):

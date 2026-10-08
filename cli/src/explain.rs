@@ -4,6 +4,7 @@
 //! submits the scan to the Sigil API with the user's token and requests
 //! adjudication of one finding; the server owns model access and metering.
 
+use crate::api::{error_excerpt, terminal_text};
 use colored::Colorize;
 use serde_json::{json, Value};
 use std::path::Path;
@@ -55,25 +56,53 @@ pub fn explain_scan_body(findings: &[Value]) -> Value {
     })
 }
 
+/// A message about an API failure: what failed, the status, and the start of
+/// the response body. The body is the API's text, or whatever answered in its
+/// place, so it is printed through [`error_excerpt`].
+fn failure_message(what: &str, status: reqwest::StatusCode, body: &str) -> String {
+    let excerpt = error_excerpt(body);
+    if excerpt.is_empty() {
+        format!("{what} ({status})")
+    } else {
+        format!("{what} ({status}): {excerpt}")
+    }
+}
+
+/// An adjudication verdict with its text made safe to print. The rationale is
+/// the model's, and the classification and model name are the API's: none of
+/// it is ours to emit raw.
+#[derive(Debug, PartialEq)]
+struct VerdictText {
+    classification: String,
+    confidence: f64,
+    rationale: String,
+    model: String,
+}
+
+fn verdict_text(adjudication: &Value) -> VerdictText {
+    let text = |key: &str, default: &str| {
+        terminal_text(
+            adjudication
+                .get(key)
+                .and_then(|v| v.as_str())
+                .unwrap_or(default),
+        )
+    };
+    VerdictText {
+        classification: text("classification", "unknown"),
+        confidence: adjudication
+            .get("confidence")
+            .and_then(|c| c.as_f64())
+            .unwrap_or(0.0),
+        rationale: text("rationale", ""),
+        model: text("model", "unknown"),
+    }
+}
+
 /// Render a successful adjudication verdict.
 fn render_verdict(adjudication: &Value) {
-    let classification = adjudication
-        .get("classification")
-        .and_then(|c| c.as_str())
-        .unwrap_or("unknown");
-    let confidence = adjudication
-        .get("confidence")
-        .and_then(|c| c.as_f64())
-        .unwrap_or(0.0);
-    let rationale = adjudication
-        .get("rationale")
-        .and_then(|r| r.as_str())
-        .unwrap_or("");
-    let model = adjudication
-        .get("model")
-        .and_then(|m| m.as_str())
-        .unwrap_or("unknown");
-
+    let verdict = verdict_text(adjudication);
+    let classification = verdict.classification.as_str();
     let label = match classification {
         "benign_dual_use" => classification.bold().green(),
         "suspicious" => classification.bold().yellow(),
@@ -81,27 +110,39 @@ fn render_verdict(adjudication: &Value) {
         other => other.bold(),
     };
     println!("{} verdict: {}", "sigil:".bold().cyan(), label);
-    println!("  confidence: {:.0}%", confidence * 100.0);
-    println!("  rationale: {}", rationale);
-    println!("  model: {}", model);
+    println!("  confidence: {:.0}%", verdict.confidence * 100.0);
+    println!("  rationale: {}", verdict.rationale);
+    println!("  model: {}", verdict.model);
+}
+
+/// The 402 allowance-exhausted denial with its text made safe to print.
+#[derive(Debug, PartialEq)]
+struct UpgradeText {
+    message: String,
+    reset_date: Option<String>,
+    upgrade_url: String,
+}
+
+fn upgrade_text(detail: &Value) -> UpgradeText {
+    let inner = detail.get("detail").unwrap_or(detail);
+    let text = |key: &str| inner.get(key).and_then(|v| v.as_str()).map(terminal_text);
+    UpgradeText {
+        message: text("detail")
+            .unwrap_or_else(|| "LLM analysis allowance exhausted for your plan.".to_string()),
+        reset_date: text("reset_date"),
+        upgrade_url: text("upgrade_url")
+            .unwrap_or_else(|| "https://www.sigilsec.ai/pricing".to_string()),
+    }
 }
 
 /// Render the 402 allowance-exhausted denial as a clear upgrade message.
 fn render_upgrade(detail: &Value) {
-    let inner = detail.get("detail").unwrap_or(detail);
-    let message = inner
-        .get("detail")
-        .and_then(|d| d.as_str())
-        .unwrap_or("LLM analysis allowance exhausted for your plan.");
-    let upgrade_url = inner
-        .get("upgrade_url")
-        .and_then(|u| u.as_str())
-        .unwrap_or("https://www.sigilsec.ai/pricing");
-    eprintln!("{} {}", "sigil:".bold().yellow(), message);
-    if let Some(reset) = inner.get("reset_date").and_then(|r| r.as_str()) {
+    let upgrade = upgrade_text(detail);
+    eprintln!("{} {}", "sigil:".bold().yellow(), upgrade.message);
+    if let Some(reset) = &upgrade.reset_date {
         eprintln!("  allowance resets: {}", reset);
     }
-    eprintln!("  {} {}", "Upgrade to Pro:".bold(), upgrade_url);
+    eprintln!("  {} {}", "Upgrade to Pro:".bold(), upgrade.upgrade_url);
 }
 
 /// Run `sigil explain`. Returns the process exit code.
@@ -198,10 +239,9 @@ pub async fn cmd_explain(
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
             eprintln!(
-                "{} scan submission failed ({}): {}",
+                "{} {}",
                 "error:".bold().red(),
-                status,
-                body
+                failure_message("scan submission failed", status, &body)
             );
             return 2;
         }
@@ -224,7 +264,8 @@ pub async fn cmd_explain(
     match client.post(&adj_url).bearer_auth(&token).send().await {
         Ok(resp) => {
             let status = resp.status();
-            let body: Value = resp.json().await.unwrap_or(Value::Null);
+            let text = resp.text().await.unwrap_or_default();
+            let body: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
             match status.as_u16() {
                 200 => {
                     // Already complete (idempotent re-request).
@@ -256,10 +297,9 @@ pub async fn cmd_explain(
                 }
                 _ => {
                     eprintln!(
-                        "{} adjudication failed ({}): {}",
+                        "{} {}",
                         "error:".bold().red(),
-                        status,
-                        body
+                        failure_message("adjudication failed", status, &text)
                     );
                     return 2;
                 }
@@ -289,7 +329,8 @@ pub async fn cmd_explain(
             }
         };
         let status = resp.status();
-        let body: Value = resp.json().await.unwrap_or(Value::Null);
+        let text = resp.text().await.unwrap_or_default();
+        let body: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
         match status.as_u16() {
             202 => continue, // still pending
             200 => {
@@ -298,10 +339,11 @@ pub async fn cmd_explain(
                 if state == "error" {
                     let reason = adj.get("reason").and_then(|r| r.as_str()).unwrap_or("");
                     if reason == "llm_refusal" {
-                        let category = adj
-                            .get("category")
-                            .and_then(|c| c.as_str())
-                            .unwrap_or("unspecified");
+                        let category = terminal_text(
+                            adj.get("category")
+                                .and_then(|c| c.as_str())
+                                .unwrap_or("unspecified"),
+                        );
                         eprintln!(
                             "{} the model declined to analyze this finding (category: {}). \
                              This can happen with content that trips safety classifiers; \
@@ -310,10 +352,11 @@ pub async fn cmd_explain(
                             category
                         );
                     } else {
-                        let msg = adj
-                            .get("error")
-                            .and_then(|m| m.as_str())
-                            .unwrap_or("adjudication failed");
+                        let msg = terminal_text(
+                            adj.get("error")
+                                .and_then(|m| m.as_str())
+                                .unwrap_or("adjudication failed"),
+                        );
                         eprintln!("{} {}", "error:".bold().red(), msg);
                     }
                     return 2;
@@ -330,10 +373,9 @@ pub async fn cmd_explain(
             }
             _ => {
                 eprintln!(
-                    "{} adjudication failed ({}): {}",
+                    "{} {}",
                     "error:".bold().red(),
-                    status,
-                    body
+                    failure_message("adjudication failed", status, &text)
                 );
                 return 2;
             }
@@ -408,5 +450,98 @@ mod tests {
         );
         assert_eq!(body["findings"][0]["phase"], "code_patterns");
         assert_eq!(body["files_scanned"], 0);
+    }
+
+    /// Terminal escape, bell, carriage return, newline, C1 CSI, bidirectional
+    /// override, line separator, zero-width space: what must not be printed.
+    const HOSTILE: [char; 8] = [
+        '\u{1b}', '\u{7}', '\r', '\n', '\u{9b}', '\u{202E}', '\u{2028}', '\u{200B}',
+    ];
+    const HOSTILE_TEXT: &str =
+        "<b>\u{1b}[31mred\u{1b}[0m</b>\u{7}\r\nVerdict: CLEAN\u{9b}2J\u{202E}esrever\u{2028}end\u{200B}";
+
+    fn assert_printable(what: &str, s: &str) {
+        let found: Vec<char> = s.chars().filter(|c| HOSTILE.contains(c)).collect();
+        assert!(found.is_empty(), "{what} holds {found:?}: {s:?}");
+    }
+
+    #[test]
+    fn a_failure_message_prints_the_response_body_without_control_characters() {
+        // The shape a proxy or a failing gateway answers with.
+        let body = "<html><body>\u{1b}[31mInternal Server Error\u{1b}[0m</body></html>";
+        let m = failure_message(
+            "scan submission failed",
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+            body,
+        );
+        assert_printable("failure message", &m);
+        assert!(m.starts_with("scan submission failed (500 Internal Server Error): "));
+        assert!(m.contains("Internal Server Error"), "{m}");
+
+        let m = failure_message(
+            "adjudication failed",
+            reqwest::StatusCode::BAD_GATEWAY,
+            HOSTILE_TEXT,
+        );
+        assert_printable("failure message", &m);
+
+        // A body that is long is cut, and one that is empty adds nothing.
+        let long = "x".repeat(5000);
+        let m = failure_message("f", reqwest::StatusCode::BAD_REQUEST, &long);
+        assert!(m.ends_with('…') && m.len() < 700, "{}", m.len());
+        assert_eq!(
+            failure_message("f", reqwest::StatusCode::BAD_REQUEST, " \r\n"),
+            "f (400 Bad Request)"
+        );
+    }
+
+    #[test]
+    fn a_verdict_prints_the_rationale_model_and_label_without_control_characters() {
+        let verdict = verdict_text(&serde_json::json!({
+            "classification": HOSTILE_TEXT,
+            "confidence": 0.8,
+            "rationale": HOSTILE_TEXT,
+            "model": HOSTILE_TEXT,
+        }));
+        assert_printable("classification", &verdict.classification);
+        assert_printable("rationale", &verdict.rationale);
+        assert_printable("model", &verdict.model);
+        assert!(verdict.rationale.contains("Verdict: CLEAN"));
+        assert_eq!(verdict.confidence, 0.8);
+
+        // A well-formed verdict is unchanged, and the defaults still apply.
+        let ok = verdict_text(&serde_json::json!({
+            "classification": "benign_dual_use", "confidence": 0.5,
+            "rationale": "Reads its own config; no network.", "model": "m-1",
+        }));
+        assert_eq!(ok.classification, "benign_dual_use");
+        assert_eq!(ok.rationale, "Reads its own config; no network.");
+        let empty = verdict_text(&serde_json::json!({}));
+        assert_eq!(empty.classification, "unknown");
+        assert_eq!(empty.model, "unknown");
+        assert_eq!(empty.rationale, "");
+    }
+
+    #[test]
+    fn the_upgrade_message_prints_without_control_characters() {
+        // The 402 body nests the message under `detail`, twice.
+        let upgrade = upgrade_text(&serde_json::json!({"detail": {
+            "detail": HOSTILE_TEXT,
+            "reset_date": HOSTILE_TEXT,
+            "upgrade_url": HOSTILE_TEXT,
+        }}));
+        assert_printable("message", &upgrade.message);
+        assert_printable("reset date", upgrade.reset_date.as_deref().unwrap());
+        assert_printable("upgrade url", &upgrade.upgrade_url);
+
+        let bare = upgrade_text(&serde_json::json!({}));
+        assert_eq!(
+            bare,
+            UpgradeText {
+                message: "LLM analysis allowance exhausted for your plan.".into(),
+                reset_date: None,
+                upgrade_url: "https://www.sigilsec.ai/pricing".into(),
+            }
+        );
     }
 }

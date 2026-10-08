@@ -2685,6 +2685,9 @@ async fn cmd_scan(
     }
 
     // --- Enhanced LLM analysis (Pro feature) -------------------------------
+    // The scan the API stored for `--enhanced`, when it said so: the API
+    // stores every scan it receives, so `--submit` has nothing left to send.
+    let mut stored_by_enhanced: Option<String> = None;
     if enhanced {
         let client = api::SigilClient::new(None);
 
@@ -2719,7 +2722,10 @@ async fn cmd_scan(
             }
 
             match client.submit_enhanced_scan(&result, file_contents).await {
-                Ok(response) => report_enhanced_outcome(&response, format),
+                Ok(response) => {
+                    stored_by_enhanced = response.scan_id().map(str::to_string);
+                    report_enhanced_outcome(&response, format)
+                }
                 Err(err) => {
                     eprintln!(
                         "{} Enhanced analysis failed: {}",
@@ -2733,24 +2739,48 @@ async fn cmd_scan(
     }
 
     if submit {
-        if verbose {
-            eprintln!("submitting results to Sigil cloud...");
-        }
-        let client = api::SigilClient::new(None);
-        match client.submit_scan(&result).await {
-            Ok(response) => print_progress(
+        if let Some(scan_id) = &stored_by_enhanced {
+            // A second upload would record a second scan and count twice
+            // against the monthly quota.
+            print_progress(
                 format,
                 format!(
-                    "{} results submitted to Sigil cloud (scan id: {})",
+                    "{} results submitted to Sigil cloud by the --enhanced upload (scan id: {}); \
+                     --submit sent nothing more",
                     "sigil:".bold().green(),
-                    api::terminal_text(response.scan_id().unwrap_or("not returned"))
+                    api::terminal_text(scan_id)
                 ),
-            ),
-            Err(err) => eprintln!(
-                "{} failed to submit results: {} (continuing offline)",
-                "warning:".bold().yellow(),
-                err
-            ),
+            );
+        } else {
+            if verbose {
+                eprintln!("submitting results to Sigil cloud...");
+            }
+            let client = api::SigilClient::new(None);
+            match client.submit_scan(&result).await {
+                Ok(response) => match response.scan_id() {
+                    Some(scan_id) => print_progress(
+                        format,
+                        format!(
+                            "{} results submitted to Sigil cloud (scan id: {})",
+                            "sigil:".bold().green(),
+                            api::terminal_text(scan_id)
+                        ),
+                    ),
+                    // The API names the scan it stored. A 2xx without an id
+                    // is not the Sigil API (a proxy or portal answering):
+                    // nothing says the scan was kept.
+                    None => eprintln!(
+                        "{} the API answered but returned no scan id, so there is no \
+                         confirmation that the scan was stored",
+                        "warning:".bold().yellow()
+                    ),
+                },
+                Err(err) => eprintln!(
+                    "{} failed to submit results: {} (continuing offline)",
+                    "warning:".bold().yellow(),
+                    err
+                ),
+            }
         }
     }
 
@@ -4106,19 +4136,40 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
         .report_threat(&digest, threat_type, description)
         .await
     {
-        Ok(response) => {
-            println!(
-                "{} threat reported successfully (id: {}, status: {})",
-                "sigil:".bold().green(),
-                api::terminal_text(response.report_id().unwrap_or("not returned")),
-                api::terminal_text(response.status.as_deref().unwrap_or("not returned"))
-            );
-            0
-        }
+        Ok(response) => match report_outcome(&response) {
+            Ok(line) => {
+                println!("{line}");
+                0
+            }
+            Err(warning) => {
+                eprintln!("{} {}", "warning:".bold().yellow(), warning);
+                1
+            }
+        },
         Err(err) => {
             eprintln!("{} failed to report threat: {}", "error:".bold().red(), err);
             1
         }
+    }
+}
+
+/// What `sigil report` says about the API's 2xx answer. The API names the
+/// report it recorded, so an answer that names none (`{}` from a proxy or
+/// captive portal) is not a confirmation: `Err` is the warning to print
+/// instead of the success line.
+fn report_outcome(response: &api::ReportResponse) -> Result<String, String> {
+    match response.report_id() {
+        Some(id) => Ok(format!(
+            "{} threat reported successfully (id: {}, status: {})",
+            "sigil:".bold().green(),
+            api::terminal_text(id),
+            api::terminal_text(response.status.as_deref().unwrap_or("not returned"))
+        )),
+        None => Err(
+            "the API answered but returned no report id, so there is no confirmation \
+             that the report was recorded"
+                .to_string(),
+        ),
     }
 }
 
@@ -5210,5 +5261,77 @@ mod exit_code_tests {
             assert!(error.contains("already approved"));
             assert!(super::ledger::get(&entry.id).is_none());
         });
+    }
+}
+
+#[cfg(test)]
+mod cloud_response_tests {
+    use super::{report_outcome, threat_intel_lines};
+    use crate::api::{parse_threat_info, ReportResponse};
+    use std::path::Path;
+
+    fn report(body: &str) -> ReportResponse {
+        serde_json::from_str(body).expect("report response")
+    }
+
+    #[test]
+    fn a_report_is_confirmed_only_when_the_api_names_it() {
+        let line = report_outcome(&report(
+            r#"{"report_id":"r-1","id":"r-1","status":"received","message":"thanks"}"#,
+        ))
+        .expect("the API's own answer");
+        assert!(line.contains("threat reported successfully"), "{line}");
+        assert!(
+            line.contains("id: r-1") && line.contains("status: received"),
+            "{line}"
+        );
+
+        // CLI 1.3.7's `id` alone still names the report.
+        assert!(report_outcome(&report(r#"{"id":"r-2"}"#)).is_ok());
+
+        // A 2xx that names no report is no confirmation, whatever else it says.
+        for body in [
+            "{}",
+            r#"{"status":"ok"}"#,
+            r#"{"report_id":"","id":""}"#,
+            r#"{"report_id":null,"message":"welcome to the guest network"}"#,
+        ] {
+            let warning = report_outcome(&report(body)).expect_err(body);
+            assert!(warning.contains("no report id"), "{body}: {warning}");
+            assert!(!warning.contains("successfully"), "{body}: {warning}");
+        }
+    }
+
+    #[test]
+    fn a_report_id_and_status_are_printed_without_control_characters() {
+        let line = report_outcome(&report(
+            "{\"report_id\":\"r\\u001b[2J\\u202e1\",\"status\":\"ok\\u2028\\u0007\"}",
+        ))
+        .unwrap();
+        for c in ['\u{1b}', '\u{202E}', '\u{2028}', '\u{7}'] {
+            assert!(!line.contains(c), "{line:?}");
+        }
+    }
+
+    #[test]
+    fn a_threat_match_prints_every_field_without_control_characters() {
+        let hostile = "safe \u{202E})(txet desrever\u{2069} \u{200B}\u{2066} end \
+                       \u{1b}[2J U+2028:\u{2028}next-line";
+        let body = serde_json::json!({
+            "hash": "h", "package_name": format!("pkg{}", '\u{202E}'), "version": "9.9.9",
+            "severity": "CRITICAL\u{1b}[0m", "source": "community\u{7}",
+            "threat_type": "malware\u{2028}", "description": hostile,
+        })
+        .to_string();
+        let info = parse_threat_info(&body, "h").unwrap();
+        assert!(info.known_malicious);
+        let lines = threat_intel_lines(Path::new("fixture"), &info);
+        for c in [
+            '\u{1b}', '\u{7}', '\u{202E}', '\u{2066}', '\u{2069}', '\u{200B}', '\u{2028}',
+        ] {
+            assert!(!lines.contains(c), "U+{:04X} in {lines:?}", u32::from(c));
+        }
+        assert!(lines.contains("Package: pkg  9.9.9"), "{lines}");
+        assert!(lines.contains("next-line"), "{lines}");
     }
 }

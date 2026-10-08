@@ -213,8 +213,8 @@ Other fields (the CLI's `fingerprint`, for example) are ignored.
 
 ```json
 {
-  "scan_id": "61e24ee8-e5e4-42df-a0b9-22667a4e6f81",
-  "id": "61e24ee8-e5e4-42df-a0b9-22667a4e6f81",
+  "scan_id": "5fdbc380-845b-4b86-a497-801fc1db34ed",
+  "id": "5fdbc380-845b-4b86-a497-801fc1db34ed",
   "status": "completed",
   "target": "cli-scan",
   "target_type": "directory",
@@ -233,7 +233,7 @@ Other fields (the CLI's `fingerprint`, for example) are ignored.
       "explanation": ""
     }
   ],
-  "risk_score": 304.0,
+  "risk_score": 384.0,
   "verdict": "CRITICAL_RISK",
   "threat_intel_hits": [],
   "metadata": {
@@ -243,12 +243,13 @@ Other fields (the CLI's `fingerprint`, for example) are ignored.
       "false_positive_reduction": true
     }
   },
-  "created_at": "2026-10-05T08:32:02.447827",
+  "created_at": "2026-10-08T13:22:03.380855",
   "disclaimer": "Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms."
 }
 ```
 
-- `risk_score` and `verdict` are the API's own (`api/services/scoring.py`), computed from the submitted findings; they can differ from the score and verdict the CLI printed, which it sends as `metadata.cli_score` and `metadata.cli_verdict`. Scan history shows the API's.
+- `risk_score` and `verdict` are the API's own (`api/services/scoring.py`), computed from the submitted findings; scan history shows the API's. For a CLI submission they are typically higher than the score and verdict the CLI printed, which it sends as `metadata.cli_score` and `metadata.cli_verdict`. The API scores a finding as severity × phase weight × the finding's `weight`, and the CLI's `weight` already includes its phase weight, so the phase weight counts twice; the API also counts Low findings and caps nothing per rule and file, where the CLI's verdict ignores Low findings and counts at most three findings of one rule in one file. The five findings above are score 58, HIGH RISK, in the CLI and 384.0, `CRITICAL_RISK`, here. The formula is unchanged by the CLI contract fix.
+- `threat_intel_hits` holds the threat entries that `metadata.hash` or `metadata.hashes` matched; each match adds 10 to `risk_score`. The entries read as in `GET /v1/threat/{hash}` below: control, format and separator characters replaced by spaces, a community entry's description prefixed with where it came from. A confirmed `sigil report <hash>` report is keyed by the reported hash, so a scan that lists that hash matches it.
 - `id` is a copy of `scan_id` and `status` is always `completed`: CLI 1.3.7 reads them.
 - `metadata` holds the API's notes about the scan, not the request's metadata.
 
@@ -464,7 +465,8 @@ Look up a hash in the threat intelligence database. `sigil scan --enrich` calls 
 
 - Every 200 response is a match: an unknown hash returns 404. `known_malicious` is always `true` and `references` is always empty (none are recorded); CLI 1.3.7 needs both fields.
 - A community entry (`source: "community"`, made when a reviewer confirms a report) has the reporter's text as its description. The response prefixes it with `Community report: `, or `Community report (unverified hash): ` for a `sigil report <hash>` report, whose hash a reviewer cannot check without the artifact.
-- Control characters in the text fields are replaced with spaces.
+- In the text fields, control characters (including terminal escapes), format characters (bidirectional overrides and isolates, zero-width characters) and the line and paragraph separators U+2028 and U+2029 are replaced with spaces.
+- A confirmed hash report is keyed by the reported hash, so it is a match for **every** reader of the threat database, not only this endpoint: `POST /v1/verify` flags an artifact with that hash `CRITICAL_RISK`, and `POST /v1/scan` adds 10 to the risk score of a scan that lists it in `metadata.hash` or `metadata.hashes`. All three go through the same lookup, so each returns the entry with the attribution and character filtering above. Confirming a hash report is therefore a decision about every artifact with that hash, and a reviewer cannot check a hash without the artifact.
 
 **Status Codes:** 200 OK, 401 Missing or invalid token, 403 Plan below Pro, 404 Hash not found
 
@@ -487,7 +489,7 @@ Fetch pattern detection signatures. Supports delta sync via the `since` paramete
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | No |
+| **Auth required** | Yes (Bearer token), Pro plan or higher |
 | **Also available at** | `GET /signatures` |
 
 **Query Parameters:**
@@ -586,7 +588,7 @@ Submit a threat report. Reports are queued for review; when a reviewer confirms 
 | Property | Value |
 |----------|-------|
 | **Auth required** | No: the API does not check a token, even when one is sent |
-| **Also available at** | `POST /threats/report` |
+| **Also available at** | `POST /threats/report` and `POST /report` |
 
 **Request Body** (`ThreatReport`, `api/models.py`):
 
@@ -624,40 +626,42 @@ A confirmed report is keyed in the threat database by the reported hash for a `s
 
 ### POST /v1/verify
 
-Verify a package or tool for marketplace listing. Runs an enhanced scan and returns a verification result suitable for trust badges.
+Verify a package for a marketplace trust badge. It checks the artifact hash against the threat database and the publisher's reputation, and returns a verdict. Only a `LOW_RISK` verdict is `verified` and gets a badge URL.
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | Yes |
+| **Auth required** | No: the API does not check a token |
 | **Also available at** | `POST /verify` |
 
-**Request Body:**
+**Request Body** (`VerifyRequest`, `api/models.py`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `source_type` | string | Yes | One of: `git`, `pip`, `npm`, `url` |
-| `source_ref` | string | Yes | Package name, URL, or repository |
-| `source_version` | string | No | Specific version to verify |
-| `source_hash` | string | No | SHA-256 hash for integrity check |
-| `callback_url` | string | No | Webhook URL for async notification |
+| `package_name` | string | Yes | Fully qualified package name |
+| `package_version` | string | Yes | Exact version to verify |
+| `ecosystem` | string | Yes | `npm`, `pip`, `cargo`, ... |
+| `publisher_id` | string | No | Publisher identifier; a publisher with flagged packages or a low trust score adds to the risk score |
+| `artifact_hash` | string | No | SHA-256 hash of the distribution artifact, looked up in the threat database like `GET /v1/threat/{hash}` |
 
-**Response (200 OK):**
+**Response (200 OK)** (`VerifyResponse`), as captured from the API in this tree (in-memory store) for an `artifact_hash` that a confirmed `sigil report <hash>` report named:
 
 ```json
 {
-  "verification_id": "ver_s1t2u3v4w5x6",
-  "status": "verified",
-  "source_ref": "langchain-community",
-  "source_version": "0.2.1",
-  "score": 3,
-  "verdict": "LOW_RISK",
-  "badge_url": "https://sigilsec.ai/badge/ver_s1t2u3v4w5x6.svg",
-  "verified_at": "2026-02-15T15:30:00Z",
-  "expires_at": "2026-03-15T15:30:00Z"
+  "package_name": "some-package",
+  "package_version": "1.0.0",
+  "verified": false,
+  "verdict": "CRITICAL_RISK",
+  "risk_score": 50.0,
+  "badge_url": null,
+  "findings_summary": "Known threat: Community report (unverified hash): steals tokens (severity=CRITICAL)",
+  "verified_at": "2026-10-08T13:24:32.756381"
 }
 ```
 
-**Status Codes:** 200 OK, 401 Unauthorized, 403 Requires Pro or Team tier, 404 Package not found, 422 Validation error
+- A match on `artifact_hash` adds 50 to `risk_score`, which is `CRITICAL_RISK` on its own, and names the entry in `findings_summary` (its description, or the package name when it has none). That includes a confirmed `sigil report <hash>` report, which is keyed by the reported hash: a reviewer cannot check a hash without the artifact, so its description reads `Community report (unverified hash): ...`. Any community entry's description is prefixed with where it came from, and control, format and separator characters in it are replaced with spaces (see `GET /v1/threat/{hash}`). The endpoint needs no token, so anyone can ask whether a hash is flagged.
+- With no match and no publisher findings, `findings_summary` is `No issues found.`
+
+**Status Codes:** 200 OK, 422 Validation error, 429 Rate limit exceeded
 
 ---
 

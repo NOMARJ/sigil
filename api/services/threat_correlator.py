@@ -460,6 +460,7 @@ class ThreatCorrelator:
             "provenance": "supply_chain_threats",
             "prompt_injection": "ai_threats",
             "skill_security": "ai_threats",
+            "inference_security": "ai_threats",
             "llm_analysis": "advanced_threats",
         }
         return phase_mapping.get(phase, "unknown_threats")

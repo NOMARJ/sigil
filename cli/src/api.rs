@@ -93,14 +93,16 @@ impl EnhancedOutcome {
 }
 
 /// Response from `GET /v1/threat/{hash}`: the API's threat entry. The API
-/// answers 404 for an unknown hash, so a parsed body is a match unless it
-/// says otherwise; the API adds `known_malicious` and `references` for CLI
-/// 1.3.7, and an API without them still parses.
+/// answers 404 for an unknown hash, so a body that names an entry is a match;
+/// the API adds `known_malicious` and `references` for CLI 1.3.7, and an API
+/// without them still parses. A 2xx body that names no entry (`{}` from a
+/// proxy or captive portal) is not a match: see [`parse_threat_info`], which
+/// sets `known_malicious`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThreatInfo {
     #[serde(default)]
     pub hash: String,
-    #[serde(default = "matched")]
+    #[serde(default)]
     pub known_malicious: bool,
     #[serde(default)]
     pub package_name: Option<String>,
@@ -118,10 +120,6 @@ pub struct ThreatInfo {
     pub description: Option<String>,
     #[serde(default)]
     pub references: Vec<String>,
-}
-
-fn matched() -> bool {
-    true
 }
 
 impl ThreatInfo {
@@ -281,13 +279,69 @@ pub fn report_request_body(hash: &str, threat_type: &str, description: &str) -> 
     })
 }
 
+/// Whether `c` is a format (Unicode category Cf) or line or paragraph
+/// separator (Zl, Zp) character. None of these draws anything, and several
+/// change how the text around them is drawn: the bidirectional overrides and
+/// isolates (U+202A to U+202E, U+2066 to U+2069) reorder what follows, the
+/// zero-width and joining characters hide text, and U+2028 and U+2029 start
+/// a new line in some terminals and log viewers.
+///
+/// The standard library has no general-category lookup, so these are the Cf
+/// code points of Unicode 15.1 (as listed by Python 3.13's `unicodedata`) and
+/// the two separators, written out. A character added to Cf later passes
+/// through until it is listed here.
+fn is_format_or_separator(c: char) -> bool {
+    matches!(u32::from(c),
+        0x00AD
+        | 0x0600..=0x0605
+        | 0x061C
+        | 0x06DD
+        | 0x070F
+        | 0x0890..=0x0891
+        | 0x08E2
+        | 0x180E
+        | 0x200B..=0x200F
+        | 0x2028..=0x202E
+        | 0x2060..=0x2064
+        | 0x2066..=0x206F
+        | 0xFEFF
+        | 0xFFF9..=0xFFFB
+        | 0x110BD
+        | 0x110CD
+        | 0x13430..=0x1343F
+        | 0x1BCA0..=0x1BCA3
+        | 0x1D173..=0x1D17A
+        | 0xE0001
+        | 0xE0020..=0xE007F
+    )
+}
+
 /// Text from an API response, made safe to print: control characters
-/// (terminal escapes included) become spaces. A threat entry's description
-/// can come from a community report, and none of it is ours to emit raw.
+/// (terminal escapes included), format characters (bidirectional overrides
+/// and zero-width characters included) and line or paragraph separators
+/// become spaces. A threat entry's description can come from a community
+/// report, and none of it is ours to emit raw.
 pub fn terminal_text(s: &str) -> String {
     s.chars()
-        .map(|c| if c.is_control() { ' ' } else { c })
+        .map(|c| {
+            if c.is_control() || is_format_or_separator(c) {
+                ' '
+            } else {
+                c
+            }
+        })
         .collect()
+}
+
+/// The start of an API response body as one printable line: control
+/// characters removed ([`terminal_text`]), cut to 600 characters.
+pub fn error_excerpt(body: &str) -> String {
+    let body = terminal_text(body.trim());
+    let mut excerpt: String = body.chars().take(600).collect();
+    if excerpt.len() < body.len() {
+        excerpt.push('…');
+    }
+    excerpt
 }
 
 /// An API error as one line: the status, a hint for the statuses with a
@@ -300,11 +354,7 @@ fn api_error(status: reqwest::StatusCode, body: &str, forbidden_hint: &str) -> S
         429 => " (rate limit or monthly scan quota reached)",
         _ => "",
     };
-    let body = terminal_text(body.trim());
-    let mut excerpt: String = body.chars().take(600).collect();
-    if excerpt.len() < body.len() {
-        excerpt.push('…');
-    }
+    let excerpt = error_excerpt(body);
     if excerpt.is_empty() {
         format!("API error: {}{}", status, hint)
     } else {
@@ -801,9 +851,27 @@ impl SigilClient {
 
 /// Parse a `GET /v1/threat/{hash}` success body. `hash` fills in a body
 /// that omits it.
+///
+/// The API answers 404 for an unknown hash and always names the entry it
+/// matched, so a body is a match when it says `known_malicious: true` or
+/// carries a `hash` or a `package_name`. `known_malicious: false` is no match
+/// whatever else the body holds. A body that does neither (`{}`, or an error
+/// object) is no match: a proxy or portal can answer 200 with one.
 pub fn parse_threat_info(body: &str, hash: &str) -> Result<ThreatInfo, String> {
-    let mut info: ThreatInfo =
-        serde_json::from_str(body).map_err(|e| format!("failed to parse response: {}", e))?;
+    let parse_error = |e: serde_json::Error| format!("failed to parse response: {}", e);
+    let value: Value = serde_json::from_str(body).map_err(parse_error)?;
+    // serde would also read a JSON array positionally into the struct.
+    if !value.is_object() {
+        return Err("failed to parse response: expected a JSON object".to_string());
+    }
+    let explicit = value.get("known_malicious").and_then(Value::as_bool);
+    let mut info: ThreatInfo = serde_json::from_value(value).map_err(parse_error)?;
+    let names_an_entry = !info.hash.trim().is_empty()
+        || info
+            .package_name
+            .as_deref()
+            .is_some_and(|name| !name.trim().is_empty());
+    info.known_malicious = explicit.unwrap_or(names_an_entry);
     if info.hash.is_empty() {
         info.hash = hash.to_string();
     }
@@ -1024,6 +1092,35 @@ mod tests {
     }
 
     #[test]
+    fn threat_info_is_a_match_only_when_the_body_names_an_entry() {
+        let matches = |body: &str| parse_threat_info(body, "h").unwrap().known_malicious;
+        // The API's own bodies: the entry, with or without `known_malicious`.
+        assert!(matches(r#"{"hash":"h1"}"#));
+        assert!(matches(r#"{"package_name":"evil"}"#));
+        assert!(matches(r#"{"hash":"h1","known_malicious":true}"#));
+        assert!(matches(r#"{"known_malicious":true}"#));
+        // A 2xx that names no entry is what a proxy or captive portal sends.
+        for body in [
+            "{}",
+            r#"{"detail":"Not Found"}"#,
+            r#"{"hash":"","package_name":null}"#,
+            r#"{"hash":" ","package_name":"  "}"#,
+            r#"{"status":"ok","message":"welcome to the guest network"}"#,
+        ] {
+            assert!(!matches(body), "{body}");
+        }
+        // An explicit "no" wins over a body that otherwise looks like an entry.
+        assert!(!matches(r#"{"hash":"h1","known_malicious":false}"#));
+        // The requested hash still fills in the no-match record.
+        assert_eq!(parse_threat_info("{}", "h9").unwrap().hash, "h9");
+        // Not an object at all (serde would read an array into the struct).
+        for body in ["[]", r#"["h1","evil"]"#, "null", "true", r#""h1""#] {
+            let err = parse_threat_info(body, "h").unwrap_err();
+            assert!(err.contains("failed to parse response"), "{body}: {err}");
+        }
+    }
+
+    #[test]
     fn report_response_reads_either_id_key() {
         let current: ReportResponse =
             serde_json::from_str(r#"{"report_id":"r-1","status":"received","message":"m"}"#)
@@ -1046,18 +1143,75 @@ mod tests {
         assert!(e.ends_with('…') && e.len() < 700, "{}", e.len());
     }
 
+    /// Whether `s` holds anything `terminal_text` removes.
+    fn holds_unprintable(s: &str) -> bool {
+        s.chars()
+            .any(|c| c.is_control() || is_format_or_separator(c))
+    }
+
+    #[test]
+    fn terminal_text_removes_format_characters_and_line_separators() {
+        // One from each Cf range and from Zl and Zp, with the effect that
+        // makes it worth removing.
+        let hostile = [
+            ('\u{202E}', "right-to-left override"),
+            ('\u{202A}', "left-to-right embedding"),
+            ('\u{2066}', "left-to-right isolate"),
+            ('\u{2069}', "pop directional isolate"),
+            ('\u{200B}', "zero-width space"),
+            ('\u{200D}', "zero-width joiner"),
+            ('\u{2060}', "word joiner"),
+            ('\u{206A}', "inhibit symmetric swapping"),
+            ('\u{FEFF}', "byte order mark"),
+            ('\u{00AD}', "soft hyphen"),
+            ('\u{061C}', "arabic letter mark"),
+            ('\u{180E}', "mongolian vowel separator"),
+            ('\u{FFF9}', "interlinear annotation anchor"),
+            ('\u{E0041}', "tag latin capital letter a"),
+            ('\u{2028}', "line separator"),
+            ('\u{2029}', "paragraph separator"),
+            ('\u{9b}', "C1 control sequence introducer"),
+        ];
+        for (c, name) in hostile {
+            let cleaned = terminal_text(&format!("a{c}b"));
+            assert_eq!(cleaned, "a b", "{name} (U+{:04X})", u32::from(c));
+        }
+
+        // The reviewer's probe: a reversed tail and a forged next line.
+        let spoof = "safe \u{202E})(txet desrever\u{2069} \u{200B}\u{2066} end \
+                     U+2028:\u{2028}next-line";
+        let cleaned = terminal_text(spoof);
+        assert!(!holds_unprintable(&cleaned), "{cleaned:?}");
+        assert_eq!(cleaned.split_whitespace().count(), 6);
+
+        // Text that is only text is left alone, other scripts and emoji included.
+        let plain = "naïve – 日本語 Привет שלום ✓ 🎉 a\tb";
+        assert_eq!(
+            terminal_text(plain),
+            "naïve – 日本語 Привет שלום ✓ 🎉 a b",
+            "only the tab is replaced"
+        );
+        assert_eq!(terminal_text("plain ascii, 100%"), "plain ascii, 100%");
+    }
+
     #[test]
     fn api_text_is_printed_without_control_characters() {
-        let hostile = "evil\u{1b}]8;;https://x.invalid\u{7}pkg\r\n";
-        assert!(!terminal_text(hostile).chars().any(char::is_control));
+        let hostile = "evil\u{1b}]8;;https://x.invalid\u{7}pkg\r\n\u{202E}tail\u{2028}";
+        assert!(!holds_unprintable(&terminal_text(hostile)));
+        assert!(!holds_unprintable(&error_excerpt(hostile)));
+        // Whitespace around the body goes; an escape inside it becomes a space.
+        assert_eq!(
+            error_excerpt("  \u{1b}[31mdown\u{1b}[0m\r\n"),
+            " [31mdown [0m"
+        );
         let e = api_error(reqwest::StatusCode::BAD_REQUEST, hostile, "");
-        assert!(!e.chars().any(char::is_control), "{e:?}");
+        assert!(!holds_unprintable(&e), "{e:?}");
         let resp: ScanResponse =
             serde_json::from_value(json!({"scan_id": "s", "metadata": {"llm_error": hostile}}))
                 .unwrap();
         match EnhancedOutcome::from_response(&resp) {
             EnhancedOutcome::NotRun(reason) => {
-                assert!(!reason.chars().any(char::is_control), "{reason:?}")
+                assert!(!holds_unprintable(&reason), "{reason:?}")
             }
             other => panic!("{other:?}"),
         }

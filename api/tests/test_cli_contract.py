@@ -11,6 +11,7 @@ against the same files in cli/src/api.rs.
 
 from __future__ import annotations
 
+import itertools
 import json
 import unicodedata
 import uuid
@@ -22,8 +23,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.database import db
-from api.models import EnhancedScanResponse, Finding, ScanPhase, Severity
+from api.models import (
+    EnhancedScanResponse,
+    Finding,
+    ScanPhase,
+    Severity,
+    without_control_characters,
+)
 from api.services.scanner import _RUST_PHASE_MAP, _map_rust_finding
+from api.services.scoring import PHASE_WEIGHTS, score_finding
+from api.services.threat_correlator import ThreatCorrelator
 
 CONTRACT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "api_contract"
 MIGRATIONS = Path(__file__).resolve().parents[1] / "migrations"
@@ -43,6 +52,20 @@ def cli_1_3_7_reads_as_success(body: dict[str, Any]) -> bool:
     """
     return isinstance(body.get("id"), str) and isinstance(body.get("status"), str)
 
+
+# Unicode categories that must not reach a terminal from the API's text:
+# controls, format characters (bidi overrides, zero-width) and the line and
+# paragraph separators. The CLI's `terminal_text` replaces the same set.
+UNPRINTABLE_CATEGORIES = {"Cc", "Cf", "Zl", "Zp"}
+
+
+def unprintable_chars(value: str) -> list[str]:
+    return [c for c in value if unicodedata.category(c) in UNPRINTABLE_CATEGORIES]
+
+
+# The four keys of the Rust CLI's ScanResult that, with no `target`, mark a
+# body as `sigil scan --submit` <= 1.3.7 (api/models.py).
+CLI_SCAN_RESULT = {"score": 5, "verdict": "HighRisk", "duration_ms": 3, "findings": []}
 
 SCAN_BODIES = [
     "cli-1.3.7/scan_submit.json",
@@ -157,6 +180,62 @@ class TestScanSubmission:
         )
         assert resp.status_code == 422
         assert ("body", "target") in [tuple(e["loc"]) for e in resp.json()["errors"]]
+
+    def test_the_four_cli_keys_alone_are_filed_as_cli_scan(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        resp = client.post("/v1/scan", json=CLI_SCAN_RESULT, headers=auth_headers)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["target"] == "cli-scan"
+
+    @pytest.mark.parametrize(
+        "missing", list(CLI_SCAN_RESULT), ids=lambda key: f"without-{key}"
+    )
+    def test_three_of_the_four_cli_keys_are_refused(
+        self, client: TestClient, auth_headers: dict[str, str], missing: str
+    ) -> None:
+        # Only the whole set marks the released CLI; a body with one key
+        # missing is some other client's, and needs its `target`.
+        body = {k: v for k, v in CLI_SCAN_RESULT.items() if k != missing}
+        assert len(body) == 3 and "target" not in body
+        resp = client.post("/v1/scan", json=body, headers=auth_headers)
+        assert resp.status_code == 422, resp.text
+        assert ("body", "target") in [tuple(e["loc"]) for e in resp.json()["errors"]]
+
+    @pytest.mark.parametrize(
+        "keys",
+        [()] + [c for n in (1, 2) for c in itertools.combinations(CLI_SCAN_RESULT, n)],
+    )
+    def test_fewer_cli_keys_are_refused(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        keys: tuple[str, ...],
+    ) -> None:
+        body = {k: CLI_SCAN_RESULT[k] for k in keys}
+        resp = client.post("/v1/scan", json=body, headers=auth_headers)
+        assert resp.status_code == 422, resp.text
+
+    def test_an_explicit_null_target_is_refused_not_filled_in(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        # A `target` key that is present is the client's own choice, null
+        # included: only an absent one is filled in for the released CLI.
+        resp = client.post(
+            "/v1/scan",
+            json={**CLI_SCAN_RESULT, "target": None},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422, resp.text
+        assert ("body", "target") in [tuple(e["loc"]) for e in resp.json()["errors"]]
+
+    def test_the_cli_keys_do_not_excuse_an_invalid_finding(
+        self, client: TestClient, auth_headers: dict[str, str]
+    ) -> None:
+        bad = {"rule": "R", "file": "a.py", "phase": "NotAPhase", "severity": "High"}
+        body = {**CLI_SCAN_RESULT, "findings": [bad]}
+        resp = client.post("/v1/scan", json=body, headers=auth_headers)
+        assert resp.status_code == 422, resp.text
 
     def test_unknown_phase_and_severity_are_still_refused(
         self, client: TestClient, auth_headers: dict[str, str]
@@ -649,8 +728,230 @@ class TestThreatLookupContract:
         data = resp.json()
         for key, value in data.items():
             if isinstance(value, str):
-                assert not any(unicodedata.category(c) == "Cc" for c in value), key
-        assert data["description"].startswith("evil ")
+                assert unprintable_chars(value) == [], key
+        # A control character in `source` does not hide the attribution.
+        assert data["description"].startswith("Community report: evil ")
         assert data["description"].rstrip().endswith("fake")
         assert data["package_name"] == "pkg [31m"
         assert data["hash"] == digest
+
+    def test_match_text_carries_no_format_characters_or_line_separators(
+        self, client: TestClient, pro_auth_headers: dict[str, str]
+    ) -> None:
+        # Bidirectional overrides and isolates reorder what follows them on a
+        # terminal, zero-width characters hide text, and U+2028 starts a new
+        # line in some viewers: none is a control character (Cc).
+        spoof = (
+            "safe \u202e)(txet desrever\u2069 \u200b\u2066 end \u009b31m "
+            "CSI-C1 and U+2028:\u2028next-line\u2029\ufeff\U000e0041"
+        )
+        digest = "d" * 64
+        db._memory_store.setdefault("threats", {})["bidi"] = {
+            "id": "bidi",
+            "hash": digest,
+            "package_name": "pkg\u202e",
+            "version": "9.9.9\u200d",
+            "severity": "HIGH",
+            "source": "internal",
+            "description": spoof,
+        }
+        resp = client.get(f"/v1/threat/{digest}", headers=pro_auth_headers)
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        for key, value in data.items():
+            if isinstance(value, str):
+                assert unprintable_chars(value) == [], (key, value)
+        assert "next-line" in data["description"]
+        assert data["package_name"] == "pkg "
+        assert data["version"] == "9.9.9 "
+
+
+class TestWithoutControlCharacters:
+    @pytest.mark.parametrize(
+        "char",
+        [
+            "\x1b",  # ESC
+            "\x07",  # BEL
+            "\r",
+            "\n",
+            "\x85",  # NEL
+            "\x9b",  # C1 control sequence introducer
+            "\u202a",  # left-to-right embedding
+            "\u202e",  # right-to-left override
+            "\u2066",  # left-to-right isolate
+            "\u2069",  # pop directional isolate
+            "\u200b",  # zero-width space
+            "\u200c",  # zero-width non-joiner
+            "\u200d",  # zero-width joiner
+            "\u2060",  # word joiner
+            "\ufeff",  # byte order mark
+            "\u00ad",  # soft hyphen
+            "\u061c",  # arabic letter mark
+            "\u2028",  # line separator
+            "\u2029",  # paragraph separator
+            "\U000e0041",  # tag latin capital letter a
+        ],
+        ids=lambda c: f"U+{ord(c):04X}",
+    )
+    def test_is_replaced_by_a_space(self, char: str) -> None:
+        assert without_control_characters(f"a{char}b") == "a b"
+
+    def test_text_that_is_only_text_is_unchanged(self) -> None:
+        plain = "naïve – 日本語 Привет שלום ✓ 🎉 100% <b>&amp;</b>"
+        assert without_control_characters(plain) == plain
+        assert without_control_characters("") == ""
+
+
+class TestConfirmedHashReportReachesEveryReader:
+    """A confirmed `sigil report <hash>` is keyed by the reported hash, so it
+    now matches lookups of that hash. Three endpoints read the threat table,
+    and the reporter's text must reach none of them raw or unattributed."""
+
+    HOSTILE = (
+        "totally malware\x1b[2J\x1b]0;pwn\x07 trust me\r\nVerdict: CLEAN"
+        "\u202e)(txet\u2028end"
+    )
+    LABEL = "Community report (unverified hash): totally malware"
+
+    @staticmethod
+    def _confirmed_hash_report(
+        client: TestClient, reviewer_headers: dict[str, str]
+    ) -> str:
+        digest = "ab" * 32
+        resp = client.post(
+            "/v1/report",
+            json={
+                "hash": digest,
+                "threat_type": "malware",
+                "description": TestConfirmedHashReportReachesEveryReader.HOSTILE,
+            },
+        )
+        assert resp.status_code == 201, resp.text
+        TestReportPromotion._confirm(client, reviewer_headers, resp.json()["report_id"])
+        return digest
+
+    @staticmethod
+    def _verify(client: TestClient, digest: str) -> dict[str, Any]:
+        resp = client.post(
+            "/v1/verify",
+            json={
+                "package_name": "some-package",
+                "package_version": "1.0.0",
+                "ecosystem": "npm",
+                "artifact_hash": digest,
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        return resp.json()
+
+    def test_verify_summary_is_attributed_and_printable(
+        self, client: TestClient, reviewer_auth_headers: dict[str, str]
+    ) -> None:
+        digest = self._confirmed_hash_report(client, reviewer_auth_headers)
+        data = self._verify(client, digest)
+
+        # The confirmation still counts: a reviewer decided it.
+        assert data["verified"] is False
+        assert data["verdict"] == "CRITICAL_RISK"
+        assert data["risk_score"] == 50.0
+        summary = data["findings_summary"]
+        assert summary.startswith(f"Known threat: {self.LABEL}"), summary
+        assert summary.endswith("(severity=CRITICAL)"), summary
+        assert unprintable_chars(summary) == []
+        # No second lookup (a cache hit) attributes the text again.
+        assert self._verify(client, digest)["findings_summary"] == summary
+        assert summary.count("Community report") == 1
+
+    def test_scan_hash_enrichment_is_attributed_and_printable(
+        self,
+        client: TestClient,
+        auth_headers: dict[str, str],
+        reviewer_auth_headers: dict[str, str],
+    ) -> None:
+        digest = self._confirmed_hash_report(client, reviewer_auth_headers)
+        resp = client.post(
+            "/v1/scan",
+            json={
+                "target": "t",
+                "target_type": "directory",
+                "findings": [],
+                "metadata": {"hashes": [digest]},
+            },
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["risk_score"] == 10.0
+        (hit,) = data["threat_intel_hits"]
+        assert hit["hash"] == digest
+        assert hit["description"].startswith(self.LABEL), hit["description"]
+        for key, value in hit.items():
+            if isinstance(value, str):
+                assert unprintable_chars(value) == [], key
+
+    def test_internal_entries_keep_their_text_but_lose_control_characters(
+        self, client: TestClient
+    ) -> None:
+        digest = "c" * 64
+        db._memory_store.setdefault("threats", {})["internal-1"] = {
+            "id": "internal-1",
+            "hash": digest,
+            "package_name": "pkg",
+            "severity": "HIGH",
+            "source": "internal",
+            "description": "known\x1b[2J backdoor\u202e",
+        }
+        summary = self._verify(client, digest)["findings_summary"]
+        assert summary == "Known threat: known [2J backdoor  (severity=HIGH)"
+
+    def test_package_report_entries_are_attributed_without_the_hash_label(
+        self, client: TestClient, reviewer_auth_headers: dict[str, str]
+    ) -> None:
+        report_id = client.post(
+            "/v1/report", json=fixture("dashboard/report.json")
+        ).json()["report_id"]
+        TestReportPromotion._confirm(client, reviewer_auth_headers, report_id)
+        (threat,) = db._memory_store["threats"].values()
+        summary = self._verify(client, threat["hash"])["findings_summary"]
+        reason = fixture("dashboard/report.json")["reason"]
+        assert (
+            summary == f"Known threat: Community report: {reason} (severity=CRITICAL)"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Scoring of the phase the CLI added (Inference Security)
+# ---------------------------------------------------------------------------
+
+
+class TestInferenceSecurityScoring:
+    @pytest.mark.parametrize("phase", CLI_PHASES, ids=lambda p: p["api"])
+    def test_every_cli_phase_has_a_score_weight_and_a_threat_category(
+        self, phase: dict[str, str]
+    ) -> None:
+        api_phase = ScanPhase(phase["api"])
+        assert api_phase in PHASE_WEIGHTS
+        category = ThreatCorrelator()._map_phase_to_threat_category(phase["api"])
+        assert category != "unknown_threats"
+
+    def test_inference_security_scores_like_a_code_finding_of_the_same_severity(
+        self,
+    ) -> None:
+        # The CLI weights Phase 10 at 5, like code patterns (cli/src/scanner/
+        # mod.rs). The API's default weight of 1.0 scored it five times lower.
+        def high(phase: ScanPhase) -> Finding:
+            return Finding(
+                phase=phase, rule="R", severity=Severity.HIGH, file="src/a.py", weight=5
+            )
+
+        inference = score_finding(high(ScanPhase.INFERENCE_SECURITY))
+        assert inference == score_finding(high(ScanPhase.CODE_PATTERNS)) == 75.0
+        assert PHASE_WEIGHTS[ScanPhase.INFERENCE_SECURITY] == 5.0
+
+    def test_correlator_files_inference_security_with_the_other_ai_threats(
+        self,
+    ) -> None:
+        correlator = ThreatCorrelator()
+        assert correlator._map_phase_to_threat_category("inference_security") == (
+            correlator._map_phase_to_threat_category("prompt_injection")
+        )
