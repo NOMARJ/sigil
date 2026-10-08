@@ -279,6 +279,13 @@ class EnhancedScanResponse(ScanResponse):
 # `source` of a threat entry promoted from a confirmed community report.
 COMMUNITY_SOURCE = "community"
 
+# `source` of a threat entry promoted from a confirmed `sigil report <hash>`
+# report. Its hash is whatever the reporter typed, and a reviewer cannot check
+# it without the artifact, so the entry is shown by GET /v1/threat/{hash} but
+# never moves a POST /v1/verify verdict or a POST /v1/scan score
+# (`is_unverified_hash_entry`).
+COMMUNITY_UNVERIFIED_SOURCE = "community-unverified"
+
 
 class ThreatEntry(BaseModel):
     """A known-malicious package record in the threat database."""
@@ -318,6 +325,21 @@ def without_control_characters(text: str) -> str:
 _THREAT_TEXT_FIELDS = ("hash", "package_name", "version", "source", "description")
 
 
+def is_unverified_hash_entry(entry: ThreatEntry) -> bool:
+    """Whether *entry* was keyed by a hash a reporter chose.
+
+    That is an entry promoted from a `sigil report <hash>` report: source
+    `community-unverified`, or `community` with a `sha256:<hash>` package name
+    (the form a report confirmed before the distinct source existed has).
+    """
+    source = without_control_characters(entry.source).strip()
+    if source == COMMUNITY_UNVERIFIED_SOURCE:
+        return True
+    return (
+        source == COMMUNITY_SOURCE and reported_sha256(entry.package_name) is not None
+    )
+
+
 def attributed_threat_entry(entry: ThreatEntry) -> ThreatEntry:
     """*entry* as it may be shown to a client.
 
@@ -327,23 +349,24 @@ def attributed_threat_entry(entry: ThreatEntry) -> ThreatEntry:
     description alone, without the source) cannot tell it from Sigil's. It is
     prefixed with where it came from: "Community report: ", or for a `sigil
     report <hash>` report, whose hash a reviewer cannot check without the
-    artifact, "Community report (unverified hash): ".
+    artifact, "Community report (unverified hash): ". An empty description
+    stays empty: there is no reporter text to attribute, and the readers that
+    name the package in its place (POST /v1/verify) still can.
 
     `lookup_threat` returns entries in this form, so every reader of the
     threat database gets it: GET /v1/threat/{hash}, POST /v1/verify and the
     hash enrichment of POST /v1/scan.
     """
+    unverified = is_unverified_hash_entry(entry)
     data = entry.model_dump()
     for key in _THREAT_TEXT_FIELDS:
         data[key] = without_control_characters(data[key])
-    if data["source"].strip() == COMMUNITY_SOURCE:
+    if unverified or data["source"].strip() == COMMUNITY_SOURCE:
         label = (
-            "Community report (unverified hash)"
-            if reported_sha256(data["package_name"]) is not None
-            else "Community report"
+            "Community report (unverified hash)" if unverified else "Community report"
         )
         text = data["description"].strip()
-        data["description"] = f"{label}: {text}" if text else label
+        data["description"] = f"{label}: {text}" if text else ""
     return ThreatEntry(**data)
 
 

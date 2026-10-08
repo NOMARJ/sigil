@@ -18,6 +18,7 @@ from uuid import uuid4
 from api.database import cache, db
 from api.models import (
     COMMUNITY_SOURCE,
+    COMMUNITY_UNVERIFIED_SOURCE,
     ScanPhase,
     Severity,
     SignatureEntry,
@@ -26,6 +27,7 @@ from api.models import (
     ThreatReport,
     ThreatReportResponse,
     attributed_threat_entry,
+    is_unverified_hash_entry,
     reported_sha256,
 )
 
@@ -142,11 +144,13 @@ _BUILTIN_SIGNATURES: list[dict[str, Any]] = [
 # ---------------------------------------------------------------------------
 
 
-async def lookup_threat(package_hash: str) -> ThreatEntry | None:
+async def lookup_threat(
+    package_hash: str, *, include_unverified: bool = False
+) -> ThreatEntry | None:
     """Look up a package hash in the threat database.
 
-    Checks Redis cache first, then falls back to Supabase.  Returns ``None``
-    when no matching threat is found.
+    Checks Redis cache first, then falls back to the database (MSSQL).
+    Returns ``None`` when no matching threat is found.
 
     The entry is returned in the form a client may be shown
     (``attributed_threat_entry``): control characters removed from its text,
@@ -155,9 +159,19 @@ async def lookup_threat(package_hash: str) -> ThreatEntry | None:
     POST /v1/verify, the hash enrichment of POST /v1/scan), and a community
     entry's text is whatever its reporter wrote. The cache holds the entry as
     stored, so entries cached before this form existed are covered too.
+
+    An entry promoted from a ``sigil report <hash>`` report is keyed by a hash
+    the reporter chose, which no reviewer can check without the artifact. It
+    is not a match unless the caller asks for it with
+    ``include_unverified=True`` (GET /v1/threat/{hash} does, to show it): a
+    reader that turns a match into a verdict or a score gets ``None``.
     """
     entry = await _lookup_stored_threat(package_hash)
-    return None if entry is None else attributed_threat_entry(entry)
+    if entry is None:
+        return None
+    if not include_unverified and is_unverified_hash_entry(entry):
+        return None
+    return attributed_threat_entry(entry)
 
 
 async def _lookup_stored_threat(package_hash: str) -> ThreatEntry | None:
@@ -186,10 +200,14 @@ async def _lookup_stored_threat(package_hash: str) -> ThreatEntry | None:
 
 
 async def lookup_threats_for_hashes(hashes: list[str]) -> list[ThreatEntry]:
-    """Batch lookup — returns all matching threat entries."""
+    """Batch lookup — returns all matching threat entries.
+
+    The scan score takes +10 per match, so a hash a reporter chose
+    (``sigil report <hash>``) is not a match here: see ``lookup_threat``.
+    """
     results: list[ThreatEntry] = []
     for h in hashes:
-        entry = await lookup_threat(h)
+        entry = await lookup_threat(h, include_unverified=False)
         if entry is not None:
             results.append(entry)
     return results
@@ -356,8 +374,14 @@ async def reload_signatures_from_json(json_path: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-async def submit_report(report: ThreatReport) -> ThreatReportResponse:
-    """Persist a user-submitted threat report and return an acknowledgement."""
+async def submit_report(
+    report: ThreatReport, reporter_user_id: str | None = None
+) -> ThreatReportResponse:
+    """Persist a user-submitted threat report and return an acknowledgement.
+
+    *reporter_user_id* is the signed-in reporter, when the request carried a
+    valid token (POST /v1/report needs none): it is recorded with the report.
+    """
     # Full GUID: threat_reports.id is UNIQUEIDENTIFIER (schema.sql), and a
     # truncated hex does not convert (the same failure scans.id had).
     report_id = str(uuid4())
@@ -373,6 +397,8 @@ async def submit_report(report: ThreatReport) -> ThreatReportResponse:
         "status": "received",
         "created_at": _utcnow_iso(),
     }
+    if reporter_user_id:
+        row["reporter_user_id"] = reporter_user_id
 
     await db.insert(REPORT_TABLE, row)
 
@@ -579,11 +605,16 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
     now = _utcnow()
 
     # A `sigil report <hash>` report (package `sha256:<hash>`) is keyed by the
-    # reported hash itself, so lookups of that hash match it. Any other report
-    # gets a synthetic hash of its package identity.
+    # reported hash itself, so lookups of that hash match it, but as an
+    # unverified entry: the hash is whatever the reporter typed, so it may be
+    # shown (GET /v1/threat/{hash}) and never moves a verdict or a score. Any
+    # other report gets a synthetic hash of its package identity, which a
+    # reporter cannot choose.
     reported_hash = reported_sha256(package_name)
+    source = COMMUNITY_SOURCE
     if reported_hash is not None:
         pkg_hash = reported_hash
+        source = COMMUNITY_UNVERIFIED_SOURCE
     else:
         pkg_identity = f"{ecosystem}:{package_name}:{report.get('package_version', '')}"
         pkg_hash = hashlib.sha256(pkg_identity.encode()).hexdigest()
@@ -597,7 +628,7 @@ async def _promote_report_to_threat(report: dict[str, Any]) -> None:
         "package_name": package_name,
         "version": report.get("package_version", ""),
         "severity": "CRITICAL",
-        "source": COMMUNITY_SOURCE,
+        "source": source,
         "confirmed_at": now.isoformat(),
         "description": report.get("reason", "Community-confirmed threat"),
         "created_at": now.isoformat(),

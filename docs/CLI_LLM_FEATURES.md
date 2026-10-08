@@ -10,9 +10,9 @@ are the reference for the data it sends.
 ## Current status: no LLM findings yet
 
 The API does not return LLM findings for `--enhanced` yet. It scores and
-stores the scan and answers with its static analysis. The uploaded files are
-kept out of the stored scan only once the Sigil API update is deployed; the
-API before it stores them with the scan record (see
+stores the scan and answers with its static analysis. The API keeps the
+uploaded files out of the stored scan; an API without the update stores them
+with the scan record (see [API update rollout](cli.md#api-update-rollout) and
 [Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation)).
 The response:
 
@@ -33,7 +33,8 @@ sigil scan ./my-project --enhanced --no-cache
 ```
 
 `--enhanced` runs only on a fresh scan: a re-scan of unchanged content served
-from the cache skips it without a message, hence `--no-cache`. For a
+from the cache skips it, and the CLI warns on stderr that it did, hence
+`--no-cache`. For a
 repository URL, `sigil scan` runs the `sigil clone` workflow, which ignores
 `--enhanced`; clone first, then scan `~/.sigil/quarantine/<id>`.
 
@@ -85,10 +86,13 @@ Content-Type: application/json
 }
 ```
 
-The API keeps the findings and the rest of the request with the scan record,
-but not `file_contents`: only its LLM step sees the files. (The API deployed
-before the CLI compatibility update stored the files with the scan record;
-see [Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation).)
+The API keeps the findings and the scan's own metadata keys (`source`,
+`cli_score`, `cli_verdict`, and `hash`, `hashes`, `publisher` and
+`publisher_id` when present) with the scan record, but not `file_contents`,
+nor any other key: only its LLM step sees the files. (An API without the
+update stored the files with the scan record; see
+[API update rollout](cli.md#api-update-rollout) and
+[Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation).)
 
 ## What comes back
 
@@ -128,8 +132,8 @@ do not change the verdict, the exit code or the scan report in any `-f`
 format.
 
 CLI 1.3.7 prints `sigil: Enhanced LLM analysis completed` to stdout, after
-the report, for any response it can parse. With the API from the CLI
-compatibility update, a response without LLM analysis has no `id`, so 1.3.7
+the report, for any response it can parse. The API puts `id` in the response
+only when LLM analysis ran, so for a response without it 1.3.7
 prints ``warning: Enhanced analysis failed: failed to parse response: ...
 missing field `id` ...`` and `Continuing with static analysis results only`
 on stderr instead. Upgrade the CLI to see which outcome it was.

@@ -103,15 +103,21 @@ transmit source code by design:
   one, since this request already stores the scan (CLI 1.3.7 sends both).
   The API holds the uploaded files only while it handles the request, for
   its LLM step:
-  the scan record it stores keeps the findings and the rest of the request
-  but not the files (`submit_enhanced_scan`, `api/routers/scan.py`). The
-  API deployed before the update that added CLI compatibility stores the
-  request, files included, with the scan record, and its scan-detail
-  endpoint (`GET /v1/scans/{id}`) returns them to the account that sent the
-  scan and to its team for as long as the record is kept, or until the
-  database migration that ships with the update
+  the scan record it stores keeps the findings and the scan's own metadata
+  keys (`source`, `cli_score`, `cli_verdict`, and `hash`, `hashes`,
+  `publisher` and `publisher_id` when present) but not the files, nor any
+  other key of the request's metadata (`submit_enhanced_scan`,
+  `api/routers/scan.py`). An API without the update stores the request,
+  files included, with the scan record, and every scan endpoint that returns
+  a stored scan returns that record's metadata, files included, to the
+  account that sent the scan and to its team: the detail endpoints
+  (`GET /v1/scans/{id}`, `GET /scans/{id}`) and the list endpoints
+  (`GET /scans`, `GET /v1/scans`), for as long as the record is kept, or
+  until the database migration that ships with the update
   (`api/migrations/011_remove_uploaded_files_from_scan_metadata.sql`) is
-  applied, which removes them from every stored scan. Its LLM step does not
+  applied, which removes the keys `file_contents` and `content` from every
+  stored scan (see [API update rollout](cli.md#api-update-rollout)). The
+  API's LLM step does not
   currently run for this endpoint, so it answers with its static analysis;
   the CLI reports that rather than an analysis (CLI 1.3.7 reports a failed
   enhanced analysis).

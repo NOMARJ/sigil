@@ -203,13 +203,13 @@ sigil login
 
 ### Threat intelligence not loading
 
-Logging in does not change a plain `sigil scan`. The hash lookup runs only with `sigil scan --enrich`, and only on a fresh scan: when the scan reuses a cached result (it prints `sigil: using cached result`, the default when you re-scan an unchanged directory or a copy of content scanned before), `--enrich`, `--submit` and `--enhanced` are skipped without a message, so add `--no-cache`:
+Logging in does not change a plain `sigil scan`. The hash lookup runs only with `sigil scan --enrich`, and only on a fresh scan: when the scan reuses a cached result (it prints `sigil: using cached result`, the default when you re-scan an unchanged directory or a copy of content scanned before), `--enrich`, `--submit` and `--enhanced` are skipped, and the CLI warns on stderr (`warning: --enrich was skipped: the result came from the cache ...`), so add `--no-cache`:
 
 ```bash
 sigil -v scan . --enrich --no-cache
 ```
 
-`--enrich` prints `THREAT INTEL: <path> is a known threat` with the entry's details when the API reports a match, `no threat-intel match for this directory's hash` when it does not, and `warning: threat-intel lookup failed:` with the HTTP status when the lookup fails. The threat database needs a Pro plan; the API refuses the lookup otherwise (HTTP 403). The lookup key is a hash of the directory's file paths and sizes, while the database is keyed by package-artifact hashes, so a match needs an entry recorded for that exact directory: no match does not mean the target is not a known threat. CLI 1.3.7 prints nothing for no match and shows a failure only with `-v` (as `cloud enrichment unavailable: ...`); it shows a match only once the Sigil API update that adds the fields it needs is deployed, and before that the match appears only with `-v`, as `cloud enrichment unavailable: failed to parse response`. If the lookup fails:
+`--enrich` prints `THREAT INTEL: <path> is a known threat` with the entry's details when the API reports a match, `no threat-intel match for this directory's hash` when it does not, `warning: threat-intel lookup failed:` with the HTTP status when the lookup fails, and `warning: threat-intel lookup returned an unrecognised answer` when the API answers 2xx with a body that names no entry (the Sigil API answers 404 for an unknown hash, so a proxy or captive portal on the way is a likely cause). The threat database needs a Pro plan; the API refuses the lookup otherwise (HTTP 403). The lookup key is a hash of the directory's file paths and sizes, while the database is keyed by package-artifact hashes, so a match needs an entry recorded for that exact directory: no match does not mean the target is not a known threat. CLI 1.3.7 prints nothing for no match and shows a failure only with `-v` (as `cloud enrichment unavailable: ...`); it shows a match only with an API that adds the fields it needs ([API update rollout](cli.md#api-update-rollout)). If the lookup fails:
 
 1. **Check authentication status:**
 

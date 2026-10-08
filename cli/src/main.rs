@@ -2651,6 +2651,11 @@ async fn cmd_scan(
         return EXIT_ERROR;
     }
     if from_cache {
+        // The cloud options run on a fresh scan only. Say so, or a re-scan of
+        // unchanged content looks as if `--submit` stored a scan.
+        if let Some(note) = cached_cloud_options_note(submit, enrich, enhanced) {
+            eprintln!("{} {}", "warning:".bold().yellow(), note);
+        }
         return scan_exit_code(&policy, &result);
     }
 
@@ -2667,6 +2672,15 @@ async fn cmd_scan(
             Ok(info) if info.known_malicious => {
                 print_progress(format, threat_intel_lines(path, &info));
             }
+            // The Sigil API answers 404 for an unknown hash, so a 2xx that
+            // names no entry came from something else (a proxy, a portal):
+            // not a lookup result, and not "no match" either.
+            Ok(info) if info.unrecognised => eprintln!(
+                "{} threat-intel lookup returned an unrecognised answer (a success response \
+                 that names no threat entry; the Sigil API answers 404 for an unknown hash), \
+                 so there is no lookup result",
+                "warning:".bold().yellow()
+            ),
             Ok(_) => print_progress(
                 format,
                 format!(
@@ -2785,6 +2799,30 @@ async fn cmd_scan(
     }
 
     scan_exit_code(&policy, &result)
+}
+
+/// The warning for cloud options a cached result skipped: they run on a fresh
+/// scan only. `None` when none was asked for.
+fn cached_cloud_options_note(submit: bool, enrich: bool, enhanced: bool) -> Option<String> {
+    let skipped: Vec<&str> = [
+        (submit, "--submit"),
+        (enrich, "--enrich"),
+        (enhanced, "--enhanced"),
+    ]
+    .into_iter()
+    .filter_map(|(asked, flag)| asked.then_some(flag))
+    .collect();
+    let names = match skipped.as_slice() {
+        [] => return None,
+        [one] => (*one).to_string(),
+        [init @ .., last] => format!("{} and {}", init.join(", "), last),
+    };
+    let verb = if skipped.len() == 1 { "was" } else { "were" };
+    Some(format!(
+        "{names} {verb} skipped: the result came from the cache and the cloud options run \
+         only on a fresh scan; add --no-cache to run {}",
+        if skipped.len() == 1 { "it" } else { "them" }
+    ))
 }
 
 /// The `--enrich` match message: the threat entry's description, then the
@@ -5266,7 +5304,7 @@ mod exit_code_tests {
 
 #[cfg(test)]
 mod cloud_response_tests {
-    use super::{report_outcome, threat_intel_lines};
+    use super::{cached_cloud_options_note, report_outcome, threat_intel_lines};
     use crate::api::{parse_threat_info, ReportResponse};
     use std::path::Path;
 
@@ -5333,5 +5371,56 @@ mod cloud_response_tests {
         }
         assert!(lines.contains("Package: pkg  9.9.9"), "{lines}");
         assert!(lines.contains("next-line"), "{lines}");
+    }
+
+    #[test]
+    fn a_cached_result_says_which_cloud_options_it_skipped() {
+        assert_eq!(cached_cloud_options_note(false, false, false), None);
+        let one = cached_cloud_options_note(true, false, false).unwrap();
+        assert!(one.starts_with("--submit was skipped"), "{one}");
+        assert!(one.ends_with("add --no-cache to run it"), "{one}");
+        let two = cached_cloud_options_note(false, true, true).unwrap();
+        assert!(
+            two.starts_with("--enrich and --enhanced were skipped"),
+            "{two}"
+        );
+        assert!(two.ends_with("add --no-cache to run them"), "{two}");
+        let three = cached_cloud_options_note(true, true, true).unwrap();
+        assert!(
+            three.starts_with("--submit, --enrich and --enhanced were skipped"),
+            "{three}"
+        );
+        assert!(!three.contains('\n'), "{three}");
+    }
+
+    #[test]
+    fn a_lookup_answer_that_names_no_entry_is_unrecognised_not_a_miss() {
+        // What `--enrich` reports for each kind of 2xx body: only a body that
+        // says nothing either way is "unrecognised"; an explicit
+        // `known_malicious: false` is the API's own "no match".
+        for body in [
+            "{}",
+            r#"{"detail":"Not Found"}"#,
+            r#"{"hash":"","package_name":null}"#,
+            r#"{"status":"ok","message":"welcome to the guest network"}"#,
+        ] {
+            let info = parse_threat_info(body, "h").unwrap();
+            assert!(!info.known_malicious && info.unrecognised, "{body}");
+        }
+        for body in [
+            r#"{"known_malicious":false}"#,
+            r#"{"known_malicious":false,"hash":"h","references":[]}"#,
+        ] {
+            let info = parse_threat_info(body, "h").unwrap();
+            assert!(!info.known_malicious && !info.unrecognised, "{body}");
+        }
+        for body in [
+            r#"{"hash":"h1"}"#,
+            r#"{"package_name":"evil"}"#,
+            r#"{"known_malicious":true}"#,
+        ] {
+            let info = parse_threat_info(body, "h").unwrap();
+            assert!(info.known_malicious && !info.unrecognised, "{body}");
+        }
     }
 }

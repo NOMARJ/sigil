@@ -96,8 +96,8 @@ impl EnhancedOutcome {
 /// answers 404 for an unknown hash, so a body that names an entry is a match;
 /// the API adds `known_malicious` and `references` for CLI 1.3.7, and an API
 /// without them still parses. A 2xx body that names no entry (`{}` from a
-/// proxy or captive portal) is not a match: see [`parse_threat_info`], which
-/// sets `known_malicious`.
+/// proxy or captive portal) is not a match and not a "no match" either: see
+/// [`parse_threat_info`], which sets `known_malicious` and `unrecognised`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ThreatInfo {
     #[serde(default)]
@@ -120,6 +120,12 @@ pub struct ThreatInfo {
     pub description: Option<String>,
     #[serde(default)]
     pub references: Vec<String>,
+    /// Set by [`parse_threat_info`] for a 2xx body that neither names an
+    /// entry nor says `known_malicious` either way: not an answer the Sigil
+    /// API gives (it answers 404 for an unknown hash), so it is neither a
+    /// match nor a "no match".
+    #[serde(skip)]
+    pub unrecognised: bool,
 }
 
 impl ThreatInfo {
@@ -135,6 +141,7 @@ impl ThreatInfo {
             threat_type: None,
             description: None,
             references: vec![],
+            unrecognised: false,
         }
     }
 }
@@ -249,15 +256,22 @@ pub fn scan_request_body(
 /// else, so it is checked before anything is sent.
 pub fn report_digest(hash: &str) -> Result<String, String> {
     let digest = hash.trim().to_ascii_lowercase();
-    if digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_hexdigit()) {
-        Ok(digest)
-    } else {
-        Err(format!(
+    let length = digest.chars().count();
+    if length != 64 {
+        // The input is never echoed: it may hold terminal escapes.
+        return Err(format!(
             "the hash must be a SHA-256 digest: 64 hexadecimal characters (0-9, a-f); \
-             got {} characters",
-            hash.trim().chars().count()
-        ))
+             got {length} characters"
+        ));
     }
+    if !digest.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err(
+            "the hash must be a SHA-256 digest: 64 hexadecimal characters \
+             (0-9, a-f); it is 64 characters long but contains characters outside 0-9, a-f"
+                .to_string(),
+        );
+    }
+    Ok(digest)
 }
 
 /// Body of `POST /v1/report` (the API's `ThreatReport`). The API identifies a
@@ -856,7 +870,9 @@ impl SigilClient {
 /// matched, so a body is a match when it says `known_malicious: true` or
 /// carries a `hash` or a `package_name`. `known_malicious: false` is no match
 /// whatever else the body holds. A body that does neither (`{}`, or an error
-/// object) is no match: a proxy or portal can answer 200 with one.
+/// object) is no match and is marked `unrecognised`: the Sigil API answers 404
+/// for an unknown hash, so a proxy or portal answered. The caller says so
+/// instead of reporting a lookup result.
 pub fn parse_threat_info(body: &str, hash: &str) -> Result<ThreatInfo, String> {
     let parse_error = |e: serde_json::Error| format!("failed to parse response: {}", e);
     let value: Value = serde_json::from_str(body).map_err(parse_error)?;
@@ -872,6 +888,7 @@ pub fn parse_threat_info(body: &str, hash: &str) -> Result<ThreatInfo, String> {
             .as_deref()
             .is_some_and(|name| !name.trim().is_empty());
     info.known_malicious = explicit.unwrap_or(names_an_entry);
+    info.unrecognised = explicit.is_none() && !names_an_entry;
     if info.hash.is_empty() {
         info.hash = hash.to_string();
     }
@@ -1355,6 +1372,37 @@ mod tests {
             let err = report_digest(bad).unwrap_err();
             assert!(err.contains("64 hexadecimal characters"), "{bad}: {err}");
         }
+    }
+
+    #[test]
+    fn report_digest_names_the_actual_problem() {
+        let hex = "0123456789abcdef".repeat(4);
+        // Wrong length: the count is the problem, and it is stated.
+        let short = report_digest(&hex[..63]).unwrap_err();
+        assert!(short.ends_with("got 63 characters"), "{short}");
+        let long = report_digest(&format!("{hex}0")).unwrap_err();
+        assert!(long.ends_with("got 65 characters"), "{long}");
+        // The count is of characters, not bytes, and of the trimmed input.
+        let wide = report_digest(&"\u{e9}".repeat(32)).unwrap_err();
+        assert!(wide.ends_with("got 32 characters"), "{wide}");
+        let padded = report_digest(&format!("  {}  ", &hex[..60])).unwrap_err();
+        assert!(padded.ends_with("got 60 characters"), "{padded}");
+        // Right length, wrong characters: never "got 64 characters".
+        for bad in [
+            "g".repeat(64),
+            format!("{}z", &hex[..63]),
+            "\u{e9}".repeat(64),
+            "x".repeat(32) + &hex[..32],
+        ] {
+            let err = report_digest(&bad).unwrap_err();
+            assert!(!err.contains("got 64 characters"), "{bad}: {err}");
+            assert!(
+                err.contains("contains characters outside 0-9, a-f"),
+                "{bad}: {err}"
+            );
+        }
+        // The rejected input is not echoed back (it may hold terminal escapes).
+        assert!(!report_digest("\u{1b}[2J").unwrap_err().contains('\u{1b}'));
     }
 
     #[tokio::test]

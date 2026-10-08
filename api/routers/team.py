@@ -75,10 +75,13 @@ async def _get_or_create_team(user: UserResponse) -> dict[str, Any]:
     }
     await db.insert(TEAM_TABLE, team_row)
 
-    # Assign the user to this team
+    # Assign the user to this team. The team records its owner (`owner_id`),
+    # and that is what makes the user its manager (`_require_team_manager`).
+    # `users.role` is not written: it is also the role the reviewer and
+    # signature-admin gates read (api/permissions.py), and a plain GET /team
+    # must not grant a platform-wide role.
     if user_row:
         user_row["team_id"] = team_id
-        user_row["role"] = "owner"
         await db.upsert(USER_TABLE, user_row)
 
     return team_row
@@ -90,27 +93,44 @@ async def _get_team_members(team_id: str) -> list[dict[str, Any]]:
     return rows
 
 
-def _user_to_member(row: dict[str, Any]) -> TeamMember:
-    """Convert a user DB row to a TeamMember model."""
+def _user_to_member(
+    row: dict[str, Any], team_owner_id: str | None = None
+) -> TeamMember:
+    """Convert a user DB row to a TeamMember model.
+
+    The team's owner is shown as ``owner`` (the team records who that is, not
+    the user's role).
+    """
+    role = row.get("role", "member")
+    if team_owner_id is not None and row.get("id") == team_owner_id:
+        role = "owner"
     return TeamMember(
         id=row.get("id", ""),
         email=row.get("email", ""),
         name=row.get("name", ""),
-        role=row.get("role", "member"),
+        role=role,
         created_at=row.get("created_at", datetime.utcnow()),
     )
 
 
-def _require_admin_or_owner(user_row: dict[str, Any] | None) -> None:
-    """Raise 403 if the user is not an admin or owner of their team."""
-    role = "member"
-    if user_row:
-        role = user_row.get("role", "member")
-    if role not in ("admin", "owner"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only team admins or owners can perform this action",
-        )
+async def _require_team_manager(user: UserResponse) -> None:
+    """Raise 403 unless the user manages their team.
+
+    A manager has the admin or owner role, or is the owner the team records
+    (`teams.owner_id`): creating a personal team does not write a role.
+    """
+    user_row = await db.select_one(USER_TABLE, {"id": user.id})
+    if user_row and user_row.get("role", "member") in ("admin", "owner"):
+        return
+    team_id = user_row.get("team_id") if user_row else None
+    if team_id:
+        team = await db.select_one(TEAM_TABLE, {"id": team_id})
+        if team is not None and team.get("owner_id") == user.id:
+            return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Only team admins or owners can perform this action",
+    )
 
 
 def _require_same_team(target_user: dict[str, Any], team_id: str) -> None:
@@ -148,7 +168,7 @@ async def get_team(
         name=team.get("name", ""),
         owner_id=team.get("owner_id"),
         plan=team.get("plan", "free"),
-        members=[_user_to_member(m) for m in members],
+        members=[_user_to_member(m, team.get("owner_id")) for m in members],
         created_at=team.get("created_at", datetime.utcnow()),
     )
 
@@ -178,8 +198,7 @@ async def invite_member(
         )
 
     # Check caller's permissions
-    caller_row = await db.select_one(USER_TABLE, {"id": current_user.id})
-    _require_admin_or_owner(caller_row)
+    await _require_team_manager(current_user)
 
     team = await _get_or_create_team(current_user)
     team_id = team.get("id", _DEFAULT_TEAM_ID)
@@ -271,8 +290,7 @@ async def remove_member(
     removed.  A user cannot remove themselves through this endpoint.
     """
     # Check caller's permissions
-    caller_row = await db.select_one(USER_TABLE, {"id": current_user.id})
-    _require_admin_or_owner(caller_row)
+    await _require_team_manager(current_user)
 
     # Cannot remove yourself
     if user_id == current_user.id:
@@ -341,8 +359,7 @@ async def update_member_role(
         )
 
     # Check caller's permissions
-    caller_row = await db.select_one(USER_TABLE, {"id": current_user.id})
-    _require_admin_or_owner(caller_row)
+    await _require_team_manager(current_user)
 
     target_user = await db.select_one(USER_TABLE, {"id": user_id})
     if target_user is None:
@@ -356,6 +373,15 @@ async def update_member_role(
     team_id = team.get("id")
     _require_same_team(target_user, team_id)
 
+    # The owner's standing comes from the team, and `admin` is a role the
+    # platform's reviewer gate also honours: the owner cannot hand it to
+    # themselves here.
+    if team.get("owner_id") == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cannot change the team owner's role",
+        )
+
     target_user["role"] = body.role
     await db.upsert(USER_TABLE, target_user)
 
@@ -367,4 +393,4 @@ async def update_member_role(
         current_user.id,
     )
 
-    return _user_to_member(target_user)
+    return _user_to_member(target_user, team.get("owner_id"))

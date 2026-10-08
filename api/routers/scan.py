@@ -95,9 +95,23 @@ _USAGE_METER_TIMEOUT_SECONDS = 2.0
 _PUBLISHER_ENRICH_TIMEOUT_SECONDS = 2.0
 _ANALYTICS_TRACK_TIMEOUT_SECONDS = 2.0
 _ENHANCED_SCAN_LLM_TIMEOUT_SECONDS = 20.0
-# /v1/scan-enhanced metadata keys that carry uploaded source code: the CLI's
-# `file_contents` map and the single-file `content` form.
-_UPLOADED_SOURCE_KEYS = frozenset({"file_contents", "content"})
+# The /v1/scan-enhanced request metadata keys that are stored with the scan:
+# what the CLI sends about the scan (`source`, `cli_score`, `cli_verdict`) and
+# the keys the scan itself reads (`hash`, `hashes`, `publisher`,
+# `publisher_id`). Any other key is dropped, so the source files the request
+# uploads for LLM analysis (the CLI's `file_contents`, a single file's
+# `content`, and whatever else another client calls them) are not stored.
+_STORED_ENHANCED_METADATA_KEYS = frozenset(
+    {
+        "source",
+        "cli_score",
+        "cli_verdict",
+        "hash",
+        "hashes",
+        "publisher",
+        "publisher_id",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -616,15 +630,15 @@ async def submit_enhanced_scan(
     await check_scan_quota(current_user.id, current_tier)
 
     # Start with basic scan implementation. The uploaded source files are
-    # kept out of the stored scan record (which the scan-detail API returns
-    # to the account and its team): only the LLM step below reads them, from
-    # `request`.
+    # kept out of the stored scan record (which the scan list and detail APIs
+    # return to the account and its team): only the LLM step below reads them,
+    # from `request`.
     stored_request = request.model_copy(
         update={
             "metadata": {
                 k: v
                 for k, v in request.metadata.items()
-                if k not in _UPLOADED_SOURCE_KEYS
+                if k in _STORED_ENHANCED_METADATA_KEYS
             }
         }
     )

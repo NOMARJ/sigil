@@ -97,7 +97,8 @@ async def get_threat(
     --enrich` in CLI 1.3.7 needs to show it, and a community entry's
     description says it is a community report.
     """
-    entry = await lookup_threat(package_hash)
+    # Shown here, as an unverified entry; the readers that score a match ignore it.
+    entry = await lookup_threat(package_hash, include_unverified=True)
     if entry is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -281,6 +282,7 @@ async def update_report(
         return await update_report_status(
             report_id=report_id,
             new_status=body.status,
+            reviewer_id=current_user.id,
             notes=body.notes,
         )
     except ValueError as exc:
