@@ -1149,10 +1149,46 @@ fn ns_dash_c(cmd: &str) -> bool {
 /// `<<` may be a shell (`rbash`, `$0`, `exec sh`, a wrapper), and text piped to it
 /// is read again.
 const NS_FILTERS: &[&str] = &[
-    "cat", "tee", "grep", "egrep", "fgrep", "rg", "cut", "sort", "uniq", "wc", "head", "tail",
-    "tr", "jq", "less", "more", "column", "fold", "fmt", "nl", "od", "xxd", "base64", "sha256sum",
-    "md5sum", "shasum", "xargs", "diff", "cmp", "comm", "paste", "rev", "tac", "yes", "true",
-    "false", "echo", "printf", "test", "[",
+    "cat",
+    "tee",
+    "grep",
+    "egrep",
+    "fgrep",
+    "rg",
+    "cut",
+    "sort",
+    "uniq",
+    "wc",
+    "head",
+    "tail",
+    "tr",
+    "jq",
+    "less",
+    "more",
+    "column",
+    "fold",
+    "fmt",
+    "nl",
+    "od",
+    "xxd",
+    "base64",
+    "sha256sum",
+    "md5sum",
+    "shasum",
+    "xargs",
+    "diff",
+    "cmp",
+    "comm",
+    "paste",
+    "rev",
+    "tac",
+    "yes",
+    "true",
+    "false",
+    "echo",
+    "printf",
+    "test",
+    "[",
 ];
 
 fn ns_known_filter(word: &str) -> bool {
@@ -1175,11 +1211,15 @@ fn ns_sigil_call(chars: &[char], end: usize) -> bool {
             i += 1;
         }
         let start = i;
-        while i < n && (chars[i].is_ascii_alphanumeric() || matches!(chars[i], '-' | '_' | '.' | '=')) {
+        while i < n
+            && (chars[i].is_ascii_alphanumeric() || matches!(chars[i], '-' | '_' | '.' | '='))
+        {
             i += 1;
         }
         let word: String = chars[start..i].iter().collect();
-        if word.is_empty() || (i < n && !matches!(chars[i], ' ' | '\t' | '\n' | ';' | '&' | '|' | ')')) {
+        if word.is_empty()
+            || (i < n && !matches!(chars[i], ' ' | '\t' | '\n' | ';' | '&' | '|' | ')'))
+        {
             return true;
         }
         match global_option_words(&word) {
@@ -1189,7 +1229,8 @@ fn ns_sigil_call(chars: &[char], end: usize) -> bool {
                 while i < n && blank(chars[i]) {
                     i += 1;
                 }
-                while i < n && !blank(chars[i]) && !matches!(chars[i], '\n' | ';' | '&' | '|' | ')') {
+                while i < n && !blank(chars[i]) && !matches!(chars[i], '\n' | ';' | '&' | '|' | ')')
+                {
                     i += 1;
                 }
             }
@@ -1210,13 +1251,18 @@ fn ns_first_word(chars: &[char], from: usize) -> String {
             i += 1;
         }
         let start = i;
-        while i < chars.len() && !matches!(chars[i], ' ' | '\t' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')') {
+        while i < chars.len()
+            && !matches!(
+                chars[i],
+                ' ' | '\t' | '\n' | ';' | '&' | '|' | '<' | '>' | '(' | ')'
+            )
+        {
             i += 1;
         }
         let word: String = chars[start..i].iter().collect();
-        let assigns = word
-            .split_once('=')
-            .is_some_and(|(name, _)| !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'));
+        let assigns = word.split_once('=').is_some_and(|(name, _)| {
+            !name.is_empty() && name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        });
         if assigns && i < chars.len() {
             continue;
         }
@@ -1234,6 +1280,8 @@ fn ns_text_to_unknown(chars: &[char]) -> bool {
     // `;` `&` `|` `(` or line end (not that of `2>&1`, `&>f` or `>|f`).
     let mut start = 0usize;
     let mut k = 0usize;
+    // The stage whose command was last judged for a `<<`, and the verdict.
+    let mut judged: Option<(usize, bool)> = None;
     while k < n {
         let c = chars[k];
         let prev = k.checked_sub(1).map(|j| chars[j]);
@@ -1254,8 +1302,18 @@ fn ns_text_to_unknown(chars: &[char]) -> bool {
             }
             start = k + 1;
         } else if c == '<' && next == Some('<') {
-            let word = ns_first_word(chars, start);
-            if !word.is_empty() && !word.starts_with(['<', '>']) && !ns_known_filter(&word) {
+            let unknown = match judged {
+                Some((at, unknown)) if at == start => unknown,
+                _ => {
+                    let word = ns_first_word(chars, start);
+                    let unknown = !word.is_empty()
+                        && !word.starts_with(['<', '>'])
+                        && !ns_known_filter(&word);
+                    judged = Some((start, unknown));
+                    unknown
+                }
+            };
+            if unknown {
                 return true;
             }
             while k < n && chars[k] == '<' {
@@ -1306,7 +1364,7 @@ fn ns_text_to_unknown(chars: &[char]) -> bool {
 /// it do not count. A separator that is not one needs a backslash, a quote,
 /// `$` or a backtick in front of it, which is that character.
 ///
-/// `sigil-guard.sh` reads this the same way (in awk), and the MCP server's
+/// `sigil-guard.sh` mirrors this in awk (a coarser pattern without awk), and the MCP server's
 /// `check_command` is this function through [`classify_in`]. It is linear in
 /// the length of the command.
 fn nested_obscured_call(cmd: &str) -> bool {
@@ -1457,9 +1515,8 @@ fn nested_obscured_call(cmd: &str) -> bool {
         // what follows.
         let start = usize::try_from(sep[p] + 1).unwrap_or(0);
         let opening = usize::from(enclosing.is_some_and(|&(open, _)| open >= start));
-        let spelled = len == 5
-            || sigil[p] >= start as i64
-            || obscuring[p] - obscuring[start] > opening;
+        let spelled =
+            len == 5 || sigil[p] >= start as i64 || obscuring[p] - obscuring[start] > opening;
         let end = stop[p + len];
         let closing = usize::from(
             enclosing.is_some_and(|&(_, close)| close < n && (p + len..end).contains(&close)),
@@ -1495,7 +1552,15 @@ const OPT_IN_ENV_PREFIX: &str = "SIGIL_ALLOW_BUILD";
 /// Words that set or export a variable by name: the name appearing next to
 /// one of them, in any form, may set the confirmation.
 const ENV_NAMERS: &[&str] = &[
-    "export", "declare", "typeset", "readonly", "local", "printf", "read", "mapfile", "readarray",
+    "export",
+    "declare",
+    "typeset",
+    "readonly",
+    "local",
+    "printf",
+    "read",
+    "mapfile",
+    "readarray",
     "eval",
 ];
 
@@ -1969,7 +2034,10 @@ fn global_option_words(a: &str) -> Option<usize> {
     }
     if let Some(long) = a.strip_prefix("--") {
         let name = long.split('=').next().unwrap_or(long);
-        let valued = matches!(name, "format" | "output" | "rules" | "yara-engine" | "config");
+        let valued = matches!(
+            name,
+            "format" | "output" | "rules" | "yara-engine" | "config"
+        );
         return Some(if valued && !long.contains('=') { 2 } else { 1 });
     }
     let letters = &a[1..];
@@ -1990,7 +2058,10 @@ fn xargs_replace(toks: &[OptTok<'_>], from: usize) -> Option<String> {
     let mut j = from;
     while let Some(a) = toks.get(j).and_then(|t| t.text) {
         j += 1;
-        if matches!(name_tail(a.trim_end_matches([')', '`', '"', '\''])), "sigil") {
+        if matches!(
+            name_tail(a.trim_end_matches([')', '`', '"', '\''])),
+            "sigil"
+        ) {
             return None;
         }
         if let Some(r) = a.strip_prefix("--replace") {
@@ -2030,7 +2101,10 @@ fn xargs_command(toks: &[OptTok<'_>], from: usize) -> Option<usize> {
         if !a.starts_with('-') {
             return Some(j);
         }
-        j += 1 + usize::from(matches!(a, "-n" | "-P" | "-d" | "-E" | "-e" | "-s" | "-L" | "-l" | "-a" | "-I"));
+        j += 1 + usize::from(matches!(
+            a,
+            "-n" | "-P" | "-d" | "-E" | "-e" | "-s" | "-L" | "-l" | "-a" | "-I"
+        ));
     }
     None
 }
@@ -2049,8 +2123,7 @@ fn maybe_manager(a: &str, replace: Option<&str>) -> bool {
 /// quote pair around or inside it (`'sigil'`, `sig''il`; a lone quote is
 /// the start of a longer quoted string).
 fn spelled_command(w: &str) -> bool {
-    w.contains(['$', '`', '\\', '*', '?'])
-        || ['\'', '"'].iter().any(|q| w.matches(*q).count() >= 2)
+    w.contains(['$', '`', '\\', '*', '?']) || ['\'', '"'].iter().any(|q| w.matches(*q).count() >= 2)
 }
 
 /// Whether a call that exports or declares things (`export`, `env`, `eval`,
@@ -2159,12 +2232,17 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
     // Where the words after `pip`/`npm` were already read (and held no
     // flag): a later call reaching one stops there.
     let mut read = vec![false; n + 1];
-    let mut xargs = false;
+    // Behind `xargs`: the index of its first word after it, and its replace
+    // string, worked out at the first `sigil` word after it (not at every
+    // `xargs` word, which would read the rest of the call each time).
+    let mut xargs: Option<usize> = None;
     let mut replace: Option<String> = None;
+    let mut replace_known = false;
     for (i, t) in toks.iter().enumerate() {
         if t.text.is_none() {
-            xargs = false;
+            xargs = None;
             replace = None;
+            replace_known = false;
             continue;
         }
         let Some(w) = arg(i) else {
@@ -2172,12 +2250,13 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
         };
         let tail = name_tail(w);
         if tail == "xargs" {
-            xargs = true;
-            replace = xargs_replace(&toks, i + 1);
+            xargs = Some(i + 1);
+            replace = None;
+            replace_known = false;
             // What it runs is a word the shell expands (`xargs $S`): the words
             // it appends may be the whole call.
             if xargs_command(&toks, i + 1)
-                .and_then(|c| arg(c))
+                .and_then(&arg)
                 .is_some_and(|c| c.contains(['$', '`']))
             {
                 return true;
@@ -2203,6 +2282,10 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
         if !loose {
             continue;
         }
+        if let (Some(from), false) = (xargs, replace_known) {
+            replace = xargs_replace(&toks, from);
+            replace_known = true;
+        }
         // `sigil [global options] pip|npm …`; the subcommand may be a word
         // that may expand to `pip`/`npm` (`sigil $SUB x`, `sigil {pip,npm} x`,
         // `sigil --format json $'npm' x`, `sigil -f json n\pm x`), or the
@@ -2211,9 +2294,7 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
         let slot = if named { subcommand(i + 1) } else { None };
         let manager = if named {
             match slot {
-                Some(s) if maybe_manager(arg(s).unwrap_or(""), replace.as_deref()) => {
-                    Some(s)
-                }
+                Some(s) if maybe_manager(arg(s).unwrap_or(""), replace.as_deref()) => Some(s),
                 _ => next_manager[i + 1],
             }
         } else {
@@ -2222,13 +2303,13 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
                 .map(|_| i + 1)
         };
         // `xargs sigil`, `xargs sigil -v`: what it reads is the subcommand.
-        if xargs && named && slot.is_none() {
+        if xargs.is_some() && named && slot.is_none() {
             return true;
         }
         let Some(manager) = manager else {
             continue;
         };
-        if xargs {
+        if xargs.is_some() {
             return true;
         }
         let mut j = manager + 1;

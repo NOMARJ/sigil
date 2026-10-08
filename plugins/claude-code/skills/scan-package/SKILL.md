@@ -18,8 +18,9 @@ Scan a package before installation:
    install` would pick has no prebuilt wheel, because fetching those would
    run the package's own code before the scan. Report that to the user;
    never add `--allow-build-scripts` or `SIGIL_ALLOW_BUILD_SCRIPTS` yourself
-   (the hook asks the user before it runs, and Sigil refuses the flag
-   without a person at a terminal to confirm it). For a file or directory already on disk, use `sigil scan
+   (the hook asks the user before it runs; Sigil's own confirmation only
+   guards against accidents, it does not tell you from a person, so the rule
+   is yours to keep). For a file or directory already on disk, use `sigil scan
    <path>` instead. Sigil prints the version it scanned (`resolves to …`,
    and `package` in `--format json` and in the MCP `scan_package` result):
    install that exact version.

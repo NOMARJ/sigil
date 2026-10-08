@@ -264,11 +264,11 @@ REDIRECTS = [
 # an expansion may build.
 ENV_FORMS = [
     'env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" ',
-    'env SIGIL_ALLOW_BUILD_SCRIPTS=1 ',
-    'SIGIL_ALLOW_BUILD_SCRIPTS=1 ',
+    "env SIGIL_ALLOW_BUILD_SCRIPTS=1 ",
+    "SIGIL_ALLOW_BUILD_SCRIPTS=1 ",
     'export "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1"; ',
-    'V=SIGIL_ALLOW_BUILD_SCRIPTS; export $V=1; ',
-    'V=SIGIL_ALLOW_BUILD_SCRIPTS; env $V=1 ',
+    "V=SIGIL_ALLOW_BUILD_SCRIPTS; export $V=1; ",
+    "V=SIGIL_ALLOW_BUILD_SCRIPTS; env $V=1 ",
     'V=SIGIL_ALLOW_BUILD_SCRIPTS; env "$V=1" ',
     'N=SIGIL_ALLOW_BUILD; env "${N}_SCRIPTS=1" ',
     "printf -v SIGIL_ALLOW_BUILD_SCRIPTS 1; export SIGIL_ALLOW_BUILD_SCRIPTS; ",
@@ -279,7 +279,17 @@ ENV_FORMS = [
 ]
 
 # Commands a second reading of a string may be piped into.
-PIPE_SHELLS = ["sh", "bash", "dash", "rbash", "$0", "${0}", "$SHELL", "env sh", "exec sh"]
+PIPE_SHELLS = [
+    "sh",
+    "bash",
+    "dash",
+    "rbash",
+    "$0",
+    "${0}",
+    "$SHELL",
+    "env sh",
+    "exec sh",
+]
 
 FAMILIES = [
     "plain",
@@ -314,9 +324,7 @@ def generate(rng, shells):
         return body + tail
     if family == "function":
         pre = f"{assign}{sub_assign}{flag_assign}"
-        return (
-            f"{pre}f() {{ {head} {opts}\"$@\" {flag}; }}; f {sub} {arg}{tail}"
-        )
+        return f'{pre}f() {{ {head} {opts}"$@" {flag}; }}; f {sub} {arg}{tail}'
     if family == "xargs":
         ph = rng.choice(["@", "{}", "%", "XX", "foo"])
         pre = f"{assign}{sub_assign}{flag_assign}"
@@ -327,9 +335,7 @@ def generate(rng, shells):
                 + tail
             )
         if shape == "append":
-            return (
-                f"{pre}printf '%s\\n' {arg} {flag} | xargs {head} {opts}{sub}" + tail
-            )
+            return f"{pre}printf '%s\\n' {arg} {flag} | xargs {head} {opts}{sub}" + tail
         return f"{pre}printf '%s\\n' {sub} {arg} {flag} | xargs {head}" + tail
     if family == "redirect":
         redir = rng.choice(REDIRECTS)
@@ -592,7 +598,7 @@ def main():
     benign = [i for i, t in enumerate(truth) if not t]
     over = sum(1 for i in benign if asks(native[i]))
     print(
-        f"seed {args.seed}: {len(cmds)} generated commands, {ran} really run the flag under bash"
+        f"seed {args.seed}: {len(cmds)} generated commands, {ran} really pass the flag or the variable (bash or dash)"
     )
     print(
         f"native: {sum(asks(n) for n in native)} ask/deny; mcp: {sum(asks(m) for m in mcp)}; "

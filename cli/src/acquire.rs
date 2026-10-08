@@ -12,9 +12,11 @@
 //!   refused before pip runs, as is a name that pip would read as an archive
 //!   file in the working directory (`foo.tar.gz`). pip can also be handed
 //!   such requirements by its environment (`PIP_REQUIREMENT`,
-//!   `PIP_CONSTRAINT`, `PIP_EDITABLE`), which Sigil removes from pip's
-//!   environment, or by a config file, which Sigil reads with `pip config
-//!   list` and refuses.
+//!   `PIP_CONSTRAINT`, `PIP_EDITABLE`), or be told to build source
+//!   distributions (`PIP_GLOBAL_OPTION`, `PIP_BUILD_OPTION`,
+//!   `PIP_INSTALL_OPTION`: before pip 24.2 any of them makes it drop
+//!   `--only-binary`), which Sigil removes from pip's environment, or by a
+//!   config file, which Sigil reads with `pip config list` and refuses.
 //!
 //!   A wheel-only download of an unpinned or ranged spec would quietly fall
 //!   back to an older release when the newest one has no wheel, so Sigil
@@ -51,12 +53,18 @@
 //! code the user already trusts, and runs npm from the caller's directory
 //! so a relative path means what the user typed; the command then prints a
 //! warning that the package's own code may run on this machine before the
-//! scan. It needs a person's confirmation first (a prompt at a terminal, or
+//! scan. It asks for a confirmation first (a prompt at a terminal, or
 //! `SIGIL_ALLOW_BUILD_SCRIPTS=1` for a script or CI job that has decided to
-//! trust the code), so a shell with no terminal, such as an AI agent's, does
-//! not pass it by writing the flag. A file or directory the user already has is better scanned where
-//! it is (`sigil scan <path>`), which runs nothing from it: the refusal for
-//! a local path says so.
+//! trust the code). That stops accidental and unattended use: a flag written
+//! into a command with no terminal and no variable is refused. It does not
+//! tell a person from a program: anything that opens a pseudo-terminal and
+//! types `yes`, or sets the variable, passes it. The layer aimed at an AI
+//! agent is the Claude Code hook's ask (and the MCP `check_command`), which
+//! reads the text of a command and is advisory too.
+//!
+//! A file or directory the user already has is better scanned where it is
+//! (`sigil scan <path>`), which runs nothing from it: the refusal for a local
+//! path says so.
 //!
 //! Every spec is passed after `--`, and one starting with `-` is refused
 //! outright, so a spec can never be read as an option.
@@ -157,6 +165,20 @@ const PIP_ARCHIVE_SUFFIXES: &[&str] = &[
 /// A requirement, constraint or editable entry can name a local path, URL or
 /// VCS checkout, which pip builds even with `--only-binary=:all:`.
 const PIP_ADDED_REQUIREMENTS: &[&str] = &["requirement", "constraint", "editable"];
+
+/// pip options that make pip drop `--only-binary=:all:` from a download. pip
+/// reads a `global-option` or `build-option` as a request for a legacy
+/// `setup.py` build and, before 24.2, logs `Implying --no-binary=:all:` and
+/// discards the command line's `--only-binary`, so a source distribution is
+/// built (its setup code run) on this machine before Sigil scans it.
+/// `install-option` is the same family.
+const PIP_SOURCE_BUILD_OPTIONS: &[&str] = &["global-option", "build-option", "install-option"];
+
+/// Whether pip's setting `name` (as [`pip_setting_name`] writes it) adds
+/// requirements to a download or makes pip build source distributions.
+fn pip_setting_builds(name: &str) -> bool {
+    PIP_ADDED_REQUIREMENTS.contains(&name) || PIP_SOURCE_BUILD_OPTIONS.contains(&name)
+}
 
 /// Which package manager a spec is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -509,8 +531,10 @@ fn pip_setting_name(raw: &str) -> String {
 }
 
 /// The `PIP_*` variables that make pip add requirements, constraints or
-/// editables to a download (pip reads any variable starting with `PIP_`,
-/// whatever the case of the rest). Removed from pip's environment by default.
+/// editables to a download, or build source distributions (`PIP_GLOBAL_OPTION`,
+/// `PIP_BUILD_OPTION`, `PIP_INSTALL_OPTION`); pip reads any variable starting
+/// with `PIP_`, whatever the case of the rest. Removed from pip's environment
+/// by default.
 pub fn pip_env_to_remove<I>(vars: I) -> Vec<OsString>
 where
     I: IntoIterator<Item = (OsString, OsString)>,
@@ -518,9 +542,7 @@ where
     vars.into_iter()
         .filter_map(|(k, _)| {
             let name = k.to_str()?.strip_prefix("PIP_")?;
-            PIP_ADDED_REQUIREMENTS
-                .contains(&pip_setting_name(name).as_str())
-                .then_some(k)
+            pip_setting_builds(&pip_setting_name(name)).then_some(k)
         })
         .collect()
 }
@@ -538,13 +560,13 @@ fn pip_config_entries(list: &str) -> impl Iterator<Item = (&str, String, &str)> 
 }
 
 /// The settings in `pip config list` output that add requirements,
-/// constraints or editables to a `pip download` (pip reads the `global` and
-/// `download` sections for it, and the environment).
+/// constraints or editables to a `pip download`, or make pip build source
+/// distributions (`global-option`, `build-option`, `install-option`); pip reads
+/// the `global` and `download` sections for it, and the environment.
 pub fn pip_config_added_requirements(list: &str) -> Vec<String> {
     pip_config_entries(list)
         .filter(|(section, name, _)| {
-            matches!(*section, "global" | "download" | ":env:")
-                && PIP_ADDED_REQUIREMENTS.contains(&name.as_str())
+            matches!(*section, "global" | "download" | ":env:") && pip_setting_builds(name)
         })
         .map(|(section, name, _)| format!("{section}.{name}"))
         .collect()
@@ -566,15 +588,18 @@ pub fn pip_config_allows_prereleases(list: &str) -> bool {
     })
 }
 
-/// The refusal printed when pip's config adds requirements to downloads.
+/// The refusal printed when pip's config adds requirements to downloads or
+/// makes pip build source distributions.
 pub fn pip_config_refusal(keys: &[String]) -> String {
     format!(
         "sigil pip will not run pip with this configuration: {} adds requirements to every \
-         `pip download`. A requirement, constraint or editable entry can name a local path, URL \
-         or VCS checkout, which pip builds by running its code, even with --only-binary=:all:, \
-         on this machine, before Sigil can scan anything.\n  Remove the setting for this \
-         command: `PIP_CONFIG_FILE=/dev/null sigil pip …` skips every pip config file, index \
-         settings included, so give the index in the environment too if you need one \
+         `pip download`, or makes pip build source distributions. A requirement, constraint or \
+         editable entry can name a local path, URL or VCS checkout, and a global-option, \
+         build-option or install-option makes pip drop --only-binary=:all: (it logs `Implying \
+         --no-binary=:all:`); either way pip builds by running the package's code, on this \
+         machine, before Sigil can scan anything.\n  Remove the setting for this command: \
+         `PIP_CONFIG_FILE=/dev/null sigil pip …` skips every pip config file, index settings \
+         included, so give the index in the environment too if you need one \
          (`PIP_CONFIG_FILE=/dev/null PIP_INDEX_URL=<url> sigil pip …`). Or, for code you \
          already trust, re-run with {ALLOW_BUILD_SCRIPTS} (Sigil then asks you to confirm).",
         keys.join(", ")
@@ -1433,6 +1458,37 @@ impl NpmDigest {
 /// valid (`why` says which). docs/troubleshooting.md quotes it.
 pub fn npm_view_unreadable(spec: &str, why: &str) -> String {
     format!("could not read what npm resolves `{spec}` to: {why}")
+}
+
+/// The package name a registry spec asks for: `left-pad` of `left-pad@^1.3`,
+/// `@types/node` of `@types/node@20` (a scope's `@` is not a version's).
+pub fn npm_spec_name(spec: &str) -> &str {
+    let from = usize::from(spec.starts_with('@'));
+    match spec[from..].find('@') {
+        Some(i) => &spec[..from + i],
+        None => spec,
+    }
+}
+
+/// Whether the registry gave a release a different name than the spec asked
+/// for (`npm view nameswap` answering with a release of `othername`). npm
+/// names are case-insensitive for this purpose.
+pub fn npm_name_mismatch(spec: &str, release_name: &str) -> bool {
+    !npm_spec_name(spec).eq_ignore_ascii_case(release_name)
+}
+
+/// The refusal printed (after `error: `) when the registry's description of
+/// the release names another package than the spec asked for: the scan would
+/// be of a package the user did not name, and the release Sigil prints is the
+/// one the docs tell them to install.
+pub fn npm_name_refusal(spec: &str, release: &str) -> String {
+    format!(
+        "sigil npm will not scan `{release}`: you asked for `{spec}`, but the registry's \
+         description of that release says the package is named `{}`.\n  A scan of one package \
+         says nothing about another, and the release Sigil prints is the one to install. Check \
+         which registry npm uses here (`npm config get registry`) and the spelling of the name.",
+        release.rsplit_once('@').map_or(release, |(name, _)| name)
+    )
 }
 
 /// The refusal printed when the downloaded tarball does not match the

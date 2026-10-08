@@ -811,6 +811,93 @@ global.Editable='/x/proj'
     assert!(msg.contains(ALLOW_BUILD_SCRIPTS), "{msg}");
 }
 
+/// pip reads a `global-option` or `build-option` as a request for a legacy
+/// `setup.py` build and, before 24.2, discards the command line's
+/// `--only-binary`: a source distribution is then built. Like a requirement
+/// setting, such a setting is left out of the environment and refused in a
+/// config file.
+#[test]
+fn pip_build_option_settings_are_removed_and_refused_like_requirements() {
+    let vars = [
+        ("PIP_GLOBAL_OPTION", "--quiet"),
+        ("PIP_Build_Option", "--quiet"),
+        ("PIP_INSTALL_OPTION", "--quiet"),
+        ("PIP___GLOBAL_OPTION", "--quiet"),
+        ("PIP_GLOBAL_OPTIONS", "--quiet"),
+        ("MY_PIP_GLOBAL_OPTION", "--quiet"),
+        ("PIP_NO_BUILD_ISOLATION", "0"),
+        ("PIP_CONFIG_SETTINGS", "x"),
+    ]
+    .map(|(k, v)| (OsString::from(k), OsString::from(v)));
+    let removed: Vec<String> = pip_env_to_remove(vars)
+        .into_iter()
+        .map(|k| k.to_string_lossy().into_owned())
+        .collect();
+    assert_eq!(
+        removed,
+        [
+            "PIP_GLOBAL_OPTION",
+            "PIP_Build_Option",
+            "PIP_INSTALL_OPTION",
+            "PIP___GLOBAL_OPTION"
+        ]
+    );
+    let list = "\
+global.global-option='--quiet'
+download.build-option='--quiet'
+install.global-option='--quiet'
+:env:.global-option='--quiet'
+global.Install_Option='--quiet'
+global.index-url='https://example.invalid/simple'
+";
+    assert_eq!(
+        pip_config_added_requirements(list),
+        [
+            "global.global-option",
+            "download.build-option",
+            ":env:.global-option",
+            "global.install-option"
+        ]
+    );
+    let msg = pip_config_refusal(&["global.global-option".into()]);
+    assert!(msg.contains("global.global-option"), "{msg}");
+    assert!(msg.contains("Implying --no-binary=:all:"), "{msg}");
+    assert!(msg.contains("PIP_CONFIG_FILE=/dev/null"), "{msg}");
+}
+
+#[test]
+fn an_npm_release_must_carry_the_name_that_was_asked_for() {
+    for (spec, name) in [
+        ("left-pad", "left-pad"),
+        ("left-pad@^1.3", "left-pad"),
+        ("left-pad@latest", "left-pad"),
+        ("@types/node", "@types/node"),
+        ("@types/node@20.1.0", "@types/node"),
+    ] {
+        assert_eq!(npm_spec_name(spec), name, "{spec}");
+        assert!(!npm_name_mismatch(spec, name), "{spec}");
+    }
+    // Names compare without regard to case (the registry normalises).
+    assert!(!npm_name_mismatch("Left-Pad@1", "left-pad"));
+    assert!(!npm_name_mismatch("JSONStream", "jsonstream"));
+    // A release of another package is not the one asked for.
+    assert!(npm_name_mismatch("nameswap", "othername"));
+    assert!(npm_name_mismatch("left-pad@1", "right-pad"));
+    assert!(npm_name_mismatch("@acme/pkg", "@other/pkg"));
+    assert!(npm_name_mismatch("pkg", "@acme/pkg"));
+    let msg = npm_name_refusal("nameswap", "othername@1.0.0");
+    assert!(
+        msg.starts_with("sigil npm will not scan `othername@1.0.0`: you asked for `nameswap`"),
+        "{msg}"
+    );
+    assert!(
+        msg.contains("says the package is named `othername`"),
+        "{msg}"
+    );
+    let scoped = npm_name_refusal("@acme/pkg", "@other/pkg@2.0.0");
+    assert!(scoped.contains("is named `@other/pkg`"), "{scoped}");
+}
+
 #[test]
 fn pip_config_pre_lets_prereleases_in() {
     assert!(pip_config_allows_prereleases("global.pre='true'\n"));
@@ -1357,6 +1444,21 @@ fn the_troubleshooting_page_quotes_the_messages_the_cli_prints() {
         twice.starts_with("sigil pip was given a version twice: "),
         "{twice}"
     );
+    let swapped = npm_name_refusal("nameswap", "othername@1.0.0");
+    assert!(
+        swapped.contains("says the package is named `othername`"),
+        "{swapped}"
+    );
+    let unconfirmed = opt_in_unconfirmed(Manager::Pip, "./x");
+    assert!(
+        unconfirmed.contains("so it needs a person to confirm, and there is no terminal to ask on"),
+        "{unconfirmed}"
+    );
+    let build_options = pip_config_refusal(&["global.global-option".into()]);
+    assert!(
+        build_options.contains("or makes pip build source distributions"),
+        "{build_options}"
+    );
 
     // The page quotes each of those, and nothing the CLI does not print.
     for quoted in [
@@ -1370,6 +1472,9 @@ fn the_troubleshooting_page_quotes_the_messages_the_cli_prints() {
         "the tarball Sigil downloaded hashes to",
         "the registry gives no integrity or shasum",
         "was given a version twice",
+        "says the package is named",
+        "so it needs a person to confirm, and there is no terminal to ask on",
+        "or makes pip build source distributions",
         "is pip installed and on PATH?",
     ] {
         assert!(

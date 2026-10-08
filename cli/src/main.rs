@@ -1765,12 +1765,15 @@ fn gate_package_spec(
 
 /// The user's confirmation of `--allow-build-scripts`, which lets pip or npm
 /// run the package's own code on this machine before the scan. A flag in a
-/// command line is not that: an AI agent's shell, a script or a pipeline
-/// writes flags too. So it takes a person at a terminal (a warning, then
-/// `yes` typed at a prompt), or, for a script or CI job that has decided to
-/// trust the code, [`acquire::ALLOW_BUILD_SCRIPTS_ENV`] set to `1`. With
-/// neither it is a usage error (exit 2) and nothing is downloaded or run.
-/// `None` means go ahead.
+/// command line is not that: a script or a pipeline writes flags too. So it
+/// takes a terminal (a warning, then `yes` typed at a prompt), or, for a
+/// script or CI job that has decided to trust the code,
+/// [`acquire::ALLOW_BUILD_SCRIPTS_ENV`] set to `1`. With neither it is a
+/// usage error (exit 2) and nothing is downloaded or run. This stops
+/// accidental and unattended use; it cannot tell a person from a program that
+/// allocates a pseudo-terminal and answers, or sets the variable, so it is no
+/// boundary against an agent (the hook's ask is the layer aimed at one, and
+/// is advisory too). `None` means go ahead.
 fn confirm_build_scripts(manager: acquire::Manager, spec: &str) -> Option<i32> {
     use std::io::{BufRead, IsTerminal, Write};
     let warn = || {
@@ -2073,7 +2076,8 @@ async fn cmd_pip(
         for k in &env_removed {
             eprintln!(
                 "{} {} is left out of pip's environment for this download: a requirement, \
-                 constraint or editable entry can name a path or URL that pip would build \
+                 constraint or editable entry can name a path or URL that pip would build, \
+                 and a global-, build- or install-option makes pip build source distributions, \
                  before Sigil scans it",
                 "note:".bold(),
                 k.to_string_lossy()
@@ -2087,7 +2091,8 @@ async fn cmd_pip(
         let Some(list) = run_for_output(&mut config, "pip config list") else {
             eprintln!(
                 "  Sigil reads pip's configuration before downloading, to refuse a requirement, \
-                 constraint or editable setting that pip would build before the scan."
+                 constraint, editable or build-option setting that pip would build before the \
+                 scan."
             );
             return EXIT_ERROR;
         };
@@ -2215,6 +2220,12 @@ async fn cmd_pip(
     for k in &env_removed {
         pip.env_remove(k);
     }
+    if format != "text" {
+        // pip prints its progress (`Looking in indexes`, `Collecting`, ...) on
+        // stdout; with a machine-readable format stdout is the report and
+        // nothing else, so pip's output goes where Sigil's own progress does.
+        pip.stdout(std::process::Stdio::from(std::io::stderr()));
+    }
     match run_keeping_stderr(&mut pip) {
         Ok((s, _)) if s.success() => {}
         Ok((_, err)) => {
@@ -2328,6 +2339,11 @@ async fn cmd_npm(
         );
         let mut npm = std::process::Command::new("npm");
         npm.args(acquire::npm_pack_args(&pkg_spec, &qdir));
+        if format != "text" {
+            // `npm pack` prints the tarball's name on stdout, which with a
+            // machine-readable format is the report and nothing else.
+            npm.stdout(std::process::Stdio::from(std::io::stderr()));
+        }
         match npm.status() {
             Ok(s) if s.success() => {}
             Ok(_) => {
@@ -2463,6 +2479,11 @@ async fn download_npm_release(
     let Some(picked) = acquire::pick_npm_release(&releases).cloned() else {
         return Err(fail(format!("npm resolved `{pkg_spec}` to no release")));
     };
+    // The registry answers for the name asked: a release of another package
+    // would be scanned, recorded and reported as if it were the one asked for.
+    if acquire::npm_name_mismatch(pkg_spec, &picked.name) {
+        return Err(fail(acquire::npm_name_refusal(pkg_spec, &picked.id())));
+    }
     if let Err(why) = acquire::check_npm_tarball_url(&picked.tarball) {
         return Err(fail(acquire::npm_tarball_refusal(&picked.id(), &why)));
     }

@@ -42,7 +42,17 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     setting names: those settings are left out of pip's environment
     (`PIP_REQUIREMENT`, `PIP_CONSTRAINT`, `PIP_EDITABLE`, however spelled),
     and a pip config file that sets one for downloads is refused (read with
-    `pip config list`). A `no-binary` setting in pip's config or
+    `pip config list`). So are the settings that make pip build source
+    distributions: a `global-option` or `build-option` (and `install-option`)
+    makes pip 24.0 log `Implying --no-binary=:all:` and discard the command
+    line's `--only-binary` (`check_legacy_setup_py_options`), so
+    `PIP_GLOBAL_OPTION=--quiet sigil pip <name>` built a source-only release
+    (its build backend ran) and went on to scan the result (marker-file test
+    with real pip 24.0 against a local index holding only an sdist: the
+    marker was created with the setting, not without); `PIP_GLOBAL_OPTION`,
+    `PIP_BUILD_OPTION` and
+    `PIP_INSTALL_OPTION` are left out of pip's environment too, and a config
+    file that sets one is refused. A `no-binary` setting in pip's config or
     `PIP_NO_BINARY` does not override the command-line option (checked with
     real pip 24.0 for both).
   - `sigil npm` now asks the registry what the spec resolves to (`npm view`),
@@ -109,7 +119,11 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     the command stops with exit 2, so a registry (a private or mirrored one;
     the public registry validates both) cannot put a path separator or a
     terminal escape sequence into the file name, the progress line, the
-    quarantine index or the JSON `package` field.
+    quarantine index or the JSON `package` field. The name must also be the
+    one that was asked for (case aside): a registry whose description of
+    `nameswap` says the release is named `othername` is refused with exit 2,
+    where it used to be downloaded, scanned and reported as `othername@1.0.0`
+    for the user to install.
   - For a bare name or `name@*`, `npm view` shows only the `latest` tag, but
     npm itself skips a `latest` that is deprecated for the highest release that
     is not (`npm pack rng2` gives 1.9.0 when 2.0.0 is `latest` and deprecated;
@@ -143,7 +157,16 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     return it too: the version to install. The quarantine entry is named for
     that release too (`sigil list` shows `left-pad@1.3.0`, not the
     `left-pad@^1.2` that was typed), so `sigil approve` records which version
-    was approved. When the Rust MCP server's `scan_package` fails, the message
+    was approved. With a machine-readable `--format`, what pip prints on stdout
+    (its progress) and what `npm pack` prints with the opt-in (the tarball's
+    name) goes to stderr, so stdout is exactly one report: before, `sigil
+    --format json pip …` printed pip's progress (`Looking in indexes`,
+    `Collecting`, …) in front of the JSON, which the TypeScript MCP server's
+    `sigil_scan_package` could not parse because it parsed stdout whole (the
+    Rust server reads the first parsable `{`). The TypeScript server now also takes the document from the
+    first line that opens an object when stdout is not JSON as a whole, so it
+    works with the binaries that print the progress (`npm test` in
+    `plugins/mcp-server`). When the Rust MCP server's `scan_package` fails, the message
     it returns keeps the end of the tools' stderr, where Sigil's advice (pin a
     version that has a wheel) comes, instead of cutting it off after 600
     characters. The TypeScript server's `sigil_scan_package` description and
@@ -182,97 +205,141 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     It prints a warning that the package's own code may run on this machine
     before the scan. It does not scan a pip project directory: pip runs its
     build backend but saves nothing to quarantine, and the command fails.
-  - `--allow-build-scripts` needs a person's confirmation. A flag in a
-    command line is not one: the Claude Code hook can read a command, but not
-    one that builds the flag at run time or a script written by one tool call
-    and run by the next. At a terminal Sigil prints the warning and waits for
-    `yes`; with no terminal (an AI agent's shell, a pipe, CI) it refuses with
-    exit 2 and downloads and runs nothing, unless `SIGIL_ALLOW_BUILD_SCRIPTS=1`
-    is set for the command by a script or job that has decided to trust the
-    code. The hook asks about a command that sets the variable too.
+  - `--allow-build-scripts` asks for a confirmation. At a terminal Sigil
+    prints the warning and waits for `yes`; with no terminal (a pipe, CI, a
+    shell that has none) it refuses with exit 2 and downloads and runs
+    nothing, unless `SIGIL_ALLOW_BUILD_SCRIPTS=1` is set for the command by a
+    script or job that has decided to trust the code. This stops accidental
+    and unattended use. It does not tell a person from a program: `printf
+    'yes\n' | script -qec 'sigil npm ./pkg --allow-build-scripts' /dev/null`
+    gives the child a pseudo-terminal, answers the prompt, and the package's
+    `prepare` script ran (marker-file test with npm 10.9.7, `script` from
+    util-linux), and so does anything that sets the variable. The Claude Code
+    hook asks about a command that carries the flag or sets the variable, but
+    that is a reading of the command's text (below), not a boundary either;
+    what holds is the default behaviour, which runs nothing from the package.
   - The Claude Code PreToolUse hook (`sigil hook pretooluse`, its shell
     fallback, and the MCP server's `check_command`) asks before a command
-    that passes the flag to `sigil pip`/`sigil npm`, as a second line behind
-    the CLI's own confirmation. All three read a command four ways: a `pip`
-    or `npm` word followed by `--allow-build-scripts` (before a standalone
-    `--`), whatever sits between them and however the command word is spelled
-    (`sigil npm './a;b' --allow-build-scripts`, a quoted `&`, `|`, ` #` or
-    line end, an argv list that spans lines in a heredoc, `si${E}gil npm …`,
-    `sig$(true)il npm …`, `bash -c "sig\"\"il npm …"`); a command that sets
-    `SIGIL_ALLOW_BUILD_SCRIPTS`; a word the shell may expand into the flag: a
-    `$` or backtick word, or one that begins like an option or a pattern (`-`,
-    `{`, `*`, `?`, `[`) and holds a brace expansion
-    (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`, which
-    expands where a file of that name exists, as the command can arrange),
-    after `pip`/`npm`; `xargs` feeding the call; a command word that is an
-    expansion, a glob or holds a quote that stayed (`$(command -v sigil) pip
-    …`, `si${E}gil npm …`); and the word right after `sigil` that may expand
-    to `pip` or `npm`, which is read as the subcommand, so that a flag or
-    another expansion after it asks (`sigil $SUB x --allow-build-scripts`);
-    alone, `sigil $SUB x` is allowed, and a brace group there (`sigil
-    {pip,npm} x`) is asked about. A separator inside a quoted word, or
-    escaped, does not end the call in these readings either (`sigil npm
-    './a;b' $FLAG`), except in a quoted string that holds a `pip` or `npm`
-    word, which is a script whose `;` is real. They do not ask for a
-    redirection's file (`> "$LOG"`), a quoted version value (`-V "$VER"`), or
-    a range or extras (`'requests[security]'`, `'lodash@*'`).
-  - The fourth reading is for a nested shell, where no reading of the outer
-    command can know what the inner one runs: a double-quoted string keeps a
-    `\c`, and the shell it is handed to reads the unquoted text and drops the
-    backslash, so ``bash -c "`which sigil` pip x --allow-build-s\\cripts"``
-    runs `sigil pip x --allow-build-scripts` while the flag appears nowhere in
-    the command (run under real bash with a stub `sigil`, that command gave
-    the stub the flag). Rather than chase spellings,
-    a `pip` or `npm` word in text another shell reads is asked about when the
-    words before it in its command may spell `sigil` and the rest of its call
-    holds a backslash, quote, `$`, backtick, `{`, `*`, `?` or `[` (over-asking
-    is the intended failure: `bash -c 'sigil pip "requests>=2"'` is asked
-    about, `bash -c 'sigil pip requests'` is not). "Text another shell reads"
-    is a quoted string when the command holds a shell anywhere (`sh`,
-    `bash`, `dash`, `zsh`, `ksh`, `ssh`, `su`, `eval`, `source`, `.`, `trap`,
-    `watch`, `script`, `flock`, `parallel`, `$SHELL`, also spelled with quotes
-    in the name, or a `-c`-like flag on any program but another language's
-    interpreter), and an unquoted call when a shell stands in its own simple
-    command, a pipeline stage starts one, the command holds a here-document
-    and a shell, or the words before it hold an expansion (`$`, backtick,
-    `{`, `*` or `?`). It is one function in
-    the native hook (which the MCP server's `check_command` runs) and one awk
-    program in the shell fallback, linear in the length of the command.
-    `plugins/claude-code/hooks/tests/nested-shell-agreement.py` generates
-    random commands from spelled command words, spelled flags and one to three
-    levels of `bash -c`, `sh -c`, `eval`, `ssh`, `su`, `sudo`, `script`,
-    pipes into a shell, here-documents and `source <(…)` (with the quoting
-    each level needs), runs each under real bash with stub `sigil`, `pip`,
-    `npm`, `ssh`, `su`, `sudo` and `script` programs to see whether a `sigil
-    pip|npm` call really received `--allow-build-scripts`, and asks all three
-    implementations.
+    that passes the flag to `sigil pip`/`sigil npm` or sets the variable. It
+    reads the text of the command, fail-safe: where the text could mean the
+    flag, it asks. Over several views of the text (as written; the shell's
+    quote splicing in a string handed to an interpreter undone; up to three
+    layers of double-quote escaping undone, `\\` as `\`; every quote and
+    backslash taken off; a quoted `;` `&` `|` ` #` and line end masked):
+    - a `pip` or `npm` word followed by `--allow-build-scripts` (before a
+      standalone `--` that is outside quotes and is not a redirection's
+      file), whatever sits between them and however the command word is
+      spelled (`sigil npm './a;b' --allow-build-scripts`, a line end in an
+      argv list, `si${E}gil npm …`, `bash -c "sig\"\"il npm …"`), and a `--`
+      inside a quoted string or as a redirection's file (`sigil npm 'a -- b'
+      --allow-build-scripts`, `sigil npm x > -- --allow-build-scripts`, `<<<
+      --`, `{fd}> --`) does not end the options;
+    - a word that starts with the flag later in the call of a `sigil` or of a
+      command word that may be `sigil` (`$S`, `s\igil`), wherever the
+      subcommand is: after a global option (`sigil --format json $'npm' x
+      --allow-build-scripts`; `-v`, `-f X`, `--format X|=X`, `-o X`, `--rules
+      X`, `--yara-engine X`, `--config X`), from variables (`S=sigil;
+      M=npm; $S $M x …`), a function's `"$@"` or `xargs -I<string>`;
+    - a `$` or backtick word, or one that begins like an option or a pattern
+      (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
+      (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`, which
+      expands where a file of that name exists, as the command can arrange),
+      after `pip`/`npm` or after a subcommand that may be one (`$SUB`,
+      `$'npm'`, `n\pm`, `np${x}m`, `{pip,npm}`), also behind `xargs`;
+    - a command that sets `SIGIL_ALLOW_BUILD_SCRIPTS` under its own name or
+      one the shell builds: the name with anything glued to it and then `=`
+      (`env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" …`), its first part next to a
+      word that sets a variable by name (`printf -v …; export …`, `read …`,
+      `declare -x`), or an assignment with an expansion in its name in a call
+      with `export`, `env`, `eval` and the like (`export $V=1`); a command
+      that only names or reads it (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`) is
+      not asked about;
+    - a `#` is a comment only at the start of a word, not after an escaped
+      blank (`echo \ #`), inside `${…}` (`${x:- #}`) or glued to a `)`, `<` or
+      `>` (`$(a)#`), and a backslash at the end of a comment's line does not
+      continue it: `echo ok # note \⏎SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm
+      ./dir --allow-build-scripts` runs the flag (npm 10.9.7 ran the
+      directory's `prepare` script in a marker-file test, with no terminal)
+      and the hook allowed it before.
+    They do not ask for a redirection's file (`> "$LOG"`), a quoted version
+    value (`-V "$VER"`), a range or extras (`'requests[security]'`,
+    `'lodash@*'`), `sigil scan …` and the other subcommands that take no such
+    flag, or a message that names the flag (`git commit -m "document
+    --allow-build-scripts"`).
+  - The nested-shell reading is for text another shell reads again, where no
+    reading of the outer command can know what the inner one runs: a
+    double-quoted string keeps a `\c`, and the shell it is handed to reads the
+    unquoted text and drops the backslash, so ``bash -c "`which sigil` pip x
+    --allow-build-s\\cripts"`` runs `sigil pip x --allow-build-scripts` while
+    the flag appears nowhere in the command, and `np\\m` is `npm` to the second
+    shell. The call is now found from a `sigil` word as well as from a
+    literal `pip`/`npm` (the subcommand may be the obscured text: `echo
+    "sigil np\\m x --allow-build-scripts" | sh`), a `sigil` followed by a plain
+    word of another subcommand (`sigil scan …`, past its global options) is
+    not one, and text piped or fed by a here-document to any command that is
+    not a known filter counts as read by a shell (`| rbash`, `| $0`, `| exec
+    sh`; `rbash`, `rksh` and the like are shells too). Rather than chase
+    spellings, such a call is asked about when the words before it may spell
+    `sigil` and the rest of its call holds a backslash, quote, `$`,
+    backtick, `{`, `*`, `?` or `[` (over-asking is the intended failure:
+    `bash -c 'sigil pip "requests>=2"'` is asked about, `bash -c 'sigil pip
+    requests'` is not).
+  - The native hook and the MCP server's `check_command` are one function.
+    The shell fallback reads the same shapes in sed, awk and extended regular
+    expressions and is a coarser reading: it can ask where the native hook
+    allows (`find . | xargs -I{} sigil scan {}`), and without awk it keeps a
+    `# comment` and a quoted `--` as written, and joins a line continuation
+    that follows a comment. `plugins/claude-code/hooks/tests/nested-shell-agreement.py`
+    generates random commands from the families above (a global option and a
+    spelled subcommand, a function's `"$@"`, `xargs` with a replace string, a
+    `#` that is not a comment, a redirection's file named `--`, a built name
+    for the variable, one to three levels of `bash -c`, `sh -c`, `eval`,
+    `ssh`, `su`, `sudo`, `script`, pipes and here-documents into `sh`,
+    `rbash` and `$0`, `source <(…)`), runs each under real bash and dash with
+    stub `sigil`, `pip`, `npm`, `ssh`, `su`, `sudo` and `script` programs to
+    see whether a `sigil pip|npm` call really received the flag (after `pip`
+    or `npm`, before a `--`, as clap reads it) or the variable, and asks all
+    three implementations.
     Data source: synthetic commands from that seeded generator, not commands
-    anyone ran, checked against bash 5.2.21 (Linux; zsh and ksh were not
-    installed, so no other shell was tried) with a debug build. Sample size:
-    1200 commands (seeds 1 to 6, 200 each), of which bash showed 703 pass the
-    flag to a `sigil pip|npm` call and 497 do not. Result with the final
-    code: 0 of the 703 were allowed, and the native hook, the MCP
-    `check_command` and the shell fallback gave the same answer for all 1200;
-    the native hook asked about 308 of the 497 that do not pass the flag
-    (62%), the over-asking the rule accepts. Limitations: it covers only the
-    wrappers, spellings and quoting the generator writes; seeds 1 to 3 were
-    also used while finding the misses fixed along the way (a `$'…'` string
-    holding an escaped quote, and `${S} --format json pip … ${F}` written at
-    the top level), so only seeds 4 to 6 are runs the code was not tuned on;
-    0 missed in 1200 is not a proof that none exists.
-  - The hook is not a hard boundary and the docs say what it misses: a flag a
+    anyone ran, checked against bash 5.2.21 and dash (Linux; zsh and ksh were
+    not installed, so no other shell was tried) with a release build. Sample
+    size: seeds 101 to 110, 400 commands each, run once on the final code and
+    not used while writing it: 4000 commands, of which 2575 really pass the
+    flag or the variable to a `sigil pip|npm` call. Result: 0 of the 2575 were
+    allowed by the native hook, the MCP `check_command` or the shell fallback,
+    and the three agreed on 3999 of the 4000; the other
+    (`sh -c "si\"g\"il --format json {npm,} x -V 1.0 && echo done"`) passes
+    no flag and only the native hook asks about it. The build this round
+    started from, on the same generator, allowed 128, 125 and 129 of the 258,
+    269 and 242 that pass the flag in seeds 101 to 103 (about half; 186 of
+    400 commands in seed 101 got different answers from the three
+    implementations). Over-asking: the native hook asked about 1170 of the 1425
+    commands that pass nothing (82%); the generator's commands that pass
+    nothing are the same obscure spellings with a near-miss flag or no flag,
+    so that is no rate for ordinary commands, for which the allow lists in
+    `hook_tests.rs` and `test-guard.sh` (`sigil scan`, `git commit -m
+    "document --allow-build-scripts"`, `grep -rn …`, `git ls-files | xargs
+    sigil scan`, `bash -c "sigil scan …"`, 214 `allow` checks in all) are all
+    allowed by both the native hook and the fallback. Limitations: it covers
+    only the families and spellings the generator writes; seeds 1 to 9 were
+    used while finding misses along the way, so only seeds 101 to 110 are runs
+    the code was not tuned on; 0 missed in 4000 is not a proof that none
+    exists.
+  - The hook is not a boundary and the docs say what it misses: a flag a
     program builds at run time (including code in another language's
-    `-c`/`-e` string), an argv list read from a file or variable, a script one
-    tool call writes and the next runs (a Write that creates `run.sh`, then
-    `sh run.sh`), an inline `SIGIL_BYPASS=1` prefix (which lifts every ask),
-    and `npm pack <dir or git spec>`, `npm view <dir>`, `pip download <path,
-    URL or package>` and `pip wheel <path>` run directly, which the hook
-    allows. The CLI's own confirmation is what holds. To install what you
-    vetted under the hook, repeat the resolved pin in both commands
-    (`sigil pip requests==2.32.3 && pip install requests==2.32.3`): the hook
-    allows that and denies `sigil pip requests && pip install
-    requests==2.32.3`. The hook's suggestion for `deno run npm:<pkg>/<subpath>`
-    names the package without the subpath (`sigil npm chalk@5.3.0`).
+    `-c`/`-e` string), an argv list read from a file or variable, a command
+    word and a subcommand that are both bare expansions with the flag in a
+    third (`$S $M x $F`, indistinguishable from `$CC $CFLAGS $SRC`), a script
+    one tool call writes and the next runs (a Write that creates `run.sh`,
+    then `sh run.sh`), an inline `SIGIL_BYPASS=1` prefix (which lifts every
+    ask), and `npm pack <dir or git spec>`, `npm view <dir>`, `pip download
+    <path, URL or package>` and `pip wheel <path>` run directly, which the
+    hook allows. To install what you vetted under the hook, repeat the
+    resolved pin in both commands (`sigil pip requests==2.32.3 && pip install
+    requests==2.32.3`): the hook allows that and denies `sigil pip requests
+    && pip install requests==2.32.3`. The hook's suggestion for `deno run
+    npm:<pkg>/<subpath>` names the package without the subpath (`sigil npm
+    chalk@5.3.0`).
 - **The package crawler no longer runs package code on the API host.**
   `api/services/crawler.py` downloaded PyPI packages with `pip download
   --no-binary :all:`, which builds every source distribution (running its
@@ -308,8 +375,9 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   The scanners (`api/services/scanner.py`,
   `api/scanner/scanner_engine.py`, `api/services/openclaw_rules.py`,
   `api/services/scanner_v1.py`) now skip every symbolic link, and the crawler
-  deletes the links of an unpacked package or checkout. Existing behaviour,
-  not new in this branch, but reachable through the unpack-only crawler.
+  deletes the links of an unpacked package or checkout. The scanners'
+  following of links is older than this release, but the unpack-only crawler
+  is what makes it reachable here.
 
 ### 🐛 Fixed
 

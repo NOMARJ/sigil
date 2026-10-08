@@ -7,6 +7,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { request as httpsRequest } from "https";
 import { request as httpRequest } from "http";
+import { parseSigilJson } from "./sigil-json.js";
 // Forge tools removed - discovery feature sunset
 
 const execFileAsync = promisify(execFile);
@@ -107,7 +108,7 @@ async function runSigilJson(args: string[]): Promise<any> {
     );
   }
   try {
-    return JSON.parse(stdout);
+    return parseSigilJson(stdout);
   } catch {
     const head = stdout.trim().slice(0, 200);
     throw new Error(

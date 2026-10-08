@@ -2143,3 +2143,168 @@ fn quoted_separator_masking_leaves_scripts_alone() {
     assert!(!flat_opt_in("sigil npm -- --allow-build-scripts"));
     assert!(!flat_opt_in("--allow-build-scripts npm"));
 }
+
+#[test]
+fn line_continuations_are_joined_outside_comments_only() {
+    assert_eq!(join_continuations("a \\\nb"), "a b");
+    assert_eq!(join_continuations("a\\\r\nb"), "ab");
+    assert_eq!(join_continuations("no continuation"), "no continuation");
+    // A comment ends at its line end: a backslash there does not continue it.
+    assert_eq!(join_continuations("x # c \\\ny"), "x # c \\\ny");
+    // Two backslashes are one escaped backslash; the line end after them is
+    // a real one.
+    assert_eq!(join_continuations("a\\\\\nb"), "a\\\\\nb");
+}
+
+#[test]
+fn a_hash_starts_a_comment_only_where_the_shell_sees_one() {
+    let comment = |s: &str| {
+        let chars: Vec<char> = s.chars().collect();
+        quote_map(&chars).contains(&Q::Comment)
+    };
+    for yes in [
+        "# c",
+        "echo a # c",
+        "echo a;# c",
+        "echo a\n# c",
+        "echo ${x:-a} # c",
+        "echo $(a) # c",
+    ] {
+        assert!(comment(yes), "{yes:?} holds a comment");
+    }
+    for no in [
+        "echo a#b",
+        "echo \\ # c",
+        "echo ${x:- #}",
+        "echo $(a)# c",
+        "echo <(a)# c",
+        "echo a\\;# c",
+        "echo 'a #'",
+        "echo \"a #\"",
+    ] {
+        assert!(!comment(no), "{no:?} holds none");
+    }
+}
+
+#[test]
+fn global_options_are_skipped_to_find_the_subcommand() {
+    for (word, words) in [
+        ("-v", 1),
+        ("-vv", 1),
+        ("--verbose", 1),
+        ("-f", 2),
+        ("-fjson", 1),
+        ("--format", 2),
+        ("--format=json", 1),
+        ("-o", 2),
+        ("--output", 2),
+        ("--rules", 2),
+        ("--yara-engine", 2),
+        ("--config", 2),
+        ("--config=c.yml", 1),
+        ("-vf", 2),
+        ("-vfjson", 1),
+        ("-h", 1),
+    ] {
+        assert_eq!(global_option_words(word), Some(words), "{word}");
+    }
+    for word in ["pip", "scan", "-", "--", "'npm'"] {
+        assert_eq!(global_option_words(word), None, "{word}");
+    }
+}
+
+#[test]
+fn the_replace_string_of_xargs_is_read() {
+    let replace = |s: &str| xargs_replace(&opt_in_tokens(s), 1);
+    assert_eq!(replace("xargs -I@ sigil @ x").as_deref(), Some("@"));
+    assert_eq!(replace("xargs -I {} sigil {} x").as_deref(), Some("{}"));
+    assert_eq!(replace("xargs -0 -I@@ sigil @@").as_deref(), Some("@@"));
+    assert_eq!(replace("xargs -tIfoo sigil foo").as_deref(), Some("foo"));
+    assert_eq!(replace("xargs -i sigil {} x").as_deref(), Some("{}"));
+    assert_eq!(replace("xargs -i% sigil % x").as_deref(), Some("%"));
+    assert_eq!(replace("xargs --replace=% sigil %").as_deref(), Some("%"));
+    assert_eq!(replace("xargs --replace sigil {}").as_deref(), Some("{}"));
+    assert_eq!(replace("xargs -n1 sigil scan"), None);
+    // sigil's own options are not xargs's.
+    assert_eq!(replace("xargs sigil --format json -i x"), None);
+}
+
+#[test]
+fn text_for_a_shell_is_told_from_text_for_a_filter() {
+    let chars = |s: &str| s.chars().collect::<Vec<char>>();
+    for yes in [
+        "echo x | rbash",
+        "echo x | $0",
+        "echo x | ${0}",
+        "echo x | exec sh",
+        "echo x |& bash",
+        "rbash <<EOF\nx\nEOF",
+        "rbash <<< x",
+        "FOO=1 rbash <<< x",
+        "echo a; echo x | bash",
+    ] {
+        assert!(ns_text_to_unknown(&chars(yes)), "{yes:?}");
+    }
+    for no in [
+        "echo x | tee log | grep y | wc -l",
+        "echo x | python3 -c 'print(1)'",
+        "echo x | jq .",
+        "cat <<EOF\nx\nEOF",
+        "python3 - <<'EOF'\nprint(1)\nEOF",
+        "a || b",
+        "echo x >| f",
+    ] {
+        assert!(!ns_text_to_unknown(&chars(no)), "{no:?}");
+    }
+}
+
+#[test]
+fn a_sigil_word_is_a_pip_or_npm_call_unless_another_subcommand_follows() {
+    let call = |s: &str| ns_sigil_call(&s.chars().collect::<Vec<char>>(), 0);
+    for yes in [
+        " pip x",
+        " npm",
+        " --format json pip",
+        " -v \"npm\" x",
+        " --format json $M x",
+        " $'npm' x",
+        " n\\pm x",
+        " np${x}m x",
+        " -h",
+        " -o",
+        "",
+    ] {
+        assert!(call(yes), "{yes:?}");
+    }
+    for no in [
+        " scan .",
+        " --format json scan .",
+        " -vf json list",
+        " --rules \"$R\" clone x",
+        " hook pretooluse",
+    ] {
+        assert!(!call(no), "{no:?}");
+    }
+}
+
+#[test]
+fn many_xargs_and_here_documents_are_read_in_linear_time() {
+    // The replace string is looked for at a `sigil` word, not at every
+    // `xargs`; the command of a here-document's stage once per stage.
+    for body in [
+        "xargs ".repeat(40000),
+        "xargs -I@ ".repeat(20000),
+        format!("{}<<a ", "x".repeat(200000)).repeat(2) + &"<<a ".repeat(20000),
+    ] {
+        let cmd = format!("echo {body}done");
+        let start = std::time::Instant::now();
+        let _ = decision(&cmd);
+        let limit = if cfg!(debug_assertions) { 30 } else { 3 };
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(limit),
+            "{} bytes took {:?}",
+            cmd.len(),
+            start.elapsed()
+        );
+    }
+}

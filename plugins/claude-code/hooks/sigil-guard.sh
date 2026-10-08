@@ -2551,48 +2551,75 @@ IFS=$IFS_DEFAULT
 # ── ASK: a sigil call that lets package code run before its scan ──────────
 # `sigil pip|npm … --allow-build-scripts` lets pip or npm run the package's
 # own setup or lifecycle scripts on this machine before the scan: the
-# user's decision, not an agent's (hook.rs build_scripts_opt_in, which
-# reads the same shapes). The CLI asks for its own confirmation as well (a
-# prompt at a terminal, or SIGIL_ALLOW_BUILD_SCRIPTS=1 for a script), so
-# this reading is a second line, not the only one: a pattern reader cannot
-# see a flag a program builds at run time. Three readings, over the command
-# as written, with quotes removed from runs of plain word characters only
-# (so a quoted `">"` or `"$X"` keeps its quotes), with the quotes of a
-# string a shell hands to an interpreter unspliced (`'\''`, `'"'"'`, `\"`),
-# and with the `;` `&` `|` `#` and line ends inside a quoted word masked
-# (hook.rs mask_quoted_separators; needs awk):
+# user's decision, not an agent's (hook.rs build_scripts_opt_in). This ask is
+# the one layer aimed at an agent, and it is advisory: the CLI's own
+# confirmation (a prompt at a terminal, or SIGIL_ALLOW_BUILD_SCRIPTS=1) stops
+# accidents and unattended runs, but anything that opens a pseudo-terminal
+# and answers, or sets the variable, passes it, and a pattern reader cannot
+# see a flag a program builds at run time. This file reads the shapes hook.rs
+# reads, with sed, awk and extended regular expressions; it is a coarser
+# reading (it can ask where hook.rs allows), and nested-shell-agreement.py
+# measures where the two differ. Fail-safe, not exact: where the text could
+# mean the flag, it asks. Views of the command: as written (the line
+# continuations joined and the `# comments` dropped by awk, as hook.rs does:
+# a `#` starts a comment only at the start of a word, not after an escaped
+# blank, not inside `${…}`, not glued to `)`, `<` or `>`; a backslash at the
+# end of a comment's line does not continue it), with quotes removed from
+# runs of plain word characters only (so a quoted `">"` or `"$X"` keeps its
+# quotes), with the quotes of a string a shell hands to an interpreter
+# unspliced (`'\''`, `'"'"'`, `\"`), with up to three layers of double-quote
+# escaping undone (`\\` is `\`, `\$` is `$`), with every quote and backslash
+# removed (only the rules that look for the flag itself read this one), and
+# with the `;` `&` `|` `#` and line ends inside a quoted word masked
+# (hook.rs mask_quoted_separators). A `--` word of its own inside a quoted
+# string, or the file of a redirection (`> --`, `<<< --`), does not end the
+# options.
 #  1. FLAT: a `pip` or `npm` word, then, before a `--` word of its own, a
 #     word starting with --allow-build-scripts, however the words between
 #     them are quoted or separated (`sigil npm './a;b' --allow-build-scripts`,
 #     an argv list over several lines) and however the command word before
 #     `pip`/`npm` is spelled (`si${E}gil npm …`, `sig$(true)il npm …`). It
 #     asks about more than the shell would run, never less.
-#  2. ENV: the variable the CLI accepts in place of a terminal
-#     (SIGIL_ALLOW_BUILD_SCRIPTS=1) being set.
-#  3. What FLAT cannot see, a word the shell may expand into the flag.
-#     Wherever a `sigil` word, or a command word that is an expansion, a
-#     glob or holds a quote that stayed (`$(command -v sigil)`, `$SIGIL`,
-#     `si${E}gil`), appears (also inside a quoted string a shell, `find
-#     -exec` or a here-string runs, in an interpreter's argv list such as
-#     `['sigil','pip',…]`, and in text that only mentions it): `sigil`, then
-#     `pip` or `npm` (or, right after `sigil`, a word that may expand to it:
-#     `$SUB`, `{pip,npm}`), then, before a `--`, a `# comment` or a
-#     `;`/`&`/`|`, a word starting with --allow-build-scripts (a glued
-#     redirection included) or a word the shell may expand to it: one with
-#     a `$` or backtick, or one that begins like an option or a pattern
-#     (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
-#     (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
-#     `--allow-build-scr?pts`, `--allow-build-scr[i]pts`). Words are split at
-#     `[ ] ( ) ,` as well as whitespace; the `&` or `|` of a redirection
-#     (`2>&1`, `&>f`, `>|f`) does not end the call. A redirection and its file
-#     (`> "$LOG"`) and one quoted word after -V/--version (`-V "$VER"`, its
-#     value) are dropped first. A sigil pip/npm call behind xargs counts too.
+#  2. ENV: the variable the CLI accepts in place of a terminal. Its name with
+#     anything glued to it and then `=`; the first part of its name
+#     (SIGIL_ALLOW_BUILD) next to a word that sets a variable by name
+#     (export declare typeset readonly local printf read mapfile eval); an
+#     assignment with an expansion in its name in a call with export,
+#     declare, env, eval and the like (`export "$V=1"`).
+#  3. What FLAT cannot see.
+#     a. The flag after a command word that is or may be sigil, wherever the
+#        subcommand is: `sigil`, or a word with an expansion, a glob
+#        character, a backslash or a pair of quotes in it (`$S`, `si${E}gil`,
+#        `s\igil`), then, before a `--`, a `# comment` or a `;`/`&`/`|`, a
+#        word starting with `--allow-b` or a brace expansion or glob that
+#        holds a piece of the flag's name.
+#     b. `sigil`, its global options (-v, -f X, --format X|=X, -o X, --rules X,
+#        --yara-engine X, --config X), then `pip` or `npm`, or a word that may
+#        expand to one where the subcommand goes (an expansion, a quote, a
+#        backslash, a glob, `{pip,npm}`), then a word starting with
+#        --allow-build-scripts (a glued redirection included) or a word the
+#        shell may expand to it: one with a `$` or backtick, or one that
+#        begins like an option or a pattern (`-`, `{`, `*`, `?`, `[`) and
+#        holds a brace expansion (`--allow-build-{scripts,x}`) or a glob
+#        (`--allow-build-s*`, `--allow-build-scr?pts`,
+#        `--allow-build-scr[i]pts`). Words are split at `[ ] ( ) ,` as well
+#        as whitespace; the `&` or `|` of a redirection (`2>&1`, `&>f`, `>|f`)
+#        does not end the call. A redirection and its file (`> "$LOG"`, a
+#        lone `--` too) and one quoted word after -V/--version (`-V "$VER"`,
+#        its value) are dropped first.
+#     c. xargs: a sigil call behind it with pip/npm or a word that may be
+#        one, with a replace option (-I, -i) before the sigil word, or with
+#        no subcommand at all; or an xargs command that is an expansion. This
+#        is coarser than hook.rs, which asks about a replace string only where
+#        it stands in the subcommand place or after pip/npm.
 # Every allow below becomes this ask; a deny still wins. Not read: a flag a
 # program builds at run time, a file or variable the call takes its
 # arguments from, a call a script or alias makes without the words
 # appearing in the command (a script written by one tool call and run by
-# the next). Without awk, a `# comment` is not dropped and no quoted word is
-# masked.
+# the next), a command word and a subcommand that are both bare expansions
+# with the flag in a third (`$S $M x $F`). Without awk, a `# comment` is not
+# dropped, no quoted word is masked, and a line continuation after a comment
+# is joined.
 OPTIN=0
 OPTIN_Q='\(["'\'']\)[^"'\''[:space:]]*\1'
 # optin_prep <text>: R is the text with each redirection and its file
@@ -2846,37 +2873,44 @@ OPTIN_ENVRE='SIGIL_ALLOW_BUILD[^][(),[:space:];&|<>]*='
 OPTIN_ENVPFX='SIGIL_ALLOW_BUILD'
 OPTIN_ENVNAMER="(^|[][(),[:space:];&|\"'])(export|declare|typeset|readonly|local|printf|read|mapfile|readarray|eval)([][(),[:space:];&|\"']|\$)"
 OPTIN_ENVBUILT="(^|[][(),[:space:];&|\"'])(export|declare|typeset|readonly|local|env|eval)([][(),[:space:]\"']+[^;&|]*)?[][(),[:space:]\"']+[\"']*[^[:space:];&|=\"']*[\$\`][^[:space:];&|=]*="
-# 4. A nested shell (hook.rs nested_obscured_call, which reads the same way).
+# 4. A nested shell (hook.rs nested_obscured_call, which this mirrors).
 #    A double-quoted string keeps `\c` as it is, and the shell it is handed
 #    to reads the unquoted text and drops the backslash:
 #    `bash -c "`which sigil` pip x --allow-build-s\\cripts"` hands that shell
-#    `s\cripts`, which it reads as `scripts`. No reading of the outer command
-#    knows what an inner one runs, and the spellings are endless, so rather
-#    than chase them a `pip` or `npm` word (a maximal run of [A-Za-z0-9_.-])
-#    asks when
+#    `s\cripts`, which it reads as `scripts` (and `np\\m` is `npm` to it). No
+#    reading of the outer command knows what an inner one runs, and the
+#    spellings are endless, so rather than chase them a `sigil`, `pip` or
+#    `npm` word (a maximal run of [A-Za-z0-9_.-]; a `sigil` followed by a
+#    plain word of another subcommand, `sigil scan …`, past its global
+#    options, is not one) asks when
 #     - it sits in a quoted string (the outermost '…' or "…" of the command,
 #       a backslash escaping a character outside single quotes) and the
 #       command holds a shell anywhere (a word that is sh bash dash zsh ksh
-#       mksh ash csh tcsh fish busybox ssh su runuser eval source trap watch
-#       script flock or parallel, with a version or extension after it
-#       (ksh93, bash.exe), $SHELL, $BASH, a `.` of its own; also with its
-#       quotes and backslashes removed: b"as"h) or a -c-like flag with a
-#       quote or `$` or backtick after it (`$B -c "…"`), or
+#       mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh
+#       ssh su runuser eval source trap watch script flock or parallel, with
+#       a version or extension after it (ksh93, bash.exe), $SHELL, $BASH, a
+#       `.` of its own; also with its quotes and backslashes removed:
+#       b"as"h), a -c-like flag with a quote or `$` or backtick after it
+#       (`$B -c "…"`), or text piped (`|`, `|&`) or fed by a here-document or
+#       here-string to a command that is not a known filter (cat tee grep
+#       sed awk cut sort uniq wc head tail tr jq … and another language's
+#       interpreter are; `rbash`, `$0`, `exec sh` are not), or
 #     - it is unquoted and a shell stands in its own simple command (after
-#       the last `;` `&` `|` `(` or line end), or a pipeline stage starts one
-#       (`printf … | sh`), or the command holds a `<<` and a shell as above,
-#       or its simple command holds a `$`, backtick, `{`, `*` or `?` in front
-#       of it (a command word the shell expands, `${S} --format json pip`);
-#    and the words of its simple command in front of it (after the last
-#    `;` `&` `|` `(` or line end, quoted or not) hold `sigil` or one of
-#    \ ' " $ ` { * ? [ (a word the shell may spell `sigil`), and the text
-#    after it, to the end of its call (the next `;`, line end, `)`, `&` or
-#    `|`; past the end of its quoted string if the call goes on), holds one
-#    of \ ' " $ ` { * ? [. The quote that opens the string holding the word
-#    and the one that closes it do not count. Over-asking is the intended
-#    failure. Without awk the same is read coarsely, as a superset: a shell
-#    anywhere, then `sigil` or one of those characters, then a `pip` or `npm`
-#    word, then one of them again.
+#       the last `;` `&` `|` `(` or line end), or text goes to a command that
+#       is not a known filter (`printf … | sh`, `… | $0`), or the command holds
+#       a `<<` and a shell as above, or its simple command holds a `$`,
+#       backtick, `{`, `*` or `?` in front of it (a command word the shell
+#       expands, `${S} --format json pip`);
+#    and, for a `pip` or `npm` word, the words of its simple command in front
+#    of it (after the last `;` `&` `|` `(` or line end, quoted or not) hold
+#    `sigil` or one of \ ' " $ ` { * ? [ (a word the shell may spell `sigil`);
+#    a `sigil` word needs nothing; and the text after the word, to the end of
+#    its call (the next `;`, line end, `)`, `&` or `|`; past the end of its
+#    quoted string if the call goes on), holds one of \ ' " $ ` { * ? [. The
+#    quote that opens the string holding the word and the one that closes it
+#    do not count. Over-asking is the intended failure. Without awk the same
+#    is read coarsely, as a superset: a shell anywhere, then `sigil`, `pip` or
+#    `npm`, then one of those characters.
 NS_SQ="'"
 NS_OBS_ERE="[\$\`\\\\${NS_SQ}\"*?[{]"
 NS_NAMES='sh bash dash zsh ksh mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh ssh su runuser eval source trap watch script flock parallel'
@@ -2997,8 +3031,8 @@ function firstword(s, from,   n, i, st, w) {
 # to_unknown(s): text piped (| |&) into a command that is not a known filter,
 # or the input of a here-document or here-string of one (hook.rs
 # ns_text_to_unknown): it may be a shell (| rbash, | $0, | exec sh).
-function to_unknown(s,   n, k, c, pv, nx, sepc, start, from, w) {
-  n = length(s); start = 1; k = 1
+function to_unknown(s,   n, k, c, pv, nx, sepc, start, from, w, hs, hu) {
+  n = length(s); start = 1; k = 1; hs = 0; hu = 0
   while (k <= n) {
     c = substr(s, k, 1); pv = (k > 1) ? substr(s, k - 1, 1) : ""; nx = substr(s, k + 1, 1)
     sepc = 0
@@ -3013,8 +3047,8 @@ function to_unknown(s,   n, k, c, pv, nx, sepc, start, from, w) {
       }
       start = k + 1
     } else if (c == "<" && nx == "<") {
-      w = firstword(s, start)
-      if (w != "" && !knownf(w)) return 1
+      if (hs != start) { hs = start; w = firstword(s, start); hu = (w != "" && !knownf(w)) }
+      if (hu) return 1
       while (k <= n && substr(s, k, 1) == "<") k++
       continue
     }
@@ -3192,6 +3226,8 @@ case $LEX_TXT in
     # xargs appends the words it reads, or puts them where its replace string
     # stands; the call it runs may be an expansion or have no subcommand yet.
     optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUBX}" \
       && OPTIN=1
     optin_has "(^|[^[:alnum:]_.-])xargs[[:space:]]([^;&|#]*[[:space:]])?-[A-Za-z0-9]*[Ii]([^;&|#]*[^[:alnum:]_.-])?sigil(\\.exe)?([^[:alnum:]_.-]|\$)" \
       && OPTIN=1

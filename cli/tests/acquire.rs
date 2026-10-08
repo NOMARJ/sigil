@@ -24,7 +24,9 @@ use std::process::{Command, Output};
 /// success a download saves a placeholder file into `--dest` (unless
 /// `$SIGIL_TEST_PIP_SAVES` is 0) and a pack copies `$SIGIL_TEST_PACK_FILE`,
 /// when set, to `--pack-destination` or its working directory, as the real
-/// tools would. With `$SIGIL_TEST_FAKE_SLEEP` set, a download or pack writes
+/// tools would, after printing `$SIGIL_TEST_FAKE_STDOUT` to stdout (pip's
+/// progress, npm pack's file name) and `$SIGIL_TEST_FAKE_STDERR` to stderr.
+/// With `$SIGIL_TEST_FAKE_SLEEP` set, a download or pack writes
 /// its pid to `<tool>-<sub>.pid` and sleeps that many seconds instead (a
 /// slow transfer a test can interrupt). `$SIGIL_TEST_PIP_INDEX_FAIL` makes
 /// `pip index` print that to stderr and fail (pip older than 21.2 prints
@@ -62,6 +64,7 @@ if [ -n "${SIGIL_TEST_FAKE_SLEEP:-}" ]; then
   exec sleep "$SIGIL_TEST_FAKE_SLEEP"
 fi
 if [ -n "${SIGIL_TEST_FAKE_STDERR:-}" ]; then printf '%s\n' "$SIGIL_TEST_FAKE_STDERR" >&2; fi
+if [ -n "${SIGIL_TEST_FAKE_STDOUT:-}" ]; then printf '%s\n' "$SIGIL_TEST_FAKE_STDOUT"; fi
 status=${SIGIL_TEST_FAKE_EXIT:-0}
 if [ "$status" = 0 ]; then
   dest=.; prev=
@@ -935,6 +938,64 @@ fn npm_refuses_a_registry_tarball_that_is_not_a_plain_download() {
         assert!(recorded(&fx, "npm-pack").is_none(), "{tarball} was packed");
         assert!(quarantine_items(&fx).is_empty(), "{tarball}");
     }
+}
+
+/// A registry (a private or mirrored one) whose description of a release
+/// names another package than the one asked for: the scan would be of a
+/// package the user did not name, and the release Sigil prints is the one the
+/// docs tell them to install.
+#[test]
+fn npm_refuses_a_release_that_carries_another_package_name() {
+    let fx = fixture();
+    let served = serve_tarball(&fx, "othername", "1.0.0");
+    let view = npm_view("othername", "1.0.0", &served.tarball, &served.integrity);
+    let out = sigil(
+        &fx,
+        &["npm", "nameswap", "--auto-approve"],
+        &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
+    );
+    assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
+    let err = stderr(&out);
+    assert!(err.contains("you asked for `nameswap`"), "{err}");
+    assert!(
+        err.contains("says the package is named `othername`"),
+        "{err}"
+    );
+    assert!(!stdout(&out).contains("resolves to"), "{}", stdout(&out));
+    assert!(!stdout(&out).contains("downloading"), "{}", stdout(&out));
+    assert!(quarantine_items(&fx).is_empty());
+    // A range or tag names the same package; a scoped one too; case does not
+    // matter (the registry normalises it).
+    for (spec, name) in [
+        ("othername@^1", "othername"),
+        ("OtherName", "othername"),
+        ("othername@latest", "othername"),
+    ] {
+        let fx = fixture();
+        let served = serve_tarball(&fx, name, "1.0.0");
+        let view = npm_view(name, "1.0.0", &served.tarball, &served.integrity);
+        let out = sigil(
+            &fx,
+            &["npm", spec],
+            &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
+        );
+        assert_eq!(code(&out), 0, "{spec}: {}", stderr(&out));
+    }
+    // A scope is part of the name.
+    let fx = fixture();
+    let served = serve_tarball(&fx, "pkg", "1.0.0");
+    let view = npm_view("@other/pkg", "1.0.0", &served.tarball, &served.integrity);
+    let out = sigil(
+        &fx,
+        &["npm", "@acme/pkg"],
+        &[("SIGIL_TEST_NPM_VIEW", &view), served.env()],
+    );
+    assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
+    assert!(
+        stderr(&out).contains("is named `@other/pkg`"),
+        "{}",
+        stderr(&out)
+    );
 }
 
 /// Sigil downloads the tarball itself, from the registry's own host and
@@ -1887,6 +1948,86 @@ fn real_pip_ignores_env_constraints_and_refuses_config_requirements() {
     );
 }
 
+/// A `global-option` or `build-option` setting makes pip (before 24.2) drop
+/// `--only-binary=:all:` and build a source distribution: its build backend
+/// ran, with the setting in the environment or in a config file. Neither
+/// reaches pip now.
+#[test]
+fn real_pip_is_not_told_to_build_by_a_build_option_setting() {
+    if !real_pip_available() {
+        return;
+    }
+    let fx = fixture();
+    let links = fx.root.join("links");
+    std::fs::create_dir_all(&links).unwrap();
+    let marker = fx.root.join("marker-backend-ran");
+    write_marker_sdist(&links, "2.0", &marker);
+    let path = std::env::var("PATH").unwrap_or_default();
+    let env = offline(&links);
+
+    // Control: no setting, only an sdist on the index: nothing is built.
+    for spec in ["markerpkg==2.0", "markerpkg"] {
+        let out = run_sigil(&fx, &["pip", spec], &path, &with(&env, &[]));
+        assert_eq!(code(&out), 2, "{spec}: {}", stderr(&out));
+        assert!(!marker.exists(), "{spec}: the sdist's backend ran");
+    }
+
+    // The settings in the environment are left out of pip's environment.
+    for var in [
+        "PIP_GLOBAL_OPTION",
+        "PIP_BUILD_OPTION",
+        "PIP_INSTALL_OPTION",
+    ] {
+        for spec in ["markerpkg==2.0", "markerpkg"] {
+            let out = run_sigil(&fx, &["pip", spec], &path, &with(&env, &[(var, "--quiet")]));
+            assert_eq!(code(&out), 2, "{var} {spec}: {}", stderr(&out));
+            assert!(
+                stderr(&out).contains(&format!("{var} is left out")),
+                "{var}: {}",
+                stderr(&out)
+            );
+            assert!(!marker.exists(), "{var} {spec}: the sdist's backend ran");
+        }
+    }
+
+    // In a config file, they are refused, and nothing is created.
+    for key in ["global-option", "build-option"] {
+        let conf = fx.root.join(format!("pip-{key}.conf"));
+        std::fs::write(&conf, format!("[global]\n{key} = --quiet\n")).unwrap();
+        let conf_s = conf.to_string_lossy().to_string();
+        let env: Vec<(&str, &str)> = with(&env, &[])
+            .into_iter()
+            .filter(|(k, _)| *k != "PIP_CONFIG_FILE")
+            .chain([("PIP_CONFIG_FILE", conf_s.as_str())])
+            .collect();
+        let before = quarantine_items(&fx).len();
+        for spec in ["markerpkg==2.0", "markerpkg"] {
+            let out = run_sigil(&fx, &["pip", spec], &path, &env);
+            assert_eq!(code(&out), 2, "{key} {spec}: {}", stderr(&out));
+            assert!(
+                stderr(&out).contains(&format!("global.{key}")),
+                "{key}: {}",
+                stderr(&out)
+            );
+            assert!(!marker.exists(), "{key} {spec}: the sdist's backend ran");
+        }
+        assert_eq!(quarantine_items(&fx).len(), before);
+    }
+
+    // The fixture is live: with the opt-in and the setting, pip does build.
+    let out = run_sigil(
+        &fx,
+        &["pip", "markerpkg==2.0", "--allow-build-scripts"],
+        &path,
+        &with(&env, &[OPT_IN, ("PIP_GLOBAL_OPTION", "--quiet")]),
+    );
+    assert!(
+        marker.exists(),
+        "with --allow-build-scripts pip should have built the sdist; stderr: {}",
+        stderr(&out)
+    );
+}
+
 /// pip runs in the caller's directory, as `pip install` does, so a relative
 /// find-links setting means the same to both (it did in 1.3.7).
 #[test]
@@ -2043,6 +2184,68 @@ fn the_variable_does_not_lift_the_unusable_spec_refusals() {
     );
     assert_eq!(code(&out), 2, "stderr: {}", stderr(&out));
     assert!(ran_nothing(&fx, "pip"));
+}
+
+/// pip prints its progress (`Looking in indexes`, `Collecting`, ...) on stdout.
+/// With a machine-readable format stdout is the report and nothing else, so
+/// pip's goes to stderr, where Sigil's own progress is; in text it is as it
+/// was. The same for what `npm pack` prints with the opt-in.
+#[test]
+fn the_tools_stdout_never_gets_in_front_of_a_json_report() {
+    let progress = "Looking in indexes: https://pypi.org/simple\nCollecting wheelok==1.5";
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["--format", "json", "pip", "wheelok==1.5"],
+        &[("SIGIL_TEST_FAKE_STDOUT", progress)],
+    );
+    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+    let report: serde_json::Value =
+        serde_json::from_str(&stdout(&out)).expect("stdout is exactly one JSON document");
+    assert_eq!(report["package"], "wheelok==1.5");
+    assert!(
+        stderr(&out).contains("Collecting wheelok==1.5"),
+        "{}",
+        stderr(&out)
+    );
+    assert!(!stdout(&out).contains("Looking in indexes"));
+
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &["pip", "wheelok==1.5"],
+        &[("SIGIL_TEST_FAKE_STDOUT", progress)],
+    );
+    assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+    assert!(
+        stdout(&out).contains("Collecting wheelok==1.5"),
+        "{}",
+        stdout(&out)
+    );
+
+    // npm pack prints the file it wrote.
+    let fx = fixture();
+    let out = sigil(
+        &fx,
+        &[
+            "--format",
+            "json",
+            "npm",
+            "./local-dir",
+            "--allow-build-scripts",
+        ],
+        &[OPT_IN, ("SIGIL_TEST_FAKE_STDOUT", "local-dir-1.0.0.tgz")],
+    );
+    assert!(matches!(code(&out), 0 | 2), "stderr: {}", stderr(&out));
+    assert!(
+        !stdout(&out).contains("local-dir-1.0.0.tgz"),
+        "npm pack's output is in stdout: {}",
+        stdout(&out)
+    );
+    assert!(
+        recorded(&fx, "npm-pack").is_some(),
+        "npm pack ran with the opt-in"
+    );
 }
 
 // ---------------------------------------------------------------------------

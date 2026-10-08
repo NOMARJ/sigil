@@ -80,7 +80,7 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
-| `pip` or `npm` followed by `--allow-build-scripts` in a `sigil` call, however the command word is spelled (`si${E}gil npm …`) and whatever sits between them (a quoted `;`, `&`, `|` or ` #`, a line end in an argv list; also with a redirection glued on, inside a string a shell, `find -exec` or a here-string runs, in an interpreter's argv list such as `subprocess.run(['sigil','pip',…])`, or in text that only mentions it); a command that sets `SIGIL_ALLOW_BUILD_SCRIPTS`; a `sigil pip`/`npm` call with a `$` or backtick word after `pip`/`npm` (not a redirection's file, as in `> "$LOG"`, or one quoted `-V "$VER"` value), or behind `xargs` | ask | the flag lets the package's own code run before the scan, and the variable is what confirms it without a terminal; an expansion or xargs could supply either |
+| `pip` or `npm` followed by `--allow-build-scripts` in a `sigil` call, however the command word and the subcommand are spelled (`si${E}gil npm …`, `sigil --format json $'npm' x …`) and whatever sits between them (a quoted `;`, `&`, `|` or ` #`, a line end in an argv list, a redirection's file named `--`; also with a redirection glued on, inside a string a shell, `find -exec` or a here-string runs, in an interpreter's argv list such as `subprocess.run(['sigil','pip',…])`, or in text that only mentions it); a command that sets `SIGIL_ALLOW_BUILD_SCRIPTS`, under its own name or one the shell builds; a `sigil pip`/`npm` call with a `$` or backtick word after `pip`/`npm` (not a redirection's file, as in `> "$LOG"`, or one quoted `-V "$VER"` value), or behind `xargs` | ask | the flag lets the package's own code run before the scan, and the variable is what confirms it without a terminal; an expansion or xargs could supply either. A reading of the command's text, not a boundary: see [Claude Code hook and MCP check_command](#claude-code-hook-and-mcp-check_command) |
 | `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
 | `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
 | downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
@@ -237,12 +237,17 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    `constraint` or `editable` setting in the `[global]` or `[download]`
    section of a pip config file is refused with exit 2: pip adds what it names
    to every download and builds a local path, URL or VCS reference there even
-   with `--only-binary=:all:`. The same settings from the environment
-   (`PIP_REQUIREMENT`, `PIP_CONSTRAINT`, `PIP_EDITABLE`) are left out of pip's
-   environment for this command, with a note. A config constraint that only
-   pins versions is refused too: Sigil does not read the files these settings
-   name. See [Troubleshooting](troubleshooting.md) for keeping your index
-   while skipping the config file.
+   with `--only-binary=:all:`. So is a `global-option`, `build-option` or
+   `install-option` setting: pip reads one as a request for a legacy
+   `setup.py` build and, before pip 24.2, logs `Implying --no-binary=:all:`
+   and discards the command line's `--only-binary`, so a source distribution
+   is built (its setup code run) before the scan. The same settings from the
+   environment (`PIP_REQUIREMENT`, `PIP_CONSTRAINT`, `PIP_EDITABLE`,
+   `PIP_GLOBAL_OPTION`, `PIP_BUILD_OPTION`, `PIP_INSTALL_OPTION`) are left out
+   of pip's environment for this command, with a note. A config constraint
+   that only pins versions is refused too: Sigil does not read the files
+   these settings name. See [Troubleshooting](troubleshooting.md) for keeping
+   your index while skipping the config file.
 3. For a spec that does not pin a version with `==` or `===`, asks the index
    which versions exist (`pip index versions --pre -- <name>`, which builds
    nothing; it needs pip 21.2 or later) and picks the one `pip install <spec>`
@@ -271,7 +276,9 @@ sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    scan it, or read the source distribution without building it: its file on
    the index (the link on the project's PyPI download page) is scanned by
    `sigil scan <URL of the .tar.gz>`, which unpacks it and runs nothing from
-   it.
+   it. With a machine-readable `--format` (`json`, `sarif`, ...), pip's own
+   output (its progress is on stdout) goes to stderr, so stdout is exactly the
+   report; in text it is shown as before.
 5. Extracts the wheel into quarantine and runs all 8 scan phases (not the
    dependency lookups, which only `sigil scan` and `sigil baseline` run).
    The "downloading" line is printed after steps 1 to 3, so a refusal or a
@@ -305,7 +312,11 @@ warning and waits for `yes`; with no terminal (an AI agent's shell, a pipe, a
 CI job) it refuses with exit 2 and downloads and runs nothing, unless
 `SIGIL_ALLOW_BUILD_SCRIPTS=1` is set for that command by a script or job that
 has decided to trust the code. A flag in a command line is not that decision:
-anything that can write a command line can write the flag.
+anything that can write a command line can write the flag. The confirmation
+stops accidental and unattended use; it cannot tell a person from a program
+that opens a pseudo-terminal and types `yes`, or that sets the variable, so
+it is no boundary against an agent (see
+[the Claude Code hook](#claude-code-hook-and-mcp-check_command) below).
 It is not a way to scan a project directory: pip runs the directory's build
 backend but does not copy a directory into `--dest`, so nothing reaches
 quarantine and the command fails (exit 2, never LOW RISK or auto-approved).
@@ -374,7 +385,10 @@ sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
    and `. _ ~ ! ' ( ) * -` in each part, neither part `.` or `..`) and a
    version (letters, digits and `. + -`), or the command stops (exit 2):
    Sigil makes the file name from them, and they are printed and recorded in
-   the quarantine index.
+   the quarantine index. The name must also be the one you asked for (case
+   aside): a registry whose description of `nameswap` says the release is
+   named `othername` is refused (exit 2), since a scan of one package says
+   nothing about another and the release Sigil prints is the one to install.
 3. Checks that release's tarball URL. It must be an `http(s)` URL that npm
    downloads as a tarball, written as one: the string starts with `http://` or
    `https://` and holds no space or control character, because npm reads any
@@ -464,7 +478,13 @@ warning and waits for `yes`; with no terminal (an AI agent's shell, a pipe, a
 CI job) it refuses with exit 2 and downloads and runs nothing, unless
 `SIGIL_ALLOW_BUILD_SCRIPTS=1` is set for that command by a script or job that
 has decided to trust the code. A flag in a command line is not that decision:
-anything that can write a command line can write the flag.
+anything that can write a command line can write the flag. The confirmation
+stops accidental and unattended use; it cannot tell a person from a program
+that opens a pseudo-terminal and types `yes`, or that sets the variable, so
+it is no boundary against an agent (see
+[the Claude Code hook](#claude-code-hook-and-mcp-check_command) below). With
+a machine-readable `--format`, what `npm pack` prints (the tarball's name)
+goes to stderr, so stdout is exactly the report.
 
 **Example:**
 
@@ -474,17 +494,41 @@ sigil npm left-pad -V 1.3.0
 sigil npm @langchain/community
 ```
 
+#### Claude Code hook and MCP check_command
+
 In the Claude Code PreToolUse hook (and the MCP server's `check_command`), a
 `sigil pip` or `sigil npm` command carrying `--allow-build-scripts` is asked
 about rather than allowed: the flag is meant to be your decision, not an
-agent's. The CLI asks for its own confirmation as well (a prompt at a
-terminal, or `SIGIL_ALLOW_BUILD_SCRIPTS=1`; see above), so the hook is a
-second line, not the only one: an agent's shell has no terminal, and the
-variable is one more thing the hook asks about. The native hook, the shell
-fallback and the MCP server's `check_command` read a command four ways.
+agent's. This ask is the one layer aimed at an agent, and it is advisory. The
+CLI's own confirmation (a prompt at a terminal, or `SIGIL_ALLOW_BUILD_SCRIPTS=1`;
+see above) stops accidents and unattended runs, but a program that opens a
+pseudo-terminal and types `yes` passes it (`printf 'yes\n' | script -qec 'sigil
+npm ./pkg --allow-build-scripts' /dev/null` does, on Linux), and so does one
+that sets the variable. The protection that holds is the default: without the
+flag, `sigil pip` and `sigil npm` fetch only a prebuilt wheel or a registry
+tarball and run nothing from the package.
+
+The hook reads the text of a command, and where the text could mean the flag
+it asks (over-asking is the intended failure; a word that starts with the flag
+after a `sigil`-ish command word is enough, because only `pip` and `npm` take
+the flag). The native hook and the MCP server's `check_command` are one
+function. The shell fallback (`sigil-guard.sh`, used when the binary is not on
+PATH) reads the same shapes with sed, awk and extended regular expressions; it
+is a coarser reading that can ask where the native hook allows, and without
+awk it also keeps a `# comment` and a quoted `--` as they are, and joins a
+line continuation that follows a comment. Each reading below is made over the text as written; with the quotes a
+shell splices into a string it hands to an interpreter undone (`'\''`,
+`'"'"'`, `\"`); with up to three layers of double-quote escaping undone (`\\`
+is `\`, `\$` is `$`: `bash -c "sigil np\\m x …"` hands the inner shell
+`np\m`); with every quote and backslash taken off; and with a `;`, `&`, `|`,
+` #` or line end inside a quoted word masked. A `# comment` is dropped first:
+a `#` starts one only at the start of a word, not after an escaped blank, not
+inside `${…}`, and not glued to a `)`, `<` or `>` (`$(a)#`, `<(a)#`), and a
+backslash at the end of a comment's line does not continue it.
 
 1. A `pip` or `npm` word followed by `--allow-build-scripts` (before a
-   standalone `--`), whatever sits between them and whatever the command word
+   standalone `--` that is outside quotes and is not the file of a
+   redirection), whatever sits between them and whatever the command word
    before `pip`/`npm` is spelled like: a quoted `;`, `&`, `|` or ` #`
    (`sigil npm './a;b' --allow-build-scripts`), a line end inside quotes or in
    an argv list that spans lines, a redirection glued to the flag
@@ -494,71 +538,100 @@ fallback and the MCP server's `check_command` read a command four ways.
    (`subprocess.run(['sigil','pip',…,'--allow-build-scripts'])`), and text
    that only mentions it (`echo sigil pip x --allow-build-scripts` is asked
    about too, as `echo npm install x` is denied). It asks about more than the
-   shell would run (`sigil pip x; echo --allow-build-scripts`), never less.
-2. A command that sets `SIGIL_ALLOW_BUILD_SCRIPTS` (`SIGIL_ALLOW_BUILD_SCRIPTS=1
-   sigil …`, `export …`, `env …`). A command that only names it is not asked
-   about.
-3. What the first two cannot see, a word the shell may expand into the flag:
-   after `pip`/`npm` in a `sigil` call, a `$` or backtick expansion, or a
-   word that begins like an option or a pattern (`-`, `{`, `*`, `?`, `[`) and
-   holds a brace expansion (`--allow-build-{scripts,x}`) or a glob
+   shell would run (`sigil pip x; echo --allow-build-scripts`), never less. A
+   `--` that is the file of a redirection (`> --`, `2> --`, `<<< --`) or sits
+   inside a quoted string (`'a -- b'`) does not end the options.
+2. The confirmation variable. Any appearance of `SIGIL_ALLOW_BUILD…` followed
+   by `=` in the same word (`SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil …`,
+   `env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" …`), or next to a word that sets a
+   variable by name (`export`, `declare`, `typeset`, `readonly`, `local`,
+   `printf`, `read`, `mapfile`, `eval`: `printf -v SIGIL_ALLOW_BUILD_SCRIPTS 1;
+   export SIGIL_ALLOW_BUILD_SCRIPTS`), or an assignment whose name has an
+   expansion in it in a call with `export`, `declare`, `env`, `eval` and the
+   like (`export "$V=1"`, `env "${N}_SCRIPTS=1" …`). A command that only names
+   or reads the variable (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`, `echo
+   $SIGIL_ALLOW_BUILD_SCRIPTS`) is not asked about.
+3. The flag after a command word that is, or may be, `sigil`, wherever the
+   subcommand is. Where a word is `sigil` (also `/usr/bin/sigil`,
+   `$(command -v sigil)`), or has an expansion, a backslash, a glob character
+   or a pair of quotes in it (`$S`, `si${E}gil`, `s\igil`, `'sigil'`), a word
+   later in the same call (before a `;`, `&`, `|`, `# comment` or standalone
+   `--`) that starts with `--allow-b` or that a brace expansion or glob may
+   make into the flag (`--allow-build-${F}`, `--allow-build-$(printf scripts)`,
+   `{--allow-build-scripts,}`) asks. So do these, whatever stands between:
+   `sigil --format json $'npm' x --allow-build-scripts`, `S=sigil; M=npm; $S $M
+   x --allow-build-scripts`, `f() { sigil "$@" --allow-build-scripts; }; f npm
+   x`, `printf 'npm\n' | xargs -I@ sigil @ x --allow-build-scripts`.
+4. A word the shell may expand into the flag, after `pip`/`npm`, or after a
+   subcommand that may be one. After `sigil` and its global options (`-v`,
+   `-f X`, `--format X`/`--format=X`, `-o X`, `--rules X`, `--yara-engine X`,
+   `--config X`), the subcommand is `pip`, `npm`, or a word that may expand to
+   one (an expansion, a quote, a backslash, a glob or a brace group: `$SUB`,
+   `$'npm'`, `n\pm`, `np${x}m`, `{pip,npm}`). After it: a `$` or backtick
+   word, or one that begins like an option or a pattern (`-`, `{`, `*`, `?`,
+   `[`) and holds a brace expansion (`--allow-build-{scripts,x}`) or a glob
    (`--allow-build-s*`; a glob expands only where a file of that name exists,
-   which the command can arrange); when `xargs` feeds the call; when the
-   command word right before `pip`/`npm` is itself an expansion (`$SIGIL pip
-   …`, `$(command -v sigil) pip …`); and when the word right after `sigil` is
-   one that may expand to `pip` or `npm`, which is then read as the
-   subcommand, so that a flag or another expansion after it asks
-   (`sigil $SUB x --allow-build-scripts`, `sigil $SUB x $FLAG`). Alone,
-   `sigil $SUB x` is any sigil call and is allowed; a brace group there
-   (`sigil {pip,npm} x`) is asked about, since its pieces become separate
-   words and one of them can be the flag. Separators inside a quoted word do
-   not end the call in this reading either (`sigil npm './a;b' $FLAG`), except
-   in a quoted string that holds a `pip` or `npm` word (a script: `bash -c
-   'sigil pip x; echo $HOME'` ends the call at its `;`).
-4. A nested shell, whatever the flag looks like. A double-quoted string keeps
+   which the command can arrange) asks. A redirection and its file (`> "$LOG"`,
+   `2>&1`) and one quoted word after `-V`/`--version` (`-V "$VER"`, its value)
+   are not arguments. `xargs` feeds a call: a `sigil` behind `xargs` with
+   `pip`/`npm`, or a subcommand that may be one, or a replace string (`-I@`)
+   in the subcommand place or after `pip`/`npm`, or no subcommand at all
+   (`… | xargs sigil`), asks. Alone, `sigil $SUB x` is any sigil call and is
+   allowed; a brace group there (`sigil {pip,npm} x`) is asked about. Not read:
+   a command word and a subcommand that are both bare expansions with the flag
+   in a third (`$S $M x $F`), which is indistinguishable from `$CC $CFLAGS
+   $SRC`.
+5. A nested shell, whatever the flag looks like. A double-quoted string keeps
    a `\c`, and the shell it is handed to reads the unquoted text and drops
    the backslash, so ``bash -c "`which sigil` pip x --allow-build-s\\cripts"``
    runs `sigil pip x --allow-build-scripts` while no reading of the outer
-   text shows the flag. Rather than chase such spellings, a `pip` or `npm`
-   word in text another shell reads is asked about when the words before it
-   in its command may spell `sigil` (they hold `sigil`, or a backslash, quote,
-   `$`, backtick, brace or glob character) and the rest of its call holds a
+   text shows the flag, and `np\\m` is `npm` to the second shell. The call is
+   found from a `sigil`, `pip` or `npm` word (a `sigil` followed by a plain
+   word of another subcommand, `sigil scan …`, is not one), and it asks when
+   the words before a `pip`/`npm` word in its command may spell `sigil` (they
+   hold `sigil`, or a backslash, quote, `$`, backtick, brace or glob
+   character; a `sigil` word needs nothing) and the rest of its call holds a
    backslash, quote, `$`, backtick, `{`, `*`, `?` or `[` (over-asking is the
    intended failure: `bash -c 'sigil pip "requests>=2"'` is asked about, `bash
    -c 'sigil pip requests'` is not). "Text another shell reads" is a quoted
    string when the command holds a shell anywhere (`sh`, `bash`, `dash`,
-   `zsh`, `ksh`, `ssh`, `su`, `eval`, `source`, `.`, `$SHELL`, `trap`, `watch`,
-   `script`, `flock`, `parallel`, also with quotes in the name, `b"as"h`) or a
-   `-c`-like flag on any program but another language's interpreter
-   (`$B -c "…"`), and an unquoted call when a shell stands in its own simple
-   command, a pipeline stage starts one (`printf … | sh`), or the command
-   holds a here-document or here-string and a shell. The three readings
-   are one function in the native hook and the MCP server (`check_command`
-   runs it) and one awk program in the shell fallback (a coarser pattern,
-   which asks about more, without awk). A script that makes random commands
-   from these spellings and runs each under real bash with stub programs, to
-   see whether a `sigil pip|npm` call really received the flag, is
-   `plugins/claude-code/hooks/tests/nested-shell-agreement.py`.
+   `zsh`, `ksh`, `rbash`, `ssh`, `su`, `eval`, `source`, `.`, `$SHELL`, `trap`,
+   `watch`, `script`, `flock`, `parallel`, also with quotes in the name,
+   `b"as"h`), a `-c`-like flag on any program but another language's
+   interpreter (`$B -c "…"`), or text piped or fed by a here-document to a
+   command that is not a known filter (`| rbash`, `| $0`, `| exec sh`; `cat`,
+   `tee`, `grep`, `sed`, `awk`, `jq`, `head`, `tail`, `wc`, `sort` and an
+   interpreter of another language are filters); and an unquoted call when a
+   shell stands in its own simple command, text goes to a command that is not
+   a filter, the command holds a here-document or here-string and a shell,
+   or the words before it hold an expansion.
 
-Quoting the shell splices into a string it hands to an interpreter (`'\''`,
-`'"'"'`, `\"`) is undone before the argv list is read. A redirection's file
-(`sigil pip x > "$LOG"`), one quoted value after `-V` (`-V "$VER"`) and a
-version range or extras (`'requests[security]'`, `'lodash@*'`) are not asked
-about.
+`plugins/claude-code/hooks/tests/nested-shell-agreement.py` makes random
+commands from these spellings (a global option and a spelled subcommand, a
+function's `"$@"`, `xargs` with a replace string, a `#` that is not a comment,
+a redirection's file named `--`, a built name for the variable, nested shells
+and pipes into `sh`, `rbash` and `$0`), runs each under real bash and dash with
+stub programs to see whether a `sigil pip|npm` call really received the flag
+or the variable, and asks the native hook, the MCP `check_command` and the
+shell fallback. It covers only what its generator writes.
 
-The ask is not a hard boundary, and the CLI's confirmation is what holds. The
-hook does not read a flag a program builds at run time (`'--allow-build-' +
-'scripts'` in an interpreter's code), a file or variable the call takes its
-arguments from, or a glob-spelled command word (`sigi[l]`) followed by an
-expansion that spells the flag. It cannot see a script that one tool call
-writes and the next runs (a Write that creates `run.sh` holding `sigil npm
-./evil --allow-build-scripts`, then `sh run.sh`: the Bash call holds neither
-the flag nor the variable), and an inline `SIGIL_BYPASS=1` prefix lifts every
-ask the hook makes. The hook also allows `npm pack <directory or git spec>`,
-`npm view <directory>`, `pip download <path, URL or package>` and `pip wheel
-<path>` run directly, which run the same package code without a quarantine or
-scan. The package-scan tools of the MCP servers never pass the flag. For `deno
-run npm:<package>/<subpath>` the deny names the package without the subpath
+A redirection's file (`sigil pip x > "$LOG"`), one quoted value after `-V`
+(`-V "$VER"`) and a version range or extras (`'requests[security]'`,
+`'lodash@*'`) are not asked about.
+
+Neither the hook nor the CLI's confirmation is a hard boundary. The hook does
+not read a flag a program builds at run time (`'--allow-build-' + 'scripts'` in
+an interpreter's code), a file or variable the call takes its arguments from,
+or a glob-spelled command word (`sigi[l]`) followed by an expansion that
+spells the flag. It cannot see a script that one tool call writes and the next
+runs (a Write that creates `run.sh` holding `sigil npm ./evil
+--allow-build-scripts`, then `sh run.sh`: the Bash call holds neither the flag
+nor the variable), and an inline `SIGIL_BYPASS=1` prefix lifts every ask the
+hook makes. The hook also allows `npm pack <directory or git spec>`, `npm view
+<directory>`, `pip download <path, URL or package>` and `pip wheel <path>` run
+directly, which run the same package code without a quarantine or scan. The
+package-scan tools of the MCP servers never pass the flag. For `deno run
+npm:<package>/<subpath>` the deny names the package without the subpath
 (`sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main`), since npm reads
 `chalk@5.3.0/main` as a git shorthand.
 
@@ -1386,8 +1459,11 @@ The CLI reads the variables below. Others are described with the feature they
 control: `SIGIL_POLICY_FILE` and `SIGIL_NO_PROJECT_CONFIG` (scan policy, see the
 [Configuration Guide](configuration.md#scan-policy-sigilyml)),
 `SIGIL_PACK_PUBLIC_KEY` ([`sigil rules`](#sigil-rules)),
-`SIGIL_ALLOW_PRIVATE_URLS` ([archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links))
-and `SIGIL_GUARD_MODE` / `SIGIL_BYPASS` ([`sigil hook`](#sigil-hook)).
+`SIGIL_ALLOW_PRIVATE_URLS` ([archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links),
+and the tarball download of [`sigil npm`](#sigil-npm)),
+`SIGIL_ALLOW_BUILD_SCRIPTS` (the confirmation of `--allow-build-scripts` where
+there is no terminal: [`sigil pip`](#sigil-pip), [`sigil npm`](#sigil-npm)) and
+`SIGIL_GUARD_MODE` / `SIGIL_BYPASS` ([`sigil hook`](#sigil-hook)).
 
 The CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`,
 `SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; the
