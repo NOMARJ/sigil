@@ -159,13 +159,16 @@ fn tool_definitions() -> Value {
             "name": "scan_package",
             "title": "Scan a package before install",
             "description": "Download an npm or PyPI package into quarantine (without running any of its \
-    install scripts) and scan it. Returns the verdict and safe_to_install.",
+    install scripts) and scan it. Returns the verdict, safe_to_install and `package`, the exact \
+    release that was scanned (install that version). Registry packages by name only: a path, URL \
+    or git spec is refused, and a PyPI release with no prebuilt wheel for this platform fails, \
+    because fetching those would run the package's own code.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "ecosystem": { "type": "string", "enum": ["npm", "pypi"] },
                     "name": { "type": "string", "description": "Package name" },
-                    "version": { "type": "string", "description": "Exact version (default: latest)" }
+                    "version": { "type": "string", "description": "Version to scan: an exact version (PyPI), or a version, tag or range (npm). Default: the release a plain install would pick. The result's `package` names the release scanned." }
                 },
                 "required": ["ecosystem", "name"]
             },
@@ -308,7 +311,7 @@ fn summarise_report(target: &str, code: i32, stdout: &str, stderr: &str) -> Resu
             };
             format!(
                 "sigil exited {code} without a JSON report for {target}: {}",
-                truncate(detail, 600)
+                abridge(detail, 200, 1400)
             )
         })?;
 
@@ -372,6 +375,9 @@ fn summarise_report(target: &str, code: i32, stdout: &str, stderr: &str) -> Resu
         "findings_truncated": total > MAX_FINDINGS_INLINE,
         "findings": top,
         "quarantine_id": report.get("quarantine_id"),
+        // `sigil pip`/`npm`: the release downloaded and scanned
+        // (`left-pad@1.3.0`, `six==1.17.0`).
+        "package": report.get("package"),
     }))
 }
 
@@ -383,6 +389,21 @@ fn severity_rank(finding: &Value) -> u8 {
         Some("Low") => 1,
         _ => 0,
     }
+}
+
+/// `s` cut down to its first `head` and last `tail` characters when it is
+/// longer than both together, with `…` between. A failed run's stderr starts
+/// with the tools' own progress and errors and ends with Sigil's
+/// explanation and advice (what to pin, what flag to re-run with); the
+/// advice is what an agent has to see.
+fn abridge(s: &str, head: usize, tail: usize) -> String {
+    let n = s.chars().count();
+    if n <= head + tail {
+        return s.to_string();
+    }
+    let first: String = s.chars().take(head).collect();
+    let last: String = s.chars().skip(n - tail).collect();
+    format!("{}… {}", first.trim_end(), last.trim_start())
 }
 
 fn truncate(s: &str, max: usize) -> String {
@@ -449,6 +470,55 @@ mod tests {
 
         let r = call(r#"{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"check_command","arguments":{"command":"ls -la"}}}"#).unwrap();
         assert_eq!(r["result"]["structuredContent"]["decision"], "allow");
+    }
+
+    #[test]
+    fn check_command_asks_about_the_listed_opt_in_shapes() {
+        let decision = |command: &str| {
+            let request = serde_json::json!({
+                "jsonrpc": "2.0", "id": 9, "method": "tools/call",
+                "params": {"name": "check_command", "arguments": {"command": command}},
+            });
+            let r = call(&request.to_string()).unwrap();
+            r["result"]["structuredContent"]["decision"].clone()
+        };
+        for command in [
+            "sigil npm ./evil --allow-build-scripts",
+            "sigil npm './ev;il' --allow-build-scripts",
+            "sigil pip x --rules 'a #b' --allow-build-scripts",
+            "si${E}gil npm ./evx --allow-build-scripts",
+            r"bash -c 'sig'\'''\''il npm ./evx --allow-build-scripts'",
+            "SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm ./evx",
+            "python3 - <<'EOF'\nsubprocess.run([\n \"sigil\",\n \"npm\",\n \"./evx\",\n \"--allow-build-scripts\",\n])\nEOF",
+            // A nested shell may rewrite the flag (a backslash that a
+            // double-quoted string keeps and the inner shell drops).
+            r#"bash -c "`which sigil` pip x --allow-build-s\\cripts""#,
+            r#"sh -c "sigil npm x --allow-build-s\\cripts""#,
+            r#"eval sigil pip x --allow-build-s\\cripts"#,
+            r#"echo "sigil pip x --allow-build-s\\cripts" | sh"#,
+            // More spellings the hook reads: a `#` inside backticks,
+            // a `--` cut out of a word, a variable that holds the call, a
+            // glob, and a `--` of its own (the CLI would not read the flag
+            // after it; the reading does not stop there).
+            "echo `echo a # `; sigil pip x --allow-build-scripts",
+            "sigil pip x -V a,--,b --allow-build-scripts",
+            "sigil pip x <(cat -- /dev/null) --allow-build-scripts",
+            r#"set -- 1.0 --allow-build-scripts; sigil pip x -V "$@""#,
+            r#"ARGS="pip x --allow-build-scripts"; sigil $ARGS"#,
+            "touch -- --allow-build-scripts; sigil pip x [a-]-allow-build-scripts",
+            "touch pip; F=--allow-build-scripts; sigil p[i]p x $F",
+            "sigil npm -- --allow-build-scripts",
+        ] {
+            assert_eq!(decision(command), "ask", "{command}");
+        }
+        for command in [
+            "sigil npm left-pad",
+            "sigil pip requests[socks]",
+            r#"bash -c "sigil pip requests""#,
+            r#"bash -c "cd /tmp && sigil npm left-pad""#,
+        ] {
+            assert_eq!(decision(command), "allow", "{command}");
+        }
     }
 
     #[test]
@@ -533,6 +603,40 @@ mod tests {
         let s = summarise_report("x", 0, stdout, "").unwrap();
         assert_eq!(s["safe_to_install"], true);
         assert_eq!(s["decision"], "allow");
+    }
+
+    #[test]
+    fn a_failure_without_a_report_keeps_the_advice_at_the_end_of_stderr() {
+        let noise =
+            "Collecting idx-pkg\n  Looking in indexes: https://pypi.example/simple\n".repeat(30);
+        let stderr = format!(
+            "{noise}ERROR: No matching distribution found for idx-pkg==2.0\n\
+             error: pip download failed\n  Pin a version that has a wheel, or re-run with \
+             --allow-build-scripts."
+        );
+        let err = summarise_report("pypi:idx-pkg", 2, "", &stderr).unwrap_err();
+        assert!(
+            err.contains("Collecting idx-pkg"),
+            "the start is kept: {err}"
+        );
+        assert!(err.contains("Pin a version that has a wheel"), "{err}");
+        assert!(err.contains("--allow-build-scripts"), "{err}");
+        assert!(err.chars().count() < 1800, "{}", err.chars().count());
+        // Short output is shown whole.
+        let err = summarise_report("x", 2, "", "error: nope").unwrap_err();
+        assert!(err.ends_with("error: nope"), "{err}");
+    }
+
+    #[test]
+    fn the_scanned_release_is_returned() {
+        let stdout =
+            r#"{"findings":[],"package":"left-pad@1.3.0","summary":{"verdict":"LOW RISK"}}"#;
+        let s = summarise_report("npm:left-pad", 0, stdout, "").unwrap();
+        assert_eq!(s["package"], "left-pad@1.3.0");
+        // A scan report without one (sigil scan) says so with null.
+        let stdout = r#"{"findings":[],"summary":{"verdict":"LOW RISK"}}"#;
+        let s = summarise_report("x", 0, stdout, "").unwrap();
+        assert!(s["package"].is_null());
     }
 
     #[test]

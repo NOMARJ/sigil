@@ -63,8 +63,8 @@ It exposes three tools:
 | Tool | Arguments | Returns |
 |------|-----------|---------|
 | `scan` | `target` (path or git URL), optional `min_severity` | `verdict`, `decision` (`allow` / `review` / `block`), `safe_to_install`, `policy_gate`, `score`, `grade`, `platform`, `behaviors`, and the 25 most severe findings |
-| `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` | the same summary for a package downloaded into quarantine without running its install scripts |
-| `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook |
+| `scan_package` | `ecosystem` (`npm` or `pypi`), `name`, optional `version` (an exact version for PyPI; a version, tag or range for npm) | the same summary for a registry package downloaded into quarantine without running any of its code (see `sigil pip` / `sigil npm` in the [CLI reference](cli.md)), plus `package`, the exact release scanned (`left-pad@1.3.0`, `six==1.17.0`: install that one); a path, URL or git spec is refused, and so is a PyPI release with no prebuilt wheel |
+| `check_command` | `command` | `allow` / `ask` / `deny` and the reason, using the same acquisition policy as the Claude Code PreToolUse hook (so a `sigil pip` / `sigil npm` command that carries `--allow-build-scripts`, or sets `SIGIL_ALLOW_BUILD_SCRIPTS`, is `ask`; `scan_package` itself never passes that flag) |
 
 `safe_to_install` is `true` only for a `LOW RISK` verdict that no active scan
 policy fails. When a policy is in effect, `policy_gate` is `pass` or `fail`
@@ -252,15 +252,26 @@ directory, remove crontab line) ending with the statement that nothing has been 
 
 ### sigil_scan_package
 
-Download and scan an npm or pip package in quarantine before installing it.
+Download and scan an npm or pip package in quarantine before installing it,
+without running any of its code. It runs `sigil --format json <manager>
+<package_name> [--version <version>]`, so it takes what `sigil pip` and
+`sigil npm` take (see the [CLI reference](cli.md)): a registry package name,
+never a path, URL or git spec.
 
-| Parameter      | Type               | Required | Description              |
-| -------------- | ------------------ | -------- | ------------------------ |
-| `manager`      | `"npm"` or `"pip"` | Yes      | Package manager          |
-| `package_name` | string             | Yes      | Package name to scan     |
-| `version`      | string             | No       | Specific version to scan |
+| Parameter      | Type               | Required | Description                                                                                                                                                                                      |
+| -------------- | ------------------ | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `manager`      | `"npm"` or `"pip"` | Yes      | Package manager                                                                                                                                                                                  |
+| `package_name` | string             | Yes      | A registry package name. pip: with optional extras and specifiers (`requests`, `requests[socks]`, `"requests>=2,<3"`). npm: scoped names allowed, with an optional `@version`, `@tag` or `@range` (`left-pad`, `@types/node`, `left-pad@^1.3`) |
+| `version`      | string             | No       | pip: an exact version (a range goes in `package_name`). npm: a version, dist-tag or range. Not with a `package_name` that already names a version                                               |
 
-**Returns:** Package identifier, verdict, score, and findings.
+A path, URL, git spec (including the `owner/repo` shorthand) or `npm:` alias
+is refused (exit 2, an error result), and so is a PyPI release published only
+as a source distribution or with no wheel for this platform: pip would build it,
+which runs its setup code. Pin a version that has a wheel instead.
+
+**Returns:** Package identifier, verdict, score, and findings. The package
+line also names the exact release that was scanned (`left-pad@1.3.0`,
+`requests==2.32.3`): install that version.
 
 ---
 

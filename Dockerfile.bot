@@ -11,14 +11,14 @@ FROM python:3.11-slim-bookworm
 LABEL maintainer="NOMARK <team@nomark.dev>"
 LABEL description="Sigil Bot — Autonomous registry monitor and scanner"
 
-# Install runtime dependencies (git for repo cloning, npm/node for npm pack)
+# Install runtime dependencies (git for repo cloning). No npm or pip runs
+# here: the crawler fetches PyPI files and npm tarballs over HTTP, checks
+# their digests and only unpacks them, so no package code runs before a scan.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     file \
     tini \
-    nodejs \
-    npm \
     gnupg \
     apt-transport-https \
     && rm -rf /var/lib/apt/lists/*

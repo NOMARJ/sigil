@@ -286,8 +286,9 @@ def scan_openclaw_directory(directory: str) -> list[Finding]:
     skip_dirs = {".git", "node_modules", "__pycache__", ".venv"}
 
     def walk(path: Path) -> Iterator[Path]:
+        # A symbolic link is never followed: it can point outside the tree.
         for child in sorted(path.iterdir()):
-            if child.name in skip_dirs:
+            if child.name in skip_dirs or child.is_symlink():
                 continue
             if child.is_file():
                 yield child

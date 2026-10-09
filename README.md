@@ -14,7 +14,7 @@
 
 ---
 
-Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing is installed or run before it has been scanned and scored, and you decide what to approve. Two exceptions: `sigil pip` lets pip run a package's `setup.py` while downloading it when pip picks its source distribution (no wheel for your platform and Python in the version it selects), and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts.
+Sigil scans repositories, packages, MCP servers, skills, and agent tooling for malicious patterns **before they reach your working environment**. Nothing is installed or run before it has been scanned and scored, and you decide what to approve. That includes the package tools Sigil calls: `sigil pip` downloads only the prebuilt wheel of the release `pip install` would pick, and `sigil npm` downloads the registry tarball itself and checks it against the registry's integrity; both refuse paths, URLs and git specs, which pip or npm would build or run scripts for (`--allow-build-scripts` accepts them for code you already trust, after you confirm at a terminal, and with a warning). Up to 1.3.7, `sigil pip` let pip run a source distribution's `setup.py`, and `sigil npm` of a local directory or git spec let `npm pack` run its lifecycle scripts, before the scan.
 
 The AI tooling ecosystem moves fast. Developers clone repos from tutorials, install MCP servers with 12 GitHub stars, and pull agent skills from Discord — all of which get direct access to API keys, databases, and cloud credentials. Traditional dependency scanners catch known CVEs but miss the real threat: **intentionally malicious code** designed to exfiltrate credentials, establish backdoors, or execute arbitrary commands via install hooks.
 
@@ -114,10 +114,12 @@ remediation text and references; a reviewed finding can be silenced in place wit
 # Clone a repo into quarantine, scan it, get a verdict
 sigil clone https://github.com/someone/cool-mcp-server
 
-# Download and scan a pip package before installing
+# Download and scan a pip package before installing (prebuilt wheels only:
+# no package code runs before the scan)
 sigil pip some-agent-toolkit
 
-# Download and scan an npm package before installing
+# Download and scan an npm package before installing (the registry
+# tarball, checked against the registry's integrity; no package code runs)
 sigil npm langchain-community-plugin
 
 # Scan a directory or file already on disk — or a git URL (quarantined first)

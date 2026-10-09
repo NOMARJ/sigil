@@ -131,7 +131,7 @@ class PyPIWatcher(BaseWatcher):
                                 ecosystem="pypi",
                                 name=name,
                                 version=version,
-                                download_url="",  # pip download handles this
+                                download_url="",  # the crawler takes the file from PyPI's JSON API
                                 priority=priority,
                                 metadata={
                                     "author": meta.get("author", ""),

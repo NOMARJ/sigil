@@ -44,6 +44,9 @@ walkdir = "2"
 ignore = "0.4"
 rayon = "1"
 sha2 = "0.10"
+# Already built for zip (same version and features): `sigil npm` checks a
+# tarball against an npm registry `dist.shasum` when it gives no integrity.
+sha1 = "0.10"
 hex = "0.4"
 colored = "2"
 dirs = "5"
