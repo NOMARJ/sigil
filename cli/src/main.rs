@@ -3351,6 +3351,11 @@ async fn cmd_scan(
         return EXIT_ERROR;
     }
     if from_cache {
+        // The cloud options run on a fresh scan only. Say so, or a re-scan of
+        // unchanged content looks as if `--submit` stored a scan.
+        if let Some(note) = cached_cloud_options_note(submit, enrich, enhanced) {
+            eprintln!("{} {}", "warning:".bold().yellow(), note);
+        }
         return scan_exit_code(&policy, &result);
     }
 
@@ -3364,34 +3369,39 @@ async fn cmd_scan(
 
         let client = api::SigilClient::new(None);
         match client.lookup_threat(&dir_hash).await {
-            Ok(info) => {
-                if info.known_malicious {
-                    println!(
-                        "\n  {} {} is a known threat: {}",
-                        "THREAT INTEL:".bold().red(),
-                        path.display(),
-                        info.description.as_deref().unwrap_or("no description")
-                    );
-                    if let Some(threat_type) = &info.threat_type {
-                        println!("  Type: {}", threat_type);
-                    }
-                } else if verbose {
-                    eprintln!("no threat intel match for this target");
-                }
+            Ok(info) if info.known_malicious => {
+                print_progress(format, threat_intel_lines(path, &info));
             }
-            Err(err) => {
-                if verbose {
-                    eprintln!(
-                        "{} cloud enrichment unavailable: {}",
-                        "warning:".bold().yellow(),
-                        err
-                    );
-                }
-            }
+            // The Sigil API answers 404 for an unknown hash, so a 2xx that
+            // names no entry came from something else (a proxy, a portal):
+            // not a lookup result, and not "no match" either.
+            Ok(info) if info.unrecognised => eprintln!(
+                "{} threat-intel lookup returned an unrecognised answer (a success response \
+                 that names no threat entry; the Sigil API answers 404 for an unknown hash), \
+                 so there is no lookup result",
+                "warning:".bold().yellow()
+            ),
+            Ok(_) => print_progress(
+                format,
+                format!(
+                    "{} no threat-intel match for this directory's hash",
+                    "sigil:".bold().cyan()
+                ),
+            ),
+            // Asked for explicitly, so a failed lookup is always reported:
+            // silence would read as "no match".
+            Err(err) => eprintln!(
+                "{} threat-intel lookup failed: {}",
+                "warning:".bold().yellow(),
+                err
+            ),
         }
     }
 
     // --- Enhanced LLM analysis (Pro feature) -------------------------------
+    // The scan the API stored for `--enhanced`, when it said so: the API
+    // stores every scan it receives, so `--submit` has nothing left to send.
+    let mut stored_by_enhanced: Option<String> = None;
     if enhanced {
         let client = api::SigilClient::new(None);
 
@@ -3427,16 +3437,8 @@ async fn cmd_scan(
 
             match client.submit_enhanced_scan(&result, file_contents).await {
                 Ok(response) => {
-                    println!(
-                        "\n{} Enhanced LLM analysis completed",
-                        "sigil:".bold().green()
-                    );
-                    if verbose {
-                        eprintln!("  Scan ID: {}", response.id);
-                        if let Some(msg) = response.message {
-                            eprintln!("  Message: {}", msg);
-                        }
-                    }
+                    stored_by_enhanced = response.scan_id().map(str::to_string);
+                    report_enhanced_outcome(&response, format)
                 }
                 Err(err) => {
                     eprintln!(
@@ -3451,24 +3453,156 @@ async fn cmd_scan(
     }
 
     if submit {
-        if verbose {
-            eprintln!("submitting results to Sigil cloud...");
-        }
-        let client = api::SigilClient::new(None);
-        match client.submit_scan(&result).await {
-            Ok(_) => println!(
-                "{} results submitted to Sigil cloud",
-                "sigil:".bold().green()
-            ),
-            Err(err) => eprintln!(
-                "{} failed to submit results: {} (continuing offline)",
-                "warning:".bold().yellow(),
-                err
-            ),
+        if let Some(scan_id) = &stored_by_enhanced {
+            // A second upload would record a second scan and count twice
+            // against the monthly quota.
+            print_progress(
+                format,
+                format!(
+                    "{} results submitted to Sigil cloud by the --enhanced upload (scan id: {}); \
+                     --submit sent nothing more",
+                    "sigil:".bold().green(),
+                    api::terminal_text(scan_id)
+                ),
+            );
+        } else {
+            if verbose {
+                eprintln!("submitting results to Sigil cloud...");
+            }
+            let client = api::SigilClient::new(None);
+            match client.submit_scan(&result).await {
+                Ok(response) => match response.scan_id() {
+                    Some(scan_id) => print_progress(
+                        format,
+                        format!(
+                            "{} results submitted to Sigil cloud (scan id: {})",
+                            "sigil:".bold().green(),
+                            api::terminal_text(scan_id)
+                        ),
+                    ),
+                    // The API names the scan it stored. A 2xx without an id
+                    // is not the Sigil API (a proxy or portal answering):
+                    // nothing says the scan was kept.
+                    None => eprintln!(
+                        "{} the API answered but returned no scan id, so there is no \
+                         confirmation that the scan was stored",
+                        "warning:".bold().yellow()
+                    ),
+                },
+                Err(err) => eprintln!(
+                    "{} failed to submit results: {} (continuing offline)",
+                    "warning:".bold().yellow(),
+                    err
+                ),
+            }
         }
     }
 
     scan_exit_code(&policy, &result)
+}
+
+/// The warning for cloud options a cached result skipped: they run on a fresh
+/// scan only. `None` when none was asked for.
+fn cached_cloud_options_note(submit: bool, enrich: bool, enhanced: bool) -> Option<String> {
+    let skipped: Vec<&str> = [
+        (submit, "--submit"),
+        (enrich, "--enrich"),
+        (enhanced, "--enhanced"),
+    ]
+    .into_iter()
+    .filter_map(|(asked, flag)| asked.then_some(flag))
+    .collect();
+    let names = match skipped.as_slice() {
+        [] => return None,
+        [one] => (*one).to_string(),
+        [init @ .., last] => format!("{} and {}", init.join(", "), last),
+    };
+    let verb = if skipped.len() == 1 { "was" } else { "were" };
+    Some(format!(
+        "{names} {verb} skipped: the result came from the cache and the cloud options run \
+         only on a fresh scan; add --no-cache to run {}",
+        if skipped.len() == 1 { "it" } else { "them" }
+    ))
+}
+
+/// The `--enrich` match message: the threat entry's description, then the
+/// package, severity and source when the API gives them.
+fn threat_intel_lines(path: &Path, info: &api::ThreatInfo) -> String {
+    fn nonempty(v: &Option<String>) -> Option<String> {
+        v.as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(api::terminal_text)
+    }
+    let mut out = format!(
+        "\n  {} {} is a known threat: {}",
+        "THREAT INTEL:".bold().red(),
+        path.display(),
+        nonempty(&info.description).unwrap_or_else(|| "no description".to_string())
+    );
+    if let Some(name) = nonempty(&info.package_name) {
+        match nonempty(&info.version) {
+            Some(v) => out.push_str(&format!("\n  Package: {} {}", name, v)),
+            None => out.push_str(&format!("\n  Package: {}", name)),
+        }
+    }
+    if let Some(t) = nonempty(&info.threat_type) {
+        out.push_str(&format!("\n  Type: {}", t));
+    }
+    if let Some(s) = nonempty(&info.severity) {
+        out.push_str(&format!("\n  Severity: {}", s));
+    }
+    if let Some(s) = nonempty(&info.source) {
+        out.push_str(&format!("\n  Source: {}", s));
+    }
+    out
+}
+
+/// Say what `--enhanced` actually got back. The API answers 200 with the
+/// static result when its LLM step does not run, so "completed" is printed
+/// only when the response says LLM analysis was performed.
+fn report_enhanced_outcome(response: &api::ScanResponse, format: &str) {
+    let scan_id = api::terminal_text(response.scan_id().unwrap_or("not returned"));
+    match api::EnhancedOutcome::from_response(response) {
+        api::EnhancedOutcome::Analysed { llm_findings } => {
+            let mut msg = format!(
+                "\n{} enhanced LLM analysis completed: {} LLM finding(s) (scan id: {})",
+                "sigil:".bold().green(),
+                llm_findings.len(),
+                scan_id
+            );
+            for f in &llm_findings {
+                let field =
+                    |k: &str| api::terminal_text(f.get(k).and_then(|v| v.as_str()).unwrap_or(""));
+                let line = f
+                    .get("line")
+                    .and_then(|v| v.as_u64())
+                    .map(|l| format!(":{l}"))
+                    .unwrap_or_default();
+                msg.push_str(&format!(
+                    "\n  [{}] {} {}{} {}",
+                    field("severity"),
+                    field("rule"),
+                    field("file"),
+                    line,
+                    field("description")
+                ));
+            }
+            print_progress(format, msg);
+        }
+        api::EnhancedOutcome::UpgradeRequired => eprintln!(
+            "{} LLM analysis needs a Pro plan: the files were sent, but the API returned \
+             only its static analysis (scan id: {})",
+            "warning:".bold().yellow(),
+            scan_id
+        ),
+        api::EnhancedOutcome::NotRun(reason) => eprintln!(
+            "{} the API did not run LLM analysis ({}); it returned only its static \
+             analysis (scan id: {})",
+            "warning:".bold().yellow(),
+            reason,
+            scan_id
+        ),
+    }
 }
 
 /// Exit code for `sigil scan` under ADR-0010: 1 when an active finding is at
@@ -4715,8 +4849,15 @@ async fn cmd_login(token: Option<&str>, endpoint: &str, verbose: bool) -> i32 {
 }
 
 async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: bool) -> i32 {
+    let digest = match api::report_digest(hash) {
+        Ok(digest) => digest,
+        Err(err) => {
+            eprintln!("{} {}", "error:".bold().red(), err);
+            return 1;
+        }
+    };
     if verbose {
-        eprintln!("reporting threat: hash={}", hash);
+        eprintln!("reporting threat: hash={}", digest);
     }
 
     let client = api::SigilClient::new(None);
@@ -4729,19 +4870,44 @@ async fn cmd_report(hash: &str, threat_type: &str, description: &str, verbose: b
         return 1;
     }
 
-    match client.report_threat(hash, threat_type, description).await {
-        Ok(response) => {
-            println!(
-                "{} threat reported successfully (id: {})",
-                "sigil:".bold().green(),
-                response.id
-            );
-            0
-        }
+    match client
+        .report_threat(&digest, threat_type, description)
+        .await
+    {
+        Ok(response) => match report_outcome(&response) {
+            Ok(line) => {
+                println!("{line}");
+                0
+            }
+            Err(warning) => {
+                eprintln!("{} {}", "warning:".bold().yellow(), warning);
+                1
+            }
+        },
         Err(err) => {
             eprintln!("{} failed to report threat: {}", "error:".bold().red(), err);
             1
         }
+    }
+}
+
+/// What `sigil report` says about the API's 2xx answer. The API names the
+/// report it recorded, so an answer that names none (`{}` from a proxy or
+/// captive portal) is not a confirmation: `Err` is the warning to print
+/// instead of the success line.
+fn report_outcome(response: &api::ReportResponse) -> Result<String, String> {
+    match response.report_id() {
+        Some(id) => Ok(format!(
+            "{} threat reported successfully (id: {}, status: {})",
+            "sigil:".bold().green(),
+            api::terminal_text(id),
+            api::terminal_text(response.status.as_deref().unwrap_or("not returned"))
+        )),
+        None => Err(
+            "the API answered but returned no report id, so there is no confirmation \
+             that the report was recorded"
+                .to_string(),
+        ),
     }
 }
 
@@ -5833,5 +5999,128 @@ mod exit_code_tests {
             assert!(error.contains("already approved"));
             assert!(super::ledger::get(&entry.id).is_none());
         });
+    }
+}
+
+#[cfg(test)]
+mod cloud_response_tests {
+    use super::{cached_cloud_options_note, report_outcome, threat_intel_lines};
+    use crate::api::{parse_threat_info, ReportResponse};
+    use std::path::Path;
+
+    fn report(body: &str) -> ReportResponse {
+        serde_json::from_str(body).expect("report response")
+    }
+
+    #[test]
+    fn a_report_is_confirmed_only_when_the_api_names_it() {
+        let line = report_outcome(&report(
+            r#"{"report_id":"r-1","id":"r-1","status":"received","message":"thanks"}"#,
+        ))
+        .expect("the API's own answer");
+        assert!(line.contains("threat reported successfully"), "{line}");
+        assert!(
+            line.contains("id: r-1") && line.contains("status: received"),
+            "{line}"
+        );
+
+        // CLI 1.3.7's `id` alone still names the report.
+        assert!(report_outcome(&report(r#"{"id":"r-2"}"#)).is_ok());
+
+        // A 2xx that names no report is no confirmation, whatever else it says.
+        for body in [
+            "{}",
+            r#"{"status":"ok"}"#,
+            r#"{"report_id":"","id":""}"#,
+            r#"{"report_id":null,"message":"welcome to the guest network"}"#,
+        ] {
+            let warning = report_outcome(&report(body)).expect_err(body);
+            assert!(warning.contains("no report id"), "{body}: {warning}");
+            assert!(!warning.contains("successfully"), "{body}: {warning}");
+        }
+    }
+
+    #[test]
+    fn a_report_id_and_status_are_printed_without_control_characters() {
+        let line = report_outcome(&report(
+            "{\"report_id\":\"r\\u001b[2J\\u202e1\",\"status\":\"ok\\u2028\\u0007\"}",
+        ))
+        .unwrap();
+        for c in ['\u{1b}', '\u{202E}', '\u{2028}', '\u{7}'] {
+            assert!(!line.contains(c), "{line:?}");
+        }
+    }
+
+    #[test]
+    fn a_threat_match_prints_every_field_without_control_characters() {
+        let hostile = "safe \u{202E})(txet desrever\u{2069} \u{200B}\u{2066} end \
+                       \u{1b}[2J U+2028:\u{2028}next-line";
+        let body = serde_json::json!({
+            "hash": "h", "package_name": format!("pkg{}", '\u{202E}'), "version": "9.9.9",
+            "severity": "CRITICAL\u{1b}[0m", "source": "community\u{7}",
+            "threat_type": "malware\u{2028}", "description": hostile,
+        })
+        .to_string();
+        let info = parse_threat_info(&body, "h").unwrap();
+        assert!(info.known_malicious);
+        let lines = threat_intel_lines(Path::new("fixture"), &info);
+        for c in [
+            '\u{1b}', '\u{7}', '\u{202E}', '\u{2066}', '\u{2069}', '\u{200B}', '\u{2028}',
+        ] {
+            assert!(!lines.contains(c), "U+{:04X} in {lines:?}", u32::from(c));
+        }
+        assert!(lines.contains("Package: pkg  9.9.9"), "{lines}");
+        assert!(lines.contains("next-line"), "{lines}");
+    }
+
+    #[test]
+    fn a_cached_result_says_which_cloud_options_it_skipped() {
+        assert_eq!(cached_cloud_options_note(false, false, false), None);
+        let one = cached_cloud_options_note(true, false, false).unwrap();
+        assert!(one.starts_with("--submit was skipped"), "{one}");
+        assert!(one.ends_with("add --no-cache to run it"), "{one}");
+        let two = cached_cloud_options_note(false, true, true).unwrap();
+        assert!(
+            two.starts_with("--enrich and --enhanced were skipped"),
+            "{two}"
+        );
+        assert!(two.ends_with("add --no-cache to run them"), "{two}");
+        let three = cached_cloud_options_note(true, true, true).unwrap();
+        assert!(
+            three.starts_with("--submit, --enrich and --enhanced were skipped"),
+            "{three}"
+        );
+        assert!(!three.contains('\n'), "{three}");
+    }
+
+    #[test]
+    fn a_lookup_answer_that_names_no_entry_is_unrecognised_not_a_miss() {
+        // What `--enrich` reports for each kind of 2xx body: only a body that
+        // says nothing either way is "unrecognised"; an explicit
+        // `known_malicious: false` is the API's own "no match".
+        for body in [
+            "{}",
+            r#"{"detail":"Not Found"}"#,
+            r#"{"hash":"","package_name":null}"#,
+            r#"{"status":"ok","message":"welcome to the guest network"}"#,
+        ] {
+            let info = parse_threat_info(body, "h").unwrap();
+            assert!(!info.known_malicious && info.unrecognised, "{body}");
+        }
+        for body in [
+            r#"{"known_malicious":false}"#,
+            r#"{"known_malicious":false,"hash":"h","references":[]}"#,
+        ] {
+            let info = parse_threat_info(body, "h").unwrap();
+            assert!(!info.known_malicious && !info.unrecognised, "{body}");
+        }
+        for body in [
+            r#"{"hash":"h1"}"#,
+            r#"{"package_name":"evil"}"#,
+            r#"{"known_malicious":true}"#,
+        ] {
+            let info = parse_threat_info(body, "h").unwrap();
+            assert!(info.known_malicious && !info.unrecognised, "{body}");
+        }
     }
 }

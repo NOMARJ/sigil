@@ -13,6 +13,10 @@ const phaseLabels: Record<ScanPhase, string> = {
   credentials: "Credentials",
   obfuscation: "Obfuscation",
   provenance: "Provenance",
+  prompt_injection: "Prompt Injection",
+  skill_security: "Skill Security",
+  inference_security: "Inference Security",
+  llm_analysis: "LLM Analysis",
 };
 
 const phaseDescriptions: Record<ScanPhase, string> = {
@@ -22,6 +26,10 @@ const phaseDescriptions: Record<ScanPhase, string> = {
   credentials: "ENV vars, API keys, SSH keys, and credential access",
   obfuscation: "base64, charCode, hex encoding, and code obfuscation",
   provenance: "Git history anomalies, binaries, and hidden files",
+  prompt_injection: "Instructions aimed at AI agents in prompts, docs, and tool descriptions",
+  skill_security: "MCP and agent skill permission escalation and tool abuse",
+  inference_security: "LLM clients pointed at hard-coded or hijackable endpoints",
+  llm_analysis: "Findings from AI-powered analysis (Pro)",
 };
 
 const phaseOrder: ScanPhase[] = [
@@ -31,6 +39,10 @@ const phaseOrder: ScanPhase[] = [
   "credentials",
   "obfuscation",
   "provenance",
+  "prompt_injection",
+  "skill_security",
+  "inference_security",
+  "llm_analysis",
 ];
 
 export default function FindingsList({ findings }: FindingsListProps) {

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -27,7 +27,7 @@ from api.models import (
     GateError,
     PlanTier,
     SignatureResponse,
-    ThreatEntry,
+    ThreatLookupResponse,
 )
 
 from api.routers.auth import get_current_user_unified, UserResponse
@@ -76,7 +76,7 @@ class ReportStatusUpdate(BaseModel):
 
 @router.get(
     "/threat/{package_hash}",
-    response_model=Optional[ThreatEntry],
+    response_model=ThreatLookupResponse,
     summary="Look up a package hash in the threat database",
     responses={
         401: {"model": ErrorResponse},
@@ -88,11 +88,14 @@ async def get_threat(
     package_hash: str,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     _: Annotated[None, Depends(require_plan(PlanTier.PRO))],
-) -> ThreatEntry:
+) -> ThreatLookupResponse:
     """Return the threat entry for *package_hash* if it exists.
 
     The hash should be the SHA-256 digest of the package artifact.
-    Returns 404 when the hash is not present in the threat database.
+    Returns 404 when the hash is not present in the threat database. A match
+    also carries `known_malicious: true` and `references`, which `sigil scan
+    --enrich` in CLI 1.3.7 needs to show it. Text fields carry no control
+    characters.
     """
     entry = await lookup_threat(package_hash)
     if entry is None:
@@ -100,7 +103,7 @@ async def get_threat(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No threat entry found for hash '{package_hash}'",
         )
-    return entry
+    return ThreatLookupResponse.from_entry(entry)
 
 
 # ---------------------------------------------------------------------------

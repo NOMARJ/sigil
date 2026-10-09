@@ -9,10 +9,20 @@ from __future__ import annotations
 
 import enum
 import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    computed_field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 
 def utcnow() -> datetime:
@@ -52,7 +62,7 @@ class Confidence(str, enum.Enum):
 
 
 class ScanPhase(str, enum.Enum):
-    """The nine scan phases: original six + AI security extensions."""
+    """The scan phases: original six + AI security extensions."""
 
     INSTALL_HOOKS = "install_hooks"
     CODE_PATTERNS = "code_patterns"
@@ -63,6 +73,9 @@ class ScanPhase(str, enum.Enum):
     PROMPT_INJECTION = "prompt_injection"  # Phase 7: Prompt injection attacks
     SKILL_SECURITY = "skill_security"  # Phase 8: AI skill/tool abuse
     LLM_ANALYSIS = "llm_analysis"  # Phase 9: AI-powered threat detection (Pro)
+    # Phase 10 of the Rust CLI (static INFER-* rules: hijackable LLM client
+    # endpoints). Not an LLM verdict, so it is not folded into llm_analysis.
+    INFERENCE_SECURITY = "inference_security"
 
 
 class PlanTier(str, enum.Enum):
@@ -79,6 +92,17 @@ class PlanTier(str, enum.Enum):
 # ---------------------------------------------------------------------------
 # Finding
 # ---------------------------------------------------------------------------
+
+
+def _phase_key(name: str) -> str:
+    return re.sub(r"[\s_-]", "", name).lower()
+
+
+# Phase spellings the Rust CLI sends, keyed case- and separator-insensitively:
+# `sigil scan --submit` / `--enhanced` up to 1.3.7 post serde PascalCase
+# ("InstallHooks"), `sigil explain` 1.3.7 posts "inferencesecurity" for Phase
+# 10, and current clients post the snake_case values themselves.
+_PHASE_BY_KEY: Dict[str, str] = {_phase_key(p.value): p.value for p in ScanPhase}
 
 
 class Finding(BaseModel):
@@ -109,10 +133,35 @@ class Finding(BaseModel):
         "", description="Detailed reasoning for why this was flagged and its severity"
     )
 
+    @field_validator("phase", mode="before")
+    @classmethod
+    def _accept_cli_phase_spelling(cls, value: Any) -> Any:
+        """Map the CLI's phase spellings onto the enum; unknown names still fail."""
+        if isinstance(value, str):
+            return _PHASE_BY_KEY.get(_phase_key(value), value)
+        return value
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _accept_any_case_severity(cls, value: Any) -> Any:
+        """The Rust CLI serialises severities title-cased ("High")."""
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
+
 
 # ---------------------------------------------------------------------------
 # Scan
 # ---------------------------------------------------------------------------
+
+# Target recorded for a scan the CLI submits. `sigil scan --submit` and
+# `--enhanced` send it (the CLI does not send the scanned path), and it is
+# filled in for the raw ScanResult that CLI 1.3.7 and earlier post without one.
+CLI_SCAN_TARGET = "cli-scan"
+
+# Keys the Rust CLI's ScanResult always serialises. Together with a missing
+# `target` they identify a `sigil scan --submit` body from CLI <= 1.3.7.
+_CLI_SCAN_RESULT_KEYS = ("score", "verdict", "duration_ms", "findings")
 
 
 class ScanRequest(BaseModel):
@@ -130,6 +179,21 @@ class ScanRequest(BaseModel):
     metadata: Dict[str, Any] = Field(
         default_factory=dict, description="Arbitrary scan metadata"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_released_cli_scan_result(cls, data: Any) -> Any:
+        """Accept the raw ScanResult that `sigil scan --submit` <= 1.3.7 posts.
+
+        That body carries no `target`; every other client must still send one.
+        """
+        if (
+            isinstance(data, dict)
+            and "target" not in data
+            and all(k in data for k in _CLI_SCAN_RESULT_KEYS)
+        ):
+            return {**data, "target": CLI_SCAN_TARGET}
+        return data
 
 
 class ScanResponse(BaseModel):
@@ -154,6 +218,57 @@ class ScanResponse(BaseModel):
         description="Known threat entries matching this scan",
     )
     created_at: datetime = Field(default_factory=utcnow)
+    status: str = Field(
+        "completed",
+        description="Processing status. The scan is scored and stored before "
+        "the response is sent.",
+    )
+    metadata: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Endpoint-specific notes, e.g. whether /v1/scan-enhanced "
+        "ran LLM analysis or returned the static result only",
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def id(self) -> str:
+        """Alias of scan_id: CLI 1.3.7 reads the scan id from `id`."""
+        return self.scan_id
+
+
+def _id_alias_not_required(schema: Dict[str, Any]) -> None:
+    schema["required"] = [k for k in schema.get("required", []) if k != "id"]
+
+
+class EnhancedScanResponse(ScanResponse):
+    """Response returned from POST /v1/scan-enhanced.
+
+    The `id` alias is sent only when `metadata.llm_analysis_performed` is
+    true. CLI 1.3.7 cannot parse a response without `id`, and when it can, it
+    prints "Enhanced LLM analysis completed" whatever the metadata says.
+    Without `id` it reports that the enhanced analysis failed and continues
+    with its static results, which is what happened. Current CLIs read
+    `scan_id` and the metadata, so they are unaffected.
+    """
+
+    model_config = ConfigDict(json_schema_extra=_id_alias_not_required)
+
+    # No return annotation: pydantic would take it as the response schema,
+    # and the OpenAPI document would lose the model's fields.
+    @model_serializer(mode="wrap")
+    def _id_only_after_llm_analysis(self, handler: SerializerFunctionWrapHandler):
+        data = handler(self)
+        if (
+            isinstance(data, dict)
+            and self.metadata.get("llm_analysis_performed") is not True
+        ):
+            data.pop("id", None)
+        return data
+
+    @classmethod
+    def from_scan(cls, response: ScanResponse) -> "EnhancedScanResponse":
+        """The /v1/scan-enhanced form of a scan response."""
+        return cls(**response.model_dump(exclude={"id"}))
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +290,76 @@ class ThreatEntry(BaseModel):
         None, description="When the threat was confirmed"
     )
     description: str = Field("", description="Human-readable description of the threat")
+
+
+# Unicode general categories `without_control_characters` replaces.
+_UNPRINTABLE_CATEGORIES = frozenset({"Cc", "Cf", "Zl", "Zp"})
+
+
+def without_control_characters(text: str) -> str:
+    """*text* with every character that is unsafe to print as a space.
+
+    That is control characters (Unicode category Cc: terminal escapes, BEL,
+    carriage returns, newlines), format characters (Cf: the bidirectional
+    overrides and isolates, zero-width and joining characters) and the line
+    and paragraph separators U+2028 and U+2029 (Zl, Zp): the same set the
+    CLI's `terminal_text` replaces before printing.
+    """
+    return "".join(
+        " " if unicodedata.category(c) in _UNPRINTABLE_CATEGORIES else c for c in text
+    )
+
+
+# The text fields of a threat entry that reach a client.
+_THREAT_TEXT_FIELDS = ("hash", "package_name", "version", "source", "description")
+
+
+def printable_threat_entry(entry: ThreatEntry) -> ThreatEntry:
+    """*entry* with no control characters in its text fields.
+
+    A threat entry's text is whatever its source wrote (a community entry's
+    description is the reporter's own), and CLI 1.3.7 prints it raw. Only the
+    characters `without_control_characters` replaces change; the entry is
+    otherwise as stored. `lookup_threat` returns entries in this form, so
+    every reader that goes through it gets it: GET /v1/threat/{hash},
+    POST /v1/verify and the hash enrichment of POST /v1/scan. The dashboard
+    list (`list_threats`, GET /v1/threats) does not go through it and returns
+    entries as stored.
+    """
+    data = entry.model_dump()
+    for key in _THREAT_TEXT_FIELDS:
+        data[key] = without_control_characters(data[key])
+    return ThreatEntry(**data)
+
+
+class ThreatLookupResponse(ThreatEntry):
+    """Response for GET /v1/threat/{hash}: a match in the threat database.
+
+    The lookup answers 404 when the hash is unknown, so every response body is
+    a confirmed threat. `known_malicious` and `references` are the fields CLI
+    1.3.7 requires before it will show a match; references are not recorded,
+    so the list is empty.
+
+    Text fields carry no control characters. CLI 1.3.7 prints the description
+    raw, and a community entry's description is the reporter's own text.
+    """
+
+    known_malicious: bool = Field(
+        True, description="Always true: unknown hashes return 404"
+    )
+    references: List[str] = Field(
+        default_factory=list, description="External references (none recorded)"
+    )
+
+    @field_validator("hash", "package_name", "version", "source", "description")
+    @classmethod
+    def _printable_text(cls, value: str) -> str:
+        return without_control_characters(value)
+
+    @classmethod
+    def from_entry(cls, entry: ThreatEntry) -> "ThreatLookupResponse":
+        """The lookup response for *entry*, as `lookup_threat` returns it."""
+        return cls(**entry.model_dump())
 
 
 class SignatureEntry(BaseModel):
@@ -226,6 +411,11 @@ class PublisherReputation(BaseModel):
 # Threat Report
 # ---------------------------------------------------------------------------
 
+_SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+# Package-name prefix of a `sigil report <hash>` report.
+HASH_REPORT_PREFIX = "sha256:"
+
 
 class ThreatReport(BaseModel):
     """User-submitted threat report for a package."""
@@ -237,6 +427,35 @@ class ThreatReport(BaseModel):
     evidence: str = Field("", description="Supporting evidence (URLs, snippets, etc.)")
     reporter_email: Optional[str] = Field(None, description="Optional contact email")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_cli_hash_report(cls, data: Any) -> Any:
+        """Accept the `{hash, threat_type, description}` body of `sigil report`.
+
+        CLI 1.3.7 and earlier post that shape. It is stored the way current
+        CLIs send it: package_name `sha256:<hash>`, the description as the
+        reason, and the threat type and hash as evidence. A hash that is not
+        a SHA-256 digest (64 hex characters, any case) is refused.
+        """
+        if not isinstance(data, dict) or "package_name" in data:
+            return data
+        raw_hash = data.get("hash")
+        if not isinstance(raw_hash, str) or not raw_hash.strip():
+            return data
+        digest = raw_hash.strip().lower()
+        if not _SHA256_HEX.fullmatch(digest):
+            raise ValueError("hash must be a SHA-256 digest: 64 hexadecimal characters")
+        evidence = []
+        threat_type = data.get("threat_type")
+        if isinstance(threat_type, str) and threat_type.strip():
+            evidence.append(f"Threat type: {threat_type.strip()}")
+        evidence.append(f"SHA-256: {digest}")
+        mapped = {**data, "package_name": f"{HASH_REPORT_PREFIX}{digest}"}
+        if "reason" not in data and "description" in data:
+            mapped["reason"] = data["description"]
+        mapped.setdefault("evidence", "\n".join(evidence))
+        return mapped
+
 
 class ThreatReportResponse(BaseModel):
     """Acknowledgement returned after submitting a threat report."""
@@ -244,6 +463,12 @@ class ThreatReportResponse(BaseModel):
     report_id: str
     status: str = Field("received", description="Processing status")
     message: str = Field("Thank you for your report. Our team will review it.")
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def id(self) -> str:
+        """Alias of report_id: CLI 1.3.7 reads the report id from `id`."""
+        return self.report_id
 
 
 # ---------------------------------------------------------------------------

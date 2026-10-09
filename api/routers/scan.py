@@ -40,6 +40,7 @@ from api.gates import check_scan_quota, get_user_plan, require_llm_access, requi
 from api.middleware.tier_check import get_scan_capabilities
 from api.models import (
     DashboardStats,
+    EnhancedScanResponse,
     ErrorResponse,
     GateError,
     PlanTier,
@@ -94,6 +95,23 @@ _USAGE_METER_TIMEOUT_SECONDS = 2.0
 _PUBLISHER_ENRICH_TIMEOUT_SECONDS = 2.0
 _ANALYTICS_TRACK_TIMEOUT_SECONDS = 2.0
 _ENHANCED_SCAN_LLM_TIMEOUT_SECONDS = 20.0
+# The /v1/scan-enhanced request metadata keys that are stored with the scan:
+# what the CLI sends about the scan (`source`, `cli_score`, `cli_verdict`) and
+# the keys the scan itself reads (`hash`, `hashes`, `publisher`,
+# `publisher_id`). Any other key is dropped, so the source files the request
+# uploads for LLM analysis (the CLI's `file_contents`, a single file's
+# `content`, and whatever else another client calls them) are not stored.
+_STORED_ENHANCED_METADATA_KEYS = frozenset(
+    {
+        "source",
+        "cli_score",
+        "cli_verdict",
+        "hash",
+        "hashes",
+        "publisher",
+        "publisher_id",
+    }
+)
 
 
 # ---------------------------------------------------------------------------
@@ -582,7 +600,7 @@ async def submit_scan_v2(
 
 @router.post(
     "/scan-enhanced",
-    response_model=ScanResponse,
+    response_model=EnhancedScanResponse,
     status_code=status.HTTP_200_OK,
     summary="Enhanced scan with Pro features (LLM analysis)",
     responses={
@@ -597,7 +615,7 @@ async def submit_enhanced_scan(
     request: ScanRequest,
     current_user: Annotated[UserResponse, Depends(get_current_user_unified)],
     capabilities: Annotated[dict[str, Any], Depends(get_scan_capabilities)],
-) -> ScanResponse:
+) -> EnhancedScanResponse:
     """
     Enhanced scan with AI-powered analysis for Pro users.
 
@@ -605,12 +623,26 @@ async def submit_enhanced_scan(
     for users with Pro, Team, or Enterprise subscriptions.
 
     For Free users, returns static analysis results with upgrade prompts.
+    `metadata.llm_analysis_performed` says whether LLM analysis ran; the
+    response carries the `id` alias only when it did (EnhancedScanResponse).
     """
     current_tier = await get_user_plan(current_user.id)
     await check_scan_quota(current_user.id, current_tier)
 
-    # Start with basic scan implementation
-    basic_response = await _submit_scan_impl(request, user_id=current_user.id)
+    # Start with basic scan implementation. The uploaded source files are
+    # kept out of the stored scan record (whose metadata the scan detail API
+    # returns to the account and its team, and the list API in each item where
+    # its query reads it): only the LLM step below reads them, from `request`.
+    stored_request = request.model_copy(
+        update={
+            "metadata": {
+                k: v
+                for k, v in request.metadata.items()
+                if k in _STORED_ENHANCED_METADATA_KEYS
+            }
+        }
+    )
+    basic_response = await _submit_scan_impl(stored_request, user_id=current_user.id)
 
     # If user doesn't have Pro access, return basic response with upgrade message
     if not capabilities["llm_analysis"]:
@@ -637,7 +669,7 @@ async def submit_enhanced_scan(
         logger.info(
             f"Enhanced scan completed for Free user {current_user.id}: static analysis only"
         )
-        return basic_response
+        return EnhancedScanResponse.from_scan(basic_response)
 
     # Pro user - perform LLM analysis
     try:
@@ -698,7 +730,7 @@ async def submit_enhanced_scan(
             enhanced_risk_score, enhanced_verdict = compute_verdict(all_findings)
 
             # Update response with enhanced results
-            enhanced_response = ScanResponse(
+            enhanced_response = EnhancedScanResponse(
                 scan_id=basic_response.scan_id,
                 target=basic_response.target,
                 target_type=basic_response.target_type,
@@ -743,19 +775,20 @@ async def submit_enhanced_scan(
                 "reason": "No file contents provided for analysis",
                 "user_tier": current_tier.value,
             }
-            return basic_response
+            return EnhancedScanResponse.from_scan(basic_response)
 
     except Exception as e:
         logger.exception(f"Enhanced scan failed for Pro user {current_user.id}: {e}")
-        # Return basic response with error information
+        # Return basic response with error information. Only the exception
+        # type reaches the client; the message is in the server log.
         basic_response.metadata = {
             "pro_features_used": False,
             "llm_analysis_performed": False,
-            "llm_error": str(e),
+            "llm_error": type(e).__name__,
             "fallback_to_static": True,
             "user_tier": current_tier.value,
         }
-        return basic_response
+        return EnhancedScanResponse.from_scan(basic_response)
 
 
 @router.get(

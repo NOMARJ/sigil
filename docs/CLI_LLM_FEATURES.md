@@ -1,205 +1,182 @@
-# CLI LLM Features for Pro Users
+# `sigil scan --enhanced` (Pro LLM analysis)
 
-## Overview
+`sigil scan <dir> --enhanced` uploads files from the scanned directory, with
+the scan result, to the Sigil API for LLM analysis, a Pro plan feature. This
+page describes what it sends and what you get back today. The
+[`sigil login`](cli.md#sigil-login) section of the CLI reference and
+[Data Handling, section 3](data-handling.md#3-pro-enhanced-scan-and-ai-investigation)
+are the reference for the data it sends.
 
-The Sigil CLI now supports **LLM-powered enhanced scanning** for authenticated users with Pro, Team, or Enterprise subscriptions. This feature provides AI-driven threat analysis beyond static pattern matching.
+## Current status: no LLM findings yet
 
-## Authentication Required
+The API does not return LLM findings for `--enhanced` yet. It scores and
+stores the scan and answers with its static analysis. The API keeps the
+uploaded files out of the stored scan; an API without the update stores them
+with the scan record (see [API update rollout](cli.md#api-update-rollout) and
+[Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation)).
+The response:
 
-Enhanced scanning requires authentication. Users must first log in via the
-browser-based device authorization flow:
+- on a Free plan, with a note that LLM analysis needs a Pro plan. The plan is
+  checked after the upload, so the files are still sent;
+- on a Pro plan, because its LLM step does not run for this request: it fails,
+  and the API returns the static result with the name of the error.
 
-```bash
-sigil login
-```
-
-(The `--token` flag exists for non-interactive use, but API token issuance is
-not yet available from the dashboard — the device flow is the supported path.)
+The CLI says which of these happened (see [Output](#output)). Never use
+`--enhanced` on code you are not allowed to share: the files are uploaded
+whatever the outcome.
 
 ## Usage
 
-### Basic Enhanced Scan
-
 ```bash
-sigil scan /path/to/code --enhanced
+sigil login                              # store a token; --enhanced refuses to run without one
+sigil scan ./my-project --enhanced --no-cache
 ```
 
-### Enhanced Scan with Verbose Output
+`--enhanced` runs only on a fresh scan: a re-scan of unchanged content served
+from the cache skips it, and the CLI warns on stderr that it did, hence
+`--no-cache`. For a
+repository URL, `sigil scan` runs the `sigil clone` workflow, which ignores
+`--enhanced`; clone first, then scan `~/.sigil/quarantine/<id>`.
 
-```bash
-sigil scan /path/to/code --enhanced --verbose
-```
+## What is sent
 
-### Combined with Other Features
+The CLI walks the target directory and collects up to 50 files with a common
+text or code extension (`py`, `js`, `ts`, `rs`, `go`, `sh`, `yaml`, `json`,
+`md`, `txt` and others), each 100,000 bytes or smaller and without a NUL byte.
+It does not apply the scan's exclusions (`.sigilignore`, policy excludes), so
+ignored files can be uploaded. With the files goes the same scan request that
+`--submit` sends: every active finding with its flagged source line
+(`snippet`), including findings in files that were not uploaded (a secret
+flagged in `.env`, for example), the number of files scanned, and the CLI's
+own score and verdict, under the fixed target name `cli-scan` instead of the
+scanned path.
 
-```bash
-# Enhanced scan + threat intelligence enrichment
-sigil scan /path/to/code --enhanced --enrich
+The request, as captured from the CLI (`tests/fixtures/api_contract/cli-current/scan_enhanced.json`,
+shortened to one finding and one file):
 
-# Enhanced scan + cloud submission
-sigil scan /path/to/code --enhanced --submit
-```
-
-## How It Works
-
-1. **Static Analysis (Phases 1-8)**: Runs local pattern-based detection
-2. **File Collection**: Gathers up to 50 text files (max 100KB each) for LLM analysis
-3. **API Submission**: Sends file contents to `/v1/scan-enhanced` endpoint
-4. **LLM Analysis (Phase 9)**: AI-powered threat detection including:
-   - Zero-day vulnerability detection
-   - Obfuscation pattern analysis
-   - Contextual threat correlation
-   - Advanced remediation suggestions
-5. **Results**: Displays combined static + LLM findings
-
-## File Selection Criteria
-
-The CLI automatically selects files for LLM analysis based on:
-
-- **Text file extensions**: py, js, ts, jsx, tsx, rs, go, java, c, cpp, rb, php, sh, yaml, json, etc.
-- **Size limit**: Files under 100KB
-- **Maximum count**: Up to 50 files per scan (cost control)
-
-Binary files and large files are automatically skipped.
-
-## Error Handling
-
-### Not Authenticated
-```
-error: Enhanced scanning requires authentication. Run: sigil login
-```
-
-### No Pro Subscription
-```
-warning: Pro subscription required for LLM analysis. Upgrade at https://app.sigilsec.ai/upgrade
-```
-
-### No Readable Files
-```
-warning: no readable files found for LLM analysis
-```
-
-### LLM Analysis Failure
-If LLM analysis fails, the CLI continues with static analysis results:
-```
-warning: Enhanced analysis failed: [error message]
-  Continuing with static analysis results only
-```
-
-## Subscription Tiers
-
-| Feature | Free | Pro | Team | Enterprise |
-|---------|------|-----|------|------------|
-| Static Analysis (Phases 1-8) | ✅ | ✅ | ✅ | ✅ |
-| LLM Analysis (Phase 9) | ❌ | ✅ | ✅ | ✅ |
-| Zero-day Detection | ❌ | ✅ | ✅ | ✅ |
-| Contextual Analysis | ❌ | ✅ | ✅ | ✅ |
-| Advanced Remediation | ❌ | ✅ | ✅ | ✅ |
-
-## API Endpoint
-
-The CLI calls the following API endpoint for enhanced scanning:
-
-```
+```http
 POST /v1/scan-enhanced
 Authorization: Bearer <token>
+Content-Type: application/json
 
 {
   "target": "cli-scan",
   "target_type": "directory",
-  "files_scanned": 42,
-  "findings": [...],
+  "files_scanned": 5,
+  "findings": [
+    {
+      "phase": "code_patterns",
+      "rule": "CODE-001",
+      "severity": "HIGH",
+      "file": "src/app.js",
+      "line": 2,
+      "snippet": "eval() call — arbitrary code execution: return eval(userInput);",
+      "weight": 5,
+      "fingerprint": "92f2b4fe7e61a6d3edaa7b744c6e48f8"
+    }
+  ],
   "metadata": {
+    "source": "sigil-scan-enhanced",
+    "cli_score": 58,
+    "cli_verdict": "HIGH_RISK",
     "file_contents": {
-      "src/main.py": "...",
-      "lib/utils.js": "..."
+      "src/app.js": "<the file's full text>"
     }
   }
 }
 ```
 
-## Cost Optimization
+The API keeps the findings and the scan's own metadata keys (`source`,
+`cli_score`, `cli_verdict`, and `hash`, `hashes`, `publisher` and
+`publisher_id` when present) with the scan record, but not `file_contents`,
+nor any other key: only its LLM step sees the files. (An API without the
+update stored the files with the scan record; see
+[API update rollout](cli.md#api-update-rollout) and
+[Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation).)
 
-The CLI implements several cost control measures:
+## What comes back
 
-1. **File limit**: Maximum 50 files per scan
-2. **Size limit**: Files over 100KB are skipped
-3. **Extension filtering**: Only text files are analyzed
-4. **Binary detection**: Unreadable files are automatically excluded
+The response is the API's scan response: `scan_id`, `target`, `files_scanned`,
+`findings`, the API's own `risk_score` and `verdict`, `status`, and `metadata`,
+which says what happened to the LLM step:
 
-## Examples
+| Outcome | `metadata` |
+|---------|------------|
+| LLM analysis ran | `llm_analysis_performed: true`, `enhanced_findings_count`; LLM findings are added to `findings` with phase `llm_analysis` |
+| Free plan | `upgrade_required: true`, `upgrade_message`, `upgrade_url` |
+| Pro plan, LLM step failed | `llm_analysis_performed: false`, `llm_error` (the exception type), `fallback_to_static: true` |
+| Pro plan, no files in the request | `llm_analysis_performed: false`, `reason` |
 
-### Scan a Python Package
+The response also carries `id`, a copy of `scan_id`, but only when LLM analysis
+ran: CLI 1.3.7 reads `id`, and prints a success message for any response that
+has it.
+
+The API stores the scan before the LLM step runs, and stores nothing from that
+step. `findings` is the stored findings plus, when LLM analysis ran, its LLM
+findings (phase `llm_analysis`), and `risk_score` and `verdict` are then
+recalculated with them. The LLM findings and the recalculated score and verdict
+are in this response only: scan history (`GET /v1/scans/{scan_id}`) shows the
+static findings, score and verdict. The scan id the CLI prints next to the LLM
+findings leads to the stored scan, which does not have them.
+
+## Output
+
+What the current CLI prints for each outcome (`report_enhanced_outcome`,
+`cli/src/main.rs`):
+
+| Outcome | Message |
+|---------|---------|
+| LLM analysis ran | `sigil: enhanced LLM analysis completed: N LLM finding(s) (scan id: ...)`, then one line per LLM finding |
+| Free plan | `warning: LLM analysis needs a Pro plan: the files were sent, but the API returned only its static analysis (scan id: ...)` |
+| LLM step did not run | `warning: the API did not run LLM analysis (server reported: <llm_error or reason>); it returned only its static analysis (scan id: ...)` |
+| Request failed (HTTP error, network, parse) | `warning: Enhanced analysis failed: <error>` and `Continuing with static analysis results only` |
+| Not logged in | `error: Enhanced scanning requires authentication. Run: sigil login` (exit code 2) |
+| No file to upload | `warning: no readable files found for LLM analysis` |
+
+The warnings and errors go to stderr. The success message goes to stdout
+with `-f text` and to stderr with any other `-f` format, so a JSON or SARIF
+report on stdout stays valid. LLM findings are printed for information: they
+do not change the verdict, the exit code or the scan report in any `-f`
+format, and the API does not store them (see
+[What comes back](#what-comes-back)).
+
+CLI 1.3.7 prints `sigil: Enhanced LLM analysis completed` to stdout, after
+the report, for any response it can parse. The API puts `id` in the response
+only when LLM analysis ran, so for a response without it 1.3.7
+prints ``warning: Enhanced analysis failed: failed to parse response: ...
+missing field `id` ...`` and `Continuing with static analysis results only`
+on stderr instead. Upgrade the CLI to see which outcome it was.
+
+## Plans
+
+LLM analysis is a Pro, Team and Enterprise feature; static analysis runs
+locally on every plan. `GET /v1/scan-capabilities` returns what your
+account's plan includes:
+
 ```bash
-sigil scan ./my-package --enhanced --verbose
+curl -H "Authorization: Bearer $(cat ~/.sigil/token)" https://api.sigilsec.ai/v1/scan-capabilities
 ```
 
-Output:
-```
-sigil: scanning ./my-package...
-collecting file contents for LLM analysis...
-Collected 12 files for LLM analysis
-submitting 12 files for enhanced LLM analysis...
+`/v1/scan-enhanced` allows 20 requests per minute, and each accepted request
+counts against the plan's monthly scan quota, like `--submit`.
 
-sigil: Enhanced LLM analysis completed
-  Scan ID: abc123def456
-  
-  FINDINGS (15 total):
-  [HIGH] Phase 9 (LLM Analysis): Potential obfuscated backdoor in src/utils.py:42
-  [MEDIUM] Phase 2 (Code Patterns): Dangerous eval() usage in lib/parser.py:18
-  ...
-```
-
-### Scan a Git Repository
-```bash
-sigil clone https://github.com/user/repo --enhanced
-```
-
-### Check Capabilities
-```bash
-# Verify your subscription tier supports LLM features
-curl -H "Authorization: Bearer $TOKEN" https://api.sigilsec.ai/v1/scan-capabilities
-```
+`--enhanced` already stores the scan, so `sigil scan --enhanced --submit`
+stores it once and uses one unit of the quota: after `--enhanced` returns a
+scan id, `--submit` prints that id (`results submitted to Sigil cloud by the
+--enhanced upload (scan id: ...); --submit sent nothing more`) and does not
+upload again. If `--enhanced` failed, or the API returned no scan id,
+`--submit` uploads as it does without `--enhanced`. CLI 1.3.7 uploads twice:
+two scan records, two units of the quota.
 
 ## Troubleshooting
 
-### Token Not Found
-If you see authentication errors, ensure your token is stored:
-```bash
-cat ~/.sigil/token
-```
-
-### Offline Mode
-Enhanced scanning requires internet connectivity. If offline:
-```
-warning: Sigil cloud is unreachable (running in offline mode)
-```
-
-### Rate Limiting
-Enhanced scans have stricter rate limits (20 requests/60 seconds) compared to basic scans (30 requests/60 seconds).
-
-## Implementation Details
-
-### Code Changes
-
-1. **`cli/src/api.rs`**: Added `submit_enhanced_scan()` method
-2. **`cli/src/main.rs`**: 
-   - Added `--enhanced` flag to `Scan` command
-   - Added `collect_file_contents()` helper function
-   - Updated `cmd_scan()` to support LLM analysis
-3. **API Integration**: Calls `/v1/scan-enhanced` endpoint with file contents
-
-### Security Considerations
-
-- File contents are transmitted over HTTPS
-- Authentication token required for all enhanced scans
-- Server-side tier validation prevents unauthorized access
-- File size limits prevent excessive data transmission
-
-## Future Enhancements
-
-- [ ] Configurable file limits via CLI flags
-- [ ] Support for custom file extension filters
-- [ ] Caching of LLM analysis results
-- [ ] Incremental analysis for large repositories
-- [ ] Local LLM support for air-gapped environments
+- **`error: Enhanced scanning requires authentication`**: run `sigil login`.
+  The token is stored in `~/.sigil/token`; it expires and the CLI does not
+  refresh it.
+- **`API error: 401 ...`**: the token expired. Run `sigil login` again.
+- **Offline**: the request fails with a warning and the scan result stands.
+- **`warning: --enhanced was skipped: the result came from the cache ...`**
+  (on stderr): the scan was served from the cache, so nothing was uploaded and
+  no scan was stored. Add `--no-cache`. The warning names every cloud option
+  the run skipped (`--submit`, `--enrich`, `--enhanced`), and the exit code is
+  that of the cached result. CLI 1.3.7 skips them without a message.

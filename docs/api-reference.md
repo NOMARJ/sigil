@@ -176,50 +176,112 @@ Log out the current user. The client should discard stored tokens.
 
 ### POST /v1/scan
 
-Submit scan results from the CLI for enrichment with threat intelligence. The CLI sends metadata and findings -- never source code.
+Submit a scan's findings. The API scores them, looks up any package hashes in the request metadata, stores the scan for the account's scan history, and returns the result. `sigil scan --submit` and `sigil explain` call it. Each finding carries its flagged source line (`snippet`), so a submission includes excerpts of the scanned code, not only metadata (see [Data Handling](data-handling.md#2-scan-submission-sigil-scan---submit)).
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | No (public submission) |
+| **Auth required** | Yes (Bearer token, any plan) |
+| **Limits** | 30 requests per minute; each stored scan counts against the plan's monthly scan quota (HTTP 429 when it is used up) |
 
-**Request Body:**
+**Request Body** (`ScanRequest`, `api/models.py`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `target` | string | Yes | Package name, URL, or path that was scanned |
-| `target_type` | string | Yes | One of: `git`, `pip`, `npm`, `url`, `directory` |
-| `files_scanned` | integer | Yes | Number of files scanned |
-| `findings` | array | Yes | List of Finding objects (see below) |
-| `metadata` | object | No | Additional scan metadata (hashes, cli_version, etc.) |
+| `target` | string | Yes | Name of what was scanned. `sigil scan --submit` sends the fixed name `cli-scan` and `sigil explain` sends `sigil-explain`, not the scanned path. A body without `target` is accepted only when it is the raw scan result CLI 1.3.7 posts (it has `score`, `verdict`, `duration_ms` and `findings`); it is filed under `cli-scan` |
+| `target_type` | string | No | Default `directory`; for example `git`, `pip`, `npm` |
+| `files_scanned` | integer | No | Default 0 |
+| `findings` | array | No | Finding objects (below); default empty |
+| `metadata` | object | No | Stored with the scan and returned by the detail endpoints `GET /v1/scans/{id}` and `GET /scans/{id}` (as `metadata_json`) and by the list endpoints `GET /scans` and `GET /v1/scans` (in each item's `metadata`, where their query reads it: the in-memory store does, the MSSQL list query leaves it out). The CLI sends `source`, `cli_score` and `cli_verdict` (its own score and verdict). `hash` or `hashes` are looked up in the threat database |
 
 **Finding Object:**
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `phase` | string | Scan phase (e.g. `install_hooks`, `code_patterns`) |
-| `rule` | string | Rule identifier (e.g. `INSTALL-001`) |
-| `severity` | string | One of: `low`, `medium`, `high`, `critical` |
-| `file` | string | File path where finding was detected |
-| `line` | integer | Line number (1-based), nullable |
-| `snippet` | string | Code snippet or match description |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `phase` | string | Yes | `install_hooks`, `code_patterns`, `network_exfil`, `credentials`, `obfuscation`, `provenance`, `prompt_injection`, `skill_security`, `llm_analysis` or `inference_security`. Case and separators are ignored, so the CLI's `InstallHooks` is accepted; any other name is refused (422) |
+| `rule` | string | Yes | Rule identifier (e.g. `INSTALL-001`) |
+| `severity` | string | Yes | `INFO`, `LOW`, `MEDIUM`, `HIGH` or `CRITICAL`, in any case (`High` is accepted) |
+| `file` | string | Yes | Path of the file, relative to the scanned directory |
+| `line` | integer | No | Line number (1-based), or `null` |
+| `snippet` | string | No | The flagged source line |
+| `weight` | number | No | Weight multiplier (default 1.0) |
+| `confidence` | string | No | `HIGH` (default), `MEDIUM` or `LOW` |
+| `description`, `explanation` | string | No | Free text |
 
-**Response (200 OK):**
+Other fields (the CLI's `fingerprint`, for example) are ignored.
+
+**Response (200 OK)** (`ScanResponse`), a captured response for a five-finding scan (`tests/fixtures/api_contract/api-patched/scan_response.json`), shortened to one finding:
 
 ```json
 {
-  "scan_id": "scn_x7y8z9a0b1c2",
-  "target": "https://github.com/someone/example-repo",
-  "target_type": "git",
-  "files_scanned": 24,
-  "findings": [...],
-  "risk_score": 15.0,
-  "verdict": "MEDIUM_RISK",
+  "scan_id": "5fdbc380-845b-4b86-a497-801fc1db34ed",
+  "id": "5fdbc380-845b-4b86-a497-801fc1db34ed",
+  "status": "completed",
+  "target": "cli-scan",
+  "target_type": "directory",
+  "files_scanned": 5,
+  "findings": [
+    {
+      "phase": "code_patterns",
+      "rule": "CODE-001",
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "file": "src/app.js",
+      "line": 2,
+      "snippet": "eval() call — arbitrary code execution: return eval(userInput);",
+      "weight": 5.0,
+      "description": "",
+      "explanation": ""
+    }
+  ],
+  "risk_score": 384.0,
+  "verdict": "CRITICAL_RISK",
   "threat_intel_hits": [],
-  "created_at": "2026-02-15T14:30:00Z"
+  "metadata": {
+    "scanner_features": {
+      "confidence_scoring": true,
+      "context_aware_analysis": true,
+      "false_positive_reduction": true
+    }
+  },
+  "created_at": "2026-10-08T13:22:03.380855",
+  "disclaimer": "Automated static analysis result. Not a security certification. Provided as-is without warranty. See sigilsec.ai/terms for full terms."
 }
 ```
 
-**Status Codes:** 200 OK, 422 Validation error
+- `risk_score` and `verdict` are the API's own (`api/services/scoring.py`), computed from the submitted findings; scan history shows the API's. For a CLI submission they are typically higher than the score and verdict the CLI printed, which it sends as `metadata.cli_score` and `metadata.cli_verdict`. The API scores a finding as severity × phase weight × the finding's `weight` × a file-context factor (0.1 under `node_modules`, 0.2 for docs, README and text files, 0.3 for test paths, otherwise 1), and the CLI's `weight` already includes its phase weight, so the phase weight counts twice; the API also counts Low findings and caps nothing per rule and file, where the CLI's verdict ignores Low findings and counts at most three findings of one rule in one file. The five findings above are score 58, HIGH RISK, in the CLI and 384.0, `CRITICAL_RISK`, here. The formula is unchanged by the CLI contract fix.
+- `threat_intel_hits` holds the threat entries that `metadata.hash` or `metadata.hashes` matched; each match adds 10 to `risk_score`. The entries read as in `GET /v1/threat/{hash}` below: control, format and separator characters replaced by spaces. A confirmed `sigil report <hash>` report is not a match for the hash it names: the threat entry is keyed by a hash of the report's package identity, so a scan that lists the reported hash gets no hit and no extra score.
+- `id` is a copy of `scan_id` and `status` is always `completed`: CLI 1.3.7 reads them.
+- `metadata` holds the API's notes about the scan, not the request's metadata.
+
+**Status Codes:** 200 OK, 401 Missing or invalid token, 422 Validation error, 429 Rate limit or monthly scan quota exceeded
+
+---
+
+### POST /v1/scan-enhanced
+
+`sigil scan --enhanced`: the `POST /v1/scan` request plus source files for LLM analysis, a Pro plan feature. The request is stored as a scan the same way, except that only the scan's own metadata keys are stored, not the uploaded files (an API without the update stored them with the scan record: see [API update rollout](cli.md#api-update-rollout) and [Data Handling](data-handling.md#3-pro-enhanced-scan-and-ai-investigation)). **The LLM step does not run for this endpoint yet**: on a Pro plan it fails and the API returns the static result; on a Free plan it returns the static result with an upgrade note. See [CLI LLM features](CLI_LLM_FEATURES.md) for what the CLI sends and prints.
+
+| Property | Value |
+|----------|-------|
+| **Auth required** | Yes (Bearer token). Any plan is accepted: the plan is checked after the upload |
+| **Limits** | 20 requests per minute; each stored scan counts against the monthly scan quota |
+
+**Request Body:** as for `POST /v1/scan`, with the files in `metadata.file_contents`, an object mapping each relative path to the file's text (or one file as `metadata.filename` and `metadata.content`). The API passes them to its LLM step and leaves them out of the stored scan: of the request's `metadata` it stores only `source`, `cli_score`, `cli_verdict`, `hash`, `hashes`, `publisher` and `publisher_id`, and drops every other key (the CLI's `file_contents`, a single file's `content`, and whatever another client names its files).
+
+**Response (200 OK):** the `POST /v1/scan` response, with `metadata` saying what happened to the LLM step:
+
+| Outcome | `metadata` |
+|---------|------------|
+| LLM analysis ran | `llm_analysis_performed: true`, `enhanced_findings_count`, `original_risk_score`, `enhanced_risk_score`; LLM findings are added to `findings` with phase `llm_analysis` |
+| Free plan | `upgrade_required: true`, `upgrade_message`, `upgrade_url`, `missing_features` |
+| Pro plan, LLM step failed | `llm_analysis_performed: false`, `llm_error` (the exception type only), `fallback_to_static: true` |
+| Pro plan, no files | `llm_analysis_performed: false`, `reason` |
+
+`id` is included only when LLM analysis ran. CLI 1.3.7 reads `id` and prints `Enhanced LLM analysis completed` for any response that has it, so without analysis it reports a failed enhanced analysis instead.
+
+The scan is stored before the LLM step runs, and nothing from that step is stored. When LLM analysis ran, `findings` is the stored findings plus the LLM findings, and `risk_score` and `verdict` are recalculated with them; those LLM findings and that score and verdict are in this response only. `GET /v1/scans/{scan_id}` returns the static findings, score and verdict.
+
+**Status Codes:** 200 OK, 401 Missing or invalid token, 422 Validation error, 429 Rate limit or monthly scan quota exceeded
 
 ---
 
@@ -374,38 +436,52 @@ Aggregate dashboard statistics for the team overview.
 
 ### GET /v1/threat/{hash}
 
-Look up a package hash against the threat intelligence database.
+Look up a hash in the threat intelligence database. `sigil scan --enrich` calls it with a SHA-256 of the scanned directory's file paths and sizes.
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | No |
+| **Auth required** | Yes (Bearer token), Pro plan or higher |
 | **Also available at** | `GET /threat/{hash}` |
 
 **Path Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `hash` | string | SHA-256 hash of the package artifact |
+| `hash` | string | The hash to look up. Entries are keyed by the SHA-256 of a package artifact; an entry made by confirming a report is keyed by a hash of the report's ecosystem, name and version |
 
-**Response (200 OK):**
+**Response (200 OK)** (`ThreatLookupResponse`), as captured for a seeded entry (`tests/fixtures/api_contract/api-patched/threat_lookup_response.json`):
 
 ```json
 {
-  "hash": "sha256:abc123def456...",
-  "known_threat": true,
-  "severity": "critical",
-  "category": "credential_exfiltration",
-  "description": "Package uploads credentials to remote server",
-  "first_seen": "2026-01-20T12:00:00Z",
-  "reports_count": 47,
-  "affected_packages": [
-    {"ecosystem": "npm", "name": "aws-helper-utils", "version": "1.2.3"}
-  ],
-  "recommended_action": "reject"
+  "hash": "0529ae7c5118983272f1fce4ca862408bdcf403b6a6d4483cb2b34e83a64d548",
+  "package_name": "contract-test-pkg",
+  "version": "0.0.1",
+  "severity": "CRITICAL",
+  "source": "internal",
+  "confirmed_at": "2026-10-01T00:00:00",
+  "description": "seeded contract-test threat entry",
+  "known_malicious": true,
+  "references": []
 }
 ```
 
-**Status Codes:** 200 OK, 404 Hash not found
+- Every 200 response is a match: an unknown hash returns 404. `known_malicious` is always `true` and `references` is always empty (none are recorded); CLI 1.3.7 needs both fields.
+- A community entry (`source: "community"`, made when a reviewer confirms a report) has the reporter's text as its description.
+- In the text fields, control characters (including terminal escapes), format characters (bidirectional overrides and isolates, zero-width characters) and the line and paragraph separators U+2028 and U+2029 are replaced with spaces. `POST /v1/verify` and the `threat_intel_hits` of `POST /v1/scan` show entries the same way. The dashboard list (`GET /v1/threats`, `GET /threats`) does not: it returns entries as stored.
+- A confirmed `sigil report <hash>` report is **not findable by that hash**: confirming a report creates the entry keyed by the SHA-256 of `ecosystem:name:version` (for a hash report, `unknown:sha256:<hash>:`), as for every report, so a lookup of the hash given to `sigil report` returns 404, `POST /v1/verify` with that `artifact_hash` finds no threat, and `POST /v1/scan` with that hash in `metadata.hash` or `metadata.hashes` adds nothing to the risk score.
+
+**Status Codes:** 200 OK, 401 Missing or invalid token, 403 Plan below Pro, 404 Hash not found
+
+**403 body** (captured, `api-patched/threat_lookup_403_free_plan.json`):
+
+```json
+{
+  "detail": "This feature requires the pro plan or higher.",
+  "required_plan": "pro",
+  "current_plan": "free",
+  "upgrade_url": "https://app.sigilsec.ai/upgrade"
+}
+```
 
 ---
 
@@ -415,7 +491,7 @@ Fetch pattern detection signatures. Supports delta sync via the `since` paramete
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | No |
+| **Auth required** | Yes (Bearer token), Pro plan or higher |
 | **Also available at** | `GET /signatures` |
 
 **Query Parameters:**
@@ -509,42 +585,42 @@ Look up the reputation of a package publisher/author.
 
 ### POST /v1/report
 
-Submit a threat report for a package or repository. Reports contribute to community threat intelligence.
+Submit a threat report. Reports are queued for review; when a reviewer confirms one (`PATCH /v1/threat-reports/{id}`), it becomes a threat database entry with source `community`. `sigil report` and the dashboard call it.
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | Yes |
-| **Also available at** | `POST /report` |
+| **Auth required** | No |
+| **Also available at** | `POST /threats/report` and `POST /report` |
 
-**Request Body:**
+**Request Body** (`ThreatReport`, `api/models.py`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `source_type` | string | Yes | One of: `git`, `pip`, `npm`, `url` |
-| `source_ref` | string | Yes | Package name, URL, or repository |
-| `source_hash` | string | No | SHA-256 hash of the content |
-| `category` | string | Yes | Threat category (see below) |
-| `severity` | string | Yes | One of: `low`, `medium`, `high`, `critical` |
-| `description` | string | Yes | Human-readable description |
-| `evidence` | array | No | List of evidence strings |
-| `scan_id` | string | No | Associated scan ID |
+| `package_name` | string | Yes | Name of the suspicious package. `sigil report <hash>` sends `sha256:<hash>` |
+| `reason` | string | Yes | Why the reporter believes it is malicious |
+| `package_version` | string | No | Version, if known |
+| `ecosystem` | string | No | `npm`, `pip`, `cargo`, ...; default `unknown` |
+| `evidence` | string | No | Supporting evidence. `sigil report` sends the threat type and the hash |
+| `reporter_email` | string | No | Contact email |
 
-**Threat Categories:** `credential_exfiltration`, `backdoor`, `install_hook_abuse`, `typosquat`, `obfuscated_payload`, `cryptominer`, `data_exfiltration`, `other`
+The body CLI 1.3.7 sends, `{"hash": "<sha256>", "threat_type": "<type>", "description": "<text>"}`, is also accepted and stored the same way as the current CLI's report: package `sha256:<hash>`, the description as the reason, and `Threat type: <type>` and `SHA-256: <hash>` as evidence. Its `hash` must be a SHA-256 digest (64 hexadecimal characters, any case); anything else is refused (422).
 
-**Response (201 Created):**
+A confirmed report is keyed in the threat database by a SHA-256 of its ecosystem, name and version, for a hash report too (`unknown:sha256:<hash>:`), never by the hash that was typed: a confirmed hash report is not findable by that hash (see `GET /v1/threat/{hash}`), and changes no `POST /v1/verify` verdict or `POST /v1/scan` score for it. A confirmed report with evidence also gets a detection signature built from that evidence, which `GET /v1/signatures` serves and which `sigil fetch` clients apply to their later scans. Evidence that contains regular-expression characters is used as the pattern itself, and `sigil report` builds its evidence from the threat type, which is free text. A reviewer should read the evidence before confirming. Confirming (`PATCH /v1/threat-reports/{id}`) needs the reviewer, admin or owner role.
+
+**Response (201 Created)** (`ThreatReportResponse`), captured (`tests/fixtures/api_contract/api-patched/report_response.json`):
 
 ```json
 {
-  "report_id": "rpt_m1n2o3p4q5r6",
-  "status": "submitted",
-  "source_ref": "aws-helper-utils",
-  "category": "credential_exfiltration",
-  "severity": "critical",
-  "created_at": "2026-02-15T15:00:00Z"
+  "report_id": "2a21f1ec-125b-4cf8-97e8-3209c61b9b29",
+  "id": "2a21f1ec-125b-4cf8-97e8-3209c61b9b29",
+  "status": "received",
+  "message": "Thank you for your report. Our team will review it."
 }
 ```
 
-**Status Codes:** 201 Created, 401 Unauthorized, 422 Validation error, 429 Rate limited (max 10/hour)
+`id` is a copy of `report_id`, which CLI 1.3.7 reads. The report id is a GUID (`threat_reports.id` is a `UNIQUEIDENTIFIER` column); an API without the update returned 12 hexadecimal characters.
+
+**Status Codes:** 201 Created, 422 Validation error, 429 Rate limit exceeded
 
 ---
 
@@ -552,40 +628,42 @@ Submit a threat report for a package or repository. Reports contribute to commun
 
 ### POST /v1/verify
 
-Verify a package or tool for marketplace listing. Runs an enhanced scan and returns a verification result suitable for trust badges.
+Verify a package for a marketplace trust badge. It checks the artifact hash against the threat database and the publisher's reputation, and returns a verdict. Only a `LOW_RISK` verdict is `verified` and gets a badge URL.
 
 | Property | Value |
 |----------|-------|
-| **Auth required** | Yes |
+| **Auth required** | No: the API does not check a token |
 | **Also available at** | `POST /verify` |
 
-**Request Body:**
+**Request Body** (`VerifyRequest`, `api/models.py`):
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `source_type` | string | Yes | One of: `git`, `pip`, `npm`, `url` |
-| `source_ref` | string | Yes | Package name, URL, or repository |
-| `source_version` | string | No | Specific version to verify |
-| `source_hash` | string | No | SHA-256 hash for integrity check |
-| `callback_url` | string | No | Webhook URL for async notification |
+| `package_name` | string | Yes | Fully qualified package name |
+| `package_version` | string | Yes | Exact version to verify |
+| `ecosystem` | string | Yes | `npm`, `pip`, `cargo`, ... |
+| `publisher_id` | string | No | Publisher identifier; a publisher with flagged packages or a low trust score adds to the risk score |
+| `artifact_hash` | string | No | SHA-256 hash of the distribution artifact, looked up in the threat database like `GET /v1/threat/{hash}` |
 
-**Response (200 OK):**
+**Response (200 OK)** (`VerifyResponse`), as captured from the API in this tree (in-memory store) for an `artifact_hash` that a confirmed package report (`"package_name": "evil-pkg"`, reason `steals tokens`) is keyed by:
 
 ```json
 {
-  "verification_id": "ver_s1t2u3v4w5x6",
-  "status": "verified",
-  "source_ref": "langchain-community",
-  "source_version": "0.2.1",
-  "score": 3,
-  "verdict": "LOW_RISK",
-  "badge_url": "https://sigilsec.ai/badge/ver_s1t2u3v4w5x6.svg",
-  "verified_at": "2026-02-15T15:30:00Z",
-  "expires_at": "2026-03-15T15:30:00Z"
+  "package_name": "some-package",
+  "package_version": "1.0.0",
+  "verified": false,
+  "verdict": "CRITICAL_RISK",
+  "risk_score": 50.0,
+  "badge_url": null,
+  "findings_summary": "Known threat: steals tokens (severity=CRITICAL)",
+  "verified_at": "2026-10-08T16:12:37.211559"
 }
 ```
 
-**Status Codes:** 200 OK, 401 Unauthorized, 403 Requires Pro or Team tier, 404 Package not found, 422 Validation error
+- A match on `artifact_hash` adds 50 to `risk_score`, which is `CRITICAL_RISK` on its own, and names the entry in `findings_summary` (its description, or the package name when it has none). Control, format and separator characters in the description are replaced with spaces (see `GET /v1/threat/{hash}`). A confirmed `sigil report <hash>` report is not a match for the hash it names, because its threat entry is keyed by a hash of the report's package identity: confirming it changes nothing here (a request with that hash gets `LOW_RISK`, risk score 0 and `No issues found.`, as before the report; a test pins this). The endpoint needs no token, so anyone can ask whether a hash is flagged.
+- With no match and no publisher findings, `findings_summary` is `No issues found.`
+
+**Status Codes:** 200 OK, 422 Validation error, 429 Rate limit exceeded
 
 ---
 

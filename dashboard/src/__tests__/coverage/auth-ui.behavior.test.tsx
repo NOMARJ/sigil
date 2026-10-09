@@ -1,0 +1,23 @@
+import React from 'react';
+import {render,screen,fireEvent} from '@testing-library/react';
+import {usePathname,useRouter} from 'next/navigation';
+import {useAuth} from '@/lib/auth';
+import AuthGuard from '@/components/AuthGuard';
+import Sidebar from '@/components/Sidebar';
+import Login from '@/app/login/page';
+import Callback from '@/app/auth/callback/page';
+// [MOCK] Identity and navigation boundaries are inert; sentinel users cannot authenticate.
+jest.mock('@/lib/auth',()=>({useAuth:jest.fn()}));
+const replace=jest.fn(),push=jest.fn(),logout=jest.fn(),loginWithOAuth=jest.fn();
+const auth=jest.mocked(useAuth);
+beforeEach(()=>{jest.clearAllMocks();jest.mocked(usePathname).mockReturnValue('/');jest.mocked(useRouter).mockReturnValue({replace,push} as never);auth.mockReturnValue({user:null,loading:false,emailUnverified:false,unverifiedEmail:null,logout,loginWithOAuth} as never);});
+it('holds content while loading',()=>{auth.mockReturnValue({loading:true} as never);render(<AuthGuard>private</AuthGuard>);expect(screen.getByText('Loading...')).toBeInTheDocument();expect(replace).not.toHaveBeenCalled();});
+it('redirects signed-out private users',()=>{render(<AuthGuard>private</AuthGuard>);expect(replace).toHaveBeenCalledWith('/login');expect(screen.queryByText('private')).not.toBeInTheDocument();});
+it.each(['/login','/login/nested','/terms','/privacy','/bot','/methodology','/reset-password','/auth/callback'])('allows public %s',path=>{jest.mocked(usePathname).mockReturnValue(path);render(<AuthGuard>public sentinel</AuthGuard>);expect(screen.getByText('public sentinel')).toBeInTheDocument();expect(replace).not.toHaveBeenCalled();});
+it.each(['/login','/auth/callback','/reset-password'])('redirects authenticated auth route %s',path=>{auth.mockReturnValue({user:{id:'MOCK'},loading:false} as never);jest.mocked(usePathname).mockReturnValue(path);render(<AuthGuard>private</AuthGuard>);expect(replace).toHaveBeenCalledWith('/');});
+it('keeps authenticated public content',()=>{auth.mockReturnValue({user:{id:'MOCK'},loading:false} as never);jest.mocked(usePathname).mockReturnValue('/terms');render(<AuthGuard>sentinel</AuthGuard>);expect(screen.getByText('sentinel')).toBeInTheDocument();expect(replace).not.toHaveBeenCalled();});
+it.each(['nobody@example.invalid',null])('offers verification and logout %p',email=>{auth.mockReturnValue({user:null,loading:false,emailUnverified:true,unverifiedEmail:email,logout} as never);render(<AuthGuard>private</AuthGuard>);expect(screen.getByRole('heading',{name:'Verify your email'})).toBeInTheDocument();fireEvent.click(screen.getByRole('button',{name:'Sign out'}));expect(logout).toHaveBeenCalled();expect(replace).not.toHaveBeenCalled();});
+it('dispatches login providers and links hosted signup',()=>{render(<Login />);for(const name of ['Sign in with Sigil','Continue with GitHub','Continue with Google'])fireEvent.click(screen.getByRole('button',{name}));expect(loginWithOAuth.mock.calls).toEqual([[],['github'],['google-oauth2']]);expect(screen.getByRole('link',{name:'Create an account'})).toHaveAttribute('href','/auth/login?screen_hint=signup');});
+it('callback navigates home',()=>{render(<Callback />);expect(screen.getByRole('heading',{name:'Completing login...'})).toBeInTheDocument();expect(replace).toHaveBeenCalledWith('/');});
+it.each(['free','pro','team','enterprise'])('applies %s plan navigation',plan=>{auth.mockReturnValue({user:{name:'Mock Person',email:'nobody@example.invalid',plan},logout} as never);jest.mocked(usePathname).mockReturnValue('/forge/tools/detail');const close=jest.fn();render(<Sidebar isOpen onClose={close}/>);expect(screen.getByText('MP')).toBeInTheDocument();expect(screen.queryByRole('link',{name:'My Tools'})!==null).toBe(plan!=='free');expect(screen.queryByRole('link',{name:'Monitoring'})!==null).toBe(['team','enterprise'].includes(plan));fireEvent.click(screen.getByRole('link',{name:'Scans'}));expect(close).toHaveBeenCalled();fireEvent.click(screen.getByTitle('Sign out'));expect(logout).toHaveBeenCalled();expect(push).toHaveBeenCalledWith('/login');});
+it('handles missing identity',()=>{render(<Sidebar/>);expect(screen.getByText('?')).toBeInTheDocument();});
