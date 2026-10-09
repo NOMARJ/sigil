@@ -2325,7 +2325,7 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
             // What it runs is a word the shell expands (`xargs $S`): the words
             // it appends may be the whole call.
             if xargs_command(&toks, i + 1)
-                .and_then(&arg)
+                .and_then(arg)
                 .is_some_and(|c| c.contains(['$', '`']))
             {
                 return true;
