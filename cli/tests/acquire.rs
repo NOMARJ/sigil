@@ -1363,6 +1363,40 @@ fn npm_view_failures_pack_nothing() {
     }
 }
 
+/// `npm view` prints nothing, and exits 0, for a bare name whose package has
+/// no `latest` dist-tag (and for a range nothing matches): the error says
+/// that, not that the output is not JSON, and nothing is downloaded.
+#[test]
+fn a_package_with_no_latest_tag_is_named_as_that() {
+    for (spec, says) in [
+        (
+            "nolatest",
+            "the package has no latest tag; name a version or a dist-tag",
+        ),
+        (
+            "nolatest@*",
+            "the package has no latest tag; name a version or a dist-tag",
+        ),
+        (
+            "@s/nolatest",
+            "the package has no latest tag; name a version or a dist-tag",
+        ),
+        ("nolatest@^9", "no release of the package matches it"),
+    ] {
+        let fx = fixture();
+        let out = sigil(&fx, &["npm", spec], &[("SIGIL_TEST_NPM_VIEW", "")]);
+        assert_eq!(code(&out), 2, "{spec}: {}", stderr(&out));
+        let err = stderr(&out);
+        assert!(
+            err.contains(&format!("npm resolved no version for `{spec}`: {says}")),
+            "{spec}: {err}"
+        );
+        assert!(!err.contains("JSON"), "{spec}: {err}");
+        assert!(recorded(&fx, "npm-pack").is_none(), "{spec}");
+        assert!(quarantine_items(&fx).is_empty(), "{spec}");
+    }
+}
+
 #[test]
 fn npm_opt_in_runs_from_the_callers_directory_and_packs_into_quarantine() {
     for spec in ["github:owner/repo", "./local-dir", "file:../pkg", "pkg.tgz"] {
@@ -3017,6 +3051,49 @@ fn real_npm_resolves_and_sigil_downloads_a_registry_release_and_it_is_scanned() 
         assert_eq!(report["package"], "plainpkg@1.0.0");
         let q = only_item(&fx);
         assert!(q.join("plainpkg-1.0.0").join("package").is_dir());
+    }
+}
+
+/// A package published with `--tag` only has no `latest` dist-tag. The real
+/// `npm view` prints nothing for its bare name; naming a dist-tag or a
+/// version works.
+#[test]
+fn real_npm_package_without_a_latest_tag_is_named_as_that() {
+    for npm_dir in real_npm_installations() {
+        let fx = fixture();
+        let bytes = tarball_bytes("{\"name\":\"nolatest\",\"version\":\"1.1.0\"}\n");
+        let base = serve_registry(|base| {
+            let mut p = packument(
+                base,
+                "nolatest",
+                "nolatest",
+                "1.1.0",
+                "nolatest-1.1.0.tgz",
+                &bytes,
+            );
+            p["dist-tags"] = serde_json::json!({"next": "1.1.0"});
+            (
+                vec![("nolatest".to_string(), p)],
+                vec![("nolatest-1.1.0.tgz".to_string(), bytes.clone())],
+            )
+        });
+        for spec in ["nolatest", "nolatest@*"] {
+            let out = run_with_npm_in(&fx, &["npm", spec], &base, npm_dir.as_deref());
+            assert_eq!(code(&out), 2, "{spec}: {}", stderr(&out));
+            let err = stderr(&out);
+            assert!(
+                err.contains(&format!(
+                    "npm resolved no version for `{spec}`: the package has no latest tag; name a \
+                     version or a dist-tag"
+                )),
+                "{spec}: {err}"
+            );
+            assert!(!err.contains("JSON"), "{spec}: {err}");
+            assert!(quarantine_items(&fx).is_empty(), "{spec}");
+        }
+        let out = run_with_npm_in(&fx, &["npm", "nolatest@next"], &base, npm_dir.as_deref());
+        assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+        assert!(only_item(&fx).join("nolatest-1.1.0").is_dir());
     }
 }
 

@@ -2446,6 +2446,12 @@ async fn download_npm_release(
         eprintln!("  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it.");
         return Err(EXIT_ERROR);
     };
+    // npm exits 0 and prints nothing for a bare name whose package has no
+    // `latest` tag (and for a range nothing matches): say so, rather than
+    // that the output is not JSON. Nothing is downloaded either way.
+    if out.trim().is_empty() {
+        return Err(fail(acquire::npm_view_empty(pkg_spec)));
+    }
     let mut releases = match acquire::parse_npm_view(&out) {
         Ok(r) => r,
         Err(why) => return Err(fail(acquire::npm_view_unreadable(pkg_spec, &why))),

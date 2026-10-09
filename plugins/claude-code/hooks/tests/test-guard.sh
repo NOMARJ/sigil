@@ -155,8 +155,8 @@ check ask   "opt-in, quoted flag"          'sigil pip evil "--allow-build-script
 check ask   "opt-in, in bash -c"           "bash -c 'sigil npm ./evil --allow-build-scripts'"
 check ask   "opt-in, then vetted install"  "sigil npm evil --allow-build-scripts && npm install evil"
 check deny  "opt-in, then unvetted"        "sigil pip x --allow-build-scripts; npm install evil"
-check allow "spec after --, not the flag"  "sigil npm -- --allow-build-scripts"
-check allow "flag in a comment"            "sigil pip evil # --allow-build-scripts"
+check ask   "spec after --, still asked"   "sigil npm -- --allow-build-scripts"
+check ask   "flag in a comment, still read" "sigil pip evil # --allow-build-scripts"
 check ask   "opt-in, redirection glued"    "sigil npm evil --allow-build-scripts>/dev/null"
 check ask   "opt-in, input glued"          "sigil npm evil --allow-build-scripts</dev/null"
 check ask   "opt-in, quoted + glued"       'sigil npm evil "--allow-build-scripts">log'
@@ -248,17 +248,27 @@ check allow "sigil scan, two expansions"   'sigil scan "$A" "$B"'
 check allow "sigil with only \"\$@\""       'sigil "$@"'
 check allow "sigil with one expansion"     'sigil $ARGS'
 check allow "other command, expansions"    '$CC $CFLAGS $SRC -o out'
-# A redirection's file and one quoted -V value are never the flag; an
-# unquoted expansion, or a quoted one that is an argument, can be.
+# A redirection's file is never the flag; an expansion after pip/npm can be,
+# a quoted -V value included (`"$@"` and `"${A[@]}"` are several words, and
+# the reading does not tell them from `"$VER"`).
 check allow "redirect file is \$LOG"        'sigil pip requests > "$LOG" 2>&1'
 check allow "append to \$LOG"               'sigil pip requests >> $LOG'
 check allow "stderr to \$ERR"               'sigil pip requests 2>"$ERR"'
 check allow "stdin from \$IN"               'sigil pip requests < "$IN"'
-check allow "-V \"\$VER\""                    'sigil npm left-pad -V "$VER"'
-check allow "--version \"\${VER}\""           'sigil npm left-pad --version "${VER}"'
-check allow "--version=\"\$VER\""             'sigil npm left-pad --version="$VER"'
-check allow "-V=\"\$VER\""                    'sigil npm left-pad -V="$VER"'
-check allow "-V\"\$VER\""                     'sigil npm left-pad -V"$VER"'
+check ask   "-V \"\$VER\""                    'sigil npm left-pad -V "$VER"'
+check ask   "--version \"\${VER}\""           'sigil npm left-pad --version "${VER}"'
+check ask   "--version=\"\$VER\""             'sigil npm left-pad --version="$VER"'
+check ask   "-V=\"\$VER\""                    'sigil npm left-pad -V="$VER"'
+check ask   "-V\"\$VER\""                     'sigil npm left-pad -V"$VER"'
+check ask   "-V '\$VER' (single quotes)"      "sigil npm left-pad -V '\$VER'"
+check ask   "-V \"\$@\" holds the flag"       'set -- 1.0 --allow-build-scripts; sigil pip x -V "$@"'
+check ask   "--version \"\$@\""               'set -- 1.0 --allow-build-scripts; sigil pip x --version "$@"'
+check ask   "--version=\"\$@\""               'set -- 1.0 --allow-build-scripts; sigil pip x --version="$@"'
+check ask   "-V\"\$@\" glued"                 'set -- 1.0 --allow-build-scripts; sigil pip x -V"$@"'
+check ask   "npm -V \"\$@\""                  'set -- 1.0 --allow-build-scripts; sigil npm x -V "$@"'
+check ask   "-V \"\$@\" && echo"              'set -- 1.0 --allow-build-scripts; sigil pip x -V "$@" && echo done'
+check ask   "-V \"\${A[@]}\""                 'A=(1.0 --allow-build-scripts); sigil pip x -V "${A[@]}"'
+check ask   "-V \"\${A[*]}\""                 'A=(1.0 --allow-build-scripts); sigil pip x -V "${A[*]}"'
 check ask   "-V = \"\$X\" (= is the value)"   'sigil npm left-pad -V = "$X"'
 check ask   "-V \$VER unquoted"              'sigil npm left-pad -V $VER'
 check ask   "-V quoted, then \$EXTRA"        'sigil npm left-pad -V "$VER" $EXTRA'
@@ -280,6 +290,12 @@ check ask   "quoted ; in a redirection"    "sigil npm ./evil > 'a;b' --allow-bui
 check ask   "quoted ; as an option value"  "sigil pip evil --rules 'a;b' --allow-build-scripts"
 check ask   "-V ';' then the flag"         "sigil npm ./evil -V ';' --allow-build-scripts"
 check ask   "-V '1;2' before the spec"     "sigil pip -V '1;2' evil --allow-build-scripts"
+check ask   "process substitution over lines" 'F=--allow-build-scripts; sigil pip x <(echo a
+) $F'
+check ask   "output substitution over lines" 'F=--allow-build-scripts; sigil pip x >(cat
+) $F'
+check ask   "command substitution over lines" 'F=--allow-build-scripts; sigil pip x $(echo a
+) $F'
 check ask   "expansion after a quoted ;"   "sigil npm './a;b' \$FLAG"
 check ask   "expansion after a quoted #"   "sigil pip x --rules 'a #b' \"\$FLAG\""
 check ask   "escaped ; then expansion"     'sigil npm a\;b $FLAG'
@@ -288,7 +304,7 @@ check allow "quoted ; and no flag"         "sigil npm 'a;b'"
 check allow "-V ';' and no flag"           "sigil npm ./evil -V ';'"
 check allow "quoted ;, then another stage" "sigil pip 'a;b' && echo \$HOME"
 check allow "quoted ;, no sigil call"      "echo 'a;b' && echo done"
-check allow "flag after -- and a quoted ;" "sigil npm 'a;b' -- --allow-build-scripts"
+check ask   "flag after -- and a quoted ;" "sigil npm 'a;b' -- --allow-build-scripts"
 check allow "script's ; ends the call"     "bash -c 'sigil pip x; echo \$HOME'"
 # An argv list over several lines.
 check ask   "python list over lines"       'python3 - <<EOF
@@ -400,9 +416,9 @@ check allow 'not a pip/npm call 12'                    'grep -rn -- '\''--allow-
 check allow 'not a pip/npm call 13'                    'cd /home/user/sigil && grep -rn allow-build-scripts docs'
 check allow 'not a pip/npm call 14'                    'grep -n "allow-build" docs/cli.md | head'
 check allow 'not a pip/npm call 15'                    'sed -n '\''1,5p'\'' docs/cli.md && echo --allow-build-scripts'
-check allow 'not a pip/npm call 16'                    'sigil --format json npm -- --allow-build-scripts'
-check allow 'not a pip/npm call 17'                    'sigil npm x -- --allow-build-scripts'
-check allow 'not a pip/npm call 18'                    'S=sigil; $S npm x -- --allow-build-scripts'
+check ask   'a -- does not end the reading 01'         'sigil --format json npm -- --allow-build-scripts'
+check ask   'a -- does not end the reading 02'         'sigil npm x -- --allow-build-scripts'
+check ask   'a -- does not end the reading 03'         'S=sigil; $S npm x -- --allow-build-scripts'
 check ask   'nested, obscured subcommand 01'           'echo "sigil np\\m x --allow-build-scripts" | sh'
 check ask   'nested, obscured subcommand 02'           'sh <<EOF
 sigil np\\m x --allow-build-scripts
@@ -453,17 +469,17 @@ check ask   'a # that is not a comment 12'             'echo >(:)# ; sigil npm x
 check ask   'a # that is not a comment 13'             'x=( a \ # b ); sigil npm x --allow-build-scripts'
 check ask   'a # that is not a comment 14'             'echo a\;# ; sigil npm x --allow-build-scripts'
 check ask   'a # that is not a comment 15'             'echo a\ #; sigil npm x --allow-build-scripts'
-check allow 'a real comment 01'                        'sigil npm x # --allow-build-scripts'
-check allow 'a real comment 02'                        'echo hi # sigil npm x --allow-build-scripts'
-check allow 'a real comment 03'                        'echo hi # note
+check ask   'a real comment read as text 01'                        'sigil npm x # --allow-build-scripts'
+check ask   'a real comment read as text 02'                        'echo hi # sigil npm x --allow-build-scripts'
+check ask   'a real comment read as text 03'                        'echo hi # note
 echo done # sigil npm x --allow-build-scripts'
-check allow 'a real comment 04'                        'echo hi;# sigil npm x --allow-build-scripts'
-check allow 'a real comment 05'                        'echo hi # note \
+check ask   'a real comment read as text 04'                        'echo hi;# sigil npm x --allow-build-scripts'
+check ask   'a real comment read as text 05'                        'echo hi # note \
 # sigil npm x --allow-build-scripts'
-check allow 'a real comment 06'                        '# sigil npm x --allow-build-scripts
+check ask   'a real comment read as text 06'                        '# sigil npm x --allow-build-scripts
 ls'
-check allow 'a real comment 07'                        'echo ${x:-a} # sigil npm x --allow-build-scripts'
-check allow 'a real comment 08'                        'echo $(echo a) # sigil npm x --allow-build-scripts'
+check ask   'a real comment read as text 07'                        'echo ${x:-a} # sigil npm x --allow-build-scripts'
+check ask   'a real comment read as text 08'                        'echo $(echo a) # sigil npm x --allow-build-scripts'
 check ask   'redirection file or quoted -- 01'         'sigil npm x > -- --allow-build-scripts'
 check ask   'redirection file or quoted -- 02'         'sigil pip x > -- --allow-build-scripts'
 check ask   'redirection file or quoted -- 03'         'sigil npm x >> -- --allow-build-scripts'
@@ -482,10 +498,110 @@ check ask   'redirection file or quoted -- 15'         'sigil npm "a -- b" --all
 check ask   'redirection file or quoted -- 16'         'sigil npm '\''pip -- b'\'' --allow-build-scripts'
 check ask   'redirection file or quoted -- 17'         'sigil --rules '\''a -- b'\'' npm x --allow-build-scripts'
 check ask   'redirection file or quoted -- 18'         'bash -c '\''sigil npm "a -- b" --allow-build-scripts'\'''
-check allow 'the options end 01'                       'sigil npm -- --allow-build-scripts'
-check allow 'the options end 02'                       'sigil npm x -- --allow-build-scripts'
-check allow 'the options end 03'                       'sigil npm x > out.txt -- --allow-build-scripts'
-check allow 'the options end 04'                       'sigil npm '\''a b'\'' -- --allow-build-scripts'
+check ask   'a -- of its own 01'                       'sigil npm -- --allow-build-scripts'
+check ask   'a -- of its own 02'                       'sigil npm x -- --allow-build-scripts'
+check ask   'a -- of its own 03'                       'sigil npm x > out.txt -- --allow-build-scripts'
+check ask   'a -- of its own 04'                       'sigil npm '\''a b'\'' -- --allow-build-scripts'
+check allow 'comments that do not name the flag 01'    'sigil npm x # install it'
+check allow 'comments that do not name the flag 02'    'echo hi # sigil npm x'
+check allow 'comments that do not name the flag 03'    '# --allow-build-scripts is documented in docs/cli.md
+ls'
+check allow 'comments that do not name the flag 04'    'echo `echo a # `; sigil pip x'
+# A # inside a backtick substitution ends with it; the words after it are
+# the shell's, and are read.
+check ask   'a # inside backticks 01'                  'echo `echo a # `; sigil pip x --allow-build-scripts'
+check ask   'a # inside backticks 02'                  'x=`echo a # `; sigil pip x --allow-build-scripts'
+check ask   'a # inside backticks 03'                  'echo `: ; echo a #`; sigil pip x --allow-build-scripts'
+check ask   'a # inside backticks 04'                  'cd /tmp && echo `: # ` && sigil pip x --allow-build-scripts'
+check ask   'a # inside backticks 05'                  'if true; then echo `: # `; sigil pip x --allow-build-scripts; fi'
+check ask   'a # inside backticks 06'                  'echo `echo a # ` || true; sigil pip x --allow-build-scripts'
+check ask   'a # inside backticks 07'                  'echo "`echo a # `" ; sigil pip x --allow-build-scripts'
+# A -- cut out of a word (at , [ ] ( )), in a quoted string, or in another
+# word of the call, is not read as the end of anything.
+check ask   'a -- cut out of a word 01'                'sigil pip x -V a,--,b --allow-build-scripts'
+check ask   'a -- cut out of a word 02'                'sigil pip x,--,y --allow-build-scripts'
+check ask   'a -- cut out of a word 03'                'sigil pip a,--,b --allow-build-scripts'
+check ask   'a -- cut out of a word 04'                'sigil pip x -V ,--, --allow-build-scripts'
+check ask   'a -- cut out of a word 05'                'sigil pip x -V --, --allow-build-scripts'
+check ask   'a -- cut out of a word 06'                'sigil pip x -V ,-- --allow-build-scripts'
+check ask   'a -- cut out of a word 07'                'sigil npm x -V ,--, --allow-build-scripts'
+check ask   'a -- cut out of a word 08'                'sigil -f json pip x -V ,--, --allow-build-scripts'
+check ask   'a -- cut out of a word 09'                'sigil pip x --auto-approve=,--, --allow-build-scripts'
+check ask   'a -- cut out of a word 10'                'eval sigil pip x -V ,--, --allow-build-scripts'
+check ask   'a -- cut out of a word 11'                'bash <<EOF
+sigil pip x -V ,--, --allow-build-scripts
+EOF'
+check ask   'a -- cut out of a word 12'                'cat <<EOF | sh
+sigil pip x,--,y --allow-build-scripts
+EOF'
+check ask   'a -- cut out of a word 13'                'sigil pip x -V [--] --allow-build-scripts'
+check ask   'a -- cut out of a word 14'                'sigil pip x[--]y --allow-build-scripts'
+check ask   'a -- cut out of a word 15'                'sigil pip x -V <(echo --) --allow-build-scripts'
+check ask   'a -- cut out of a word 16'                'sigil pip x <(cat -- /dev/null) --allow-build-scripts'
+check ask   'a quoted -- before a delimiter 01'        'sigil pip x -V "a --)" --allow-build-scripts'
+check ask   'a quoted -- before a delimiter 02'        "sigil pip x -V 'a --)' --allow-build-scripts"
+check ask   'a quoted -- before a delimiter 03'        'sigil pip x -V "a --," --allow-build-scripts'
+check ask   'a quoted -- before a delimiter 04'        'sigil pip x -V "a --]" --allow-build-scripts'
+check ask   'a quoted -- before a delimiter 05'        'sigil pip x -V "a ,--, b" --allow-build-scripts'
+check ask   'a quoted -- before a delimiter 06'        "sigil pip x -V 'a (--) b' --allow-build-scripts"
+check ask   'a quoted -- before a delimiter 07'        "bash -c 'sigil pip x -V ,--, --allow-build-scripts'"
+# A variable assigned in the command can hold the call, or pieces of it.
+check ask   'a variable holds the call 01'             'ARGS="pip x --allow-build-scripts"; sigil $ARGS'
+check ask   'a variable holds the call 02'             "ARGS='npm x --allow-build-scripts'; sigil \$ARGS"
+check ask   'a variable holds the call 03'             'export ARGS="npm x --allow-build-scripts"; sigil $ARGS'
+check ask   'a variable holds the call 04'             'ARGS="pip x --allow-build-scripts"; sigil ${ARGS}'
+check ask   'a variable holds the call 05'             'ARGS="pip x --allow-build-scripts"; command sigil $ARGS'
+check ask   'a variable holds the call 06'             'ARGS="pip x --allow-build-scripts"; env sigil $ARGS'
+check ask   'a variable holds the call 07'             'ARGS="pip x --allow-build-scripts"; nohup sigil $ARGS'
+check ask   'a variable holds the call 08'             'ARGS="pip x --allow-build-scripts"; sigil --format json $ARGS'
+check ask   'a variable holds the call 09'             'S=sigil; ARGS="pip x --allow-build-scripts"; $S $ARGS'
+check ask   'a variable holds the call 10'             'S="pip x --allow"; S="$S-build-scripts"; sigil $S'
+check ask   'a variable holds the call 11'             'S="pip x --allow-build-"; sigil $S"scripts"'
+check ask   'a variable holds the call 12'             'S="pip x --allow-"; sigil $S"build-scripts"'
+check ask   'a variable holds the call 13'             'A=pip B=--allow-build-scripts; sigil $A x $B'
+check ask   'a flag glued from pieces 01'              "python3 -c \"import subprocess; subprocess.run(['sigil','pip','x','--'+'allow-build-scripts'])\""
+check ask   'a flag glued from pieces 02'              "python3 -c \"import subprocess; subprocess.run(['sigil','pip','x','--allow-'+'build-scripts'])\""
+check ask   'a flag glued from pieces 03'              "python3 -c \"import subprocess; subprocess.run(['sigil','pip','x','--allow'+'-build-scripts'])\""
+check ask   'a flag glued from pieces 04'              "node -e \"spawn('sigil',['npm','x','-'+'-allow-build-scripts'])\""
+# The known over-asks the docs list: none passes the flag, each asks.
+check ask   'a listed over-ask 01'                     'export PATH="$(npm config get prefix)/bin:$PATH"'
+check ask   'a listed over-ask 02'                     'x=$(npm view "$PKG" version)'
+check ask   'a listed over-ask 03'                     'X=$(pip show "$P")'
+check ask   'a listed over-ask 04'                     'PATH="$(npm bin):$PATH" ls'
+check ask   'a listed over-ask 05'                     'git commit -am "docs: sigil npm now downloads the tarball itself ($(date +%F))"'
+check ask   'a listed over-ask 06'                     'git add . && git commit -m "sigil ${X}"'
+check ask   'a listed over-ask 07'                     'docker build -t "sigil:${IMAGE_TAG}" .'
+check ask   'a listed over-ask 08'                     'sigil npm x # not --allow-build-scripts'
+check allow 'next to a listed over-ask 01'             'npm test'
+check allow 'next to a listed over-ask 02'             'which npm && echo $PATH'
+check allow 'a variable not set in the command 01'     'sigil $ARGS'
+check allow 'a variable not set in the command 02'     'ARGS="scan x"; sigil $ARGS'
+check allow 'not the manager and the flag 01'          'x=pip-tools; echo --allow-build-scripts'
+check allow 'not the manager and the flag 02'          'git commit --allow-empty -m '\''npm test'\'''
+check allow 'not the manager and the flag 03'          'npm version patch --allow-same-version'
+# A glob or extglob that can spell the flag where a file of that name exists
+# (the command can create it); a word that cannot begin with - cannot.
+check ask   'a bracket glob spells the flag 01'        'touch -- --allow-build-scripts; sigil pip x [a-]-allow-build-scripts'
+check ask   'a bracket glob spells the flag 02'        'touch -- --allow-build-scripts; sigil pip x [[:punct:]]-allow-build-scripts'
+check ask   'a bracket glob spells the flag 03'        'touch -- --allow-build-scripts; sigil pip x [+-.]-allow-build-scripts'
+check ask   'a bracket glob spells the flag 04'        'touch -- --allow-build-scripts; sigil pip x [,-.]-allow-build-scripts'
+check ask   'a bracket glob spells the flag 05'        'touch -- --allow-build-scripts; sigil pip x [[:punct:]][[:punct:]]allow-build-scripts'
+check ask   'a bracket glob spells the flag 06'        'touch -- --allow-build-scripts; sigil pip x [a-][a-]allow-build-script[s]'
+check ask   'an extglob spells the flag 01'            'shopt -s extglob
+touch -- --allow-build-scripts; sigil pip x @(-)-allow-build-scripts'
+check ask   'an extglob spells the flag 02'            'shopt -s extglob
+touch -- --allow-build-scripts; sigil pip x +(-)allow-build-scripts'
+check ask   'an extglob spells the flag 03'            'shopt -s extglob
+touch -- --allow-build-scripts; sigil pip x !(a)-allow-build-scripts'
+check ask   'an extglob spells the flag 04'            'shopt -s extglob
+touch -- --allow-build-scripts; sigil pip x -@(-)allow-build-scripts'
+check ask   'a glob subcommand 01'                     'touch pip; F=--allow-build-scripts; sigil p[i]p x $F'
+check ask   'a glob subcommand 02'                     'touch npm; F=--allow-build-scripts; sigil n[p]m x $F'
+check ask   'a glob subcommand 03'                     'shopt -s extglob
+touch pip; F=--allow-build-scripts; sigil p@(i)p x $F'
+check allow 'no glob can spell the flag 01'            'sigil scan src/[a-z]*.py'
+check allow 'no glob can spell the flag 02'            'echo [sigil,pip,x,-V,1.0]'
+check allow 'no glob can spell the flag 03'            'echo [sigil,pip,x],env={A:b,C:d}'
 check ask   'confirmation variable built 01'           'env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" sigil npm x'
 check ask   'confirmation variable built 02'           'export "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1"; sigil npm x'
 check ask   'confirmation variable built 03'           'V=SIGIL_ALLOW_BUILD_SCRIPTS; export $V=1; sigil npm x'

@@ -628,7 +628,27 @@ fn a_download_failure_explains_credentials_and_proxies() {
     assert!(denied.contains("HTTPS_PROXY"), "{denied}");
     let other = npm_download_failure("pkg@1.0.0", "download failed: connection refused");
     assert!(!other.contains("wants credentials"), "{other}");
+    assert!(!other.contains("SSL_CERT_FILE"), "{other}");
     assert!(other.contains("HTTPS_PROXY"), "{other}");
+}
+
+/// A registry trusted through npm's `cafile` (or `ca`) fails Sigil's own
+/// download: Sigil does not read npm's CA settings, and says what to set.
+#[test]
+fn a_certificate_failure_names_the_ca_settings_npm_has_and_sigil_does_not() {
+    for why in [
+        "download failed: error sending request for url (https://localhost:48713/files/p.tgz): \
+         certificate verify failed (unable to get local issuer certificate)",
+        "download failed: self signed certificate in certificate chain",
+        "download failed: TLS handshake failed",
+    ] {
+        let m = npm_download_failure("pkg@1.0.0", why);
+        assert!(m.contains("`cafile`"), "{m}");
+        assert!(m.contains("SSL_CERT_FILE"), "{m}");
+        assert!(m.contains("SSL_CERT_DIR"), "{m}");
+        assert!(m.contains("strict-ssl=false"), "{m}");
+        assert!(m.contains("HTTPS_PROXY"), "the proxy line stays: {m}");
+    }
 }
 
 #[test]
@@ -989,6 +1009,43 @@ fn npm_view_output_is_read() {
         r#"{"name":"x","version":"1.0.0"}"#,
     ] {
         assert!(parse_npm_view(bad).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn an_empty_npm_view_says_the_package_has_no_latest_tag() {
+    for spec in ["nolatest", "nolatest@*", "@s/nolatest", "@s/nolatest@*"] {
+        let m = npm_view_empty(spec);
+        assert!(
+            m.starts_with(&format!(
+                "npm resolved no version for `{spec}`: the package has no latest tag; name a \
+                 version or a dist-tag"
+            )),
+            "{m}"
+        );
+        let name = spec.strip_suffix("@*").unwrap_or(spec);
+        assert!(
+            m.contains(&format!("npm view {name} versions dist-tags")),
+            "{m}"
+        );
+        assert!(m.contains(&format!("sigil npm {name}@next")), "{m}");
+        assert!(!m.contains("JSON"), "{m}");
+    }
+    // A range, a version or a tag that matches nothing is not a missing tag.
+    for spec in ["nolatest@^9", "@s/nolatest@1.99.x", "nolatest@next"] {
+        let m = npm_view_empty(spec);
+        assert!(
+            m.starts_with(&format!("npm resolved no version for `{spec}`: no release")),
+            "{m}"
+        );
+        assert!(!m.contains("latest tag"), "{m}");
+        assert!(
+            m.contains(&format!(
+                "npm view {} versions dist-tags",
+                npm_spec_name(spec)
+            )),
+            "{m}"
+        );
     }
 }
 

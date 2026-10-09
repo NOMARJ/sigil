@@ -81,7 +81,16 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     wants a token for tarballs answers 401 or 403, and the error says Sigil
     downloads without credentials and points at `sigil scan <file>.tgz` for a
     tarball you fetched yourself; Sigil's download uses `HTTPS_PROXY` /
-    `HTTP_PROXY` / `NO_PROXY` from the environment, not npm's `proxy` setting.
+    `HTTP_PROXY` / `NO_PROXY` from the environment, not npm's `proxy` setting,
+    and trusts the system's certificates plus `SSL_CERT_FILE` / `SSL_CERT_DIR`,
+    not npm's `cafile`, `ca` or `strict-ssl` settings: a registry that npm
+    trusts only through those (a private certificate authority named by
+    `cafile`) worked with 1.3.7, which ran `npm pack`, and now fails the
+    download with a certificate error that names the settings and says what to
+    set (`SSL_CERT_FILE=<the file `cafile` names>`). Tested against a local
+    HTTPS registry with a private CA and npm's `cafile` (npm 10.9.7): 1.3.7
+    scanned the package, this build fails the download with `certificate verify
+    failed` and the hint, and succeeds with `SSL_CERT_FILE` set.
     On npm 10.9.7 `--ignore-scripts` still runs the `prepare` script of a
     local directory and of a git checkout (marker-file test; npm 12.2.0 did
     not run a directory's and refuses git specs by default, `allow-git=none`),
@@ -89,7 +98,8 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     runs: directories, tarballs, URLs, `file:` specs, git specs including the
     `owner/repo` shorthand, and `npm:` aliases (the refusal names the aliased
     package to scan instead). A name or range is read as a tarball path by
-    npm's own pattern, whose unescaped `.` also matches `foo.tar-gz`.
+    npm's own pattern, whose unescaped `.` also matches `foo.tar-gz` (npm
+    10.9.7).
   - Why `sigil npm` does not run `npm pack`, by name or by URL. `npm view`
     asks the registry for the release's full metadata, and `npm pack
     <name>@<version>` asks again with a different `Accept` header (the
@@ -121,9 +131,11 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     terminal escape sequence into the file name, the progress line, the
     quarantine index or the JSON `package` field. The name must also be the
     one that was asked for (case aside): a registry whose description of
-    `nameswap` says the release is named `othername` is refused with exit 2,
-    where it used to be downloaded, scanned and reported as `othername@1.0.0`
-    for the user to install.
+    `nameswap` says the release is named `othername` is refused with exit 2.
+    1.3.7 had no such check (tested against a local registry that does this,
+    with npm 10.9.7): `--format json npm nameswap` printed npm's own stdout
+    (`othername-1.0.0.tgz`) in front of the report, the report had no
+    `package` field, and the quarantine entry was recorded as `nameswap (npm)`.
   - For a bare name or `name@*`, `npm view` shows only the `latest` tag, but
     npm itself skips a `latest` that is deprecated for the highest release that
     is not (`npm pack rng2` gives 1.9.0 when 2.0.0 is `latest` and deprecated;
@@ -134,6 +146,17 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
     Against the real registry, `left-pad@1.3.0` downloads, passes the
     integrity check and scans LOW RISK, and `@types/node@20.1.0` downloads,
     passes the check and is scanned.
+  - A package with no `latest` dist-tag (published with `--tag` only, as
+    private and mirrored registries often do) has no version `npm view`
+    resolves a bare name to: it prints nothing and exits 0, where `npm pack
+    <name>` takes the highest release that is not a pre-release (a local
+    registry with 1.0.0, 1.1.0 and 2.0.0-rc.1 and only a `next` tag, npm
+    10.9.7: `npm pack` gives 1.1.0, 1.3.7 scanned `nolatest@1.1.0`). `sigil
+    npm <name>` and `<name>@*` still stop with exit 2 and download nothing,
+    but say `npm resolved no version for <spec>: the package has no latest
+    tag; name a version or a dist-tag` (with the `npm view <name> versions
+    dist-tags` command that lists them). Sigil does not choose a version by a
+    rule of its own; `<name>@next` and `<name>@1.1.0` work.
   - The spec is checked first. pip: a package name with optional `[extras]`
     and version specifiers (`requests`, `requests[socks]`,
     `"requests>=2,<3"`, `"requests (>=2)"`), each version starting with a
@@ -221,31 +244,54 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   - The Claude Code PreToolUse hook (`sigil hook pretooluse`, its shell
     fallback, and the MCP server's `check_command`) asks before a command
     that passes the flag to `sigil pip`/`sigil npm` or sets the variable. It
-    reads the text of the command, fail-safe: where the text could mean the
-    flag, it asks. Over several views of the text (as written; the shell's
-    quote splicing in a string handed to an interpreter undone; up to three
-    layers of double-quote escaping undone, `\\` as `\`; every quote and
-    backslash taken off; a quoted `;` `&` `|` ` #` and line end masked):
-    - a `pip` or `npm` word followed by `--allow-build-scripts` (before a
-      standalone `--` that is outside quotes and is not a redirection's
-      file), whatever sits between them and however the command word is
-      spelled (`sigil npm './a;b' --allow-build-scripts`, a line end in an
-      argv list, `si${E}gil npm …`, `bash -c "sig\"\"il npm …"`), and a `--`
-      inside a quoted string or as a redirection's file (`sigil npm 'a -- b'
-      --allow-build-scripts`, `sigil npm x > -- --allow-build-scripts`, `<<<
-      --`, `{fd}> --`) does not end the options;
+    reads the text of the command and asks on the shapes listed here. It can
+    never cover every way a shell can spell the flag, it over-asks on purpose,
+    it is advisory, and an inline `SIGIL_BYPASS=1` prefix switches it off. Its
+    rules are coarse, so that one rule covers a family of spellings, and the
+    text is read both as written and without its `# comments`: either reading
+    that finds the flag asks, because a `#` inside a backtick substitution is
+    not a comment. Each reading is made over the text; with the shell's quote
+    splicing in a string handed to an interpreter undone; with up to three
+    layers of double-quote escaping undone (`\\` as `\`); with all quotes and
+    backslashes taken off; and with a `;` `&` `|` ` #` or line end inside a
+    quoted word, or a line end inside `[…]` or `<(…)`, masked. It asks for:
+    - a `pip` or `npm` word followed anywhere later in the text by a word that
+      holds the start of the flag (`allow-b`, as in `--allow-b…` and
+      `'--' + 'allow-build-scripts'`, or `--allow` or `--allow-` as a word of
+      its own, for a flag in pieces). Words are cut at each character that is
+      not a letter, a digit, `_`, `.` or `-`, so `ARGS="pip x
+      --allow-build-scripts"; sigil $ARGS` is read, and so is a flag after
+      `=`, a quote, a bracket or a `$(`. Nothing between the two stops the
+      reading: not a `;`, `&` or `|`, a line end, a quoted string, a
+      redirection, a comment, or a `--`. The CLI reads no flag after a `--` of
+      its own, so `sigil npm x -- --allow-build-scripts` could not pass it and
+      the hook asks all the same: a `--` can come from another word of the
+      call (`<(cat -- f)`, `a,--,b`, `'a --)'`), and telling those apart takes
+      a parser. The reading needs no `sigil` word, so the spelling of the
+      command word does not matter to it (`si${E}gil npm …`,
+      `bash -c "sig\"\"il npm …"`); it is made also in a string a shell,
+      `find -exec` or a here-string runs, in an interpreter's argv list, and
+      in text that only mentions it;
     - a word that starts with the flag later in the call of a `sigil` or of a
       command word that may be `sigil` (`$S`, `s\igil`), wherever the
       subcommand is: after a global option (`sigil --format json $'npm' x
       --allow-build-scripts`; `-v`, `-f X`, `--format X|=X`, `-o X`, `--rules
       X`, `--yara-engine X`, `--config X`), from variables (`S=sigil;
       M=npm; $S $M x …`), a function's `"$@"` or `xargs -I<string>`;
-    - a `$` or backtick word, or one that begins like an option or a pattern
-      (`-`, `{`, `*`, `?`, `[`) and holds a brace expansion
-      (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`, which
-      expands where a file of that name exists, as the command can arrange),
-      after `pip`/`npm` or after a subcommand that may be one (`$SUB`,
-      `$'npm'`, `n\pm`, `np${x}m`, `{pip,npm}`), also behind `xargs`;
+    - after `pip`/`npm`, or after a subcommand that may be one (`$SUB`,
+      `$'npm'`, `n\pm`, `np${x}m`, `p[i]p`, `p@(i)p`, `{pip,npm}`), also
+      behind `xargs`: a `$` or backtick word, a quoted `-V "$VER"` included
+      (`"$@"` and `"${A[@]}"` are several words, and the reading does not tell
+      them from `"$VER"`); and a word that begins with `-`, a brace expansion,
+      `*`, `?`, a bracket class followed by more of the word, or an extglob
+      opener, and holds a brace expansion (`--allow-build-{scripts,x}`), a
+      glob (`--allow-build-s*`, `[a-]-allow-build-scripts`,
+      `[[:punct:]][[:punct:]]allow-build-scripts`) or an extglob
+      (`@(-)-allow-build-scripts`). A glob expands only where a file of that
+      name exists, which the command can arrange. A word that begins with a
+      letter (`requests[socks]`, `@types/node@*`) cannot expand to one that
+      begins with `-`, and an argv list written as one word (`[sigil,pip,x]`)
+      is a class of one character; neither is asked about;
     - a command that sets `SIGIL_ALLOW_BUILD_SCRIPTS` under its own name or
       one the shell builds: the name with anything glued to it and then `=`
       (`env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" …`), its first part next to a
@@ -253,19 +299,18 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
       `declare -x`), or an assignment with an expansion in its name in a call
       with `export`, `env`, `eval` and the like (`export $V=1`); a command
       that only names or reads it (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`) is
-      not asked about;
-    - a `#` is a comment only at the start of a word, not after an escaped
-      blank (`echo \ #`), inside `${…}` (`${x:- #}`) or glued to a `)`, `<` or
-      `>` (`$(a)#`), and a backslash at the end of a comment's line does not
-      continue it: `echo ok # note \⏎SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil npm
-      ./dir --allow-build-scripts` runs the flag (npm 10.9.7 ran the
-      directory's `prepare` script in a marker-file test, with no terminal)
-      and the hook allowed it before.
-    They do not ask for a redirection's file (`> "$LOG"`), a quoted version
-    value (`-V "$VER"`), a range or extras (`'requests[security]'`,
+      not asked about.
+    A redirection's file (`> "$LOG"`), a range or extras (`'requests[security]'`,
     `'lodash@*'`), `sigil scan …` and the other subcommands that take no such
-    flag, or a message that names the flag (`git commit -m "document
-    --allow-build-scripts"`).
+    flag, and a message that names the flag with no `pip` or `npm` word
+    before it (`git commit -m "document --allow-build-scripts"`) are not asked
+    about. Known over-asks, which the coarse rules cause and are left: a `$`
+    or backtick after any `pip`/`npm` word asks in a command that has no
+    `sigil` at all (`export PATH="$(npm config get prefix)/bin:$PATH"`,
+    `x=$(npm view "$PKG" version)`, `PATH="$(npm bin):$PATH" ls`, `docker build
+    -t "sigil:${IMAGE_TAG}" .`, `git commit -m "sigil ${X}"`), a quoted
+    `-V "$VER"` asks, a `--` before the flag asks, and so does a comment that
+    names the flag after a `pip`/`npm` word.
   - The nested-shell reading is for text another shell reads again, where no
     reading of the outer command can know what the inner one runs: a
     double-quoted string keeps a `\c`, and the shell it is handed to reads the
@@ -287,59 +332,68 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   - The native hook and the MCP server's `check_command` are one function.
     The shell fallback reads the same shapes in sed, awk and extended regular
     expressions and is a coarser reading: it can ask where the native hook
-    allows (`find . | xargs -I{} sigil scan {}`), and without awk it keeps a
-    `# comment` and a quoted `--` as written, and joins a line continuation
+    allows (`find . | xargs -I{} sigil scan {}`) and where it denies
+    (``printf '%s\n' "`which sigil` n\\pm x -V 1.0" | ${0}`` is a deny in the
+    native hook, an ask about the flag in the fallback), and without awk it
+    keeps a `# comment` as written, does not join a line end inside a quoted
+    word or a process substitution to its call, and joins a line continuation
     that follows a comment. `plugins/claude-code/hooks/tests/nested-shell-agreement.py`
     generates random commands from the families above (a global option and a
-    spelled subcommand, a function's `"$@"`, `xargs` with a replace string, a
-    `#` that is not a comment, a redirection's file named `--`, a built name
-    for the variable, one to three levels of `bash -c`, `sh -c`, `eval`,
-    `ssh`, `su`, `sudo`, `script`, pipes and here-documents into `sh`,
-    `rbash` and `$0`, `source <(…)`), runs each under real bash and dash with
-    stub `sigil`, `pip`, `npm`, `ssh`, `su`, `sudo` and `script` programs to
-    see whether a `sigil pip|npm` call really received the flag (after `pip`
-    or `npm`, before a `--`, as clap reads it) or the variable, and asks all
-    three implementations.
+    spelled subcommand, a function's `"$@"` and `-V "$@"`, `xargs` with a
+    replace string, a `#` in a comment or inside backticks, a redirection's
+    file named `--`, a `--` cut out of a word, a variable assigned in the
+    command that holds the call or pieces of it, a bracket class or extglob
+    that spells the flag, a word that spans lines, a built name for the
+    variable, one to three levels of `bash -c`, `sh -c`, `eval`, `ssh`, `su`,
+    `sudo`, `script`, pipes and here-documents into `sh`, `rbash` and `$0`,
+    `source <(…)`), runs each under real bash and dash with stub `sigil`,
+    `pip`, `npm`, `ssh`, `su`, `sudo` and `script` programs to see whether a
+    `sigil pip|npm` call really received the flag (after `pip` or `npm`,
+    before a `--`, as clap reads it) or the variable, and asks all three
+    implementations.
     Data source: synthetic commands from that seeded generator, not commands
-    anyone ran, checked against bash 5.2.21 and dash (Linux; zsh and ksh were
-    not installed, so no other shell was tried) with a release build. Sample
-    size: seeds 101 to 110, 400 commands each, run once on the final code and
-    not used while writing it: 4000 commands, of which 2575 really pass the
-    flag or the variable to a `sigil pip|npm` call. Result: 0 of the 2575 were
-    allowed by the native hook, the MCP `check_command` or the shell fallback,
-    and the three agreed on 3999 of the 4000; the other
-    (`sh -c "si\"g\"il --format json {npm,} x -V 1.0 && echo done"`) passes
-    no flag and only the native hook asks about it. The build this round
-    started from, on the same generator, allowed 128, 125 and 129 of the 258,
-    269 and 242 that pass the flag in seeds 101 to 103 (about half; 186 of
-    400 commands in seed 101 got different answers from the three
-    implementations). Over-asking: the native hook asked about 1170 of the 1425
-    commands that pass nothing (82%); the generator's commands that pass
-    nothing are the same obscure spellings with a near-miss flag or no flag,
-    so that is no rate for ordinary commands, for which the allow lists in
-    `hook_tests.rs` and `test-guard.sh` (`sigil scan`, `git commit -m
-    "document --allow-build-scripts"`, `grep -rn …`, `git ls-files | xargs
-    sigil scan`, `bash -c "sigil scan …"`, 214 `allow` checks in all) are all
-    allowed by both the native hook and the fallback. Limitations: it covers
-    only the families and spellings the generator writes; seeds 1 to 9 were
-    used while finding misses along the way, so only seeds 101 to 110 are runs
-    the code was not tuned on; 0 missed in 4000 is not a proof that none
-    exists.
+    anyone ran, checked against bash 5.2.21 and dash 0.5.12 (Linux; zsh and
+    ksh were not installed, so no other shell was tried) with a release build.
+    Sample size: seeds 101 to 110, 400 commands each: 4000 commands, of which
+    2840 really pass the flag or the variable to a `sigil pip|npm` call.
+    Result: 0 of the 2840 were allowed by the native hook, the MCP
+    `check_command` or the shell fallback, and the three agreed on 3999 of
+    the 4000; the other (`S=sigil; ${S} {npm,} x `) passes no flag, and the
+    native hook and the MCP tool ask about it where the fallback allows.
+    Over-asking: the native hook asked about 981 of the 1160 commands that
+    pass nothing (85%); the generator's commands that pass nothing are the
+    same obscure spellings with a near-miss flag or no flag, so that is no
+    rate for ordinary commands. On ordinary text, the 1089 distinct shell
+    lines in the fenced `bash`/`sh`/`shell`/`console`/`zsh` blocks of this
+    repository's Markdown files (documentation examples, not commands an agent
+    ran): the 1.3.7 hook asked about 9 and denied 43; this build asks about 14
+    and denies the same 43. The five that changed from allow to ask are
+    `export PATH="$(npm config get prefix)/bin:$PATH"`, `docker build -t
+    "sigil:${IMAGE_TAG}" .`, `sigil pip "$package"`, and the two usage
+    synopses `sigil pip <package> [-V <version>] [--auto-approve]
+    [--allow-build-scripts]` and the same for `npm`. Limitations: it covers
+    only the families and spellings the generator writes, which include the
+    shapes earlier reviews found, so a clean result says those stay closed,
+    not that no other miss exists; 0 missed in 4000 is not a proof that none
+    does, and a seed other than the default is a sample, not a claim that all
+    seeds agree.
   - The hook is not a boundary and the docs say what it misses: a flag a
     program builds at run time (including code in another language's
-    `-c`/`-e` string), an argv list read from a file or variable, a command
-    word and a subcommand that are both bare expansions with the flag in a
-    third (`$S $M x $F`, indistinguishable from `$CC $CFLAGS $SRC`), a script
-    one tool call writes and the next runs (a Write that creates `run.sh`,
-    then `sh run.sh`), an inline `SIGIL_BYPASS=1` prefix (which lifts every
-    ask), and `npm pack <dir or git spec>`, `npm view <dir>`, `pip download
-    <path, URL or package>` and `pip wheel <path>` run directly, which the
-    hook allows. To install what you vetted under the hook, repeat the
-    resolved pin in both commands (`sigil pip requests==2.32.3 && pip install
-    requests==2.32.3`): the hook allows that and denies `sigil pip requests
-    && pip install requests==2.32.3`. The hook's suggestion for `deno run
-    npm:<pkg>/<subpath>` names the package without the subpath (`sigil npm
-    chalk@5.3.0`).
+    `-c`/`-e` string), a flag in pieces none of which is `--allow`,
+    `--allow-` or holds `allow-b`, an argv list read from a file or variable
+    (one set in the same command with the words in it is read), a command
+    word and a subcommand that are both spelled by the shell with the flag in
+    a third (`$S $M x $F`, indistinguishable from `$CC $CFLAGS $SRC`), a
+    script one tool call writes and the next runs (a Write that creates
+    `run.sh`, then `sh run.sh`), an inline `SIGIL_BYPASS=1` prefix (which
+    switches the ask off, as it does the hook's other checks), and `npm
+    pack <dir or git spec>`, `npm view <dir>`, `pip download <path, URL or
+    package>` and `pip wheel <path>` run directly, which the hook allows. To
+    install what you vetted under the hook, repeat the resolved pin in both
+    commands (`sigil pip requests==2.32.3 && pip install requests==2.32.3`):
+    the hook allows that and denies `sigil pip requests && pip install
+    requests==2.32.3`. The hook's suggestion for `deno run npm:<pkg>/<subpath>`
+    names the package without the subpath (`sigil npm chalk@5.3.0`).
 - **The package crawler no longer runs package code on the API host.**
   `api/services/crawler.py` downloaded PyPI packages with `pip download
   --no-binary :all:`, which builds every source distribution (running its
@@ -364,7 +418,17 @@ All notable changes to Sigil are documented here. This project uses [Semantic Ve
   distributions) and `npm pack <name>` (no `--ignore-scripts`, no checks);
   the fallback is gone, and a job whose downloaders are unavailable now fails
   and is retried or dead-lettered. A test fails if anything under `bot/`
-  starts `pip`, `npm` or another package manager. Neither `tar` nor `unzip`
+  starts `pip`, `npm` or another package manager. `Dockerfile.bot` no longer
+  installs `nodejs` and `npm`, since nothing in the bot starts them. The one
+  program in that image that looks for `npm` is the legacy bash scanner
+  (`bin/sigil`, installed there as `sigil`, which the worker runs only when
+  the Python scanner cannot be imported): its `npm audit` step runs when `npm`
+  is found and the scanned directory has a `package.json`, so in the bot image
+  it no longer runs. It had little to report there: `npm audit` needs a
+  lockfile (npm 10.9.7 in a directory with only a `package.json` exits with
+  `ENOLOCK`, which that script counts as no vulnerabilities) and npm does not
+  publish `package-lock.json` (a package that ships an `npm-shrinkwrap.json`
+  was not tested). Neither `tar` nor `unzip`
   writes through a symbolic link, but both create the ones an archive holds,
   and the scanners followed them: a tarball holding `config.js -> <a file
   outside the tree>` put that file's lines into the findings the crawler and

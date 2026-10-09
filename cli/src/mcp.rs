@@ -473,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn check_command_asks_about_the_opt_in_however_it_is_written() {
+    fn check_command_asks_about_the_listed_opt_in_shapes() {
         let decision = |command: &str| {
             let request = serde_json::json!({
                 "jsonrpc": "2.0", "id": 9, "method": "tools/call",
@@ -496,12 +496,24 @@ mod tests {
             r#"sh -c "sigil npm x --allow-build-s\\cripts""#,
             r#"eval sigil pip x --allow-build-s\\cripts"#,
             r#"echo "sigil pip x --allow-build-s\\cripts" | sh"#,
+            // The families of the last review round: a `#` inside backticks,
+            // a `--` cut out of a word, a variable that holds the call, a
+            // glob, and a `--` of its own (the CLI would not read the flag
+            // after it; the reading does not stop there).
+            "echo `echo a # `; sigil pip x --allow-build-scripts",
+            "sigil pip x -V a,--,b --allow-build-scripts",
+            "sigil pip x <(cat -- /dev/null) --allow-build-scripts",
+            r#"set -- 1.0 --allow-build-scripts; sigil pip x -V "$@""#,
+            r#"ARGS="pip x --allow-build-scripts"; sigil $ARGS"#,
+            "touch -- --allow-build-scripts; sigil pip x [a-]-allow-build-scripts",
+            "touch pip; F=--allow-build-scripts; sigil p[i]p x $F",
+            "sigil npm -- --allow-build-scripts",
         ] {
             assert_eq!(decision(command), "ask", "{command}");
         }
         for command in [
             "sigil npm left-pad",
-            "sigil npm -- --allow-build-scripts",
+            "sigil pip requests[socks]",
             r#"bash -c "sigil pip requests""#,
             r#"bash -c "cd /tmp && sigil npm left-pad""#,
         ] {

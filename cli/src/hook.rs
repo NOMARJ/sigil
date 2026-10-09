@@ -895,6 +895,22 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
     )
 }
 
+/// [`build_scripts_opt_in`] on the command without its `# comments` and on
+/// the command as written: a `#` that the shell does not read as a comment
+/// (inside a backtick substitution, after a quote, in text an older shell
+/// parses differently) must never hide the words after it, so either reading
+/// that finds the flag asks. `q` is the quote map of `cmd`.
+fn opt_in_ask(cmd: &str, q: &[Q]) -> Option<Decision> {
+    let stripped = uncommented(cmd, 0, q);
+    build_scripts_opt_in(&stripped).or_else(|| {
+        if stripped == cmd {
+            None
+        } else {
+            build_scripts_opt_in(cmd)
+        }
+    })
+}
+
 /// `sigil pip|npm … --allow-build-scripts` lets pip or npm run the
 /// package's own setup or lifecycle scripts on this machine before the scan.
 /// The flag is meant as the user's own decision; a command an agent runs is
@@ -903,24 +919,37 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 /// or `SIGIL_ALLOW_BUILD_SCRIPTS=1`), but that only stops accidents and
 /// unattended runs: a program that opens a pseudo-terminal, or sets the
 /// variable, satisfies it. And this reading is advisory as well: it reads the
-/// text of the command, and a flag a program builds at run time is not in it.
+/// text of the command and asks on the shapes listed here. It can never cover
+/// every way a shell can spell the flag; it over-asks on purpose, and an
+/// inline `SIGIL_BYPASS=1` prefix switches it off ([`classify_in`] allows
+/// before it gets here).
 ///
-/// Fail-safe, not exact: where the text could mean the flag, it asks. Over
-/// several views of the stage's text (as written; with the quotes of a string
-/// a shell hands to an interpreter unspliced: `'\''`, `'"'"'`, `\"`; with up
+/// Its rules are coarse, so that a whole family of spellings is one rule: a
+/// `--` never ends a reading, a `#` never hides the words after it, and a `$`
+/// or backtick after `pip`/`npm` asks. The text is read as written and
+/// without its `# comments` (either reading that finds the flag asks, see
+/// [`opt_in_ask`]), over several views of it (with the quotes of a string a
+/// shell hands to an interpreter unspliced: `'\''`, `'"'"'`, `\"`; with up
 /// to three layers of double-quote escaping undone: `bash -c "sigil np\\m …"`
 /// hands the inner shell `np\m`; with the `;` `&` `|` `#` and line ends
-/// inside a quoted word masked, see [`mask_quoted_separators`]; and each of
-/// those again with the quotes taken off plain word characters, and with
-/// every quote and backslash taken off), three readings:
+/// inside a quoted word, and the line ends inside `[…]` and `<(…)`/`>(…)`,
+/// masked, see [`mask_quoted_separators`]; and each of those again with the
+/// quotes taken off plain word characters, and with all quotes and
+/// backslashes taken off), in three readings:
 ///
-/// 1. [`flat_opt_in`]: a `pip` or `npm` word, then, before a `--` word of
-///    its own, a word starting with `--allow-build-scripts`, however the
-///    words in between are quoted or separated and whatever the command
-///    word before `pip`/`npm` is spelled like (`si${E}gil npm …`,
-///    `sig$(true)il npm …`, a `sigil` call inside a here-string, an argv
-///    list written over several lines). Nothing here needs a `sigil` word,
-///    so no spelling of the command word hides the flag.
+/// 1. [`flat_opt_in`]: a `pip` or `npm` word, then, anywhere later in the
+///    text, a word that holds the start of the flag (`allow-b`, as in
+///    `--allow-b…` and `'--' + 'allow-build-scripts'`, or `--allow` or
+///    `--allow-` on its own, for a flag in pieces). Words are cut at each
+///    character that is not a letter, a digit, `_`, `.` or `-`, so the `pip`
+///    of `ARGS="pip x --allow-build-scripts"` is a word, and so is a flag
+///    after `=`, a quote or a bracket. Nothing between the two stops the
+///    reading: not a `;` `&` `|`, a line end, a quoted string, a redirection,
+///    a comment or a `--` (`sigil npm x -- --allow-build-scripts` asks,
+///    although the CLI would read no flag after a `--` of its own: a `--` can
+///    belong to another word of the call, `<(cat -- f)`, and telling them
+///    apart takes a parser). Nothing here needs a `sigil` word, so the
+///    spelling of the command word does not matter to it.
 /// 2. [`sets_opt_in_env`]: the variable the CLI accepts in place of a
 ///    terminal (`SIGIL_ALLOW_BUILD_SCRIPTS=1`) being set, under its own name
 ///    or a name the shell may build.
@@ -932,41 +961,56 @@ fn vetting_targets(stage: &str, ctx: &Context) -> Option<Vec<Target>> {
 ///    here-string runs, in an interpreter's argv list such as
 ///    `['sigil','pip',…]`, and in text that only mentions it, as the install
 ///    rules read `npm install` anywhere):
-///    - a word starting with `--allow-build-scripts` later in the same call
-///      (before a `--`, a `# comment` or a `;`/`&`/`|`) asks, whatever
-///      stands between: the subcommand may be `$'npm'`, `$M`, `np${x}m`, or
-///      come from a function's `"$@"` or from `xargs`. Only `pip` and `npm`
-///      take the flag, so asking about a non-flag word that precedes it is
-///      cheap;
+///    - a word starting with `--allow-b` (or one that a glob or brace
+///      expansion may make into it) later in the same call (before a `# comment`
+///      word or a `;`/`&`/`|`) asks, whatever stands between: the subcommand
+///      may be `$'npm'`, `$M`, `np${x}m`, or come from a function's `"$@"` or
+///      from `xargs`. Only `pip` and `npm` take the flag, so asking about a
+///      non-flag word that precedes it is cheap;
 ///    - after `sigil` and its global options (`-v`, `-f X`, `--format X|=X`,
 ///      `-o X`, `--rules X`, `--yara-engine X`, `--config X`), the
 ///      subcommand is `pip`, `npm`, or a word that may expand to one (`$SUB`,
-///      `{pip,npm}`, `$'npm'`, `n\pm`); after it, a word with a `$` or
-///      backtick, or one that begins like an option or a pattern (`-`, `{`,
-///      `*`, `?`, `[`) and holds a brace expansion
-///      (`--allow-build-{scripts,x}`) or a glob (`--allow-build-s*`,
-///      `--allow-build-scr?pts`, `--allow-build-scr[i]pts`; a glob expands
-///      only where a file matches, which the command can arrange), may be
-///      the flag. A redirection and its file (`> "$LOG"`, `2>&1`, and a file
-///      named `--`: `> --`, `<<< --`) are not arguments, nor is one quoted
-///      word after `-V`/`--version` (`-V "$VER"`, its value); an unquoted
-///      `-V $VER` can split into more words and is still asked about;
+///      `{pip,npm}`, `$'npm'`, `n\pm`, `p[i]p`, `p@(i)p`); after it, a word
+///      with a `$` or backtick (a quoted `-V "$VER"` too), or one that the
+///      shell may expand to a word that begins with `-`, may be the flag. A
+///      word can only do that if it begins with `-`, a brace expansion, a
+///      `*`, a `?`, a bracket class that is followed by more of the word
+///      (`[a-]-allow-build-scripts`, `[[:punct:]][[:punct:]]allow-build-scripts`;
+///      not the argv list `[sigil,pip,x]`) or an extglob opener (`@(`, `+(`,
+///      `!(`), and hold a brace expansion (`--allow-build-{scripts,x}`), a
+///      glob (`--allow-build-s*`, `--allow-build-scr[i]pts`) or an extglob. A
+///      glob expands only where a file matches, which the command can
+///      arrange. `requests[socks]` and `@types/node@*` begin with a letter or
+///      a scope and are not asked about. A redirection and its file (`>
+///      "$LOG"`, `2>&1`) are not arguments;
 ///    - a sigil call behind `xargs` is asked about: xargs appends the words
 ///      it reads, or puts them where its replace string (`-I@`, `-i`) stands.
 ///
 /// The shell fallback (`sigil-guard.sh`) reads the same shapes with sed,
-/// awk and extended regular expressions; it is a coarser reading, and
-/// `nested-shell-agreement.py` measures where the two differ.
+/// awk and extended regular expressions; it is a coarser reading that can
+/// ask where this one allows or denies, and `nested-shell-agreement.py`
+/// measures where the two differ.
 ///
 /// What it does not read: a flag that a program builds at run time
 /// (`'--allow-build-' + 'scripts'` in an interpreter's code), a file or
-/// variable the call reads its arguments from, a call a script or alias
+/// variable the call reads its arguments from (`sigil $ARGS`, with `ARGS` set
+/// by an earlier command; one set in the same command with the words in it is
+/// read), a flag in pieces none of which is `--allow`, `--allow-` or holds
+/// `allow-b` (`--al` and `low-build-scripts`), a call a script or alias
 /// makes without the words appearing in the command (a script written by
 /// one tool call and run by the next), a glob-spelled `sigil` (`sigi[l]`)
 /// followed by an expansion, a command word and a subcommand that are both
-/// bare expansions with the flag in a third (`$S $M x $F`: indistinguishable
-/// from `$CC $CFLAGS $SRC`), and a quoted word holding a `pip` or `npm` word
-/// that is data, not a script, in front of an expansion that spells the flag.
+/// spelled by the shell with the flag in a third (`$S $M x $F`:
+/// indistinguishable from `$CC $CFLAGS $SRC`), and a quoted word holding a
+/// `pip` or `npm` word that is data, not a script, in front of an expansion
+/// that spells the flag.
+///
+/// Known over-asks, which the rules above cause and are left: a `$` or
+/// backtick after any `pip`/`npm` word asks even in a command that has no
+/// `sigil` (`export PATH="$(npm config get prefix)/bin:$PATH"`,
+/// `x=$(npm view "$PKG" version)`, `docker build -t "sigil:${TAG}" .`,
+/// `git commit -m "sigil ${X}"`), and a quoted version value does too
+/// (`sigil npm left-pad -V "$VER"`), because `"$@"` is several words.
 fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
     fn add(views: &mut Vec<String>, v: String) {
         if !views.contains(&v) {
@@ -1000,7 +1044,7 @@ fn build_scripts_opt_in(stage: &str) -> Option<Decision> {
         if plain != *text && reads(&plain) {
             return true;
         }
-        // With every quote gone, a quoted `"$VER"` reads as an expansion that
+        // With all quotes gone, a quoted `"$VER"` reads as an expansion that
         // may split; only the flag itself is looked for.
         let bare = strip_quotes(text);
         bare != *text
@@ -1633,97 +1677,48 @@ fn flag_word(word: &str) -> bool {
         .starts_with("--allow-build-scripts")
 }
 
-/// For each byte of `text`, whether it sits inside quotes (a `--` there is a
-/// piece of a quoted string, not the end of the options). Quotes are followed
-/// in a here-document's body too, which is a script like the rest: unlike
-/// [`quote_map`], this does not know about comments or here-documents.
-fn quoted_bytes(text: &str) -> Vec<bool> {
-    let chars: Vec<char> = text.chars().collect();
-    let mut out = Vec::with_capacity(text.len());
-    let mut push = |inside: bool, c: char| {
-        out.extend(std::iter::repeat_n(inside, c.len_utf8()));
-    };
-    // 0: outside quotes, 1: in '…', 2: in "…" (a `$'…'` is 1 with `ansi`).
-    let mut state = 0u8;
-    let mut ansi = false;
-    let mut i = 0;
-    while i < chars.len() {
-        let c = chars[i];
-        push(state != 0, c);
-        let escapes = state == 2 || state == 0 || (state == 1 && ansi);
-        if c == '\\' && escapes {
-            if let Some(&n) = chars.get(i + 1) {
-                push(state != 0, n);
-            }
-            i += 2;
-            continue;
-        }
-        match (state, c) {
-            (0, '\'') => {
-                ansi = i > 0 && chars[i - 1] == '$';
-                state = 1;
-            }
-            (0, '"') => state = 2,
-            (1, '\'') | (2, '"') => state = 0,
-            _ => {}
-        }
-        i += 1;
-    }
-    out
+/// Whether `word` is the flag or a piece of it that something could glue the
+/// rest onto: `--allow-build-` and `$X`, `--allow` and `-build-scripts`,
+/// `'--' + 'allow-build-scripts'` in an interpreter's argv list (the quote
+/// and the `+` cut the word, and `allow-b` is what is left of the flag).
+fn flag_piece(word: &str) -> bool {
+    word.contains("allow-b") || matches!(word, "--allow" | "--allow-")
 }
 
-/// The flat reading of the opt-in: a `pip` or `npm` word, then a word
-/// starting with `--allow-build-scripts` (quotes before it aside), with only
-/// a `--` word of its own ending the options between them (not one inside a
-/// quoted string, and not the file of a redirection: `> --`, `<<< --`). Words
-/// are split at whitespace and at `;` `&` `|` `(` `)` `[` `]` `,`, but none of
-/// those ends the call here: a quoted `;` or `#` (`'./a;b'`, `'a #b'`), a
-/// line end in an argv list that spans lines, and a redirection all sit
-/// between the words without hiding the flag. It asks about more than the
-/// shell would run (`sigil pip x; echo --allow-build-scripts`), never less.
+/// The flat reading of the opt-in: the text cut into words at each
+/// character that is not a letter, a digit, `_`, `.` or `-` (so the `pip` of
+/// `ARGS="pip x …"`, `x=npm` and `/usr/bin/npm` is a word, and so is a flag
+/// after `=`, a quote, a `$(` or a bracket), a `pip` or `npm` word, and later
+/// in the text a word that starts the flag. Nothing stops the reading
+/// between the two: not a `;` `&` `|`, a line end, a quoted string, a
+/// redirection, a `# comment` or a `--` (`sigil pip x -- --allow-build-scripts`
+/// asks too, although the CLI would not read the flag). It asks about more
+/// than the shell would run, by design.
 fn flat_opt_in(text: &str) -> bool {
-    let quoted = text.contains(['\'', '"']).then(|| quoted_bytes(text));
     let mut after_manager = false;
-    // The previous word was a redirection operator that takes the next word.
-    let mut operand = false;
-    for word in text.split(|c: char| {
-        c.is_whitespace() || matches!(c, ';' | '&' | '|' | '(' | ')' | '[' | ']' | ',')
-    }) {
-        if word.is_empty() {
-            continue;
-        }
-        let was_operand = std::mem::take(&mut operand);
-        if word == "--" {
-            let offset = word.as_ptr() as usize - text.as_ptr() as usize;
-            let inside = quoted
-                .as_ref()
-                .is_some_and(|q| q.get(offset).copied().unwrap_or(false));
-            if !was_operand && !inside {
-                after_manager = false;
-            }
-            continue;
-        }
-        if after_manager && flag_word(word) {
+    for word in text.split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'))) {
+        if after_manager && flag_piece(word) {
             return true;
         }
-        if is_manager(word) {
+        if matches!(word, "pip" | "npm") {
             after_manager = true;
         }
-        operand = redirect(word).is_some_and(|r| r.takes_next);
     }
     false
 }
 
 /// `text` with the characters that would end a call (`;` `&` `|` `#`)
-/// inside a quoted word, or escaped by a backslash, replaced by `_`, and a line end inside quoted text
-/// or inside `[…]` (an argv list over several lines) by a space, so that the
-/// word is one word of the call it sits in, as the shell passes it:
-/// `sigil npm './a;b' $FLAG`, `sigil pip x --rules 'a #b' $FLAG`. A quoted
-/// string that holds a `pip` or `npm` word is left alone: it is a script or
-/// an argv list that a shell or an interpreter runs, whose separators are
-/// real (`bash -c 'sigil pip x; echo $HOME'`).
+/// inside a quoted word, or escaped by a backslash, replaced by `_`, and a
+/// line end inside quoted text, inside `[…]` (an argv list over several
+/// lines) or inside a process substitution (`<(echo a⏎)`, whose text is one
+/// word of the call around it) by a space, so that the word is one word of
+/// the call it sits in, as the shell passes it: `sigil npm './a;b' $FLAG`,
+/// `sigil pip x --rules 'a #b' $FLAG`. A quoted string that holds a `pip` or
+/// `npm` word is left alone: it is a script or an argv list that a shell or an
+/// interpreter runs, whose separators are real (`bash -c 'sigil pip x; echo
+/// $HOME'`).
 fn mask_quoted_separators(text: &str) -> String {
-    if !text.contains(['\'', '"', '[', '\\']) {
+    if !text.contains(['\'', '"', '[', '\\']) && !text.contains("<(") && !text.contains(">(") {
         return text.to_string();
     }
     let chars: Vec<char> = text.chars().collect();
@@ -1731,6 +1726,10 @@ fn mask_quoted_separators(text: &str) -> String {
     // Closing quotes of the quoted strings stepped into (scripts).
     let mut closes = vec![false; chars.len()];
     let mut depth = 0u32;
+    // Open parentheses outside quotes, each: whether it opened a process
+    // substitution.
+    let mut parens: Vec<bool> = Vec::new();
+    let mut process_substitutions = 0u32;
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
@@ -1765,7 +1764,17 @@ fn mask_quoted_separators(text: &str) -> String {
             }
             '[' => depth += 1,
             ']' => depth = depth.saturating_sub(1),
-            '\n' if depth > 0 => out[i] = ' ',
+            '(' => {
+                let process_substitution = i > 0 && matches!(chars[i - 1], '<' | '>');
+                parens.push(process_substitution);
+                process_substitutions += u32::from(process_substitution);
+            }
+            ')' => {
+                if parens.pop() == Some(true) {
+                    process_substitutions -= 1;
+                }
+            }
+            '\n' if depth > 0 || process_substitutions > 0 => out[i] = ' ',
             _ => {}
         }
         i += 1;
@@ -1886,12 +1895,13 @@ struct OptTok<'a> {
     /// `{1..3}`).
     brace: bool,
     /// That shell word begins like an option or a pattern (`-`, `{`, `*`,
-    /// `?`, `[`) and holds a brace expansion or a glob: the shell may expand
-    /// it to the flag.
+    /// `?`, `[`, an extglob opener) and holds a brace expansion, a glob or an
+    /// extglob: the shell may expand it to the flag.
     pattern: bool,
-    /// The word starts inside a quoted string (a `--` there is a piece of the
-    /// string).
-    quoted: bool,
+    /// That shell word holds a bracket class or an extglob (`p[i]p`,
+    /// `p@(i)p`): the shell may expand it to a word that is not the one
+    /// written.
+    globbed: bool,
 }
 
 /// Whether a shell word holds a brace expansion: `{`, then a `,` or `..`,
@@ -1904,33 +1914,85 @@ fn has_brace_expansion(word: &str) -> bool {
     })
 }
 
-/// Whether a shell word holds a glob that could match an option: `*`, `?`,
-/// or, in a word that starts with `-` (`--allow-build-scr[i]pts`), a `[…]`
-/// bracket pattern.
-fn has_glob(word: &str) -> bool {
-    word.contains(['*', '?'])
-        || (word.starts_with('-')
-            && word.match_indices('[').any(|(i, _)| {
-                let rest = &word[i + 1..];
-                !rest.starts_with(['\'', '"', ']']) && rest.contains(']')
-            }))
+/// Whether a shell word holds a bracket class (`[a-z]`, `[[:punct:]]`), not
+/// the brackets of an argv list written with quotes (`['sigil','pip']`) or
+/// of nothing (`[]`).
+fn has_bracket_class(word: &str) -> bool {
+    word.match_indices('[').any(|(i, _)| {
+        let rest = &word[i + 1..];
+        !rest.starts_with(['\'', '"', ']']) && rest.contains(']')
+    })
 }
 
-/// [`OptTok::brace`] and [`OptTok::pattern`] of a shell word.
-fn expansion_shape(word: &str) -> (bool, bool) {
+/// Whether a shell word holds an extended glob (`shopt -s extglob`): `@(`,
+/// `+(`, `!(`, `?(` or `*(`.
+fn has_extglob(word: &str) -> bool {
+    ["@(", "+(", "!(", "?(", "*("]
+        .iter()
+        .any(|opener| word.contains(opener))
+}
+
+/// Whether a shell word holds a glob that could match an option: `*`, `?`, a
+/// bracket class or an extglob.
+fn has_glob(word: &str) -> bool {
+    word.contains(['*', '?']) || has_bracket_class(word) || has_extglob(word)
+}
+
+/// The index just past the `]` that closes the bracket class `word` opens
+/// (`word` starts with `[`): after an optional `!` or `^` and an optional
+/// literal `]`, the first `]` that is not the end of a `[:name:]`, `[.x.]` or
+/// `[=x=]`.
+fn bracket_class_end(word: &str) -> Option<usize> {
+    let b = word.as_bytes();
+    let mut i = 1;
+    if matches!(b.get(i), Some(b'!' | b'^')) {
+        i += 1;
+    }
+    if b.get(i) == Some(&b']') {
+        i += 1;
+    }
+    while i < b.len() {
+        match b[i] {
+            b']' => return Some(i + 1),
+            b'[' if matches!(b.get(i + 1), Some(b':' | b'.' | b'=')) => {
+                let close = [b[i + 1], b']'];
+                let p = b[i + 2..].windows(2).position(|w| w == close)?;
+                i += p + 4;
+            }
+            _ => i += 1,
+        }
+    }
+    None
+}
+
+/// Whether a shell word that opens with a bracket class can match a longer
+/// word: the class is followed by more of the word (`[a-]-allow-build-scripts`,
+/// `[[:punct:]][[:punct:]]allow-build-scripts`). A class that is the whole
+/// word matches one character, and one followed by list punctuation is an
+/// argv list (`[sigil,pip,x],env={…}`), not a pattern.
+fn bracket_pattern(word: &str) -> bool {
+    bracket_class_end(word).is_some_and(|end| {
+        let rest = &word[end..];
+        !rest.is_empty() && !rest.starts_with([',', '}', ')'])
+    })
+}
+
+/// [`OptTok::brace`], [`OptTok::pattern`] and [`OptTok::globbed`] of a shell
+/// word.
+fn expansion_shape(word: &str) -> (bool, bool, bool) {
     let word = word.trim_start_matches(['"', '\'']);
     let brace = has_brace_expansion(word);
-    // A word that opens with `[` is a bracket pattern that starts with a
-    // range or negation (`[-]-allow…`, `[!x]…`), or an argv list
-    // (`['sigil','pip'],env={'A':'b','C':'d'}`, or `[sigil,pip]` once the
-    // quotes of plain words are removed), whose later braces and brackets
-    // expand nothing.
-    let pattern = if let Some(rest) = word.strip_prefix('[') {
-        rest.starts_with(['-', '!', '^']) && rest.contains(']')
-    } else {
-        word.starts_with(['-', '{', '*', '?']) && (brace || has_glob(word))
+    // The flag begins with `-`, so a word the shell can expand to it begins
+    // with `-`, or with something that stands for one: a brace expansion, a
+    // `*`, a `?`, a bracket class or an extglob. A word that opens with a
+    // letter (`requests[socks]`, `@types/node@*`) cannot.
+    let pattern = match word.chars().next() {
+        Some('[') => bracket_pattern(word),
+        Some('-' | '{' | '*' | '?') => brace || has_glob(word),
+        Some('@' | '+' | '!') => word[1..].starts_with('('),
+        _ => false,
     };
-    (brace, pattern)
+    (brace, pattern, has_bracket_class(word) || has_extglob(word))
 }
 
 /// The words [`opt_in_words`] reads: split at whitespace, with `;`, `&`,
@@ -1939,17 +2001,15 @@ fn expansion_shape(word: &str) -> (bool, bool) {
 /// stays in its word; and split at `[`, `]`, `(`, `)` and `,` too, so the
 /// quoted elements of an argv list (`['sigil','pip',…]`) are words. Each
 /// word also records what its shell word (the text between whitespace,
-/// separators and parentheses) would expand to.
+/// separators and parentheses, an extglob's parentheses excepted) would
+/// expand to.
 fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
-    let in_quotes = text.contains(['\'', '"']).then(|| quoted_bytes(text));
-    // `t` is a slice of `text`.
-    fn word<'a>(text: &str, t: &'a str, in_quotes: Option<&[bool]>) -> OptTok<'a> {
-        let offset = t.as_ptr() as usize - text.as_ptr() as usize;
+    fn word<'a>(t: &'a str) -> OptTok<'a> {
         OptTok {
             text: Some(t),
             brace: false,
             pattern: false,
-            quoted: in_quotes.is_some_and(|q| q.get(offset).copied().unwrap_or(false)),
+            globbed: false,
         }
     }
     fn separator<'a>() -> OptTok<'a> {
@@ -1957,19 +2017,19 @@ fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
             text: None,
             brace: false,
             pattern: false,
-            quoted: false,
+            globbed: false,
         }
     }
-    let q = in_quotes.as_deref();
     // Set the expansion shape of the tokens made from one shell word.
     fn shape(toks: &mut [OptTok<'_>], shell_word: &str) {
-        if toks.is_empty() || !shell_word.contains(['{', '*', '?', '[']) {
+        if toks.is_empty() || !shell_word.contains(['{', '*', '?', '[', '(']) {
             return;
         }
-        let (brace, pattern) = expansion_shape(shell_word);
+        let (brace, pattern, globbed) = expansion_shape(shell_word);
         for t in toks {
             t.brace = brace;
             t.pattern = pattern;
+            t.globbed = globbed;
         }
     }
     let mut toks: Vec<OptTok<'_>> = Vec::new();
@@ -1979,47 +2039,51 @@ fn opt_in_tokens(text: &str) -> Vec<OptTok<'_>> {
             let mut start = 0;
             let mut shell_start = 0;
             let mut shell_toks = toks.len();
+            // Open extglob groups (`@(a|b)`): their parentheses stay inside
+            // the shell word.
+            let mut extglob = 0u32;
             for (i, &c) in b.iter().enumerate() {
                 let prev = i.checked_sub(1).map(|p| b[p]);
                 let separator_char = match c {
                     b';' => true,
                     b'&' => !matches!(prev, Some(b'>' | b'<')) && b.get(i + 1) != Some(&b'>'),
-                    b'|' => prev != Some(b'>'),
+                    b'|' => prev != Some(b'>') && extglob == 0,
                     _ => false,
                 };
+                let opens_extglob =
+                    c == b'(' && matches!(prev, Some(b'@' | b'+' | b'!' | b'?' | b'*'));
+                if opens_extglob {
+                    extglob += 1;
+                }
+                let closes_extglob = c == b')' && extglob > 0;
+                if closes_extglob {
+                    extglob -= 1;
+                }
                 if separator_char || matches!(c, b'[' | b']' | b'(' | b')' | b',') {
                     if start < i {
-                        toks.push(word(text, &w[start..i], q));
+                        toks.push(word(&w[start..i]));
                     }
                     if separator_char {
                         toks.push(separator());
                     }
                     start = i + 1;
                 }
-                if separator_char || matches!(c, b'(' | b')') {
+                let paren =
+                    matches!(c, b'(' | b')') && !opens_extglob && !closes_extglob && extglob == 0;
+                if separator_char || paren {
                     shape(&mut toks[shell_toks..], &w[shell_start..i]);
                     shell_start = i + 1;
                     shell_toks = toks.len();
                 }
             }
             if start < w.len() {
-                toks.push(word(text, &w[start..], q));
+                toks.push(word(&w[start..]));
             }
             shape(&mut toks[shell_toks..], &w[shell_start..]);
         }
         toks.push(separator());
     }
     toks
-}
-
-/// One quoted word, `"…"` or `'…'` with no quote of its kind inside: the
-/// shell passes it as exactly one argument.
-fn quoted_word(t: &str) -> bool {
-    let b = t.as_bytes();
-    b.len() >= 2
-        && [b'"', b'\'']
-            .into_iter()
-            .any(|q| b[0] == q && b[b.len() - 1] == q && !b[1..b.len() - 1].contains(&q))
 }
 
 /// How many words the global option `a` of `sigil` takes (itself, and the
@@ -2110,10 +2174,12 @@ fn xargs_command(toks: &[OptTok<'_>], from: usize) -> Option<usize> {
 }
 
 /// Whether a word of a call may be `pip` or `npm` once the shell has read it:
-/// the word itself, one with an expansion, a quote, a backslash, a glob or a
-/// brace expansion, or one that holds the replace string of an `xargs`.
-fn maybe_manager(a: &str, replace: Option<&str>) -> bool {
+/// the word itself, one with an expansion, a quote, a backslash, a glob (a
+/// bracket class too: `p[i]p`) or a brace expansion, or one that holds the
+/// replace string of an `xargs`.
+fn maybe_manager(t: &OptTok<'_>, a: &str, replace: Option<&str>) -> bool {
     is_manager(a)
+        || t.globbed
         || a.contains(['$', '`', '\\', '\'', '"', '{', '*', '?'])
         || replace.is_some_and(|r| !r.is_empty() && a.contains(r))
 }
@@ -2165,7 +2231,7 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
         return true;
     }
     // `operand[j]`: the word is the file of a redirection (`> f`, `<<< s`),
-    // whatever it is, a lone `--` included.
+    // whatever it is.
     let mut operand = vec![false; n + 1];
     for j in 0..n {
         if let Some(a) = toks[j].text {
@@ -2178,14 +2244,13 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
             }
         }
     }
-    // Where the call ends: a separator, a `# comment`, or a `--` of its own
-    // (not inside a quoted string, not a redirection's file), which ends the
-    // options.
+    // Where the call ends: a separator or a `# comment`. A `--` does not end
+    // it: the CLI stops reading options at one, but a `--` can come from a
+    // word that is not the call's own (`<(cat -- f)`, `$(grep -- x)`), and
+    // telling those apart takes a parser; the flag after it is asked about.
     let ends = |j: usize| -> bool {
-        toks.get(j).is_none_or(|t| match t.text {
-            None => true,
-            Some(a) => a.starts_with('#') || (a == "--" && !t.quoted && !operand[j]),
-        })
+        toks.get(j)
+            .is_none_or(|t| t.text.is_none_or(|a| a.starts_with('#')))
     };
     // A word of this call.
     let arg = |j: usize| -> Option<&str> {
@@ -2294,7 +2359,9 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
         let slot = if named { subcommand(i + 1) } else { None };
         let manager = if named {
             match slot {
-                Some(s) if maybe_manager(arg(s).unwrap_or(""), replace.as_deref()) => Some(s),
+                Some(s) if maybe_manager(&toks[s], arg(s).unwrap_or(""), replace.as_deref()) => {
+                    Some(s)
+                }
                 _ => next_manager[i + 1],
             }
         } else {
@@ -2323,26 +2390,11 @@ fn opt_in_words_in(text: &str, loose: bool) -> bool {
             if flag_word(a.trim_start_matches(quotes)) {
                 return true;
             }
-            // A redirection and its file (a lone `--` too) are not arguments.
+            // A redirection and its file are not arguments.
             if redirect(a).is_some() {
                 if operand[j] {
                     j += 1;
                 }
-                continue;
-            }
-            // `-V "$VER"`, `--version="$VER"`, `-V"$VER"`: one quoted word
-            // is the version's value, never a flag.
-            if matches!(a, "-V" | "--version")
-                && toks.get(j).and_then(|n| n.text).is_some_and(quoted_word)
-            {
-                j += 1;
-                continue;
-            }
-            if ["--version=", "-V=", "-V"]
-                .iter()
-                .find_map(|p| a.strip_prefix(p))
-                .is_some_and(quoted_word)
-            {
                 continue;
             }
             if a.contains(['$', '`'])
@@ -3613,7 +3665,8 @@ fn classify_stage(stage: &str, ctx: &Context) -> Decision {
 /// Classify a Bash command. Pure function of the command and context;
 /// env-based mode/bypass handling lives in `cmd_hook`.
 pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
-    // SIGIL_BYPASS=1 given as an env prefix inside the command string.
+    // SIGIL_BYPASS=1 given as an env prefix inside the command string. It
+    // lifts the ask for `--allow-build-scripts` too: that ask is advisory.
     if has(cmd, &format!(r"{WB}SIGIL_BYPASS=1(\s|$)")) {
         return Decision::Allow("Sigil guard bypassed (SIGIL_BYPASS=1)".into());
     }
@@ -3654,12 +3707,13 @@ pub fn classify_in(cmd: &str, ctx: &Context) -> Decision {
         }
     }
     // A sigil call that lets package code run before its scan is asked
-    // about however it is written: read from the whole command without its
-    // comments, so a substitution (`$(…)`) and a string another command runs
-    // are read with the words around them.
+    // about when it is written in a shape [`build_scripts_opt_in`] reads (an
+    // advisory reading, not a list of all spellings): read from the whole
+    // command, with and without its comments, so a substitution (`$(…)`) and
+    // a string another command runs are read with the words around them.
     let chars: Vec<char> = cmd.chars().collect();
     let q = quote_map(&chars);
-    let opted_in = build_scripts_opt_in(&uncommented(&cmd, 0, &q)).or_else(|| {
+    let opted_in = opt_in_ask(&cmd, &q).or_else(|| {
         nested_obscured_call(&cmd).then(|| {
             Decision::Ask(
                 "A nested shell (bash -c, eval, ssh, ...) is handed a sigil pip/npm call in \
@@ -4029,7 +4083,7 @@ impl Walk {
         // a'b;c'd $F`), so it is read for the opt-in on its own as well as
         // inside the whole command.
         if depth > 0 {
-            if let Some(ask) = build_scripts_opt_in(&uncommented(cmd, 0, &q)) {
+            if let Some(ask) = opt_in_ask(cmd, &q) {
                 self.judge(ask);
             }
         }

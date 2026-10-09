@@ -1460,6 +1460,28 @@ pub fn npm_view_unreadable(spec: &str, why: &str) -> String {
     format!("could not read what npm resolves `{spec}` to: {why}")
 }
 
+/// The message printed (after `error: `) when `npm view` answered, successfully,
+/// with nothing at all for `spec`. For a bare name (or `name@*`) that is a
+/// package with no `latest` dist-tag: npm resolves such a name to the
+/// highest release that is not a pre-release, but `npm view` shows only the
+/// tag, and Sigil does not pick a version by a rule of its own. Naming a
+/// version or a dist-tag gives it the release to fetch. docs/troubleshooting.md
+/// quotes it.
+pub fn npm_view_empty(spec: &str) -> String {
+    match npm_name_for_default_pick(spec) {
+        Some(name) => format!(
+            "npm resolved no version for `{spec}`: the package has no latest tag; name a version \
+             or a dist-tag.\n  `npm view {name} versions dist-tags` lists them; then re-run \
+             with one, e.g. `sigil npm {name}@1.2.3` or `sigil npm {name}@next`."
+        ),
+        None => format!(
+            "npm resolved no version for `{spec}`: no release of the package matches it; name a \
+             version or a dist-tag it has.\n  `npm view {} versions dist-tags` lists them.",
+            npm_spec_name(spec)
+        ),
+    }
+}
+
 /// The package name a registry spec asks for: `left-pad` of `left-pad@^1.3`,
 /// `@types/node` of `@types/node@20` (a scope's `@` is not a version's).
 pub fn npm_spec_name(spec: &str) -> &str {
@@ -1527,6 +1549,15 @@ pub fn npm_host_refusal(release: &str, why: &str) -> String {
     )
 }
 
+/// Whether a download error is about the registry's certificate (the HTTP
+/// client's message names it: `certificate verify failed`, `unable to get
+/// local issuer certificate`, `self signed certificate`) or the TLS
+/// handshake.
+fn is_certificate_failure(why: &str) -> bool {
+    let why = why.to_ascii_lowercase();
+    why.contains("certificate") || why.contains("handshake")
+}
+
 /// The message printed (after `error: `) when the download itself failed.
 pub fn npm_download_failure(release: &str, why: &str) -> String {
     let credentials = if why.contains("HTTP 401") || why.contains("HTTP 403") {
@@ -1538,9 +1569,18 @@ pub fn npm_download_failure(release: &str, why: &str) -> String {
     } else {
         ""
     };
+    let certificate = if is_certificate_failure(why) {
+        "\n  If the registry's certificate comes from a private certificate authority that npm \
+         trusts through its `cafile` or `ca` setting, Sigil does not read those: it trusts the \
+         system's certificates and the ones named by SSL_CERT_FILE (a bundle, such as the file \
+         npm's `cafile` names) or SSL_CERT_DIR. Set one for this command. `strict-ssl=false` is \
+         not honoured either: Sigil always verifies the registry's certificate."
+    } else {
+        ""
+    };
     format!(
-        "sigil npm could not download the tarball of `{release}`: {why}.{credentials}\n  Sigil \
-         downloads it itself, so its proxy settings are the environment's (HTTPS_PROXY, \
+        "sigil npm could not download the tarball of `{release}`: {why}.{credentials}{certificate}\n  \
+         Sigil downloads it itself, so its proxy settings are the environment's (HTTPS_PROXY, \
          HTTP_PROXY, NO_PROXY), not npm's `proxy` setting."
     )
 }
