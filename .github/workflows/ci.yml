@@ -307,6 +307,10 @@ jobs:
         working-directory: plugins/mcp-server
         run: npx tsc --noEmit
 
+      - name: Test
+        working-directory: plugins/mcp-server
+        run: npm test
+
   # ── JetBrains Plugin ─────────────────────────────────────────────────────
   lint-jetbrains:
     name: Build JetBrains Plugin

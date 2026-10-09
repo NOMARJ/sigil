@@ -8,7 +8,7 @@ Complete reference for every `sigil` command, flag, and exit code.
 
 - All eight scan phases execute locally, and no account is needed. `sigil scan` of a directory with a `requirements.txt`, `package-lock.json`, `Cargo.lock` or `go.mod` also looks the listed dependencies up in OSV (and npm/PyPI packages on their registry) and, for CVE-numbered advisories, sends those CVE IDs to FIRST EPSS and downloads the CISA KEV catalogue; without a connection those lookups are skipped. `sigil clone`, `pip` and `npm` need the network to fetch what they scan.
 - Logging in (`sigil login`) stores a token and does not change a plain scan. The cloud options send it: `sigil scan --enrich`, `--submit` and `--enhanced`, `sigil fetch`, `sigil report` and `sigil explain` (`--enhanced`, `sigil report` and `sigil explain` refuse to run without it). `--enrich` and `sigil fetch` need a Pro plan. `--enhanced`'s LLM analysis is Pro-only, but the server checks the plan after the upload, so on a Free plan the files are still sent (and, when the request is accepted, kept with the scan record). `sigil explain` uploads every finding in a scan JSON file, flagged source lines included, for server-side LLM adjudication. The `sigil scan` cloud options run only on a fresh scan: when a re-scan of unchanged content is served from the cache, they are skipped without a message, so add `--no-cache`. For a repository URL (`http(s)://`, `git@`, `ssh://` or `git://`, other than an archive or single-file URL or a GitHub `/tree/` link; see [archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links)), `sigil scan` runs the [`sigil clone`](#sigil-clone) workflow instead, which ignores the cloud options, `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete` without a message and exits like `sigil clone`: to apply them, run `sigil clone` and then scan `~/.sigil/quarantine/<id>` (`sigil list` shows the id).
-- Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/`. Sigil installs nothing and does not run it, before or after approval. The package tools it calls can, though: `pip download` runs a source distribution's `setup.py` to read its metadata, so `sigil pip` of a package with no compatible wheel runs that code on the host before the scan, and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`). `sigil scan <dir>` scans a local directory in place.
+- Code that `sigil clone`, `pip`, `npm` or a `sigil scan` of a URL or archive fetches is quarantined under `~/.sigil/quarantine/`. Sigil installs nothing and does not run it, before or after approval, and by default neither do the package tools it calls: `sigil pip` downloads only the prebuilt wheel of the release `pip install` would pick, and `sigil npm` downloads the registry tarball itself and checks it against the registry's integrity, running no `npm pack`; both refuse a spec that pip would build or npm would run scripts for (see [`sigil pip`](#sigil-pip) and [`sigil npm`](#sigil-npm)). With `--allow-build-scripts` (which a person confirms at a terminal, or a script confirms with `SIGIL_ALLOW_BUILD_SCRIPTS=1`) they accept one, and then `pip download` runs a source distribution's `setup.py` or build backend to read its metadata, and `npm pack` runs a local directory's or git spec's lifecycle scripts (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`), on the host before the scan. 1.3.7 and earlier always behaved that way. `sigil scan <dir>` scans a local directory in place.
 - `sigil scan` exits by the findings' severity against `--fail-on`, by the verdict only with `--fail-on-verdict` (or `fail_on_verdict` in a scan policy), and by coverage only with `--fail-on-incomplete` (or `SIGIL_FAIL_ON_INCOMPLETE=1`, or `fail_on_incomplete` in a scan policy). `sigil clone`, `pip` and `npm` have no `--fail-on`: they exit `1` for any verdict above LOW RISK, and so does `sigil scan` of a repository URL (see [Exit Codes](#exit-codes) below).
 
 ---
@@ -80,6 +80,7 @@ does it, and every deny names the sigil command to run instead:
 | `gemini extensions install` / `link …`, `npx skills add …`, `clawhub install …` | deny | `sigil clone …` / `sigil scan …` |
 | `npx` / `bunx` / `pnpm dlx` / `yarn dlx` / `npm exec` / `uvx` / `uv tool run` / `pipx run` of a registry package | deny | `sigil npm …` / `sigil pip …` |
 | `pipx install …`, `uv tool install …`, `deno run npm:…` / `deno run https://…` | deny | `sigil pip …` / `sigil npm …` / download and scan |
+| A `sigil pip` / `sigil npm` command that passes `--allow-build-scripts`, or sets `SIGIL_ALLOW_BUILD_SCRIPTS`, in one of the shapes the hook reads: a `pip` or `npm` word with a word that starts the flag anywhere after it (whatever sits between, a `--` and a comment included; also in a string a shell, `find -exec` or a here-string runs, in an interpreter's argv list such as `subprocess.run(['sigil','pip',…])`, or in text that only mentions it); a `$` or backtick word, or a brace expansion, glob or extglob that could spell the flag, after `pip`/`npm` or after a subcommand that may be one, or behind `xargs`; a command that sets the variable, under its own name or one the shell builds | ask | the flag lets the package's own code run before the scan, and the variable is what confirms it without a terminal. The ask covers the listed shapes, can never cover every way a shell can spell the flag, over-asks on purpose, is advisory, and an inline `SIGIL_BYPASS=1` prefix switches it off: see [Claude Code hook and MCP check_command](#claude-code-hook-and-mcp-check_command) |
 | `curl … \| sh`, `curl … \| bash -s …`, `curl … \| tee f \| sh`, `curl … 2>&1 \| sh`, `curl … \| env -i bash`, `curl … \| sudo -s`, `bash <(curl …)`, `bash < <(curl …)`, `sh -c "$(curl …)"`, `iwr … \| iex`, also through filters and groups (`curl … \| tr -d '\r' \| bash`, `curl … \| base64 -d \| sh`, `curl … \| (bash)`, `{ curl …; echo; } \| sh`, `curl … \| { echo; bash; }`, `curl … \| while read l; do eval "$l"; done`), into code that reads it (`curl … \| bash -c "$(cat)"`, `curl … \| xargs -0 bash -c`, `curl … \| python3 -c "exec(sys.stdin.read())"`) and into a process substitution (`curl … \| tee >(bash)`) | deny | `sigil scan <url>` |
 | `curl -o i.sh … && bash i.sh` (a download run from disk in the same command), also `sudo -E bash i.sh`, `bash -e i.sh`, `. ./i.sh`, `bash < i.sh`, `cat i.sh \| sh`, `(bash i.sh)`, `eval "$(cat i.sh)"`, `bash <(cat i.sh)`, `trap 'bash i.sh' EXIT`, `flock l bash i.sh`, `xargs -a i.sh -I{} sh -c '{}'`, and a copy of it (`mv i.tmp i.sh && bash i.sh`, `curl … \| dd of=i.sh`) | deny | `sigil scan i.sh && bash i.sh` |
 | downloads, unpacking, copies or clones into `~/.claude/skills`, `.claude/plugins`, `~/.codex/skills`, `~/.gemini/extensions`, `.cursor/rules`, `.mcp.json`, Claude settings, … (also `curl … \| tee ~/.claude/skills/…`, and in any case: `~/.CLAUDE/skills` on macOS) | deny | `sigil scan <src> && <original>` |
@@ -204,63 +205,500 @@ sigil clone git@github.com:org/agent-toolkit.git
 
 ### sigil pip
 
-Download a pip package without installing it, extract into quarantine, and scan.
+Download a PyPI package into quarantine without installing it, extract it, and
+scan it. By default nothing in the package runs before the scan. (In 1.3.7 and
+earlier, `sigil pip` passed the spec to `pip download` unchecked, and pip ran a
+source distribution's `setup.py` or build backend while downloading it.)
 
 ```bash
-sigil pip <package-name>
+sigil pip <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `package-name` | Yes | PyPI package name (e.g., `requests`, `langchain`) |
+| `package` | Yes | A package name from the index, with optional `[extras]` and version specifiers: `requests`, `requests[socks]`, `requests==2.32.3`, `"requests>=2,<3"`, `"requests (>=2)"` |
+| `-V`, `--version` | No | Version to download; `sigil pip requests -V 2.32.3` downloads `requests==2.32.3`. Not with a package that already names a version or range (`"requests>=2" -V 2.32.3`): that is refused, saying so |
+| `--auto-approve` | No | Approve the quarantine entry when the verdict is LOW RISK |
+| `--allow-build-scripts` | No | Accept a spec or package pip has to build (see below). Only for code you already trust; asks you to confirm |
 
 **Behavior:**
 
-1. Passes the name to pip as given: Sigil does not validate it, so anything `pip download` accepts (a local archive path, for example) is used
-2. Downloads the package via `pip download --no-deps`. When pip picks a source distribution (there is no compatible wheel), it runs the package's `setup.py` to read its metadata: that code runs on your machine during the download, before the scan
-3. Extracts the wheel or tarball into quarantine
-4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
-5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
+1. Checks the spec. A local path, URL, VCS reference (`git+https://…`), direct
+   reference (`name @ url`), a name pip would read as an archive file in the
+   working directory (`pkg.tar.gz`, `pkg.whl`), environment markers, a
+   version that does not start with a letter or digit, and anything starting
+   with `-` are refused with exit 2, before anything is downloaded or added
+   to quarantine. For a file or directory you already have, the refusal
+   points at `sigil scan <path>`, which scans it where it is (archives
+   included) and runs nothing from it.
+2. Reads pip's configuration (`pip config list`). A `requirement`,
+   `constraint` or `editable` setting in the `[global]` or `[download]`
+   section of a pip config file is refused with exit 2: pip adds what it names
+   to every download and builds a local path, URL or VCS reference there even
+   with `--only-binary=:all:`. So is a `global-option`, `build-option` or
+   `install-option` setting: pip reads one as a request for a legacy
+   `setup.py` build and, before pip 25.3, logs `Implying --no-binary=:all:`
+   and discards the command line's `--only-binary`, so a source distribution
+   is built (its setup code run) before the scan. The same settings from the
+   environment (`PIP_REQUIREMENT`, `PIP_CONSTRAINT`, `PIP_EDITABLE`,
+   `PIP_GLOBAL_OPTION`, `PIP_BUILD_OPTION`, `PIP_INSTALL_OPTION`) are left out
+   of pip's environment for this command, with a note. A config constraint
+   that only pins versions is refused too: Sigil does not read the files
+   these settings name. See [Troubleshooting](troubleshooting.md) for keeping
+   your index while skipping the config file.
+3. For a spec that does not pin a version with `==` or `===`, asks the index
+   which versions exist (`pip index versions --pre -- <name>`, which builds
+   nothing; it needs pip 21.2 or later) and picks the one `pip install <spec>`
+   would pick: the highest that matches, with pre-releases only when the spec
+   names one, pip's config sets `pre` (or `PIP_PRE` is set), or the index has
+   no final release of the package and the spec has no version specifier
+   (pip then takes the newest pre-release, and so does Sigil). It prints the result, for example
+   ``requests<2.32 resolves to requests==2.31.0 (the release `pip install`
+   picks here)``. The resolved version is checked like a typed one. Nothing is
+   added to quarantine before this.
+4. Runs `pip download --no-deps --only-binary=:all: --dest <quarantine> -- <spec>`,
+   where `<spec>` is what you typed when it pins a version (`==` or `===`),
+   and otherwise `<name>===<version>` for the release step 3 picked: `===`
+   (exact string equality) so that pip fetches that release and not another
+   one `==<version>` also matches, such as the local variant `2.0+local1` of
+   `2.0` on an index that lists both (pip takes the highest of the two). It
+   runs from your working directory, as `pip install` runs, so relative pip
+   settings (`PIP_FIND_LINKS=./wheels`, a relative `find-links` or `cert` in
+   pip.conf) mean the same to both; the spec check has already refused
+   anything pip could read as a file there. Prebuilt wheels only: pip prepares a source
+   distribution's metadata by running its `setup.py` or build backend, so a
+   release published only as a source distribution (or with no wheel for this
+   platform and Python) fails to download (exit 2), and the error says so.
+   Sigil does not fall back to an older release that has a wheel: `pip
+   install` would not install that one. Pin a version that has a wheel to
+   scan it, or read the source distribution without building it: its file on
+   the index (the link on the project's PyPI download page) is scanned by
+   `sigil scan <URL of the .tar.gz>`, which unpacks it and runs nothing from
+   it. With a machine-readable `--format` (`json`, `sarif`, ...), pip's own
+   output (its progress is on stdout) goes to stderr, so stdout is exactly the
+   report; in text it is shown as before.
+5. Extracts the wheel into quarantine and runs all 8 scan phases (not the
+   dependency lookups, which only `sigil scan` and `sigil baseline` run).
+   The "downloading" line is printed after steps 1 to 3, so a refusal or a
+   failed lookup says nothing about downloading.
+6. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
+   anything worse, 2 when the spec or pip's config was refused,
+   `--allow-build-scripts` was not confirmed, the lookup or
+   download failed, pip saved nothing to quarantine, or the scan failed. A
+   failure before the scan, or an interrupt (Ctrl-C, SIGTERM; exit 130 or
+   143), removes the quarantine entry it created (a process killed outright,
+   with SIGKILL, cannot). The entry is named for the release downloaded
+   (`requests==2.31.0`), not the range typed, so `sigil list` and `sigil
+   approve` show the version that was scanned. With
+   `--auto-approve`, a LOW RISK result is approved. With `--format json`, the
+   report's `package` field names the release scanned (`requests==2.32.3`,
+   without any extras you typed: `pip download --no-deps` fetches the same file).
+
+`pip install <spec>` can still end up with another version than the one Sigil
+scanned: a release published in between, another interpreter or platform, or
+pip install settings (`only-binary`, `prefer-binary`) that Sigil does not
+apply. Install the version Sigil printed: `pip install requests==2.32.3`.
+
+**`--allow-build-scripts`** drops `--only-binary=:all:`, the spec check (only
+an empty spec, control characters, and a spec starting with `-` are still
+refused), the configuration check and the version lookup, and leaves pip's
+environment as it is. pip may then build the package from source, which runs
+its own setup code on this machine, with your privileges, before Sigil scans
+anything; quarantine does not contain that. Sigil prints a warning saying so.
+It asks for a confirmation first: at a terminal Sigil prints the
+warning and waits for `yes`; with no terminal (an AI agent's shell, a pipe, a
+CI job) it refuses with exit 2 and downloads and runs nothing, unless
+`SIGIL_ALLOW_BUILD_SCRIPTS=1` is set for that command by a script or job that
+has decided to trust the code. A flag in a command line is not that decision:
+anything that can write a command line can write the flag. The confirmation
+stops accidental and unattended use; it cannot tell a person from a program
+that opens a pseudo-terminal and types `yes`, or that sets the variable, so
+it is no boundary against an agent (see
+[the Claude Code hook](#claude-code-hook-and-mcp-check_command) below).
+It is not a way to scan a project directory: pip runs the directory's build
+backend but does not copy a directory into `--dest`, so nothing reaches
+quarantine and the command fails (exit 2, never LOW RISK or auto-approved).
+Use `sigil scan ./my-project` for that. `--only-binary` alone would not be enough
+without the spec and configuration checks: pip 24.0 built a local directory,
+a local sdist, a `file://` URL and a `git+file://` reference with it set,
+whether named on the command line or in a requirement or constraint file.
 
 **Example:**
 
 ```bash
 sigil pip requests
-sigil pip some-agent-toolkit
+sigil pip requests -V 2.32.3
+sigil pip "requests[socks]>=2,<3"
 ```
 
 ---
 
 ### sigil npm
 
-Download an npm package, extract into quarantine, and scan.
+Download an npm registry package into quarantine, extract it, and scan it. By
+default nothing in the package runs before the scan. (In 1.3.7 and earlier,
+`sigil npm` passed the spec to `npm pack` unchecked, and npm ran a local
+directory's or git spec's lifecycle scripts while packing it.)
 
 ```bash
-sigil npm <package-name>
+sigil npm <package> [-V <version>] [--auto-approve] [--allow-build-scripts]
 ```
 
 **Arguments:**
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `package-name` | Yes | npm package name (e.g., `leftpad`, `@scope/pkg`) |
+| `package` | Yes | A registry package name (scoped allowed) with an optional `@version`, `@tag` or `@range`: `left-pad`, `@types/node`, `left-pad@1.3.0`, `left-pad@latest`, `"left-pad@^1.3"` |
+| `-V`, `--version` | No | Version, tag or range; `sigil npm left-pad -V 1.3.0` downloads `left-pad@1.3.0`. Not with a package that already names one (`left-pad@1 -V 1.3.0`): that is refused, saying so |
+| `--auto-approve` | No | Approve the quarantine entry when the verdict is LOW RISK |
+| `--allow-build-scripts` | No | Accept a spec npm would build or run scripts for (see below). Only for code you already trust; asks you to confirm |
 
 **Behavior:**
 
-1. Passes the name to `npm pack` as given: Sigil does not validate it, and `npm pack` also accepts a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one); for those it runs the package's lifecycle scripts on the host before the scan (`prepack`, `prepare` and `postpack` for a directory; for a git spec, scripts including `preinstall`, `install`, `postinstall` and `prepare`)
-2. Downloads via `npm pack` (creates a `.tgz` archive)
-3. Extracts into quarantine
-4. Runs all 8 scan phases (not the dependency lookups, which only `sigil scan` and `sigil baseline` run)
-5. Prints the verdict; nothing is installed. With `--auto-approve`, a LOW RISK result is approved
+1. Checks the spec. Anything npm would treat as a directory (`./dir`, `.`,
+   `dir/`), a tarball (`pkg.tgz`, a tarball URL), a `file:` spec, a URL, a git
+   spec (`github:owner/repo`, the `owner/repo` shorthand, `git+https://…`,
+   `git@host:owner/repo`, `name#branch`), and anything starting with `-`, is
+   refused with exit 2, before anything is downloaded or added to quarantine.
+   A name or range is a tarball path when npm reads it as one: npm's pattern
+   (`/[.](?:tgz|tar.gz|tar)$/i`) also matches `foo.tar-gz` (npm 10.9.7), while a scoped
+   name such as `@scope/pkg.tgz` stays a registry name. For a file or
+   directory you already have, the refusal points at `sigil scan <path>`,
+   which scans it where it is (archives included) and runs nothing from it.
+   A scoped name typed without its `@`, like `langchain/community`, is an
+   `owner/repo` shorthand. An `npm:` alias is refused with the name it stands
+   for, to scan directly.
+2. Asks the registry what the spec resolves to (`npm view --json -- <spec>
+   name version dist.tarball dist.integrity dist.shasum deprecated
+   dist-tags.latest`, in the quarantine directory). For a version or tag that is one release; for a range, Sigil
+   picks the `latest` tag when it matches and is not deprecated, else the
+   highest non-deprecated match (npm also weighs `engines`, which Sigil does
+   not). A bare name (or `name@*`) shows only the `latest` tag, but npm skips
+   a `latest` that is deprecated for the highest release that is not, so when
+   the tag is deprecated Sigil also lists every release (`npm view
+   <name>@>=0`) and picks as npm does; `name@latest` is the tag as it is. A
+   package with no `latest` tag at all (published with `--tag` only) makes
+   `npm view` print nothing for a bare name or `name@*`: Sigil stops (exit 2)
+   with `npm resolved no version for <spec>: the package has no latest tag;
+   name a version or a dist-tag` and chooses no version by a rule of its own
+   (npm itself would take the highest release that is not a pre-release).
+   Name a version or a dist-tag (`name@1.2.3`, `name@next`). It
+   prints the release when it differs from what you typed:
+   `left-pad@^1.2 resolves to left-pad@1.3.0`. The release's name and version
+   must be a valid npm package name (`name` or `@scope/name`; letters, digits
+   and `. _ ~ ! ' ( ) * -` in each part, neither part `.` or `..`) and a
+   version (letters, digits and `. + -`), or the command stops (exit 2):
+   Sigil makes the file name from them, and they are printed and recorded in
+   the quarantine index. The name must also be the one you asked for (case
+   aside): a registry whose description of `nameswap` says the release is
+   named `othername` is refused (exit 2), since a scan of one package says
+   nothing about another and the release Sigil prints is the one to install.
+3. Checks that release's tarball URL. It must be an `http(s)` URL that npm
+   downloads as a tarball, written as one: the string starts with `http://` or
+   `https://` and holds no space or control character, because npm reads any
+   other string (` https://x/../dir`, `ht<TAB>tps://…`) as a local path, which
+   it packs and prepares, however a URL parser would tidy it. A registry
+   entry whose tarball is a git URL, a `file:` path or such a string is
+   refused with exit 2, and so is a URL npm reads as a git
+   repository: on GitHub, GitLab, Bitbucket, Gist or sourcehut, a path that
+   names a repository (`https://github.com/owner/repo`, `…/repo.tgz`,
+   `…/tree/<ref>`), as npm's hosted-git-info reads it. `npm install` would
+   clone such a URL (running its `prepare` script) instead of downloading a
+   tarball, so there is no tarball for Sigil to check against the registry's
+   digest; Sigil never fetches it. Downloads on those hosts are fetched like
+   any tarball: GitLab's npm package registry (`…/-/…`), GitHub release
+   assets (`…/releases/download/…`) and archive URLs.
+4. Checks that the tarball is on the host (and port) of the registry npm
+   resolved the package from, and that its URL carries no user name or
+   password. The registry is `npm config get registry`, or
+   `npm config get @scope:registry` for a scoped name; the scheme is not
+   compared, since the bytes are checked in step 6. A tarball URL on another
+   host (a mirror whose metadata still names `registry.npmjs.org`, a CDN)
+   is refused with exit 2; npm 12 applies the same rule to its own downloads
+   (`allow-remote`).
+5. Downloads exactly that URL itself, into the quarantine directory, as
+   `<name>-<version>.tgz` (the leading `@` of a scope dropped and `/` made
+   `-`, as `npm pack` names it, from the name and version step 2 checked). It
+   sends no credentials, stops at 256 MiB, follows at most 5 redirects, none
+   from `https` to `http`, and refuses a redirect to a private network address
+   unless `SIGIL_ALLOW_PRIVATE_URLS=1` (the registry's own host may be on one:
+   you configured it). Its proxy settings are the environment's
+   (`HTTPS_PROXY`, `HTTP_PROXY`, `NO_PROXY`), not npm's `proxy` setting, and
+   its trusted certificates are the system's and the ones `SSL_CERT_FILE` (a
+   bundle) or `SSL_CERT_DIR` names, not npm's `cafile`, `ca` or `strict-ssl`
+   settings: a registry that npm trusts only through those fails the download
+   with a certificate error that says so (set `SSL_CERT_FILE` to the file
+   `cafile` names for the command; the certificate is always verified). A
+   registry that wants a token for tarballs answers 401 or 403; the error says
+   so and points at `sigil scan <file>.tgz` for a tarball you fetched
+   yourself. The "downloading" line is printed once steps 1 to 4 have passed.
+   **Sigil does not run `npm pack`.** `npm view` asks the registry for the
+   release's full metadata, and `npm pack <name>@<version>` asks again, with a
+   different `Accept` header (the abbreviated install document), so a registry
+   can show `npm view` a plain tarball and give `npm pack` a git or `file:`
+   URL, which `npm pack` clones or packs, running its `prepare` script, before
+   any integrity check can fail (reproduced against a local registry that
+   answers the two requests differently, with `sigil npm` from 1.3.7 and npm
+   10.9.7). Handing npm the checked URL does not help: npm 10.9.7 names the
+   file it writes after the `package.json` inside a bare tarball, which its
+   author controls (a `version` made of `/../` segments wrote the `.tgz`
+   outside the directory, in a test against a local registry; npm 12.2.0
+   turns the slashes into `-`), and npm 12.2.0 refuses a tarball given as a URL unless
+   `--allow-remote=all` is set (`--allow-remote=root` is not enough for
+   `npm pack`). With Sigil downloading, one metadata request is made and the
+   URL it validated is the URL it fetches.
+6. Checks the tarball against the registry's `dist.integrity` (the strongest
+   hash it lists, as `npm install` checks it), or `dist.shasum` when the
+   registry gives no integrity; the digest is worked out before the download,
+   so a registry with neither is refused without fetching anything. A
+   mismatch is exit 2, the file is deleted and nothing is scanned.
+7. Extracts the tarball and runs all 8 scan phases (not the dependency
+   lookups, which only `sigil scan` and `sigil baseline` run).
+8. Prints the verdict; nothing is installed. Exit 0 for LOW RISK, 1 for
+   anything worse, 2 when the spec, the registry's name, version or tarball, or
+   its integrity, was refused, `--allow-build-scripts` was not confirmed, the
+   lookup or download failed, or the scan failed. A failure
+   before the scan, or an interrupt (Ctrl-C, SIGTERM; exit 130 or 143),
+   removes the quarantine entry it created (a process killed outright, with
+   SIGKILL, cannot); it is named for the release downloaded
+   (`left-pad@1.3.0`), not the range typed. With
+   `--auto-approve`, a LOW RISK result is approved. With `--format json`,
+   the report's `package` field names the release scanned (`left-pad@1.3.0`):
+   install that version.
+
+Why the spec check is needed: npm runs a local directory's `prepare` script
+while packing it, and for a git spec it clones the repository, installs its
+dependencies and runs its `prepare` script. On npm 10.9.7 (Node 22) the
+`prepare` script of a directory and of a git checkout ran even with
+`--ignore-scripts`; on npm 12.2.0 a directory's did not, and a git spec is
+refused by default (`allow-git=none`).
+
+**`--allow-build-scripts`** drops the spec check (only an empty spec, control
+characters, and a spec starting with `-` are still refused), the registry
+lookup and Sigil's own download, and runs `npm pack --pack-destination
+<quarantine> -- <spec>` from your working directory, so a relative path
+(`./my-package`, `pkg.tgz`) means what you typed (though `sigil scan <path>`
+scans a directory or tarball you have without running anything). npm then runs the package's
+lifecycle scripts while packing it (prepare, prepack, postpack; for a git spec
+it also installs the checkout's dependencies and runs their install scripts)
+on this machine, before Sigil scans anything. Sigil prints a warning saying
+so. It asks for a confirmation first: at a terminal Sigil prints the
+warning and waits for `yes`; with no terminal (an AI agent's shell, a pipe, a
+CI job) it refuses with exit 2 and downloads and runs nothing, unless
+`SIGIL_ALLOW_BUILD_SCRIPTS=1` is set for that command by a script or job that
+has decided to trust the code. A flag in a command line is not that decision:
+anything that can write a command line can write the flag. The confirmation
+stops accidental and unattended use; it cannot tell a person from a program
+that opens a pseudo-terminal and types `yes`, or that sets the variable, so
+it is no boundary against an agent (see
+[the Claude Code hook](#claude-code-hook-and-mcp-check_command) below). With
+a machine-readable `--format`, what `npm pack` prints (the tarball's name)
+goes to stderr, so stdout is exactly the report.
 
 **Example:**
 
 ```bash
-sigil npm leftpad
+sigil npm left-pad
+sigil npm left-pad -V 1.3.0
 sigil npm @langchain/community
 ```
+
+#### Claude Code hook and MCP check_command
+
+In the Claude Code PreToolUse hook (and the MCP server's `check_command`), a
+`sigil pip` or `sigil npm` command carrying `--allow-build-scripts` is asked
+about rather than allowed: the flag is meant to be your decision, not an
+agent's. This ask is the one layer aimed at an agent, and it is advisory. The
+CLI's own confirmation (a prompt at a terminal, or `SIGIL_ALLOW_BUILD_SCRIPTS=1`;
+see above) stops accidents and unattended runs, but a program that opens a
+pseudo-terminal and types `yes` passes it (`printf 'yes\n' | script -qec 'sigil
+npm ./pkg --allow-build-scripts' /dev/null` does, on Linux), and so does one
+that sets the variable. The protection that holds is the default: without the
+flag, `sigil pip` and `sigil npm` fetch only a prebuilt wheel or a registry
+tarball and run nothing from the package.
+
+The hook reads the text of a command and asks on the shapes listed below.
+They are not all the ways a shell can spell the flag, and the reading can
+never cover every way a shell can spell it. It asks on more than the shell
+would run, on purpose, so that one coarse rule covers a family of spellings (a
+`--` never ends a reading, a `#` never hides the words after it, a `$` after
+`pip`/`npm` asks). It is advisory, and an inline `SIGIL_BYPASS=1` prefix
+switches it off: `SIGIL_BYPASS=1 sigil pip x --allow-build-scripts` is
+allowed, as is any command that carries the prefix.
+
+The native hook and the MCP server's `check_command` are one function. The
+shell fallback (`sigil-guard.sh`, used when the binary is not on PATH) reads
+the same shapes with sed, awk and extended regular expressions. It is a
+coarser reading: it can ask where the native hook allows, and where the
+native hook denies (``printf '%s\n' "`which sigil` n\\pm x -V 1.0" | ${0}`` is
+denied by the native hook as an `npm` runner and asked about by the
+fallback). Without awk it also keeps a `# comment` as it is, does not join a
+line end inside a quoted word or a process substitution to its call, and
+joins a line continuation that follows a comment.
+
+The text is read as written, and without its `# comments`; either reading that
+finds the flag asks, because a `#` inside a backtick substitution
+(`` echo `echo a # `; sigil pip x --allow-build-scripts ``) ends with the
+substitution, and no reading of where a comment ends is trusted to hide the
+words after it. Each reading below is made over both texts, over each with the
+quotes a shell splices into a string it hands to an interpreter undone
+(`'\''`, `'"'"'`, `\"`); with up to three layers of double-quote escaping
+undone (`\\` is `\`, `\$` is `$`: `bash -c "sigil np\\m x …"` hands the inner
+shell `np\m`); with all quotes and backslashes taken off; and with a `;`, `&`,
+`|`, ` #` or line end inside a quoted word, and a line end inside `[…]` or a
+process substitution (`<(echo a⏎)`), masked.
+
+1. A `pip` or `npm` word followed anywhere later in the text by a word that
+   holds the start of the flag (`allow-b`, as in `--allow-b…` and in
+   `'--' + 'allow-build-scripts'`, or `--allow` or `--allow-` as a word of its
+   own, for a flag in pieces). Words are cut at each character that is not a
+   letter, a digit, `_`, `.` or `-`, so the `pip` of `ARGS="pip x
+   --allow-build-scripts"; sigil $ARGS`, `x=npm` and `/usr/bin/npm` count, and
+   so does a flag after `=`, a quote, a bracket or a `$(`. Nothing between the
+   two stops the reading: not a `;`, `&` or `|`, a line end, a quoted string,
+   a redirection, a comment, or a `--`. The CLI reads no flag after a `--` of
+   its own, so `sigil npm x -- --allow-build-scripts` could not pass the flag,
+   and the hook asks about it all the same: a `--` can come from another word
+   of the call (`<(cat -- f)`, `a,--,b`, `'a --)'`), and telling those apart
+   takes a parser. The reading needs no `sigil` word, so the spelling of the
+   command word before `pip`/`npm` does not matter to it (`si${E}gil npm …`,
+   `sig$(true)il npm …`); it is made also in a string a shell, `find -exec` or
+   a here-string runs, in an interpreter's argv list
+   (`subprocess.run(['sigil','pip',…,'--allow-build-scripts'])`), and in text
+   that only mentions it (`echo sigil pip x --allow-build-scripts` is asked
+   about too, as `echo npm install x` is denied).
+2. The confirmation variable. Any appearance of `SIGIL_ALLOW_BUILD…` followed
+   by `=` in the same word (`SIGIL_ALLOW_BUILD_SCRIPTS=1 sigil …`,
+   `env "SIGIL_ALLOW_BUILD_SCRIPT${E}S=1" …`), or next to a word that sets a
+   variable by name (`export`, `declare`, `typeset`, `readonly`, `local`,
+   `printf`, `read`, `mapfile`, `eval`: `printf -v SIGIL_ALLOW_BUILD_SCRIPTS 1;
+   export SIGIL_ALLOW_BUILD_SCRIPTS`), or an assignment whose name has an
+   expansion in it in a call with `export`, `declare`, `env`, `eval` and the
+   like (`export "$V=1"`, `env "${N}_SCRIPTS=1" …`). A command that only names
+   or reads the variable (`grep SIGIL_ALLOW_BUILD_SCRIPTS docs`, `echo
+   $SIGIL_ALLOW_BUILD_SCRIPTS`) is not asked about.
+3. The flag after a command word that is, or may be, `sigil`, wherever the
+   subcommand is. Where a word is `sigil` (also `/usr/bin/sigil`,
+   `$(command -v sigil)`), or has an expansion, a backslash, a glob character
+   or a pair of quotes in it (`$S`, `si${E}gil`, `s\igil`, `'sigil'`), a word
+   later in the same call (before a `;`, `&`, `|` or `# comment`) that starts
+   with `--allow-b` or that a brace expansion, glob or extglob may make into
+   the flag (`--allow-build-${F}`, `--allow-build-$(printf scripts)`,
+   `{--allow-build-scripts,}`, `@(--|x)allow-build-scripts`) asks. So do
+   these, whatever stands between: `sigil --format json $'npm' x
+   --allow-build-scripts`, `S=sigil; M=npm; $S $M x --allow-build-scripts`,
+   `f() { sigil "$@" --allow-build-scripts; }; f npm x`, `printf 'npm\n' |
+   xargs -I@ sigil @ x --allow-build-scripts`.
+4. A word the shell may expand into the flag, after `pip`/`npm`, or after a
+   subcommand that may be one. After `sigil` and its global options (`-v`,
+   `-f X`, `--format X`/`--format=X`, `-o X`, `--rules X`, `--yara-engine X`,
+   `--config X`), the subcommand is `pip`, `npm`, or a word that may expand to
+   one (an expansion, a quote, a backslash, a glob, a bracket class, an
+   extglob or a brace group: `$SUB`, `$'npm'`, `n\pm`, `np${x}m`, `p[i]p`,
+   `p@(i)p`, `{pip,npm}`). After it: a word with a `$` or a backtick, or one
+   that the shell may expand to a word that begins with `-`. Such a word
+   begins with `-`, a brace expansion, `*`, `?`, a bracket class that is
+   followed by more of the word, or an extglob opener (`@(`, `+(`, `!(`), and
+   holds a brace expansion (`--allow-build-{scripts,x}`), a glob
+   (`--allow-build-s*`, `--allow-build-scr[i]pts`, `[a-]-allow-build-scripts`,
+   `[[:punct:]][[:punct:]]allow-build-scripts`) or an extglob
+   (`@(-)-allow-build-scripts`, `+(-)allow-build-scripts`). A glob expands
+   only where a file of that name exists, which the command can arrange
+   (`touch -- --allow-build-scripts`). A word that begins with a letter
+   (`requests[socks]`, `@types/node@*`) cannot expand to one that begins with
+   `-` and is not asked about, nor is an argv list written as one word
+   (`[sigil,pip,x]`). A redirection and its file (`> "$LOG"`, `2>&1`) are not
+   arguments. A quoted version value is asked about too (`-V "$VER"`):
+   `"$VER"` is one word, but `"$@"` and `"${A[@]}"` are several, and the
+   reading does not tell them apart. `xargs` feeds a call: a `sigil` behind
+   `xargs` with `pip`/`npm`, or a subcommand that may be one, or a replace
+   string (`-I@`) in the subcommand place or after `pip`/`npm`, or no
+   subcommand at all (`… | xargs sigil`), asks. Alone, `sigil $SUB x` is any
+   sigil call and is allowed; a brace group there (`sigil {pip,npm} x`) is
+   asked about.
+5. A nested shell, whatever the flag looks like. A double-quoted string keeps
+   a `\c`, and the shell it is handed to reads the unquoted text and drops
+   the backslash, so ``bash -c "`which sigil` pip x --allow-build-s\\cripts"``
+   runs `sigil pip x --allow-build-scripts` while no reading of the outer
+   text shows the flag, and `np\\m` is `npm` to the second shell. The call is
+   found from a `sigil`, `pip` or `npm` word (a `sigil` followed by a plain
+   word of another subcommand, `sigil scan …`, is not one), and it asks when
+   the words before a `pip`/`npm` word in its command may spell `sigil` (they
+   hold `sigil`, or a backslash, quote, `$`, backtick, brace or glob
+   character; a `sigil` word needs nothing) and the rest of its call holds a
+   backslash, quote, `$`, backtick, `{`, `*`, `?` or `[` (it over-asks:
+   `bash -c 'sigil pip "requests>=2"'` is asked about, `bash -c 'sigil pip
+   requests'` is not). "Text another shell reads" is a quoted
+   string when the command holds a shell anywhere (`sh`, `bash`, `dash`,
+   `zsh`, `ksh`, `rbash`, `ssh`, `su`, `eval`, `source`, `.`, `$SHELL`, `trap`,
+   `watch`, `script`, `flock`, `parallel`, also with quotes in the name,
+   `b"as"h`), a `-c`-like flag on any program but another language's
+   interpreter (`$B -c "…"`), or text piped or fed by a here-document to a
+   command that is not a known filter (`| rbash`, `| $0`, `| exec sh`; `cat`,
+   `tee`, `grep`, `sed`, `awk`, `jq`, `head`, `tail`, `wc`, `sort` and an
+   interpreter of another language are filters); and an unquoted call when a
+   shell stands in its own simple command, text goes to a command that is not
+   a filter, the command holds a here-document or here-string and a shell,
+   or the words before it hold an expansion.
+
+`plugins/claude-code/hooks/tests/nested-shell-agreement.py` makes random
+commands from these spellings (a global option and a spelled subcommand, a
+function's `"$@"` and `-V "$@"`, `xargs` with a replace string, a `#` in a
+comment or inside backticks, a redirection's file named `--`, a `--` cut out
+of a word, a variable assigned in the command that holds the call or pieces of
+it, a bracket class or extglob that spells the flag, a built name for the
+variable, nested shells and pipes into `sh`, `rbash` and `$0`), runs each
+under real bash and dash with stub programs to see whether a `sigil pip|npm`
+call really received the flag or the variable, and asks the native hook, the
+MCP `check_command` and the shell fallback. It covers only what its generator
+writes, and a seed other than its default is a sample, not a claim that all
+seeds pass: the three can differ on a command that passes no flag.
+
+Not read, and so allowed:
+
+- a flag that a program builds at run time (`'--al' + 'low-build-' + 'scripts'`
+  in an interpreter's code), and a flag in pieces none of which is `--allow`,
+  `--allow-` or holds `allow-b` (`--al` and `low-build-scripts`);
+- a file or variable the call takes its arguments from (`sigil $ARGS`, with
+  `ARGS` set by an earlier command; one set in the same command with the
+  words in it is read when the `pip`/`npm` word comes before the flag);
+- a flag written before the call it ends up in: a variable assigned first and
+  expanded later (`F=--allow-build-scripts; A="sigil npm x"; eval "$A $F"`),
+  an alias, or two files joined by `cat` and run by a shell;
+- a script that one tool call writes and the next runs (a Write that creates
+  `run.sh` holding `sigil npm ./evil --allow-build-scripts`, then `sh
+  run.sh`: the Bash call holds neither the flag nor the variable);
+- a glob-spelled command word (`sigi[l]`) followed by an expansion that spells
+  the flag, and a command word and a subcommand that are both spelled by the
+  shell with the flag in a third (`$S $M x $F`), which is indistinguishable
+  from `$CC $CFLAGS $SRC`;
+- an inline `SIGIL_BYPASS=1` prefix, which switches the ask off;
+- `npm pack <directory or git spec>`, `npm view <directory>`, `pip download
+  <path, URL or package>` and `pip wheel <path>` run directly, which run the
+  same package code without a quarantine or scan (the hook allows them).
+
+Known over-asks, which the coarse rules cause and are left: a `$` or
+backtick after a `pip`/`npm` word in the same call (up to the next `;`, `&&`,
+`||` or `|`) asks even in a command with no `sigil`
+(`export PATH="$(npm config get prefix)/bin:$PATH"`, `x=$(npm view "$PKG"
+version)`, `X=$(pip show "$P")`, `PATH="$(npm bin):$PATH" ls`, `git commit -am
+"docs: sigil npm now downloads the tarball itself ($(date +%F))"`, `git add .
+&& git commit -m "sigil ${X}"`, `docker build -t "sigil:${IMAGE_TAG}" .`); a
+quoted version value (`sigil npm left-pad -V "$VER"`); a `--` before the flag
+(`sigil npm x -- --allow-build-scripts`); and a comment that names the flag
+after a `pip`/`npm` word (`sigil npm x # not --allow-build-scripts`). A
+redirection's file (`sigil pip x > "$LOG"`), a version range or extras
+(`'requests[security]'`, `'lodash@*'`), `sigil scan …` and a message that names
+the flag without a `pip` or `npm` word before it (`git commit -m "document
+--allow-build-scripts"`) are not asked about.
+
+Neither the hook nor the CLI's confirmation is a hard boundary. The package-scan
+tools of the MCP servers never pass the flag. For `deno run
+npm:<package>/<subpath>` the deny names the package without the subpath
+(`sigil npm chalk@5.3.0 && deno run npm:chalk@5.3.0/main`), since npm reads
+`chalk@5.3.0/main` as a git shorthand.
 
 ---
 
@@ -1055,9 +1493,12 @@ artifacts you trust as a unit, use `sigil approve` and the trust ledger.
 
 `sigil clone`, `sigil pip` and `sigil npm` have no `--fail-on`: they exit `0`
 for a LOW RISK verdict, `1` for any higher verdict (MEDIUM RISK included), and
-`2` when the clone or download failed or the scan could not run. `sigil scan`
-of a repository URL runs the `sigil clone` workflow and exits the same way,
-ignoring `--fail-on`, `--fail-on-verdict` and `--fail-on-incomplete`.
+`2` when the clone or download failed or the scan could not run, or (`pip` and
+`npm`) the spec, pip configuration, registry name, version or tarball, or
+tarball integrity was refused, `--allow-build-scripts` was not confirmed, or
+nothing was downloaded. `sigil scan` of a repository URL runs the
+`sigil clone` workflow and exits the same way, ignoring `--fail-on`,
+`--fail-on-verdict` and `--fail-on-incomplete`.
 
 `sigil residue scan` uses the same three codes against its own `--fail-on` level (which also accepts `info`).
 
@@ -1083,8 +1524,11 @@ The CLI reads the variables below. Others are described with the feature they
 control: `SIGIL_POLICY_FILE` and `SIGIL_NO_PROJECT_CONFIG` (scan policy, see the
 [Configuration Guide](configuration.md#scan-policy-sigilyml)),
 `SIGIL_PACK_PUBLIC_KEY` ([`sigil rules`](#sigil-rules)),
-`SIGIL_ALLOW_PRIVATE_URLS` ([archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links))
-and `SIGIL_GUARD_MODE` / `SIGIL_BYPASS` ([`sigil hook`](#sigil-hook)).
+`SIGIL_ALLOW_PRIVATE_URLS` ([archives, URLs and GitHub links](#sigil-scan-archives-urls-and-github-links),
+and the tarball download of [`sigil npm`](#sigil-npm)),
+`SIGIL_ALLOW_BUILD_SCRIPTS` (the confirmation of `--allow-build-scripts` where
+there is no terminal: [`sigil pip`](#sigil-pip), [`sigil npm`](#sigil-npm)) and
+`SIGIL_GUARD_MODE` / `SIGIL_BYPASS` ([`sigil hook`](#sigil-hook)).
 
 The CLI does not read `SIGIL_APPROVED_DIR`, `SIGIL_LOG_DIR`,
 `SIGIL_REPORT_DIR`, `SIGIL_CONFIG`, `SIGIL_TOKEN` or `SIGIL_API_URL`; the

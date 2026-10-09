@@ -148,12 +148,53 @@ has_in "$CMD" "${WB}SIGIL_BYPASS=1([[:space:]]|\$)" \
   && emit allow "Sigil guard bypassed (SIGIL_BYPASS=1)"
 
 # A backslash-newline is a line continuation: the shell removes both, so
-# `… && sigil scan i.sh && \` then `bash i.sh` is one && chain.
+# `… && sigil scan i.sh && \` then `bash i.sh` is one && chain (hook.rs
+# join_continuations). Not inside a `# comment`, which a backslash does not
+# continue: the comment ends at the line end. Reading that takes awk; without
+# it every backslash-newline is joined, and a comment may swallow the line
+# after it.
+# shellcheck disable=SC2016 # an awk program, not shell
+JOIN_AWK='
+BEGIN { SQ = sprintf("%c", 39); DQ = "\""; buf = ""; seen = 0 }
+{ buf = (seen ? buf "\n" : "") $0; seen = 1 }
+END {
+  s = buf; n = length(s); out = ""; i = 1; esc = 0; brace = 0; st = "o"; ansi = 0
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (c == "\\") {
+      e = substr(s, i + 1, 1)
+      if (e == "\n") { i += 2; continue }
+      if (e == "\r" && substr(s, i + 2, 1) == "\n") { i += 3; continue }
+      if (st == "o" || st == "d" || (st == "s" && ansi)) { out = out c e; esc = i + 1; i += 2; continue }
+    }
+    if (st == "o") {
+      if (c == SQ) { ansi = (i > 1 && substr(s, i - 1, 1) == "$"); st = "s" }
+      else if (c == DQ) st = "d"
+      else if (c == "#" && brace == 0 && (i == 1 || (index(" \t\n;&|", substr(s, i - 1, 1)) && esc != i - 1))) {
+        while (i <= n && substr(s, i, 1) != "\n") { out = out substr(s, i, 1); i++ }
+        continue
+      }
+      else if (c == "{" && i > 1 && substr(s, i - 1, 1) == "$" && esc != i - 1) brace++
+      else if (c == "}" && brace > 0) brace--
+    } else if (st == "s") { if (c == SQ) st = "o" }
+    else if (c == DQ) st = "o"
+    out = out c; i++
+  }
+  printf "%s\n", out
+}'
 case $CMD in
   *"\\$NL"*|*"\\$CR$NL"*)
-    CMD=$(printf '%s\n' "$CMD" \
-      | sed -e ':a' -e "/\\\\$CR\$/{" -e '$!N' -e "s/\\\\$CR\\n//" -e 'ta' -e '}' \
-        -e '/\\$/{' -e '$!N' -e 's/\\\n//' -e 'ta' -e '}') ;;
+    CMD_JOINED=''
+    if command -v awk >/dev/null 2>&1; then
+      CMD_JOINED=$(printf '%s\n' "$CMD" | LC_ALL=C awk "$JOIN_AWK" 2>/dev/null) || CMD_JOINED=''
+    fi
+    if [ -n "$CMD_JOINED" ]; then
+      CMD=$CMD_JOINED
+    else
+      CMD=$(printf '%s\n' "$CMD" \
+        | sed -e ':a' -e "/\\\\$CR\$/{" -e '$!N' -e "s/\\\\$CR\\n//" -e 'ta' -e '}' \
+          -e '/\\$/{' -e '$!N' -e 's/\\\n//' -e 'ta' -e '}')
+    fi ;;
 esac
 
 # The command with quoting inside words removed (cmdline::dequote): quotes
@@ -1058,16 +1099,18 @@ function hdat(cmd, i,    j, c, hw) {
 # here-document). An opening quote is outside, a closing one inside. A
 # substitution opened inside double quotes is outside quotes until its ) or
 # backtick (SK: a backtick one; SP: the ( nesting of the one below).
-function qmap(cmd, d,    n, i, c, nx, st, ansi, ns, SK, SP, par, np, PD, PT, k, j, e, ln, hw, done, x, ar) {
-  n = length(cmd); st = "o"; ansi = 0; ns = 0; par = 0; np = 0; ar = 0
+function qmap(cmd, d,    n, i, c, nx, st, ansi, ns, SK, SP, par, np, PD, PT, k, j, e, ln, hw, done, x, ar, esc, brace) {
+  n = length(cmd); st = "o"; ansi = 0; ns = 0; par = 0; np = 0; ar = 0; esc = 0; brace = 0
   for (i = 1; i <= n; i++) {
     c = substr(cmd, i, 1); nx = substr(cmd, i + 1, 1)
     Q[d, i] = st
-    if (c == "\\" && (st == "o" || st == "d" || (st == "s" && ansi))) { if (i < n) Q[d, i + 1] = st; i++; continue }
+    if (c == "\\" && (st == "o" || st == "d" || (st == "s" && ansi))) { if (i < n) Q[d, i + 1] = st; esc = i + 1; i++; continue }
     if (st == "o") {
       if (c == SQ) { ansi = (i > 1 && substr(cmd, i - 1, 1) == "$"); st = "s" }
       else if (c == DQ) st = "d"
-      else if (c == "#" && (i == 1 || index(" \t\n;&|()<>", substr(cmd, i - 1, 1)))) { st = "c"; Q[d, i] = "c" }
+      else if (c == "#" && brace == 0 && (i == 1 || (index(" \t\n;&|", substr(cmd, i - 1, 1)) && esc != i - 1))) { st = "c"; Q[d, i] = "c" }
+      else if (c == "{" && i > 1 && substr(cmd, i - 1, 1) == "$" && esc != i - 1) brace++
+      else if (c == "}" && brace > 0) brace--
       else if (c == "(" && nx == "(") { ar++; Q[d, i + 1] = st; i++; continue }
       else if (c == ")" && nx == ")" && ar > 0) { ar--; Q[d, i + 1] = st; i++; continue }
       else if (c == "(" && ns > 0) par++
@@ -1852,6 +1895,14 @@ check_variant() {
     case $cv_deno in
       npm:*)
         cv_spec=${cv_deno#npm:}
+        # The package, without the subpath deno loads from it
+        # (`chalk@5.3.0/main`, `@scope/pkg@1/x`): sigil npm takes the
+        # package, and npm reads `chalk@5.3.0/main` as a git shorthand.
+        case $cv_spec in
+          @*/*/*) cv_rest=${cv_spec#*/}; cv_spec=${cv_spec%%/*}/${cv_rest%%/*} ;;
+          @*) ;;
+          */*) cv_spec=${cv_spec%%/*} ;;
+        esac
         CK_DENY="deno fetches $cv_spec from the npm registry and runs it in one step, with no scan. Use: sigil npm $cv_spec && $cv_text. $BYPASS_HINT"
         CK_TARGETS=npm:$cv_spec ;;
       *)
@@ -2497,6 +2548,723 @@ for REC in $LEX; do
 done
 IFS=$IFS_DEFAULT
 
+# ── ASK: a sigil call that lets package code run before its scan ──────────
+# `sigil pip|npm … --allow-build-scripts` lets pip or npm run the package's
+# own setup or lifecycle scripts on this machine before the scan: the
+# user's decision, not an agent's (hook.rs build_scripts_opt_in). This ask is
+# the one layer aimed at an agent, and it is advisory: the CLI's own
+# confirmation (a prompt at a terminal, or SIGIL_ALLOW_BUILD_SCRIPTS=1) stops
+# accidents and unattended runs, but anything that opens a pseudo-terminal
+# and answers, or sets the variable, passes it, and a pattern reader cannot
+# see a flag a program builds at run time. This file asks on the shapes
+# listed here, and they are not all the ways a shell can spell the flag. It
+# over-asks on purpose, and an inline SIGIL_BYPASS=1 prefix switches it off
+# (the bypass check above allows before this block). It reads the shapes
+# hook.rs reads, with sed, awk and extended regular expressions; it is a
+# coarser reading (it can ask where hook.rs allows, and where hook.rs denies,
+# as for `npm exec`), and nested-shell-agreement.py measures where the two
+# differ. The rules are coarse so that a family of spellings is one
+# rule: a `--` never ends a reading, a `#` never hides the words after it,
+# and a `$` or backtick after `pip`/`npm` asks. Views of the command: as
+# written and with the `# comments` dropped by awk as hook.rs does (a `#`
+# starts a comment only at the start of a word, not after an escaped blank,
+# not inside `${…}`, not glued to `)`, `<` or `>`; a backslash at the end of
+# a comment's line does not continue it), either view that finds the flag
+# asks; each with quotes removed from runs of plain word characters only (so
+# a quoted `">"` or `"$X"` keeps its quotes), with the quotes of a string a
+# shell hands to an interpreter unspliced (`'\''`, `'"'"'`, `\"`), with up
+# to three layers of double-quote escaping undone (`\\` is `\`, `\$` is
+# `$`), with all quotes and backslashes removed (only the rules that look for
+# the flag itself read this one), and with the `;` `&` `|` `#` and line ends
+# inside a quoted word, and the line ends inside `[…]` or `<(…)`/`>(…)`,
+# masked (hook.rs mask_quoted_separators).
+#  1. FLAT: a `pip` or `npm` word, then anywhere after it a word that holds
+#     the start of the flag: `allow-b` (as in `--allow-b…` and `'--' +
+#     'allow-build-scripts'`), or exactly `--allow` or `--allow-` (a flag in
+#     pieces). Words are cut at each character that is not a letter, a digit,
+#     `_`, `.` or `-`, so the `pip` of `ARGS="pip x --allow-build-scripts"` is
+#     a word and so is a flag after `=`, a quote or a bracket. Nothing stops
+#     the reading between the two: not a `;` `&` `|`, a line end, a quoted
+#     string, a redirection, a comment or a `--` (`sigil npm x -- --allow-build-scripts`
+#     asks, although the CLI reads no flag after a `--` of its own). Nothing
+#     here needs a `sigil` word, so the spelling of the command word does
+#     not matter to it.
+#  2. ENV: the variable the CLI accepts in place of a terminal. Its name with
+#     anything glued to it and then `=`; the first part of its name
+#     (SIGIL_ALLOW_BUILD) next to a word that sets a variable by name
+#     (export declare typeset readonly local printf read mapfile eval); an
+#     assignment with an expansion in its name in a call with export,
+#     declare, env, eval and the like (`export "$V=1"`).
+#  3. What FLAT cannot see.
+#     a. The flag after a command word that is or may be sigil, wherever the
+#        subcommand is: `sigil`, or a word with an expansion, a glob
+#        character, a backslash or a pair of quotes in it (`$S`, `si${E}gil`,
+#        `s\igil`), then, before a `# comment` or a `;`/`&`/`|`, a word
+#        starting with `--allow-b` or a brace expansion, glob or extglob that
+#        holds a piece of the flag's name.
+#     b. `sigil`, its global options (-v, -f X, --format X|=X, -o X, --rules X,
+#        --yara-engine X, --config X), then `pip` or `npm`, or a word that may
+#        expand to one where the subcommand goes (an expansion, a quote, a
+#        backslash, a glob, a bracket class, an extglob, `{pip,npm}`), then a
+#        word starting with --allow-build-scripts (a glued redirection
+#        included) or a word the shell may expand to it: one with a `$` or
+#        backtick (a quoted -V "$VER" too: "$@" is several words), or one
+#        that begins like an option or a pattern (`-`, `{`, `*`, `?`, a
+#        bracket class that is followed by more of the word, an extglob
+#        opener) and holds a brace expansion (`--allow-build-{scripts,x}`), a
+#        glob (`--allow-build-s*`, `--allow-build-scr[i]pts`,
+#        `[a-]-allow-build-scripts`) or an extglob (`@(-)-allow-build-scripts`).
+#        A word that begins with a letter (`requests[socks]`) cannot expand
+#        to a word that begins with `-`. Words are split at `[ ] ( ) ,` as
+#        well as whitespace; the `&` or `|` of a redirection (`2>&1`, `&>f`,
+#        `>|f`) does not end the call. A redirection and its file (`> "$LOG"`)
+#        are dropped first.
+#     c. xargs: a sigil call behind it with pip/npm or a word that may be
+#        one, with a replace option (-I, -i) before the sigil word, or with
+#        no subcommand at all; or an xargs command that is an expansion. This
+#        is coarser than hook.rs, which asks about a replace string only where
+#        it stands in the subcommand place or after pip/npm.
+# An allow below becomes this ask when one of the readings fires; a deny
+# still wins. Known over-asks:
+# a `$` after a `pip`/`npm` word in the same call (up to the next `;`, `&&`,
+# `||` or `|`), with no `sigil` in the command
+# (`export PATH="$(npm config get prefix)/bin:$PATH"`, `docker build -t
+# "sigil:${TAG}" .`), and a quoted version value (-V "$VER"). Not read: a flag
+# a program builds at run time, a file or variable the call takes its
+# arguments from (one set in the same command with the words in it is read
+# when the pip/npm word comes before the flag), a flag written before the call
+# it ends up in (`F=--allow-build-scripts; A="sigil npm x"; eval "$A $F"`, an
+# alias, two files joined by `cat` and run by a shell),
+# a flag in pieces none of which is `--allow`, `--allow-` or holds `allow-b`, a call
+# a script or alias makes without the words appearing in the command (a
+# script written by one tool call and run by the next), a command word and a
+# subcommand that are both spelled by the shell with the flag in a third
+# (`$S $M x $F`). Without awk, a `# comment` is not dropped, no quoted word
+# is masked and no line end inside a quoted word or a process substitution is
+# joined to its call, and a line continuation after a comment is joined.
+OPTIN=0
+# optin_prep <text>: R is the text with each redirection and its file
+# dropped. A here-string's text is kept (a shell may run it: `bash <<<
+# "sigil pip …"`), as are a process or command substitution in a file
+# (`<(…)`, `> "$(…)"`), whose command runs.
+optin_prep() {
+  R=$(printf '%s\n' "$1" | LC_ALL=C sed \
+    -e 's/^/ /' \
+    -e 's/<<</ HERESTRING /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*&>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*&>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*>>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*>|[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*>&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*<<-*[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*<>[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*<&[[:space:]]*[^[:space:];&|(`<>]*/ /g' \
+    -e 's/[[:space:]]\({[A-Za-z_][A-Za-z0-9_]*}\)*[0-9]*[<>][[:space:]]*[^[:space:];&|(`<>]*/ /g')
+}
+# optin_dq <text>: DQ is the text with quotes removed from each run of
+# plain word characters (hook.rs dequote_literals).
+OPTIN_LIT='[^]'\''"[:space:]$`<>&|;()[,]*'
+optin_dq() {
+  DQ=$1
+  case $1 in
+    *[\"\'\\]*)
+      DQ=$(printf '%s\n' "$1" | LC_ALL=C sed \
+        -e "s/'\\($OPTIN_LIT\\)'/\\1/g" \
+        -e "s/\"\\($OPTIN_LIT\\)\"/\\1/g" \
+        -e 's/\\\([A-Za-z0-9_./-]\)/\1/g') ;;
+  esac
+}
+# optin_unsplice <text>: UNS is the text a shell hands to an interpreter
+# when the interpreter's own quotes sit inside a quoted string (hook.rs
+# unsplice_quotes): `'\''` and `'"'"'` are one `'`, `\"` and `\'` a quote.
+optin_unsplice() {
+  UNS=$1
+  OPTIN_SQ="'"; OPTIN_BS='\'
+  case $1 in
+    *\\*|*\"*)
+      UNS=$(printf '%s\n' "$1" | LC_ALL=C sed \
+        -e "s/${OPTIN_SQ}${OPTIN_BS}${OPTIN_BS}${OPTIN_SQ}${OPTIN_SQ}/${OPTIN_SQ}/g" \
+        -e "s/${OPTIN_SQ}\"${OPTIN_SQ}\"${OPTIN_SQ}/${OPTIN_SQ}/g" \
+        -e 's/\\"/"/g' \
+        -e "s/${OPTIN_BS}${OPTIN_BS}${OPTIN_SQ}/${OPTIN_SQ}/g") ;;
+  esac
+}
+# optin_lex <strip|mask|keep|keepmask> <text>: LX is the text with each
+# `# comment` outside quotes dropped (not in the keep modes, which read the
+# text as written) and, in the mask modes, the `;` `&` `|` `#` and line
+# ends inside a quoted word replaced, and line ends inside `[…]` or a
+# process substitution `<(…)` / `>(…)` made spaces (hook.rs
+# mask_quoted_separators); a
+# quoted string that holds a `pip` or `npm` word is a script, whose
+# separators are real, and is read through. The text unchanged without awk.
+# shellcheck disable=SC2016 # an awk program, not shell
+OPTIN_AWK='
+function mentions(s) { return s ~ /(^|[^A-Za-z0-9_.-])(pip|npm)([^A-Za-z0-9_.-]|$)/ }
+function closing(s, n, open,   q, j, c) {
+  q = substr(s, open, 1)
+  for (j = open + 1; j <= n; j++) {
+    c = substr(s, j, 1)
+    if (q == DQ && c == "\\") { j++; continue }
+    if (c == q) return j
+  }
+  return 0
+}
+BEGIN { SQ = sprintf("%c", 39); DQ = "\""; buf = ""; seen = 0; keep = (mode ~ /^keep/); mask = (mode ~ /mask$/) }
+{ buf = (seen ? buf "\n" : "") $0; seen = 1 }
+END {
+  s = buf; n = length(s); out = ""; depth = 0; tdepth = 0; i = 1; esc = 0; brace = 0; np = 0; psub = 0
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (c == "\\") {
+      e = substr(s, i + 1, 1)
+      if (mask && (e == ";" || e == "&" || e == "|" || e == "#")) e = "_"
+      out = out c e; esc = i + 1; i += 2; continue
+    }
+    if (c == SQ || c == DQ) {
+      if (i in closes) { out = out c; i++; tdepth--; continue }
+      j = closing(s, n, i)
+      if (j > 0) {
+        inner = substr(s, i + 1, j - i - 1)
+        if (mask && mentions(inner)) { closes[j] = 1; tdepth++; out = out c; i++; continue }
+        if (mask && !mentions(inner)) { gsub(/[;&|#]/, "_", inner); gsub(/\n/, " ", inner) }
+        out = out c inner c; i = j + 1; continue
+      }
+      out = out c; i++; continue
+    }
+    if (!keep && c == "#" && tdepth == 0 && brace == 0 && (i == 1 || (substr(s, i - 1, 1) ~ /[ \t\n;&|]/ && esc != i - 1))) {
+      while (i <= n && substr(s, i, 1) != "\n") i++
+      continue
+    }
+    if (c == "{" && i > 1 && substr(s, i - 1, 1) == "$" && esc != i - 1) brace++
+    else if (c == "}" && brace > 0) brace--
+    if (c == "(") { ps = (i > 1 && (substr(s, i - 1, 1) == "<" || substr(s, i - 1, 1) == ">")) ? 1 : 0; np++; pstk[np] = ps; psub += ps }
+    else if (c == ")") { if (np > 0) { psub -= pstk[np]; np-- } }
+    if (c == "[") depth++
+    else if (c == "]") { if (depth > 0) depth-- }
+    else if (c == "\n" && (depth > 0 || psub > 0) && mask) c = " "
+    out = out c; i++
+  }
+  printf "%s\n", out
+}'
+optin_lex() {
+  LX=$2
+  if [ -n "$LEX_HAS_AWK" ]; then
+    LX=$(printf '%s\n' "$2" | LC_ALL=C awk -v mode="$1" "$OPTIN_AWK" 2>/dev/null) || LX=$2
+  fi
+}
+# optin_view <text>: add the text to the views the rules read: OPTIN_ALL
+# (redirections and a -V value dropped; a line is the unit the rules match
+# in, so a line end ends a call) and OPTIN_FLAT (the text on one line).
+OPTIN_ALL=''
+OPTIN_FLAT=''
+optin_view() {
+  optin_prep "$1"
+  OPTIN_ALL=$OPTIN_ALL$NL$R
+  FL=$(printf '%s\n' "$1" | tr '\n' ' ')
+  OPTIN_FLAT=$OPTIN_FLAT$NL$FL
+}
+# optin_bare <text>: the text without any quote or backslash, in OPTIN_BARE
+# (the rules that look for the flag itself read it, not the ones that look
+# for an expansion: a quoted "$VER" would read as one that may split).
+OPTIN_BARE=''
+optin_bare() {
+  BR=$(printf '%s\n' "$1" | tr -d "\"'\\\\")
+  optin_prep "$BR"
+  OPTIN_BARE=$OPTIN_BARE$NL$R
+}
+# optin_unescape <text>: UNE is the text with one layer of double-quote
+# escaping undone (hook.rs unescape_layer): a backslash before a backslash,
+# `$`, a backtick or `"` is dropped.
+optin_unescape() {
+  UNE=$1
+  case $1 in
+    *\\*)
+      UNE=$(printf '%s\n' "$1" | LC_ALL=C sed -e 's/\\\([\\$`"]\)/\1/g') ;;
+  esac
+}
+# optin_views1 <text>: the text, dequoted, unspliced, and unspliced and
+# dequoted (the last two when the quotes of a string handed to an
+# interpreter change it), and the bare text.
+optin_views1() {
+  optin_view "$1"
+  optin_bare "$1"
+  optin_dq "$1"; [ "$DQ" = "$1" ] || optin_view "$DQ"
+  optin_unsplice "$1"
+  if [ "$UNS" != "$1" ]; then
+    optin_view "$UNS"
+    optin_dq "$UNS"; [ "$DQ" = "$UNS" ] || optin_view "$DQ"
+  fi
+}
+# optin_views <text>: the views of the text, and of the text a second shell
+# reads once up to three layers of double-quote escaping are off it (hook.rs
+# build_scripts_opt_in).
+optin_views() {
+  optin_views1 "$1"
+  ov_layer=$1; ov_k=0
+  while [ "$ov_k" -lt 3 ]; do
+    optin_unescape "$ov_layer"
+    [ "$UNE" = "$ov_layer" ] && break
+    optin_views1 "$UNE"
+    ov_layer=$UNE; ov_k=$((ov_k + 1))
+  done
+}
+optin_has() {
+  has_in "$OPTIN_ALL" "$1"
+}
+optin_bare_has() {
+  has_in "$OPTIN_BARE" "$1"
+}
+OPTIN_C='([^][(),[:space:];&|]|[<>][&|]|&>)'
+OPTIN_F='([^]#[(),[:space:];&|-]|[<>][&|]|&>)'
+OPTIN_S='[][(),[:space:]]+'
+OPTIN_W="(-|-?${OPTIN_F}${OPTIN_C}*|--${OPTIN_C}*)"
+# A shell word's characters: not whitespace, `;&|` or a parenthesis (a `,`
+# and `[]` stay in it: `--allow-build-{scripts,x}`).
+OPTIN_P='[^][:space:];&|()]'
+# A brace expansion inside a shell word: `{a,b}`, `{1..3}`.
+OPTIN_BR="\\{${OPTIN_P}*(,|\\.\\.)${OPTIN_P}*\\}"
+# `sigil` as a command word: the word, `/usr/bin/sigil`, `$(command -v
+# sigil)` and `sigil.exe` too.
+OPTIN_NAMED="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*"
+# A command word the shell may spell `sigil`: one with an expansion, a glob
+# character, a backslash, or a pair of quotes (`$S`, `si${E}gil`, `sig?l`,
+# `s\igil`, `'sigil'`).
+OPTIN_SPELLED="(^|[][(),[:space:];&|])(${OPTIN_C}*[\$\`\\\\*?]${OPTIN_C}*|${OPTIN_C}*\"${OPTIN_C}*\"${OPTIN_C}*|${OPTIN_C}*'${OPTIN_C}*'${OPTIN_C}*)"
+# A global option of sigil and its value (hook.rs global_option_words):
+# `-v`, `--verbose`, `-f X`, `-fX`, `--format X`, `--format=X`, and `-o`,
+# `--rules`, `--yara-engine`, `--config` alike; short options may be clustered.
+OPTIN_G="(-v+|--verbose|(--(format|output|rules|yara-engine|config)|-[vfo]*[fo])${OPTIN_S}${OPTIN_C}+|--(format|output|rules|yara-engine|config)=${OPTIN_C}*|-[vfo]*[fo]${OPTIN_C}+)"
+# `sigil`, any global options, then `pip` or `npm` (a piece of a brace
+# group too: `{sigil,pip}`), or a command word that is an expansion.
+OPTIN_SUB="(^|[^[:alnum:]_.-])(sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_W})*|${OPTIN_C}*[\$\`*?\"'\\\\]${OPTIN_C}*)${OPTIN_S}[\"'{]*(pip|npm)[\"'}]*"
+# `sigil`, its global options, and where the subcommand goes a word that may
+# expand to `pip`/`npm`: an expansion, a quote, a backslash, a glob or a brace
+# expansion (`$SUB`, `$'npm'`, `n\pm`, `np${x}m`, `{pip,npm}`).
+OPTIN_SUBX="${OPTIN_NAMED}(${OPTIN_S}${OPTIN_G})*${OPTIN_S}(${OPTIN_C}*[\$\`\\\\'\"{*?]${OPTIN_C}*|${OPTIN_C}*\\[[^]'\"[:space:];&|()]+\\]${OPTIN_C}*|${OPTIN_C}*[@+!]\\([^[:space:];&|]*\\)[^[:space:];&|]*)"
+# A word after it that is the flag, or may expand to it: `$` or a backtick.
+OPTIN_FLAG="${OPTIN_S}([\"']*--allow-build-scripts|${OPTIN_C}*[\$\`])"
+# A word that starts like the flag or that a brace expansion, a glob or an
+# extglob may make one (hook.rs flag_like): `--allow-build-${F}`,
+# `{--allow-build-scripts,}`, `--allow-build-s*`, `[-]-allow-build-scripts`,
+# `--allow-{build,x}-scripts`, `@(-)-allow-build-scripts`.
+OPTIN_FLAGA="${OPTIN_S}[\"']*([][{}*?-]|[@+!?*]\\([^[:space:]]*\\))*allow-[b{*?[]"
+# A shell word that begins like an option or a pattern and holds a brace
+# expansion, a glob or an extglob, which the shell may expand to the flag:
+#  - `-`, then anything, then a brace expansion, `*`, `?`, a bracket class or
+#    an extglob opener (`--allow-build-scr[i]pts`, `-@(-)allow-build-scripts`);
+#  - a brace expansion, `*` or `?` at its start;
+#  - an extglob opener at its start (`@(`, `+(`, `!(`);
+#  - a bracket class that is followed by more of the word, not by a `,` `}`
+#    `)` or its end (`[a-]-allow-build-scripts`,
+#    `[[:punct:]][[:punct:]]allow-build-scripts`; not the argv list
+#    `[sigil,pip,x]`, nor `['sigil'`).
+# A word that begins with a letter (`requests[socks]`, `@types/node@*`)
+# cannot expand to a word that begins with `-`.
+OPTIN_CLASS="\\[[!^]?\\]?(\\[:[a-z]+:\\]|[^]'\"[:space:]])*\\][^],})[:space:];&|]"
+OPTIN_PAT="[[:space:]()][\"']*((-${OPTIN_P}*)?(${OPTIN_BR}|[*?])|-${OPTIN_P}*(\\[[^]'\"[:space:];&|()]|[@+!?*]\\()|[@+!]\\(|${OPTIN_CLASS})"
+# A brace group where the subcommand goes (`sigil {pip,npm} x`,
+# `sigil {pip,--allow-build-scripts} evil`): its pieces are separate words
+# once the shell expands it, the flag among them. hook.rs reads the first
+# word after `sigil` that begins like an option or a pattern and holds a
+# brace expansion, and a brace group after the global options whose first
+# piece is `pip` or `npm`, as a pattern word that follows the subcommand.
+OPTIN_BRM="(^|[^[:alnum:]_.-])sigil(\\.exe)?[)\`\"']*(${OPTIN_S}[\"']*((-|\\*|\\?)${OPTIN_P}*)?${OPTIN_BR}|(${OPTIN_S}${OPTIN_W})*${OPTIN_S}[\"']*[-{*?]${OPTIN_P}*(pip|npm)[\"'}]*,${OPTIN_P}*)"
+# FLAT (hook.rs flat_opt_in): the text is cut into words at each character
+# that is not a letter, a digit, `_`, `.` or `-`. A `pip` or `npm` word, then
+# anywhere after it a word that holds the start of the flag: `allow-b` (as in
+# `--allow-b…` and `'--' + 'allow-build-scripts'`), or exactly `--allow` or
+# `--allow-` (a flag in pieces). Nothing stops the reading
+# between the two, not a `--`, a `;`, a quote or a line end (the view is one
+# line).
+OPTIN_NW='[^[:alnum:]_.-]'
+OPTIN_FLATRE="(^|${OPTIN_NW})(pip|npm)(${OPTIN_NW}|${OPTIN_NW}.*${OPTIN_NW})([[:alnum:]_.-]*allow-b|--allow(-?(${OPTIN_NW}|\$)))"
+# The confirmation variable (hook.rs sets_opt_in_env): its name with anything
+# glued to it and then `=`; its first part next to a word that sets a
+# variable by name; an assignment with an expansion in its name in a call
+# with `export`, `env` or the like.
+OPTIN_ENVRE='SIGIL_ALLOW_BUILD[^][(),[:space:];&|<>]*='
+OPTIN_ENVPFX='SIGIL_ALLOW_BUILD'
+OPTIN_ENVNAMER="(^|[][(),[:space:];&|\"'])(export|declare|typeset|readonly|local|printf|read|mapfile|readarray|eval)([][(),[:space:];&|\"']|\$)"
+OPTIN_ENVBUILT="(^|[][(),[:space:];&|\"'])(export|declare|typeset|readonly|local|env|eval)([][(),[:space:]\"']+[^;&|]*)?[][(),[:space:]\"']+[\"']*[^[:space:];&|=\"']*[\$\`][^[:space:];&|=]*="
+# 4. A nested shell (hook.rs nested_obscured_call, which this mirrors).
+#    A double-quoted string keeps `\c` as it is, and the shell it is handed
+#    to reads the unquoted text and drops the backslash:
+#    `bash -c "`which sigil` pip x --allow-build-s\\cripts"` hands that shell
+#    `s\cripts`, which it reads as `scripts` (and `np\\m` is `npm` to it). No
+#    reading of the outer command knows what an inner one runs, and the
+#    spellings are endless, so rather than chase them a `sigil`, `pip` or
+#    `npm` word (a maximal run of [A-Za-z0-9_.-]; a `sigil` followed by a
+#    plain word of another subcommand, `sigil scan …`, past its global
+#    options, is not one) asks when
+#     - it sits in a quoted string (the outermost '…' or "…" of the command,
+#       a backslash escaping a character outside single quotes) and the
+#       command holds a shell anywhere (a word that is sh bash dash zsh ksh
+#       mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh
+#       ssh su runuser eval source trap watch script flock or parallel, with
+#       a version or extension after it (ksh93, bash.exe), $SHELL, $BASH, a
+#       `.` of its own; also with its quotes and backslashes removed:
+#       b"as"h), a -c-like flag with a quote or `$` or backtick after it
+#       (`$B -c "…"`), or text piped (`|`, `|&`) or fed by a here-document or
+#       here-string to a command that is not a known filter (cat tee grep
+#       sed awk cut sort uniq wc head tail tr jq … and another language's
+#       interpreter are; `rbash`, `$0`, `exec sh` are not), or
+#     - it is unquoted and a shell stands in its own simple command (after
+#       the last `;` `&` `|` `(` or line end), or text goes to a command that
+#       is not a known filter (`printf … | sh`, `… | $0`), or the command holds
+#       a `<<` and a shell as above, or its simple command holds a `$`,
+#       backtick, `{`, `*` or `?` in front of it (a command word the shell
+#       expands, `${S} --format json pip`);
+#    and, for a `pip` or `npm` word, the words of its simple command in front
+#    of it (after the last `;` `&` `|` `(` or line end, quoted or not) hold
+#    `sigil` or one of \ ' " $ ` { * ? [ (a word the shell may spell `sigil`);
+#    a `sigil` word needs nothing; and the text after the word, to the end of
+#    its call (the next `;`, line end, `)`, `&` or `|`; past the end of its
+#    quoted string if the call goes on), holds one of \ ' " $ ` { * ? [. The
+#    quote that opens the string holding the word and the one that closes it
+#    do not count. Over-asking is the intended failure. Without awk the same
+#    is read coarsely, as a superset: a shell anywhere, then `sigil`, `pip` or
+#    `npm`, then one of those characters.
+NS_SQ="'"
+NS_OBS_ERE="[\$\`\\\\${NS_SQ}\"*?[{]"
+NS_NAMES='sh bash dash zsh ksh mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh ssh su runuser eval source trap watch script flock parallel'
+NS_SHELLS='sh bash dash zsh ksh mksh ash csh tcsh fish busybox rbash rksh rzsh posh yash pdksh oksh'
+NS_SHELL_ERE="(^|[^A-Za-z0-9_.-])(sh|bash|dash|zsh|ksh|mksh|ash|csh|tcsh|fish|busybox|rbash|rksh|rzsh|posh|yash|pdksh|oksh|ssh|su|runuser|eval|source|trap|watch|script|flock|parallel)[0-9.]*([^A-Za-z0-9_-]|\$)|[\$][{]?(SHELL|BASH)[}]?|(^|[[:space:];&|(])[.]([[:space:]]|\$)"
+NS_DASHC_ERE="(^|[[:space:]])-[A-Za-z]*c([[:space:]]*[\"${NS_SQ}\$\`]|[\"${NS_SQ}\$\`])"  # coarse: any program
+NS_COARSE_ERE="(^|[^A-Za-z0-9_.-])(sigil|pip|npm)([^A-Za-z0-9_.-]|\$).*${NS_OBS_ERE}"
+# shellcheck disable=SC2016 # an awk program, not shell
+NS_AWK='
+function named(word, list,   k, nm, rest) {
+  nm = split(list, names, " ")
+  for (k = 1; k <= nm; k++) {
+    if (substr(word, 1, length(names[k])) == names[k]) {
+      rest = substr(word, length(names[k]) + 1)
+      while (rest ~ /^[0-9]/) rest = substr(rest, 2)
+      if (rest == "" || substr(rest, 1, 1) == ".") return 1
+    }
+  }
+  return 0
+}
+function wordc(c) { return index(WORDCH, c) > 0 }
+function opens(t) { return t != "" && index(DQ SQ "$`", substr(t, 1, 1)) > 0 }
+# dashc(s): a -c-like flag followed by a quote or an expansion, on a program
+# that is not an interpreter of another language.
+function dashc(s,   nt, k, t, body, l, flag, rest, more, prog, b, j, q) {
+  nt = 0; k = 1; q = length(s)
+  while (k <= q) {
+    while (k <= q && index(" \t\n", substr(s, k, 1)) > 0) k++
+    if (k > q) break
+    j = k
+    while (j <= q && index(" \t\n", substr(s, j, 1)) == 0) j++
+    tok[++nt] = substr(s, k, j - k); k = j
+  }
+  for (k = 1; k <= nt; k++) {
+    t = tok[k]
+    if (substr(t, 1, 1) != "-") continue
+    body = substr(t, 2); l = 0
+    while (l < length(body) && index(LETTERS, substr(body, l + 1, 1)) > 0) l++
+    flag = substr(body, 1, l); rest = substr(body, l + 1)
+    if (substr(flag, length(flag), 1) != "c" || flag == "") continue
+    more = (rest == "") ? opens(tok[k + 1]) : opens(rest)
+    if (!more) continue
+    prog = (k > 1) ? tok[k - 1] : ""
+    while (substr(prog, 1, 1) == DQ || substr(prog, 1, 1) == SQ) prog = substr(prog, 2)
+    while ((b = index(prog, "/")) > 0) prog = substr(prog, b + 1)
+    for (b = 1; b <= 12; b++) if (NOTSH[b] != "" && substr(prog, 1, length(NOTSH[b])) == NOTSH[b]) break
+    if (b <= 12) continue
+    return 1
+  }
+  return 0
+}
+# gopt(a): how many words the global option a of sigil takes (hook.rs
+# global_option_words): 1 alone, 2 with a value word after it, 0 for a word
+# that is not an option.
+function gopt(a,   lng, name, eq, letters, k, ch) {
+  if (substr(a, 1, 1) != "-" || a == "-" || a == "--") return 0
+  if (substr(a, 1, 2) == "--") {
+    lng = substr(a, 3); eq = index(lng, "=")
+    name = eq ? substr(lng, 1, eq - 1) : lng
+    if (!eq && (name == "format" || name == "output" || name == "rules" || name == "yara-engine" || name == "config")) return 2
+    return 1
+  }
+  letters = substr(a, 2)
+  for (k = 1; k <= length(letters); k++) {
+    ch = substr(letters, k, 1)
+    if (ch == "v") continue
+    if (ch == "f" || ch == "o") return (k == length(letters)) ? 2 : 1
+    return 1
+  }
+  return 1
+}
+# sigil_call(s, e): may the sigil word that ends just before position e be a
+# pip/npm call (hook.rs ns_sigil_call): what follows it, past its global
+# options and their values, is not a plain word of another subcommand.
+function sigil_call(s, e,   n, i, st, w, nxt, k) {
+  n = length(s); i = e
+  while (1) {
+    while (i <= n && (substr(s, i, 1) == " " || substr(s, i, 1) == "\t")) i++
+    st = i
+    while (i <= n && index(OPTCH, substr(s, i, 1)) > 0) i++
+    w = substr(s, st, i - st)
+    nxt = substr(s, i, 1)
+    if (w == "" || (i <= n && index(" \t\n;&|)", nxt) == 0)) return 1
+    k = gopt(w)
+    if (k == 1) continue
+    if (k == 2) {
+      while (i <= n && (substr(s, i, 1) == " " || substr(s, i, 1) == "\t")) i++
+      while (i <= n && index(" \t\n;&|)", substr(s, i, 1)) == 0) i++
+      continue
+    }
+    if (w == "pip" || w == "npm") return 1
+    return (w !~ /^[a-z-]+$/)
+  }
+}
+# knownf(w): a program known not to read its stdin or a here-document as a
+# command line (hook.rs ns_known_filter).
+function knownf(w,   b, k) {
+  sub("^[" DQ SQ "]+", "", w)
+  b = w
+  while ((k = index(b, "/")) > 0) b = substr(b, k + 1)
+  for (k = 1; k <= NFLT; k++) if (FLT[k] == b) return 1
+  for (k = 1; k <= 12; k++) if (NOTSH[k] != "" && substr(b, 1, length(NOTSH[k])) == NOTSH[k]) return 1
+  return 0
+}
+# firstword(s, from): the first word of the command that starts at from
+# (blanks and assignments skipped), up to a blank or one of ;&|<>().
+function firstword(s, from,   n, i, st, w) {
+  n = length(s); i = from
+  while (1) {
+    while (i <= n && index(" \t\n", substr(s, i, 1)) > 0) i++
+    st = i
+    while (i <= n && index(" \t\n;&|<>()", substr(s, i, 1)) == 0) i++
+    w = substr(s, st, i - st)
+    if (w ~ /^[A-Za-z0-9_]+=/ && i <= n) continue
+    return w
+  }
+}
+# to_unknown(s): text piped (| |&) into a command that is not a known filter,
+# or the input of a here-document or here-string of one (hook.rs
+# ns_text_to_unknown): it may be a shell (| rbash, | $0, | exec sh).
+function to_unknown(s,   n, k, c, pv, nx, sepc, start, from, w, hs, hu) {
+  n = length(s); start = 1; k = 1; hs = 0; hu = 0
+  while (k <= n) {
+    c = substr(s, k, 1); pv = (k > 1) ? substr(s, k - 1, 1) : ""; nx = substr(s, k + 1, 1)
+    sepc = 0
+    if (c == ";" || c == "\n" || c == "(") sepc = 1
+    else if (c == "&") sepc = !(pv == ">" || pv == "<" || nx == ">")
+    else if (c == "|") sepc = (pv != ">")
+    if (sepc) {
+      if (c == "|" && nx != "|" && pv != "|") {
+        from = (nx == "&") ? k + 2 : k + 1
+        w = firstword(s, from)
+        if (w != "" && !knownf(w)) return 1
+      }
+      start = k + 1
+    } else if (c == "<" && nx == "<") {
+      if (hs != start) { hs = start; w = firstword(s, start); hu = (w != "" && !knownf(w)) }
+      if (hu) return 1
+      while (k <= n && substr(s, k, 1) == "<") k++
+      continue
+    }
+    k++
+  }
+  return 0
+}
+# shells(s, all, out): out[last position of an occurrence] = its first
+# position; the number of occurrences.
+function shells(s, all, out,   n, i, a, w, c, cnt, rest, br, t, nxt) {
+  n = length(s); cnt = 0; i = 1; split("", out)
+  while (i <= n) {
+    c = substr(s, i, 1)
+    if (wordc(c)) {
+      a = i
+      while (i <= n && wordc(substr(s, i, 1))) i++
+      w = substr(s, a, i - a)
+      if (named(w, all ? NAMES : SHELLS)) { out[i - 1] = a; cnt++ }
+      else if (all && w == ".") {
+        t = (a == 1) ? " " : substr(s, a - 1, 1)
+        nxt = (i > n) ? " " : substr(s, i, 1)
+        if ((t == " " || t == "\t" || t == "\n" || t == ";" || t == "&" || t == "|" || t == "(") && (nxt == " " || nxt == "\t" || nxt == "\n")) { out[i - 1] = a; cnt++ }
+      }
+    } else {
+      if (all && c == "$") {
+        rest = substr(s, i + 1, 7); br = 0
+        if (substr(rest, 1, 1) == "{") { br = 1; rest = substr(rest, 2) }
+        if (substr(rest, 1, 5) == "SHELL") { out[i + br + 5] = i; cnt++ }
+        else if (substr(rest, 1, 4) == "BASH") { out[i + br + 4] = i; cnt++ }
+      }
+      i++
+    }
+  }
+  return cnt
+}
+BEGIN {
+  SQ = sprintf("%c", 39); DQ = "\""
+  OBS = "$`\\" SQ DQ "{*?["
+  EXPANDING = "$`{*?"
+  WORDCH = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-"
+  LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+  split("python node deno bun perl ruby php lua awk gawk mawk sed", NOTSH, " ")
+  NFLT = split("cat tee grep egrep fgrep rg cut sort uniq wc head tail tr jq less more column fold fmt nl od xxd base64 sha256sum md5sum shasum xargs diff cmp comm paste rev tac yes true false echo printf test [", FLT, " ")
+  OPTCH = WORDCH "="
+  buf = ""; seen = 0
+}
+{ buf = (seen ? buf "\n" : "") $0; seen = 1 }
+END {
+  n = length(buf); nm = 0; i = 1
+  while (i <= n) {
+    if (wordc(substr(buf, i, 1))) {
+      st = i
+      while (i <= n && wordc(substr(buf, i, 1))) i++
+      w = substr(buf, st, i - st)
+      if (w == "pip" || w == "npm") { mgr[++nm] = st; alen[nm] = 3 }
+      else if (w == "sigil" && sigil_call(buf, i)) { mgr[++nm] = st; alen[nm] = 5 }
+    } else i++
+  }
+  if (nm == 0) { print 0; exit }
+  sep[0] = 0; psep[0] = 0; obs[0] = 0; xp[0] = 0; sig[0] = 0
+  for (k = 1; k <= n; k++) {
+    c = substr(buf, k, 1)
+    sep[k] = (c == ";" || c == "&" || c == "|" || c == "(" || c == "\n") ? k : sep[k - 1]
+    psep[k] = (c == ";" || c == "&" || c == "|" || c == "\n") ? k : psep[k - 1]
+    obs[k] = obs[k - 1] + (index(OBS, c) > 0 ? 1 : 0)
+    xp[k] = xp[k - 1] + (index(EXPANDING, c) > 0 ? 1 : 0)
+    sig[k] = (k >= 5 && substr(buf, k - 4, 5) == "sigil") ? k - 4 : sig[k - 1]
+  }
+  # stp[k]: where the call that starts at position k ends: the next ; line
+  # end ) & (not that of 2>&1 <&0 &>f) or | (not that of >|); n + 1: none.
+  stp[n + 1] = n + 1
+  for (k = n; k >= 1; k--) {
+    c = substr(buf, k, 1)
+    pv = (k > 1) ? substr(buf, k - 1, 1) : ""
+    nx = (k < n) ? substr(buf, k + 1, 1) : ""
+    isstop = 0
+    if (c == ";" || c == "\n" || c == ")") isstop = 1
+    else if (c == "&") isstop = !(pv == ">" || pv == "<" || nx == ">")
+    else if (c == "|") isstop = (pv != ">")
+    stp[k] = isstop ? k : stp[k + 1]
+  }
+  occ = shells(buf, 1, ends)
+  for (k = 1; k <= n; k++) shl[k] = (k in ends) ? ends[k] : shl[k - 1]
+  shl[0] = 0
+  tobs = 0
+  pipe = 0
+  cnt = shells(buf, 0, ends2)
+  for (e in ends2) {
+    a = ends2[e]
+    if (psep[a - 1] > 0 && substr(buf, psep[a - 1], 1) == "|") pipe = 1
+  }
+  stripped = buf
+  gsub(DQ, "", stripped); gsub(SQ, "", stripped); gsub("\\\\", "", stripped)
+  g = (occ > 0) || (shells(stripped, 1, ends3) > 0) || dashc(buf)
+  here = (index(buf, "<<") > 0)
+  ne = 0; i = 1
+  while (i <= n) {
+    c = substr(buf, i, 1)
+    if (c == "\\") i += 2
+    else if (c == "$" && substr(buf, i + 1, 1) == SQ) {
+      j = i + 2
+      while (j <= n && substr(buf, j, 1) != SQ) j += (substr(buf, j, 1) == "\\" ? 2 : 1)
+      if (j > n + 1) j = n + 1
+      ne++; eo[ne] = i + 1; ec[ne] = j; i = j + 1
+    } else if (c == SQ) {
+      j = i + 1
+      while (j <= n && substr(buf, j, 1) != SQ) j++
+      ne++; eo[ne] = i; ec[ne] = j; i = j + 1
+    } else if (c == DQ) {
+      j = i + 1
+      while (j <= n && substr(buf, j, 1) != DQ) j += (substr(buf, j, 1) == "\\" ? 2 : 1)
+      if (j > n + 1) j = n + 1
+      ne++; eo[ne] = i; ec[ne] = j; i = j + 1
+    } else i++
+  }
+  e = 1
+  tu = to_unknown(buf)
+  for (m = 1; m <= nm; m++) {
+    p = mgr[m]; al = alen[m]
+    while (e <= ne && ec[e] < p) e++
+    inside = (e <= ne && eo[e] < p && p < ec[e])
+    st = sep[p - 1] + 1
+    opening = (inside && eo[e] >= st) ? 1 : 0
+    spelled = (al == 5) || (sig[p - 1] >= st) || (obs[p - 1] - obs[st - 1] > opening)
+    fin = stp[p + al] - 1
+    closing = (inside && ec[e] <= n && ec[e] >= p + al && ec[e] <= fin) ? 1 : 0
+    if (inside) applies = g || tu
+    else applies = (shl[p - 1] >= st) || pipe || tu || (here && g) || (xp[p - 1] - xp[st - 1] > 0)
+    if (applies && spelled && obs[fin] - obs[p + al - 1] > closing) { print 1; exit }
+  }
+  print 0
+}'
+ns_check() {
+  if [ -n "$LEX_HAS_AWK" ]; then
+    NS_OUT=$(printf '%s\n' "$CMD" | LC_ALL=C awk -v NAMES="$NS_NAMES" -v SHELLS="$NS_SHELLS" "$NS_AWK" 2>/dev/null) || NS_OUT=1
+    [ "$NS_OUT" = 0 ] || OPTIN=1
+  else
+    ns_flat=$(printf '%s' "$CMD" | tr '\n' ' ')
+    ns_bare=$(printf '%s' "$ns_flat" | tr -d "\"'\\\\")
+    { has_in "$ns_flat" "$NS_SHELL_ERE" || has_in "$ns_bare" "$NS_SHELL_ERE" \
+        || has_in "$ns_flat" "$NS_DASHC_ERE"; } \
+      && has_in "$ns_flat" "$NS_COARSE_ERE" && OPTIN=1
+  fi
+}
+# Only a command that holds one of these words (quotes and backslashes
+# aside) can hold the call; the lexer's pre-filter text is that.
+case $LEX_TXT in
+  *pip*|*npm*|*sigil*|*SIGIL_ALLOW_BUILD*)
+    LEX_HAS_AWK=''
+    command -v awk >/dev/null 2>&1 && LEX_HAS_AWK=1
+    optin_lex strip "$CMD"; OPTIN_BASE=$LX
+    optin_views "$OPTIN_BASE"
+    optin_lex mask "$CMD"
+    [ "$LX" = "$OPTIN_BASE" ] || optin_views "$LX"
+    # The text as written too, comments included (hook.rs opt_in_ask): a `#`
+    # inside a backtick substitution is not a comment, and no reading of
+    # where a comment ends is trusted to hide the words after it.
+    case $CMD in
+      *'#'*)
+        optin_lex keep "$CMD"
+        [ "$LX" = "$OPTIN_BASE" ] || optin_views "$LX"
+        optin_lex keepmask "$CMD"
+        [ "$LX" = "$OPTIN_BASE" ] || optin_views "$LX" ;;
+    esac
+    has_in "$OPTIN_FLAT" "$OPTIN_FLATRE" && OPTIN=1
+    # The confirmation variable, by its name, near a word that sets a variable
+    # by name, or built from parts.
+    has_in "$OPTIN_FLAT" "$OPTIN_ENVRE" && OPTIN=1
+    has_in "$OPTIN_BARE" "$OPTIN_ENVRE" && OPTIN=1
+    { has_in "$OPTIN_FLAT" "$OPTIN_ENVPFX" && has_in "$OPTIN_FLAT" "$OPTIN_ENVNAMER"; } && OPTIN=1
+    { has_in "$OPTIN_BARE" "$OPTIN_ENVPFX" && has_in "$OPTIN_BARE" "$OPTIN_ENVNAMER"; } && OPTIN=1
+    optin_has "$OPTIN_ENVBUILT" && OPTIN=1
+    optin_bare_has "$OPTIN_ENVBUILT" && OPTIN=1
+    # The flag after a command word that is or may be sigil, whatever the
+    # subcommand is spelled like (also in the text without quotes).
+    optin_has "${OPTIN_NAMED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_has "${OPTIN_SPELLED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_bare_has "${OPTIN_NAMED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_bare_has "${OPTIN_SPELLED}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAGA}" && OPTIN=1
+    optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
+    optin_has "${OPTIN_SUB}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
+    optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_FLAG}" && OPTIN=1
+    optin_has "${OPTIN_SUBX}(${OPTIN_S}${OPTIN_W})*${OPTIN_PAT}" && OPTIN=1
+    optin_has "$OPTIN_BRM" && OPTIN=1
+    # xargs appends the words it reads, or puts them where its replace string
+    # stands; the call it runs may be an expansion or have no subcommand yet.
+    optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUB}([][(),[:space:];&|]|\$)" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]][^;&|#]*)?${OPTIN_SUBX}" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs[[:space:]]([^;&|#]*[[:space:]])?-[A-Za-z0-9]*[Ii]([^;&|#]*[^[:alnum:]_.-])?sigil(\\.exe)?([^[:alnum:]_.-]|\$)" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs[[:space:]]([^;&|#]*[[:space:]])?sigil(\\.exe)?[)\`\"']*(${OPTIN_S}${OPTIN_G})*[[:space:]]*(\$|[;&|)])" \
+      && OPTIN=1
+    optin_has "(^|[^[:alnum:]_.-])xargs([[:space:]]+-[^[:space:];&|]*)*[[:space:]]+[\"']*[\$\`]" \
+      && OPTIN=1
+    ns_check ;;
+esac
+allow_unless_opt_in() {
+  [ "$OPTIN" = 1 ] && emit ask "--allow-build-scripts lets pip or npm run the package's own setup or lifecycle scripts on this machine before Sigil scans it (or a word here may expand to it, or xargs may append it, or SIGIL_ALLOW_BUILD_SCRIPTS is being set). Confirm the package is trusted; without the flag sigil pip/npm downloads only what needs no build."
+  emit allow "$1"
+}
+
 # ── A sigil call: the rules below judge only what it does not vet ───────────
 
 # With the lexer, the rules below read only the stages that are not sigil
@@ -2512,11 +3280,11 @@ while :; do case $AR_HEAD in [[:space:]]*) AR_HEAD=${AR_HEAD#?} ;; *) break ;; e
 has_in "${AR_HEAD%%"$NL"*}" "$SIGIL_RE" && ALLOW_REASON="Command uses sigil"
 if [ "$SIGIL_SEEN" = 1 ] && [ "$RESID_ON" = 1 ]; then
   CMD=${RESID#"$NL"}
-  [ -n "$CMD" ] || emit allow "${GATED_REASON:-$ALLOW_REASON}"
+  [ -n "$CMD" ] || allow_unless_opt_in "${GATED_REASON:-$ALLOW_REASON}"
   dequote_cmd "$CMD"; DCMD=$R
 elif [ -z "$LEX" ]; then
   has '(^[[:space:]]*|[;&|][[:space:]]*)sigil[[:space:]]' \
-    && emit allow "${GATED_REASON:-Command uses sigil}"
+    && allow_unless_opt_in "${GATED_REASON:-Command uses sigil}"
 fi
 
 # ── DENY: cloning repositories ─────────────────────────────────────────────
@@ -2595,4 +3363,4 @@ has "${WB}(uvx|pipx[[:space:]]+run)[[:space:]]" \
 
 # ── Default ────────────────────────────────────────────────────────────────
 
-emit allow "${GATED_REASON:-$ALLOW_REASON}"
+allow_unless_opt_in "${GATED_REASON:-$ALLOW_REASON}"

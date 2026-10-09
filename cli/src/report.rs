@@ -120,23 +120,65 @@ pub fn emit(
     }
 }
 
+/// [`emit`] for a scan of a package `sigil pip`/`sigil npm` downloaded: the
+/// JSON report also names the release that was downloaded and scanned
+/// (`package`: `left-pad@1.3.0`, `six==1.17.0`), the version to install.
+/// `package` sorts after `findings`, so the first-`[` contract holds. Other
+/// formats are emitted as they are for any scan.
+pub fn emit_package(
+    result: &ScanResult,
+    target: &str,
+    format: &str,
+    package: &str,
+) -> Result<(), String> {
+    if format != "json" {
+        return emit(result, target, format, None);
+    }
+    let mut doc = json_report(result, target, None);
+    doc["package"] = serde_json::json!(package);
+    let text = format!(
+        "{}\n",
+        serde_json::to_string_pretty(&doc).unwrap_or_default()
+    );
+    match output_path() {
+        None => {
+            print!("{text}");
+            Ok(())
+        }
+        Some(path) => {
+            std::fs::write(path, text)
+                .map_err(|e| format!("cannot write report to {}: {e}", path.display()))?;
+            eprintln!(
+                "{} {} report written to {}",
+                "sigil:".bold().green(),
+                format,
+                path.display()
+            );
+            Ok(())
+        }
+    }
+}
+
+/// The `--format json` report: [`json_document`] plus, when the tree holds
+/// 2+ SKILL.md skills, the per-skill breakdown (reporting only; the verdict
+/// is already decided). `skills` sorts after `findings`, so the first-`[`
+/// contract holds.
+fn json_report(result: &ScanResult, target: &str, view: Option<PolicyView>) -> serde_json::Value {
+    let mut doc = json_document(result, view);
+    let skills = crate::skillmap::breakdown(result, std::path::Path::new(target));
+    if !skills.skills.is_empty() {
+        doc["skills"] = crate::skillmap::to_json(&skills);
+    }
+    doc
+}
+
 /// Render a report to a string. `text` renders the uncoloured file form.
 pub fn render(result: &ScanResult, target: &str, format: &str, view: Option<PolicyView>) -> String {
     match format {
-        "json" => {
-            let mut doc = json_document(result, view);
-            // Per-skill breakdown when the tree holds 2+ SKILL.md skills
-            // (reporting only; the verdict is already decided). Sorts after
-            // `findings`, so the first-`[` contract holds.
-            let skills = crate::skillmap::breakdown(result, std::path::Path::new(target));
-            if !skills.skills.is_empty() {
-                doc["skills"] = crate::skillmap::to_json(&skills);
-            }
-            format!(
-                "{}\n",
-                serde_json::to_string_pretty(&doc).unwrap_or_default()
-            )
-        }
+        "json" => format!(
+            "{}\n",
+            serde_json::to_string_pretty(&json_report(result, target, view)).unwrap_or_default()
+        ),
         "sarif" => {
             let external: Vec<(&Finding, String)> = view
                 .map(|v| {

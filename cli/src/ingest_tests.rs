@@ -365,6 +365,7 @@ async fn download_refuses_loopback_by_default() {
     let policy = DownloadPolicy {
         allow_private: false,
         max_bytes: MAX_DOWNLOAD_BYTES,
+        trusted_host: None,
     };
     let err = download(
         &format!("http://127.0.0.1:{port}/SKILL.md"),
@@ -376,12 +377,65 @@ async fn download_refuses_loopback_by_default() {
     assert!(err.contains("non-public"), "{err}");
 }
 
+/// The one host the caller trusts (a registry the user configured) may be a
+/// non-public address; a redirect to another non-public host is still
+/// refused.
+#[tokio::test]
+async fn download_allows_a_trusted_non_public_host_but_not_a_redirect_off_it() {
+    let t = tempfile::tempdir().unwrap();
+    let port = serve(vec![http_ok("application/octet-stream", b"bytes")]);
+    let policy = DownloadPolicy {
+        allow_private: false,
+        max_bytes: MAX_DOWNLOAD_BYTES,
+        trusted_host: Some(("127.0.0.1".into(), port)),
+    };
+    let got = download(
+        &format!("http://127.0.0.1:{port}/a.tgz"),
+        &t.path().join("ok"),
+        &policy,
+    )
+    .await
+    .unwrap();
+    assert_eq!(got.bytes, 5);
+    // Another port on the same address is another host.
+    let other = serve(vec![http_ok("application/octet-stream", b"bytes")]);
+    let err = download(
+        &format!("http://127.0.0.1:{other}/a.tgz"),
+        &t.path().join("other"),
+        &policy,
+    )
+    .await
+    .unwrap_err();
+    assert!(err.contains("non-public"), "{err}");
+    // A redirect from the trusted host to a host that is not trusted is
+    // judged by the usual rule.
+    let target = serve(vec![http_ok("application/octet-stream", b"bytes")]);
+    let hop = serve(vec![format!(
+        "HTTP/1.1 302 Found\r\nLocation: http://localhost:{target}/b.tgz\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+    )
+    .into_bytes()]);
+    let policy = DownloadPolicy {
+        trusted_host: Some(("127.0.0.1".into(), hop)),
+        ..policy
+    };
+    let err = download(
+        &format!("http://127.0.0.1:{hop}/a.tgz"),
+        &t.path().join("redirected"),
+        &policy,
+    )
+    .await
+    .unwrap_err();
+    assert!(err.contains("non-public"), "{err}");
+    assert!(!t.path().join("redirected").exists());
+}
+
 #[tokio::test]
 async fn download_follows_a_redirect_and_caps_size() {
     let t = tempfile::tempdir().unwrap();
     let policy = DownloadPolicy {
         allow_private: true,
         max_bytes: 1024,
+        trusted_host: None,
     };
     let port = serve(vec![
         b"HTTP/1.1 302 Found\r\nLocation: /real/SKILL.md\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"

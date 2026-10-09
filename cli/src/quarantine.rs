@@ -79,7 +79,9 @@ fn load_index() -> Result<Vec<QuarantineEntry>, String> {
     }
 }
 
-/// Persist the quarantine index to disk.
+/// Persist the quarantine index to disk. The new contents are written to a
+/// file of their own and renamed over the index, so a reader that does not
+/// hold the lock never sees a half-written index.
 fn save_index(entries: &[QuarantineEntry]) -> Result<(), String> {
     let path = index_path();
     if let Some(parent) = path.parent() {
@@ -88,8 +90,45 @@ fn save_index(entries: &[QuarantineEntry]) -> Result<(), String> {
     }
     let json = serde_json::to_string_pretty(entries)
         .map_err(|e| format!("failed to serialize index: {}", e))?;
-    fs::write(&path, json).map_err(|e| format!("failed to write index: {}", e))?;
-    Ok(())
+    let tmp = path.with_file_name(format!("index.json.{}.tmp", Uuid::new_v4()));
+    let written = fs::write(&tmp, json)
+        .and_then(|()| fs::rename(&tmp, &path))
+        .map_err(|e| format!("failed to write index: {}", e));
+    if written.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    written
+}
+
+/// An exclusive lock on the quarantine index, held while the guard lives.
+/// Every change to the index is a read, an edit and a write; two sigil
+/// processes (parallel `sigil pip` and `sigil npm` runs, an MCP server and
+/// a CLI) doing that at once would each write back an index that lacks the
+/// other's change, or a torn one. The lock is an OS advisory lock on a file
+/// beside the index, so it is released when the process exits, however it
+/// ends.
+struct IndexLock {
+    _file: fs::File,
+}
+
+impl IndexLock {
+    fn acquire() -> Result<Self, String> {
+        let dir = quarantine_path();
+        fs::create_dir_all(&dir)
+            .map_err(|e| format!("failed to create quarantine directory: {}", e))?;
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(dir.join("index.lock"))
+            .map_err(|e| format!("failed to open the quarantine index lock: {}", e))?;
+        // A file system that cannot lock (some network and FUSE mounts)
+        // leaves the index as unguarded as it was before the lock existed;
+        // it must not stop every quarantine operation.
+        let _ = file.lock();
+        Ok(Self { _file: file })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -123,6 +162,7 @@ pub fn add(source: &str, source_type: &str) -> Result<QuarantineEntry, String> {
         scan_score: None,
     };
 
+    let _lock = IndexLock::acquire()?;
     let mut index = load_index()?;
     index.push(entry.clone());
     save_index(&index)?;
@@ -132,6 +172,7 @@ pub fn add(source: &str, source_type: &str) -> Result<QuarantineEntry, String> {
 
 /// Approve a quarantined item by ID. Returns the updated entry.
 pub fn approve(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
+    let _lock = IndexLock::acquire()?;
     let mut index = load_index()?;
     let entry = index
         .iter_mut()
@@ -158,6 +199,7 @@ pub fn approve(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String
 /// Reject a quarantined item by ID. Removes the quarantined files and returns
 /// the updated entry.
 pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
+    let _lock = IndexLock::acquire()?;
     let mut index = load_index()?;
     let entry_index = index
         .iter()
@@ -188,10 +230,48 @@ pub fn reject(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String>
     Ok(result)
 }
 
+/// Remove a pending entry that never reached its scan (a lookup or download
+/// failed): its files, then its index record, so no empty PENDING entry is
+/// left to approve. An entry that is not pending, or not there, is left
+/// alone.
+pub fn discard(id: &str) -> Result<(), String> {
+    let _lock = IndexLock::acquire()?;
+    let mut index = load_index()?;
+    let Some(pos) = index
+        .iter()
+        .position(|e| e.id == id && e.status == QuarantineStatus::Pending)
+    else {
+        return Ok(());
+    };
+    if index[pos].path.exists() {
+        fs::remove_dir_all(&index[pos].path)
+            .map_err(|e| format!("failed to remove quarantined files for '{}': {}", id, e))?;
+    }
+    index.remove(pos);
+    save_index(&index)
+}
+
+/// Record what a pending entry holds, once that is known: `sigil npm`
+/// makes the entry before it asks the registry which release a range or tag
+/// means, and `sigil list` and `sigil approve` should name the release that
+/// was downloaded (`left-pad@1.3.0`), not the spec that was typed.
+pub fn set_source(id: &str, source: &str) -> Result<(), String> {
+    let _lock = IndexLock::acquire()?;
+    let mut index = load_index()?;
+    let entry = index
+        .iter_mut()
+        .find(|e| e.id == id)
+        .ok_or_else(|| format!("quarantine entry '{}' not found", id))?;
+    entry.source = source.to_string();
+    entry.updated_at = Utc::now();
+    save_index(&index)
+}
+
 /// Re-quarantine an item by flipping an Approved entry back to Pending. Used by
 /// rug-pull detection (US-F2): an approved artifact whose content drifted loses
 /// its trust and must be re-reviewed. No-op (Ok) if already Pending.
 pub fn requarantine(id: &str, reason: Option<&str>) -> Result<QuarantineEntry, String> {
+    let _lock = IndexLock::acquire()?;
     let mut index = load_index()?;
     let entry = index
         .iter_mut()
@@ -240,7 +320,7 @@ fn short_id() -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{add, get, list, reject, QuarantineStatus};
+    use super::{add, approve, discard, get, list, reject, set_source, QuarantineStatus};
     use std::fs;
     use std::sync::Mutex;
     use tempfile::tempdir;
@@ -280,6 +360,93 @@ mod tests {
 
             let stored = get(&entry.id).expect("entry remains indexed");
             assert_eq!(stored.status, QuarantineStatus::Pending);
+        });
+    }
+
+    #[test]
+    fn discard_removes_only_a_pending_entry() {
+        with_quarantine_dir(|| {
+            let failed = add("docopt", "pip").expect("add entry");
+            let kept = add("six", "pip").expect("add entry");
+            let approved = add("left-pad", "npm").expect("add entry");
+            approve(&approved.id, None).expect("approve");
+
+            discard(&failed.id).expect("discard");
+            assert!(!failed.path.exists(), "its files are gone");
+            assert!(get(&failed.id).is_err(), "its record is gone");
+            assert!(kept.path.exists());
+            assert_eq!(list(None).expect("list").len(), 2);
+
+            // Not pending, or not there: left alone.
+            discard(&approved.id).expect("discard approved");
+            assert!(approved.path.exists());
+            assert_eq!(
+                get(&approved.id).expect("still indexed").status,
+                QuarantineStatus::Approved
+            );
+            discard("00000000").expect("discard unknown");
+            assert_eq!(list(None).expect("list").len(), 2);
+        });
+    }
+
+    #[test]
+    fn set_source_names_what_the_entry_holds() {
+        with_quarantine_dir(|| {
+            let entry = add("left-pad@^1.0.0", "npm").expect("add");
+            set_source(&entry.id, "left-pad@1.3.0").expect("set source");
+            let stored = get(&entry.id).expect("get");
+            assert_eq!(stored.source, "left-pad@1.3.0");
+            assert_eq!(stored.status, QuarantineStatus::Pending);
+            assert!(set_source("00000000", "x").is_err());
+        });
+    }
+
+    #[test]
+    fn parallel_writers_neither_lose_nor_tear_index_updates() {
+        with_quarantine_dir(|| {
+            let kept: Vec<String> = std::thread::scope(|scope| {
+                let workers: Vec<_> = (0..8)
+                    .map(|t| {
+                        scope.spawn(move || {
+                            let mut kept = Vec::new();
+                            for i in 0..15 {
+                                let entry = add(&format!("pkg-{t}-{i}"), "npm").expect("add");
+                                if i % 2 == 0 {
+                                    discard(&entry.id).expect("discard");
+                                } else {
+                                    kept.push(entry.id);
+                                }
+                                // Readers see a whole index at every moment.
+                                list(None).expect("index parses");
+                            }
+                            kept
+                        })
+                    })
+                    .collect();
+                workers
+                    .into_iter()
+                    .flat_map(|w| w.join().expect("worker"))
+                    .collect()
+            });
+
+            // 7 odd `i` of 15 per worker stay; the 8 even ones were discarded.
+            assert_eq!(kept.len(), 8 * 7);
+            let mut listed: Vec<String> = list(None)
+                .expect("list")
+                .into_iter()
+                .map(|e| e.id)
+                .collect();
+            let mut want = kept;
+            listed.sort();
+            want.sort();
+            assert_eq!(listed, want, "every kept entry is indexed, nothing else");
+            let leftovers: Vec<String> = fs::read_dir(super::quarantine_path())
+                .expect("read quarantine")
+                .filter_map(Result::ok)
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .filter(|n| n.ends_with(".tmp"))
+                .collect();
+            assert!(leftovers.is_empty(), "{leftovers:?}");
         });
     }
 }
