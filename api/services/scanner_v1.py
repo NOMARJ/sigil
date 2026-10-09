@@ -169,7 +169,8 @@ def scan_directory_v1(directory: str) -> list[Finding]:
 
     # Scan all files (v1 didn't have sophisticated filtering)
     for file_path in directory_path.rglob("*"):
-        if file_path.is_file():
+        # A symbolic link can point outside the tree: never read through one.
+        if file_path.is_file() and not file_path.is_symlink():
             try:
                 # Try to read file content
                 content = file_path.read_text(encoding="utf-8", errors="ignore")
@@ -217,7 +218,9 @@ def count_scannable_files_v1(directory: str) -> int:
             return 0
 
         # v1 counted all files
-        return sum(1 for _ in directory_path.rglob("*") if _.is_file())
+        return sum(
+            1 for _ in directory_path.rglob("*") if _.is_file() and not _.is_symlink()
+        )
 
     except Exception:
         return 0

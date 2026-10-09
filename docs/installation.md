@@ -236,7 +236,8 @@ docker run --rm sigil scan https://github.com/someone/mcp-tool
 The container runs as the unprivileged user `sigil` (`HOME=/home/sigil`), so
 persist quarantine state with `-v ~/.sigil:/home/sigil/.sigil`. `sigil pip`
 and `sigil npm` also need `pip` / `npm` in the image (`apk add py3-pip npm` in
-a derived image).
+a derived image); an unpinned or ranged `sigil pip` spec needs pip 21.2 or
+later.
 
 ---
 

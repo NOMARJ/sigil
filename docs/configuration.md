@@ -242,7 +242,7 @@ Nothing creates `~/.sigil/` up front: `sigil install` and `sigil setup` do not t
 
 ```
 ~/.sigil/
-├── quarantine/          # Untrusted code awaiting review: one <id>/ per entry, plus index.json
+├── quarantine/          # Untrusted code awaiting review: one <id>/ per entry, plus index.json (changed under a lock on index.lock)
 ├── ledger/index.json    # Content pins recorded by sigil approve
 ├── cache/               # Cached results of sigil scan <dir> (sigil clear-cache empties only this)
 ├── osv-cache/           # OSV advisory lookups for lockfile dependencies

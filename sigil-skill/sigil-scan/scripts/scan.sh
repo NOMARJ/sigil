@@ -11,6 +11,21 @@ TARGET="${1:?$(die "Usage: scan.sh <path|url|package|owner/repo>")}"
 
 SIGIL="$(require_sigil)"
 
+# sigil's stderr is kept, not discarded: a refusal ("will not download ...",
+# or a wheel-only failure) explains itself there, and "produced no output" on
+# its own does not.
+SIGIL_ERR="$(mktemp "${TMPDIR:-/tmp}/sigil-scan-err.XXXXXX")"
+trap 'rm -f "$SIGIL_ERR"' EXIT
+
+# The tail of sigil's stderr as one line, control characters dropped, as a
+# " (...)" suffix for an error message; nothing when sigil said nothing.
+why_sigil_failed() {
+  local why
+  why="$(tail -n 8 "$SIGIL_ERR" 2>/dev/null | tr -d '\000-\010\013-\037\177' | tr '\n' ' ')" || why=""
+  [ -n "${why// /}" ] && printf ' (%s)' "$why"
+  return 0
+}
+
 # ── Scan functions ─────────────────────────────────────────────────────────
 
 scan_path() {
@@ -18,10 +33,10 @@ scan_path() {
   info "Scanning path: $path"
 
   local raw_output exit_code=0
-  raw_output="$("$SIGIL" --format json scan "$path" 2>/dev/null)" || exit_code=$?
+  raw_output="$("$SIGIL" --format json scan "$path" 2>"$SIGIL_ERR")" || exit_code=$?
 
   if [ -z "$raw_output" ]; then
-    die "Scan produced no output for: $path"
+    die "Scan produced no output for: $path$(why_sigil_failed)"
   fi
 
   merge_scan_json "$raw_output" "$path"
@@ -33,10 +48,10 @@ scan_git_url() {
   info "Cloning and scanning: $url"
 
   local raw_output exit_code=0
-  raw_output="$("$SIGIL" --format json clone "$url" 2>/dev/null)" || exit_code=$?
+  raw_output="$("$SIGIL" --format json clone "$url" 2>"$SIGIL_ERR")" || exit_code=$?
 
   if [ -z "$raw_output" ]; then
-    die "Clone/scan produced no output for: $url"
+    die "Clone/scan produced no output for: $url$(why_sigil_failed)"
   fi
 
   merge_scan_json "$raw_output" "$url"
@@ -48,10 +63,10 @@ scan_npm_package() {
   info "Scanning npm package: $pkg"
 
   local raw_output exit_code=0
-  raw_output="$("$SIGIL" --format json npm "$pkg" 2>/dev/null)" || exit_code=$?
+  raw_output="$("$SIGIL" --format json npm "$pkg" 2>"$SIGIL_ERR")" || exit_code=$?
 
   if [ -z "$raw_output" ]; then
-    die "npm scan produced no output for: $pkg"
+    die "npm scan produced no output for: $pkg$(why_sigil_failed)"
   fi
 
   merge_scan_json "$raw_output" "$pkg"
@@ -63,10 +78,10 @@ scan_pip_package() {
   info "Scanning pip package: $pkg"
 
   local raw_output exit_code=0
-  raw_output="$("$SIGIL" --format json pip "$pkg" 2>/dev/null)" || exit_code=$?
+  raw_output="$("$SIGIL" --format json pip "$pkg" 2>"$SIGIL_ERR")" || exit_code=$?
 
   if [ -z "$raw_output" ]; then
-    die "pip scan produced no output for: $pkg"
+    die "pip scan produced no output for: $pkg$(why_sigil_failed)"
   fi
 
   merge_scan_json "$raw_output" "$pkg"
@@ -78,10 +93,10 @@ scan_url() {
   info "Fetching and scanning URL: $url"
 
   local raw_output exit_code=0
-  raw_output="$("$SIGIL" --format json fetch "$url" 2>/dev/null)" || exit_code=$?
+  raw_output="$("$SIGIL" --format json fetch "$url" 2>"$SIGIL_ERR")" || exit_code=$?
 
   if [ -z "$raw_output" ]; then
-    die "URL scan produced no output for: $url"
+    die "URL scan produced no output for: $url$(why_sigil_failed)"
   fi
 
   merge_scan_json "$raw_output" "$url"

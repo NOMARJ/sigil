@@ -1,13 +1,13 @@
 # Getting Started with Sigil
 
-Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it, with two exceptions: `sigil pip` lets pip run a package's `setup.py` while downloading it when pip picks its source distribution (no wheel for your platform and Python in the version it selects; see [Scanning a pip Package](#scanning-a-pip-package)), and `sigil npm` of a local directory or a git spec (a git URL, or a hosted shorthand such as `owner/repo` or `github:owner/repo`; a scoped name typed without its `@`, like `langchain/community`, is one) lets `npm pack` run the package's lifecycle scripts (see [`sigil npm`](cli.md#sigil-npm)).
+Sigil is an automated security auditing CLI for AI agent code. It scans repositories, packages, and agent tooling for malicious patterns using a quarantine-first workflow -- nothing it fetches is installed or run before you review it. `sigil pip` fetches only prebuilt wheels and `sigil npm` only registry tarballs, which Sigil downloads itself and checks against the registry's integrity, so a package's own code does not run while it is downloaded (see [Scanning a pip Package](#scanning-a-pip-package) and [`sigil npm`](cli.md#sigil-npm)); up to 1.3.7, pip could run a source distribution's `setup.py`, and `npm pack` a local directory's or git spec's lifecycle scripts, before the scan.
 
 ## Prerequisites
 
 - **Operating system:** macOS or Linux; on Windows, the native x64 `sigil.exe` from the release zip (see the [Installation Guide](installation.md#windows)) or WSL
 - **Shell:** Bash or Zsh, only for the optional `sigil setup shell` aliases
 - **Git:** Required for `sigil clone` and provenance analysis
-- **pip / npm:** Required only for `sigil pip` / `sigil npm`
+- **pip / npm:** Required only for `sigil pip` / `sigil npm`. A `sigil pip` spec that does not pin a version (`requests`, `"requests>=2"`) needs pip 21.2 or later (it asks the index with `pip index versions`); `requests==2.32.3` works with any pip
 
 ## Installation
 
@@ -144,7 +144,7 @@ Example output for a small repository with an `eval()` call, an outbound `reques
 sigil pip some-agent-toolkit
 ```
 
-Sigil downloads the package (without installing it), extracts it into quarantine, and runs the full scan. It downloads with `pip download`, so when pip picks the package's source distribution (no wheel for your platform and Python in the version it selects), pip runs the package's `setup.py` on your machine to read its metadata, before the scan.
+Sigil downloads the package (without installing it), extracts it into quarantine, and scans it (all eight phases; the lockfile dependency lookups of `sigil scan` are not run). It first asks the index which release `pip install some-agent-toolkit` would pick and prints it (``some-agent-toolkit resolves to some-agent-toolkit==<version> (the release `pip install` picks here)``), then downloads only that release's prebuilt wheel, so none of the package's code runs before the scan. When that release has no wheel for your platform (it is published only as a source distribution), the command fails and says why, rather than scanning an older release that `pip install` would not install; install the version Sigil printed. URLs and VCS references are refused, and so is a pip config file that adds requirements or constraints to every download; `--allow-build-scripts` accepts them for code you already trust, after you confirm at a terminal (or a script sets `SIGIL_ALLOW_BUILD_SCRIPTS=1`) and with a warning that pip may then run the package's setup code on your machine before the scan. A local path is refused too: scan a project or archive you already have with `sigil scan <path>`, which runs nothing from it. The command exits `0` for LOW RISK, `1` for anything worse and `2` when it could not download or scan; `--auto-approve` approves a LOW RISK result.
 
 ### Scanning an npm Package
 
@@ -152,7 +152,7 @@ Sigil downloads the package (without installing it), extracts it into quarantine
 sigil npm langchain-community-plugin
 ```
 
-Same quarantine-and-scan workflow for npm packages.
+Same quarantine-and-scan workflow for npm registry packages: Sigil asks the registry which release the name resolves to (`npm view`), checks the tarball URL it names (a plain download from the registry's own host), downloads that URL itself, without credentials, and checks the bytes against the registry's integrity, as `npm install` checks them. It never runs `npm pack`, which would ask the registry about the release a second time. Directories, tarballs, URLs and git specs (including the `owner/repo` shorthand; a scoped name typed without its `@`, like `langchain/community`, is one) are refused, because npm runs their `prepare` script while packing them even with `--ignore-scripts`, and so is a registry entry whose tarball points at a git repository. `--allow-build-scripts` accepts them for code you already trust, after the same confirmation and with a warning; for a directory or tarball you already have, `sigil scan <path>` is the way to check it.
 
 ### Scanning a Local Directory
 

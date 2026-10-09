@@ -1572,7 +1572,13 @@ def scan_content(content: str, filename: str = "<stdin>") -> list[Finding]:
 
 
 def _walk_files(root: Path) -> Iterator[Path]:
-    """Yield all regular files under *root*, skipping common noise dirs."""
+    """Yield all regular files under *root*, skipping common noise dirs.
+
+    Symbolic links are never followed: a package can ship a link to a file
+    outside the unpacked tree (``config.js -> ~/.aws/credentials``) or to a
+    directory (``/``, ``/proc``), and reading through it would put host
+    content into the findings' snippets or walk the host.
+    """
     skip_dirs = {
         ".git",
         "node_modules",
@@ -1583,7 +1589,7 @@ def _walk_files(root: Path) -> Iterator[Path]:
         ".mypy_cache",
     }
     for child in sorted(root.iterdir()):
-        if child.name in skip_dirs:
+        if child.name in skip_dirs or child.is_symlink():
             continue
         if child.is_file():
             yield child

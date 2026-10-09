@@ -1,3 +1,4 @@
+mod acquire;
 mod api;
 mod baseline;
 mod cache;
@@ -17,6 +18,7 @@ mod llm_review;
 mod mcp;
 mod mcp_registry;
 mod output;
+mod pep440;
 mod policy;
 mod project_config;
 mod provenance;
@@ -100,9 +102,13 @@ enum Commands {
         auto_approve: bool,
     },
 
-    /// Download and scan a pip package
+    /// Download and scan a pip package (prebuilt wheels only: no package
+    /// code runs before the scan)
     Pip {
-        /// Package name (optionally with version, e.g. package==1.0.0)
+        /// Package name from the index, optionally with [extras] and a
+        /// version specifier (e.g. requests, requests[socks],
+        /// requests==2.32.3). Paths, URLs and VCS references are refused
+        /// unless --allow-build-scripts is given
         package: String,
 
         /// Specific version to download
@@ -112,11 +118,25 @@ enum Commands {
         /// Automatically approve if scan passes
         #[arg(long)]
         auto_approve: bool,
+
+        /// Also accept source distributions, local paths, URLs and VCS
+        /// references, which pip builds by running the package's own setup
+        /// code on this machine BEFORE the scan. Only for code you already
+        /// trust. Asks you to type yes at a terminal; without one it needs
+        /// SIGIL_ALLOW_BUILD_SCRIPTS=1
+        #[arg(long)]
+        allow_build_scripts: bool,
     },
 
-    /// Download and scan an npm package
+    /// Download and scan an npm package (the registry tarball, downloaded
+    /// by Sigil and checked against the registry's integrity: no package
+    /// code runs before the scan)
     Npm {
-        /// Package name (optionally with version, e.g. package@1.0.0)
+        /// Registry package name (scoped allowed), optionally with
+        /// @version, @tag or @range (e.g. left-pad, @types/node,
+        /// left-pad@1.3.0). Directories, tarballs, URLs, git specs
+        /// (including owner/repo) and npm: aliases are refused unless
+        /// --allow-build-scripts is given
         package: String,
 
         /// Specific version to download
@@ -126,6 +146,14 @@ enum Commands {
         /// Automatically approve if scan passes
         #[arg(long)]
         auto_approve: bool,
+
+        /// Also accept directories, tarballs, URLs, git specs and aliases,
+        /// and let npm run the package's lifecycle scripts while packing it,
+        /// on this machine, BEFORE the scan. Only for code you already trust.
+        /// Asks you to type yes at a terminal; without one it needs
+        /// SIGIL_ALLOW_BUILD_SCRIPTS=1
+        #[arg(long)]
+        allow_build_scripts: bool,
     },
 
     /// Scan an existing directory or file
@@ -688,10 +716,12 @@ async fn main() {
             package,
             version,
             auto_approve,
+            allow_build_scripts,
         } => {
             cmd_pip(
                 &package,
                 version.as_deref(),
+                allow_build_scripts,
                 auto_approve,
                 &cli.format,
                 cli.verbose,
@@ -703,10 +733,12 @@ async fn main() {
             package,
             version,
             auto_approve,
+            allow_build_scripts,
         } => {
             cmd_npm(
                 &package,
                 version.as_deref(),
+                allow_build_scripts,
                 auto_approve,
                 &cli.format,
                 cli.verbose,
@@ -1685,7 +1717,7 @@ async fn cmd_clone(
     // 3. Scan the cloned repo
     let mut result = scanner::run_scan(&entry.path, None, None);
     apply_container_locator(&mut result, "git", url);
-    if !print_scan_output(&result, &entry.path, format) {
+    if !print_scan_output(&result, &entry.path, format, None) {
         return EXIT_ERROR;
     }
 
@@ -1708,28 +1740,458 @@ async fn cmd_clone(
     acquisition_exit_code(result.verdict)
 }
 
+/// Refuse a spec that pip or npm would build or run scripts for (a usage
+/// error, exit 2), before any quarantine entry exists or anything runs; when
+/// the user opted in with `--allow-build-scripts`, warn loudly and ask for
+/// confirmation (see [`confirm_build_scripts`]). `None` means go ahead.
+fn gate_package_spec(
+    manager: acquire::Manager,
+    spec: &str,
+    allow_build_scripts: bool,
+) -> Option<i32> {
+    if let Err(err) = acquire::check_spec(manager, spec, allow_build_scripts) {
+        eprintln!(
+            "{} {}",
+            "error:".bold().red(),
+            acquire::refusal(manager, spec, &err)
+        );
+        return Some(EXIT_ERROR);
+    }
+    if allow_build_scripts {
+        return confirm_build_scripts(manager, spec);
+    }
+    None
+}
+
+/// The user's confirmation of `--allow-build-scripts`, which lets pip or npm
+/// run the package's own code on this machine before the scan. A flag in a
+/// command line is not that: a script or a pipeline writes flags too. So it
+/// takes a terminal (a warning, then `yes` typed at a prompt), or, for a
+/// script or CI job that has decided to trust the code,
+/// [`acquire::ALLOW_BUILD_SCRIPTS_ENV`] set to `1`. With neither it is a
+/// usage error (exit 2) and nothing is downloaded or run. This stops
+/// accidental and unattended use; it cannot tell a person from a program that
+/// allocates a pseudo-terminal and answers, or sets the variable, so it is no
+/// boundary against an agent (the hook's ask is the layer aimed at one, and
+/// is advisory too). `None` means go ahead.
+fn confirm_build_scripts(manager: acquire::Manager, spec: &str) -> Option<i32> {
+    use std::io::{BufRead, IsTerminal, Write};
+    let warn = || {
+        eprintln!(
+            "{} {}",
+            "warning:".bold().yellow(),
+            acquire::opt_in_warning(manager, spec)
+        );
+    };
+    let env = std::env::var_os(acquire::ALLOW_BUILD_SCRIPTS_ENV);
+    if acquire::opt_in_env_confirms(env.as_deref()) {
+        warn();
+        eprintln!(
+            "{} {}=1 is set, so no confirmation is asked for",
+            "note:".bold(),
+            acquire::ALLOW_BUILD_SCRIPTS_ENV
+        );
+        return None;
+    }
+    let stdin = std::io::stdin();
+    if !(stdin.is_terminal() && std::io::stderr().is_terminal()) {
+        eprintln!(
+            "{} {}",
+            "error:".bold().red(),
+            acquire::opt_in_unconfirmed(manager, spec)
+        );
+        return Some(EXIT_ERROR);
+    }
+    warn();
+    eprint!("{} ", acquire::opt_in_prompt(manager, spec));
+    let _ = std::io::stderr().flush();
+    let mut answer = String::new();
+    if stdin.lock().read_line(&mut answer).is_ok() && acquire::answer_confirms(&answer) {
+        return None;
+    }
+    eprintln!(
+        "{} not confirmed. Nothing was downloaded or run.",
+        "error:".bold().red()
+    );
+    Some(EXIT_ERROR)
+}
+
+/// Run a package tool with its stderr passed through and also kept (the
+/// last 64 KiB), so a failure can be explained. Its stdout is inherited.
+fn run_keeping_stderr(
+    cmd: &mut std::process::Command,
+) -> std::io::Result<(std::process::ExitStatus, String)> {
+    use std::io::{Read, Write};
+    const KEEP: usize = 64 * 1024;
+    let mut child = cmd.stderr(std::process::Stdio::piped()).spawn()?;
+    let mut kept = Vec::new();
+    if let Some(mut err) = child.stderr.take() {
+        let mut buf = [0u8; 8192];
+        let mut out = std::io::stderr();
+        loop {
+            match err.read(&mut buf) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let _ = out.write_all(&buf[..n]);
+                    kept.extend_from_slice(&buf[..n]);
+                    if kept.len() > KEEP {
+                        kept.drain(..kept.len() - KEEP);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(_) => break,
+            }
+        }
+    }
+    let status = child.wait()?;
+    Ok((status, String::from_utf8_lossy(&kept).into_owned()))
+}
+
+/// Run a package tool for what it prints. Its stderr is shown only when it
+/// fails (`pip index` warns that it is experimental on every run, npm prints
+/// update notices). `None` (after saying why) when it could not run or
+/// failed.
+fn run_for_output(cmd: &mut std::process::Command, what: &str) -> Option<String> {
+    run_capturing(cmd, what).ok()
+}
+
+/// [`run_for_output`] that also gives back the tool's stderr (already shown)
+/// when it fails, so the caller can explain the failure.
+fn run_capturing(cmd: &mut std::process::Command, what: &str) -> Result<String, String> {
+    match cmd.output() {
+        Ok(out) if out.status.success() => Ok(String::from_utf8_lossy(&out.stdout).into_owned()),
+        Ok(out) => {
+            let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            eprint!("{stderr}");
+            eprintln!("{} `{what}` failed", "error:".bold().red());
+            Err(stderr)
+        }
+        Err(e) => {
+            eprintln!("{} {}", "error:".bold().red(), spawn_failure(what, &e));
+            Err(String::new())
+        }
+    }
+}
+
+/// What to print when a package tool could not be started: its name, the
+/// system's reason, and, when there is no such program, that it must be
+/// installed and on PATH (the system's message alone, `No such file or
+/// directory (os error 2)`, does not say which file).
+fn spawn_failure(what: &str, err: &std::io::Error) -> String {
+    let tool = what.split_whitespace().next().unwrap_or(what);
+    if err.kind() == std::io::ErrorKind::NotFound {
+        format!("could not run `{what}`: {err} (is {tool} installed and on PATH?)")
+    } else {
+        format!("could not run `{what}`: {err}")
+    }
+}
+
+/// A new quarantine entry's directory as an absolute path. pip and npm are
+/// told to write there (and npm runs inside it): with a relative
+/// SIGIL_QUARANTINE_DIR, a relative path would be applied twice.
+fn absolute_entry_path(path: &Path) -> PathBuf {
+    std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
+}
+
+/// A quarantine entry whose download has not reached its scan. Unless
+/// [`PendingEntry::scanning`] is called first, it is discarded when dropped
+/// (files and index record), so a failed lookup, refusal or download leaves
+/// no empty PENDING entry behind for `sigil approve`. An interrupt (Ctrl-C,
+/// SIGTERM) during the download discards it too, which a drop cannot do: see
+/// [`watch_for_interrupt`].
+struct PendingEntry {
+    id: String,
+    keep: bool,
+}
+
+impl PendingEntry {
+    fn new(id: &str) -> Self {
+        watch_for_interrupt();
+        if let Ok(mut active) = ACTIVE_ENTRY.lock() {
+            *active = Some(id.to_string());
+        }
+        PendingEntry {
+            id: id.to_string(),
+            keep: false,
+        }
+    }
+
+    /// The download is in quarantine and is about to be scanned: keep it.
+    fn scanning(&mut self) {
+        self.keep = true;
+        clear_active_entry();
+    }
+}
+
+impl Drop for PendingEntry {
+    fn drop(&mut self) {
+        clear_active_entry();
+        if !self.keep {
+            if let Err(err) = quarantine::discard(&self.id) {
+                eprintln!(
+                    "{} could not remove the unscanned quarantine entry {}: {err}",
+                    "warning:".bold().yellow(),
+                    self.id
+                );
+            }
+        }
+    }
+}
+
+/// The quarantine entry an interrupt discards: set while a download has not
+/// reached its scan.
+static ACTIVE_ENTRY: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+fn clear_active_entry() {
+    if let Ok(mut active) = ACTIVE_ENTRY.lock() {
+        *active = None;
+    }
+}
+
+/// Start (once) a thread that waits for SIGINT or SIGTERM (Ctrl-C on
+/// Windows). The default action ends the process at once, with no drop
+/// running, and would leave the empty PENDING entry that `sigil list` and
+/// `sigil approve` then show; this discards it first and exits with the
+/// usual `128 + signal` status. The thread has a runtime of its own, since
+/// the download waits on pip or npm and may be holding the only worker of
+/// the main one. Returns once the handlers are installed.
+fn watch_for_interrupt() {
+    static STARTED: std::sync::Once = std::sync::Once::new();
+    STARTED.call_once(|| {
+        let (ready_tx, ready_rx) = std::sync::mpsc::channel::<()>();
+        let spawned = std::thread::Builder::new()
+            .name("interrupt-watch".into())
+            .spawn(move || {
+                let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                else {
+                    return;
+                };
+                let status = rt.block_on(wait_for_interrupt(|| {
+                    let _ = ready_tx.send(());
+                }));
+                let active = ACTIVE_ENTRY.lock().ok().and_then(|mut a| a.take());
+                if let Some(id) = active {
+                    let _ = quarantine::discard(&id);
+                    eprintln!(
+                        "{} interrupted: removed the unscanned quarantine entry {id}",
+                        "sigil:".bold().yellow()
+                    );
+                }
+                std::process::exit(status);
+            });
+        if spawned.is_ok() {
+            let _ = ready_rx.recv_timeout(std::time::Duration::from_secs(2));
+        }
+    });
+}
+
+/// Wait for an interrupt and give the exit status for it. `installed` runs
+/// once the handlers are in place.
+#[cfg(unix)]
+async fn wait_for_interrupt(installed: impl FnOnce()) -> i32 {
+    use tokio::signal::unix::{signal, SignalKind};
+    let (Ok(mut int), Ok(mut term)) = (
+        signal(SignalKind::interrupt()),
+        signal(SignalKind::terminate()),
+    ) else {
+        installed();
+        return std::future::pending().await;
+    };
+    installed();
+    tokio::select! {
+        _ = int.recv() => 130,
+        _ = term.recv() => 143,
+    }
+}
+
+#[cfg(not(unix))]
+async fn wait_for_interrupt(installed: impl FnOnce()) -> i32 {
+    let ctrl_c = tokio::signal::ctrl_c();
+    installed();
+    let _ = ctrl_c.await;
+    130
+}
+
+/// Whether pip or npm left anything in the quarantine directory.
+fn has_entries(dir: &Path) -> bool {
+    std::fs::read_dir(dir).is_ok_and(|mut d| d.next().is_some())
+}
+
+/// Nothing was saved to quarantine: there is nothing to scan, which must
+/// never read as a clean result.
+fn nothing_downloaded(manager: &str, spec: &str, allow_build_scripts: bool) -> i32 {
+    eprintln!(
+        "{} {manager} saved nothing into quarantine for `{spec}`, so there is nothing to scan",
+        "error:".bold().red()
+    );
+    if allow_build_scripts {
+        eprintln!(
+            "  {manager} does not copy a local directory into quarantine (pip only builds its \
+             metadata, which ran its build code). To check a file or directory you already \
+             have, scan it where it is: `sigil scan <path>` runs nothing from it."
+        );
+    }
+    EXIT_ERROR
+}
+
 async fn cmd_pip(
     package: &str,
     version: Option<&str>,
+    allow_build_scripts: bool,
     auto_approve: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
-    let pkg_spec = match version {
-        Some(v) => format!("{}=={}", package, v),
-        None => package.to_string(),
-    };
+    if let Some(why) = acquire::version_flag_conflict(acquire::Manager::Pip, package, version) {
+        eprintln!("{} {why}", "error:".bold().red());
+        return EXIT_ERROR;
+    }
+    let pkg_spec = acquire::pip_spec(package, version);
+    if let Some(code) = gate_package_spec(acquire::Manager::Pip, &pkg_spec, allow_build_scripts) {
+        return code;
+    }
 
+    // By default, what pip's environment and config would add to the
+    // download: a requirement, constraint or editable entry is built
+    // whatever --only-binary says. The variables are left out of pip's
+    // environment; a config file that sets one is refused.
+    let mut requirement = None;
+    let mut env_removed: Vec<std::ffi::OsString> = Vec::new();
+    let mut allow_prereleases = false;
+    if !allow_build_scripts {
+        requirement = match acquire::pip_requirement(&pkg_spec) {
+            Ok(r) => Some(r),
+            Err(err) => {
+                eprintln!(
+                    "{} {}",
+                    "error:".bold().red(),
+                    acquire::refusal(acquire::Manager::Pip, &pkg_spec, &err)
+                );
+                return EXIT_ERROR;
+            }
+        };
+        env_removed = acquire::pip_env_to_remove(std::env::vars_os());
+        for k in &env_removed {
+            eprintln!(
+                "{} {} is left out of pip's environment for this download: a requirement, \
+                 constraint or editable entry can name a path or URL that pip would build, \
+                 and a global-, build- or install-option makes pip build source distributions, \
+                 before Sigil scans it",
+                "note:".bold(),
+                k.to_string_lossy()
+            );
+        }
+        let mut config = std::process::Command::new("pip");
+        config.args(["config", "list"]);
+        for k in &env_removed {
+            config.env_remove(k);
+        }
+        let Some(list) = run_for_output(&mut config, "pip config list") else {
+            eprintln!(
+                "  Sigil reads pip's configuration before downloading, to refuse a requirement, \
+                 constraint, editable or build-option setting that pip would build before the \
+                 scan."
+            );
+            return EXIT_ERROR;
+        };
+        let added = acquire::pip_config_added_requirements(&list);
+        if !added.is_empty() {
+            eprintln!(
+                "{} {}",
+                "error:".bold().red(),
+                acquire::pip_config_refusal(&added)
+            );
+            return EXIT_ERROR;
+        }
+        allow_prereleases = acquire::pip_config_allows_prereleases(&list);
+    }
+
+    // An unpinned or ranged spec: the release `pip install` would pick,
+    // whatever its format, so a release with no wheel fails here instead of
+    // the download quietly falling back to an older one that has a wheel.
+    // Looked up before any quarantine entry exists. pip runs in the
+    // caller's directory, as `pip install` would, so relative pip settings
+    // (`PIP_FIND_LINKS=./wheels`) mean the same: the spec check refuses
+    // anything pip could read as a file there.
+    let mut download_spec = pkg_spec.clone();
+    let mut shown_spec = pkg_spec.clone();
+    let mut resolved: Option<String> = None;
+    if let Some(req) = requirement.as_ref().filter(|r| !r.is_pinned()) {
+        let mut index = std::process::Command::new("pip");
+        index.args(acquire::pip_index_args(&req.name));
+        for k in &env_removed {
+            index.env_remove(k);
+        }
+        let listed = run_capturing(&mut index, "pip index versions");
+        let versions = listed
+            .as_ref()
+            .ok()
+            .and_then(|out| acquire::parse_pip_index_versions(out));
+        let Some(versions) = versions else {
+            let pip_said = listed.err().unwrap_or_default();
+            eprintln!(
+                "  {}",
+                acquire::pip_index_failure_hint(&pip_said, &req.name)
+            );
+            return EXIT_ERROR;
+        };
+        let Some(best) = req.best_match(&versions, allow_prereleases) else {
+            let shown: Vec<&str> = versions.iter().take(12).map(String::as_str).collect();
+            eprintln!(
+                "{} no release of `{}` on the index matches `{pkg_spec}` (it lists {}{})",
+                "error:".bold().red(),
+                req.name,
+                shown.join(", "),
+                if versions.len() > shown.len() {
+                    ", …"
+                } else {
+                    ""
+                }
+            );
+            return EXIT_ERROR;
+        };
+        // Pinned by string equality (`===`): `==2.0` also matches `2.0+local1`
+        // on an index that lists both, and pip would take the highest.
+        download_spec = format!("{}==={best}", req.name);
+        shown_spec = format!("{}=={best}", req.name);
+        // The index's version is checked like a typed one: a local label
+        // that ends like an archive (`1.0+x.zip`) would make pip read the
+        // spec as a file in this directory.
+        if let Err(err) = acquire::check_spec(acquire::Manager::Pip, &shown_spec, false) {
+            eprintln!(
+                "{} {}",
+                "error:".bold().red(),
+                acquire::refusal(acquire::Manager::Pip, &shown_spec, &err)
+            );
+            return EXIT_ERROR;
+        }
+        print_progress(
+            format,
+            format!(
+                "{} {} resolves to {} (the release `pip install` picks here)",
+                "sigil:".bold().cyan(),
+                pkg_spec.bold(),
+                shown_spec.bold()
+            ),
+        );
+        resolved = Some(shown_spec.clone());
+    }
     print_progress(
         format,
         format!(
             "{} downloading pip package {} into quarantine...",
             "sigil:".bold().cyan(),
-            pkg_spec.bold()
+            shown_spec.bold()
         ),
     );
 
-    let entry = match quarantine::add(&pkg_spec, "pip") {
+    // Named for the release that is downloaded: what `sigil list` and
+    // `sigil approve` show is the version scanned, not the range typed, and
+    // without extras (`pip download --no-deps` fetches the same file).
+    let recorded = acquire::pip_release_name(&shown_spec);
+    let entry = match quarantine::add(&recorded, "pip") {
         Ok(e) => e,
         Err(err) => {
             eprintln!(
@@ -1740,30 +2202,57 @@ async fn cmd_pip(
             return EXIT_ERROR;
         }
     };
+    let mut pending = PendingEntry::new(&entry.id);
+    let qdir = absolute_entry_path(&entry.path);
 
     if verbose {
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    // Download pip package into quarantine
-    let status = std::process::Command::new("pip")
-        .arg("download")
-        .arg("--no-deps")
-        .arg("--dest")
-        .arg(&entry.path)
-        .arg(&pkg_spec)
-        .status();
-
-    match status {
-        Ok(s) if s.success() => {}
-        _ => {
+    // Download into quarantine: wheels only, by default. With
+    // --allow-build-scripts, as before: any spec, built if need be.
+    let mut pip = std::process::Command::new("pip");
+    pip.args(acquire::pip_download_args(
+        &qdir,
+        &download_spec,
+        allow_build_scripts,
+    ));
+    for k in &env_removed {
+        pip.env_remove(k);
+    }
+    if format != "text" {
+        // pip prints its progress (`Looking in indexes`, `Collecting`, ...) on
+        // stdout; with a machine-readable format stdout is the report and
+        // nothing else, so pip's output goes where Sigil's own progress does.
+        pip.stdout(std::process::Stdio::from(std::io::stderr()));
+    }
+    match run_keeping_stderr(&mut pip) {
+        Ok((s, _)) if s.success() => {}
+        Ok((_, err)) => {
             eprintln!("{} pip download failed", "error:".bold().red());
+            if !allow_build_scripts && acquire::pip_found_no_distribution(&err) {
+                eprintln!(
+                    "  {}",
+                    acquire::pip_wheel_only_hint(&pkg_spec, resolved.as_deref())
+                );
+            }
+            return EXIT_ERROR;
+        }
+        Err(e) => {
+            eprintln!(
+                "{} {}",
+                "error:".bold().red(),
+                spawn_failure("pip download", &e)
+            );
             return EXIT_ERROR;
         }
     }
+    if !has_entries(&qdir) {
+        return nothing_downloaded("pip", &pkg_spec, allow_build_scripts);
+    }
 
     // Extract .whl (zip) and .tar.gz files so the scanner sees actual source
-    let extraction = match extract_archives(&entry.path) {
+    let extraction = match extract_archives(&qdir) {
         Ok(report) => report,
         Err(err) => {
             eprintln!(
@@ -1775,10 +2264,11 @@ async fn cmd_pip(
         }
     };
 
-    let mut result = scanner::run_scan(&entry.path, None, None);
-    apply_extraction_report(&mut result, &extraction, &pkg_spec);
-    apply_container_locator(&mut result, "pip", &pkg_spec);
-    if !print_scan_output(&result, &entry.path, format) {
+    pending.scanning();
+    let mut result = scanner::run_scan(&qdir, None, None);
+    apply_extraction_report(&mut result, &extraction, &recorded);
+    apply_container_locator(&mut result, "pip", &recorded);
+    if !print_scan_output(&result, &qdir, format, Some(&recorded)) {
         return EXIT_ERROR;
     }
 
@@ -1803,23 +2293,19 @@ async fn cmd_pip(
 async fn cmd_npm(
     package: &str,
     version: Option<&str>,
+    allow_build_scripts: bool,
     auto_approve: bool,
     format: &str,
     verbose: bool,
 ) -> i32 {
-    let pkg_spec = match version {
-        Some(v) => format!("{}@{}", package, v),
-        None => package.to_string(),
-    };
-
-    print_progress(
-        format,
-        format!(
-            "{} downloading npm package {} into quarantine...",
-            "sigil:".bold().cyan(),
-            pkg_spec.bold()
-        ),
-    );
+    if let Some(why) = acquire::version_flag_conflict(acquire::Manager::Npm, package, version) {
+        eprintln!("{} {why}", "error:".bold().red());
+        return EXIT_ERROR;
+    }
+    let pkg_spec = acquire::npm_spec(package, version);
+    if let Some(code) = gate_package_spec(acquire::Manager::Npm, &pkg_spec, allow_build_scripts) {
+        return code;
+    }
 
     let entry = match quarantine::add(&pkg_spec, "npm") {
         Ok(e) => e,
@@ -1832,28 +2318,72 @@ async fn cmd_npm(
             return EXIT_ERROR;
         }
     };
+    let mut pending = PendingEntry::new(&entry.id);
+    let qdir = absolute_entry_path(&entry.path);
 
     if verbose {
         eprintln!("quarantine id: {}", entry.id);
     }
 
-    // Download npm package into quarantine
-    let status = std::process::Command::new("npm")
-        .arg("pack")
-        .arg(&pkg_spec)
-        .current_dir(&entry.path)
-        .status();
-
-    match status {
-        Ok(s) if s.success() => {}
-        _ => {
-            eprintln!("{} npm pack failed", "error:".bold().red());
-            return EXIT_ERROR;
+    let mut scanned = pkg_spec.clone();
+    if allow_build_scripts {
+        // As typed, from the caller's directory, so a relative path means
+        // what the user typed; npm writes the tarball to quarantine.
+        print_progress(
+            format,
+            format!(
+                "{} downloading npm package {} into quarantine...",
+                "sigil:".bold().cyan(),
+                pkg_spec.bold()
+            ),
+        );
+        let mut npm = std::process::Command::new("npm");
+        npm.args(acquire::npm_pack_args(&pkg_spec, &qdir));
+        if format != "text" {
+            // `npm pack` prints the tarball's name on stdout, which with a
+            // machine-readable format is the report and nothing else.
+            npm.stdout(std::process::Stdio::from(std::io::stderr()));
+        }
+        match npm.status() {
+            Ok(s) if s.success() => {}
+            Ok(_) => {
+                eprintln!("{} npm pack failed", "error:".bold().red());
+                return EXIT_ERROR;
+            }
+            Err(e) => {
+                eprintln!(
+                    "{} {}",
+                    "error:".bold().red(),
+                    spawn_failure("npm pack", &e)
+                );
+                return EXIT_ERROR;
+            }
+        }
+        if !has_entries(&qdir) {
+            return nothing_downloaded("npm", &pkg_spec, allow_build_scripts);
+        }
+    } else {
+        match download_npm_release(&pkg_spec, &qdir, format).await {
+            Ok(release) => {
+                scanned = release.id();
+                if scanned != pkg_spec {
+                    // The entry was made before the lookup (npm runs from its
+                    // directory): name it for the release now known.
+                    if let Err(err) = quarantine::set_source(&entry.id, &scanned) {
+                        eprintln!(
+                            "{} could not record `{scanned}` on quarantine entry {}: {err}",
+                            "warning:".bold().yellow(),
+                            entry.id
+                        );
+                    }
+                }
+            }
+            Err(code) => return code,
         }
     }
 
     // Extract .tgz files so the scanner sees actual source
-    let extraction = match extract_archives(&entry.path) {
+    let extraction = match extract_archives(&qdir) {
         Ok(report) => report,
         Err(err) => {
             eprintln!(
@@ -1865,10 +2395,11 @@ async fn cmd_npm(
         }
     };
 
-    let mut result = scanner::run_scan(&entry.path, None, None);
-    apply_extraction_report(&mut result, &extraction, &pkg_spec);
-    apply_container_locator(&mut result, "npm", &pkg_spec);
-    if !print_scan_output(&result, &entry.path, format) {
+    pending.scanning();
+    let mut result = scanner::run_scan(&qdir, None, None);
+    apply_extraction_report(&mut result, &extraction, &scanned);
+    apply_container_locator(&mut result, "npm", &scanned);
+    if !print_scan_output(&result, &qdir, format, Some(&scanned)) {
         return EXIT_ERROR;
     }
 
@@ -1888,6 +2419,162 @@ async fn cmd_npm(
     }
 
     acquisition_exit_code(result.verdict)
+}
+
+/// The default `sigil npm`: ask the registry what `pkg_spec` resolves to,
+/// check what it says, and download exactly that release's tarball into
+/// `qdir` (no `npm pack`: see the module docs of `acquire`). The release,
+/// once its tarball is in `qdir` and hashes to the registry's integrity; on
+/// any refusal or failure, the message is printed and the exit code given.
+async fn download_npm_release(
+    pkg_spec: &str,
+    qdir: &Path,
+    format: &str,
+) -> Result<acquire::NpmRelease, i32> {
+    let fail = |msg: String| -> i32 {
+        eprintln!("{} {msg}", "error:".bold().red());
+        EXIT_ERROR
+    };
+    // Ask the registry what the spec resolves to, and check what it says (a
+    // registry's metadata can point a version's tarball at a git repository,
+    // which npm would clone and prepare). Run from the quarantine directory,
+    // an empty one, so no project `.npmrc` of the caller's applies.
+    let mut view = std::process::Command::new("npm");
+    view.args(acquire::npm_view_args(pkg_spec))
+        .current_dir(qdir);
+    let Some(out) = run_for_output(&mut view, "npm view") else {
+        eprintln!("  Sigil asks the registry what `{pkg_spec}` resolves to before downloading it.");
+        return Err(EXIT_ERROR);
+    };
+    // npm exits 0 and prints nothing for a bare name whose package has no
+    // `latest` tag (and for a range nothing matches): say so, rather than
+    // that the output is not JSON. Nothing is downloaded either way.
+    if out.trim().is_empty() {
+        return Err(fail(acquire::npm_view_empty(pkg_spec)));
+    }
+    let mut releases = match acquire::parse_npm_view(&out) {
+        Ok(r) => r,
+        Err(why) => return Err(fail(acquire::npm_view_unreadable(pkg_spec, &why))),
+    };
+    // `npm view <name>` (and `<name>@*`) lists only the `latest` tag, but npm
+    // itself skips a deprecated `latest` for the highest release that is not
+    // deprecated: list them all, so the release scanned is the one an install
+    // gets. Nothing is said when that lookup fails (a package with only
+    // pre-releases lists none); the tag stands.
+    if let [only] = releases.as_slice() {
+        if only.deprecated {
+            if let Some(name) = acquire::npm_name_for_default_pick(pkg_spec) {
+                let mut all = std::process::Command::new("npm");
+                all.args(acquire::npm_view_args(&acquire::npm_all_versions_spec(
+                    &name,
+                )))
+                .current_dir(qdir);
+                let listed = all
+                    .output()
+                    .ok()
+                    .filter(|o| o.status.success())
+                    .and_then(|o| {
+                        acquire::parse_npm_view(&String::from_utf8_lossy(&o.stdout)).ok()
+                    });
+                if let Some(listed) = listed {
+                    releases = listed;
+                }
+            }
+        }
+    }
+    let Some(picked) = acquire::pick_npm_release(&releases).cloned() else {
+        return Err(fail(format!("npm resolved `{pkg_spec}` to no release")));
+    };
+    // The registry answers for the name asked: a release of another package
+    // would be scanned, recorded and reported as if it were the one asked for.
+    if acquire::npm_name_mismatch(pkg_spec, &picked.name) {
+        return Err(fail(acquire::npm_name_refusal(pkg_spec, &picked.id())));
+    }
+    if let Err(why) = acquire::check_npm_tarball_url(&picked.tarball) {
+        return Err(fail(acquire::npm_tarball_refusal(&picked.id(), &why)));
+    }
+    // Where npm would fetch it from: the tarball must be on that host.
+    let Some(registry) = npm_registry_for(&picked.name, qdir) else {
+        eprintln!(
+            "  Sigil reads npm's registry setting to check that the tarball is on the registry's \
+             own host."
+        );
+        return Err(EXIT_ERROR);
+    };
+    let trusted = match acquire::check_npm_tarball_host(&picked.tarball, &registry) {
+        Ok(host) => host,
+        Err(why) => return Err(fail(acquire::npm_host_refusal(&picked.id(), &why))),
+    };
+    // Whether the registry gives a digest Sigil can check, before anything is
+    // downloaded.
+    let digest =
+        match acquire::NpmDigest::new(picked.integrity.as_deref(), picked.shasum.as_deref()) {
+            Ok(d) => d,
+            Err(why) => {
+                return Err(fail(acquire::npm_integrity_refusal(&picked.id(), &why)));
+            }
+        };
+    let scanned = picked.id();
+    if scanned != pkg_spec {
+        print_progress(
+            format,
+            format!(
+                "{} {} resolves to {}",
+                "sigil:".bold().cyan(),
+                pkg_spec.bold(),
+                scanned.bold()
+            ),
+        );
+    }
+    print_progress(
+        format,
+        format!(
+            "{} downloading npm package {} into quarantine...",
+            "sigil:".bold().cyan(),
+            scanned.bold()
+        ),
+    );
+
+    // The tarball, from exactly the URL that was checked: nothing asks the
+    // registry for a second description of the release, and the file's name
+    // is built from the checked name and version, never from the tarball.
+    let dest = qdir.join(acquire::npm_tarball_file_name(
+        &picked.name,
+        &picked.version,
+    ));
+    let policy = ingest::DownloadPolicy {
+        trusted_host: Some(trusted),
+        ..ingest::DownloadPolicy::from_env()
+    };
+    if let Err(why) = ingest::download(&picked.tarball, &dest, &policy).await {
+        return Err(fail(acquire::npm_download_failure(&scanned, &why)));
+    }
+    let checked = std::fs::File::open(&dest)
+        .map_err(|e| format!("could not read the tarball Sigil downloaded: {e}"))
+        .and_then(|f| digest.verify(std::io::BufReader::new(f)));
+    if let Err(why) = checked {
+        let _ = std::fs::remove_file(&dest);
+        return Err(fail(acquire::npm_integrity_refusal(&scanned, &why)));
+    }
+    Ok(picked)
+}
+
+/// The registry npm resolves a package named `name` from: the registry set
+/// for its scope, else the default one (`npm config get`).
+fn npm_registry_for(name: &str, dir: &Path) -> Option<String> {
+    let get = |key: &str| -> Option<String> {
+        let mut cmd = std::process::Command::new("npm");
+        cmd.args(acquire::npm_config_get_args(key)).current_dir(dir);
+        let out = run_for_output(&mut cmd, &format!("npm config get {key}"))?;
+        let value = out.trim();
+        (!value.is_empty() && value != "undefined" && value != "null").then(|| value.to_string())
+    };
+    if let Some((scope, _)) = name.strip_prefix('@').and_then(|r| r.split_once('/')) {
+        if let Some(registry) = get(&format!("@{scope}:registry")) {
+            return Some(registry);
+        }
+    }
+    get("registry")
 }
 
 /// Exit codes, per ADR-0010. These are the CI interface and a compatibility
@@ -2149,8 +2836,21 @@ fn print_progress(format: &str, msg: String) {
 /// JSON document (see `output::print_scan_result_json`). Goes to stdout, or
 /// to the global `--output` file. Returns false when the report could not be
 /// written, which the caller turns into exit 2.
-fn print_scan_output(result: &scanner::ScanResult, path: &Path, format: &str) -> bool {
-    match report::emit(result, &path.to_string_lossy(), format, None) {
+///
+/// `package`: the release `sigil pip`/`npm` downloaded and scanned, which the
+/// JSON report names (`None` for a clone).
+fn print_scan_output(
+    result: &scanner::ScanResult,
+    path: &Path,
+    format: &str,
+    package: Option<&str>,
+) -> bool {
+    let target = path.to_string_lossy();
+    let emitted = match package {
+        Some(package) => report::emit_package(result, &target, format, package),
+        None => report::emit(result, &target, format, None),
+    };
+    match emitted {
         Ok(()) => true,
         Err(e) => {
             eprintln!("{} {e}", "error:".bold().red());
