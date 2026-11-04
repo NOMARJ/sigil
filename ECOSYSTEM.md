@@ -9,7 +9,7 @@ NOMARK is a governance and discipline layer. It does not replace codebase indexi
 | Need | Tool | Why | Install |
 |------|------|-----|---------|
 | **Codebase context** | [Repomix](https://github.com/yamadashy/repomix) | 70% token reduction, XML output optimized for Claude. Eliminates hallucinated file paths. | `npx repomix --mcp` |
-| **Large codebase exploration** | [jcodemunch-mcp](https://github.com/jcodemunch/jcodemunch-mcp) | Token-efficient AST-level code exploration as a live MCP query tool. Fills the gap between Repomix (full dump) and grep (blind search) for large codebases. | MCP server |
+| **Large codebase exploration** | [jcodemunch-mcp](https://github.com/jgravelle/jcodemunch-mcp) | Token-efficient AST-level code exploration as a live MCP query tool. Fills the gap between Repomix (full dump) and grep (blind search) for large codebases. | MCP server |
 | **Parallel sessions** | [Claude Squad](https://github.com/smtg-ai/claude-squad) | Git worktree isolation, tmux-based session management. 3-5x throughput on parallelizable work. | `brew install claude-squad` |
 | **CI/CD review** | [claude-code-action](https://github.com/anthropics/claude-code-action) | Automated PR review. Anthropic reports 16%→54% substantive review coverage. | GitHub Action |
 | **Long sessions** | [context-mode](https://github.com/mksglu/context-mode) | 98% context reduction via sandboxing. Extends sessions from ~30min to ~3hrs. Does not replace auto-clear — it raises the ceiling, not removes the discipline. | Plugin marketplace |
